@@ -657,6 +657,33 @@ function pgEmployees(){
   </table></div></div>`;
 }
 
+
+// TAX CALCULATION - Egyptian Law 91/2005 & Insurance Law 148/2019
+function calcPayroll(basic, allowances, bonuses, taxFreeAllowance, insured){
+  allowances = allowances||0; bonuses = bonuses||0; taxFreeAllowance = taxFreeAllowance||0;
+  if(insured===undefined) insured=true;
+  const gross = basic + allowances + bonuses;
+  const insuranceBase = Math.min(gross, 10400);
+  const empIns = insured ? Math.round(insuranceBase * 0.11) : 0;
+  const emplIns = insured ? Math.round(insuranceBase * 0.1875) : 0;
+  const martyrsFund = Math.round(gross * 0.0005);
+  const monthlyPersonalExemption = 1666.67;
+  const taxBase = Math.max(0, gross - empIns - monthlyPersonalExemption - taxFreeAllowance);
+  const annualTaxBase = taxBase * 12;
+  let annualTax = 0;
+  if(annualTaxBase > 1200000) annualTax = 241375 + (annualTaxBase-1200000)*0.275;
+  else if(annualTaxBase > 400000) annualTax = 61375 + (annualTaxBase-400000)*0.225;
+  else if(annualTaxBase > 200000) annualTax = 21375 + (annualTaxBase-200000)*0.20;
+  else if(annualTaxBase > 70000) annualTax = 1875 + (annualTaxBase-70000)*0.15;
+  else if(annualTaxBase > 55000) annualTax = 375 + (annualTaxBase-55000)*0.10;
+  else if(annualTaxBase > 40000) annualTax = (annualTaxBase-40000)*0.025;
+  const monthlyTax = Math.round(annualTax/12);
+  const totalDeductions = empIns + monthlyTax + martyrsFund;
+  const netSalary = gross - totalDeductions;
+  const employerCost = gross + emplIns;
+  return {gross,empIns,emplIns,martyrsFund,monthlyTax,annualTaxBase,totalDeductions,netSalary,employerCost};
+}
+
 function pgPayroll(){
   const rows=STATE.employees.filter(e=>e.status==='active');
   let tGross=0,tEmpIns=0,tEmplIns=0,tTax=0,tNet=0,tCost=0;
@@ -755,4 +782,57 @@ window.previewSal=function(){
 setTimeout(previewSal,100);
 };
 
->
+
+window.saveEmpSal=async function(docId){
+  const emp=STATE.employees.find(e=>e._docId===docId);if(!emp)return;
+  const sal=parseFloat(document.getElementById('es-sal').value)||0;
+  const allowances=parseFloat(document.getElementById('es-allow').value)||0;
+  const bonuses=parseFloat(document.getElementById('es-bonus').value)||0;
+  const taxFreeAllow=parseFloat(document.getElementById('es-taxfree').value)||0;
+  await fbAdd('employees',{...emp,sal,allowances,bonuses,taxFreeAllow},emp.id);
+  cm();sp('payroll');toast('✅ تم تحديث مكونات المرتب');
+};
+
+window.genPay = async function(){
+  const rows=STATE.employees.filter(e=>e.status==='active');
+  let tGross=0,tEmpIns=0,tEmplIns=0,tTax=0,tMartyrs=0;
+  rows.forEach(e=>{const r=calcPayroll(e.sal||0,e.allowances||0,e.bonuses||0,e.taxFreeAllow||0,e.insured!==false);tGross+=r.gross;tEmpIns+=r.empIns;tEmplIns+=r.emplIns;tTax+=r.monthlyTax;tMartyrs+=r.martyrsFund;});
+  const tNet=tGross-tEmpIns-tTax-tMartyrs;
+  const now=new Date();const mo=(now.getMonth()+1).toString().padStart(2,'0');
+  const id='PAY-'+now.getFullYear()+'-'+mo;
+  await fbAdd('entries',{
+    id,date:now.toISOString().split('T')[0],ref:id,
+    desc:'مسير مرتبات '+mo+'/'+now.getFullYear(),
+    proj:STATE.projects[0]?.code||'P001',loc:'L01',cc:'CC04',
+    lines:[
+      {acc:'5101',an:'رواتب وأجور',dr:tGross,cr:0},
+      {acc:'2103',an:'ضرائب دخل محجوزة',dr:0,cr:tTax},
+      {acc:'5103',an:'تأمينات اجتماعية صاحب عمل',dr:tEmplIns,cr:0},
+      {acc:'2103',an:'تأمينات موظفين محجوزة',dr:0,cr:tEmpIns},
+      {acc:'110102',an:'بنك مصر - صافي المرتبات',dr:0,cr:tNet}
+    ],status:'posted'},id);
+  toast('✅ تم إنشاء قيد المرتبات');
+};
+
+window.setActiveNav = function(el){
+  document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  hideMore();
+};
+window.showMoreMenu = function(){
+  const m=document.getElementById('more-menu');
+  m.style.display=m.style.display==='none'?'block':'none';
+};
+window.hideMore = ()=>{ const m=document.getElementById('more-menu'); if(m) m.style.display='none'; };
+
+const _sp_orig = window.sp;
+window.sp = function(n){
+  if(_sp_orig) _sp_orig(n);
+  hideMore();
+};
+
+// START
+loadAll();
+</script>
+</body>
+</html>
