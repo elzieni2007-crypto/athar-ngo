@@ -369,49 +369,92 @@ const DEFAULTS = {
   ],
 };
 
-// Seed collections if empty
+// seedIfEmpty - kept for reference but not used in new loadAll
 async function seedIfEmpty(colName, data) {
-  const snap = await getDocs(collection(db, colName));
-  if (snap.empty) {
-    toast(`جاري إعداد بيانات ${colName}...`);
-    for (const item of data) {
-      const id = item.code || item.c || item.id || item.ref || Math.random().toString(36).slice(2);
-      await setDoc(doc(db, colName, id), { ...item, _createdAt: Date.now() });
+  try {
+    const snap = await getDocs(collection(db, colName));
+    if (snap.empty) {
+      for (const item of data) {
+        const id = item.code || item.c || item.id || Math.random().toString(36).slice(2);
+        await setDoc(doc(db, colName, id), { ...item, _t: Date.now() });
+      }
     }
-  }
+  } catch(e) { console.warn('seedIfEmpty error:', colName, e.message); }
 }
 
 // ── LOAD ALL DATA ─────────────────────────────────────
 async function loadAll() {
+  // Show loading
+  document.getElementById('content').innerHTML = '<div class="loading"><div class="spinner"></div> جاري التحميل...</div>';
+  
   try {
-    // Seed defaults first
-    await seedIfEmpty('accounts', DEFAULTS.accounts);
-    await seedIfEmpty('projects', DEFAULTS.projects);
-    await seedIfEmpty('locations', DEFAULTS.locations);
-    await seedIfEmpty('costCenters', DEFAULTS.costCenters);
-    await seedIfEmpty('thematicAreas', DEFAULTS.thematicAreas);
-    await seedIfEmpty('employees', DEFAULTS.employees);
-    await seedIfEmpty('inventory', DEFAULTS.inventory);
-    await seedIfEmpty('entries', DEFAULTS.entries);
-
-    // Load all
+    // Load collections one by one with timeout protection
     const cols = ['accounts','projects','locations','costCenters','thematicAreas','employees','inventory','entries','stockMovements'];
+    
     for (const col of cols) {
-      const snap = await getDocs(collection(db, col));
-      const key = col === 'costCenters' ? 'costCenters' : col;
-      STATE[key] = snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
+      try {
+        const snap = await getDocs(collection(db, col));
+        STATE[col] = snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
+      } catch(colErr) {
+        console.warn('Could not load', col, colErr.message);
+        STATE[col] = [];
+      }
     }
 
-    // Sort accounts by code
+    // Seed defaults if empty
+    if(STATE.accounts.length === 0) {
+      for (const item of DEFAULTS.accounts) {
+        try { await setDoc(doc(db,'accounts',item.c), {...item,_t:Date.now()}); } catch(e){}
+      }
+      STATE.accounts = DEFAULTS.accounts.map(d=>({_docId:d.c,...d}));
+    }
+    if(STATE.projects.length === 0) {
+      for (const item of DEFAULTS.projects) {
+        try { await setDoc(doc(db,'projects',item.code), {...item,_t:Date.now()}); } catch(e){}
+      }
+      STATE.projects = DEFAULTS.projects.map(d=>({_docId:d.code,...d}));
+    }
+    if(STATE.locations.length === 0) STATE.locations = DEFAULTS.locations.map(d=>({_docId:d.code,...d}));
+    if(STATE.costCenters.length === 0) STATE.costCenters = DEFAULTS.costCenters.map(d=>({_docId:d.code,...d}));
+    if(STATE.thematicAreas.length === 0) STATE.thematicAreas = DEFAULTS.thematicAreas.map(d=>({_docId:d.code,...d}));
+    if(STATE.employees.length === 0) {
+      for (const item of DEFAULTS.employees) {
+        try { await setDoc(doc(db,'employees',item.id), {...item,_t:Date.now()}); } catch(e){}
+      }
+      STATE.employees = DEFAULTS.employees.map(d=>({_docId:d.id,...d}));
+    }
+    if(STATE.inventory.length === 0) {
+      for (const item of DEFAULTS.inventory) {
+        try { await setDoc(doc(db,'inventory',item.code), {...item,_t:Date.now()}); } catch(e){}
+      }
+      STATE.inventory = DEFAULTS.inventory.map(d=>({_docId:d.code,...d}));
+    }
+    if(STATE.entries.length === 0) {
+      for (const item of DEFAULTS.entries) {
+        try { await setDoc(doc(db,'entries',item.id), {...item,_t:Date.now()}); } catch(e){}
+      }
+      STATE.entries = DEFAULTS.entries.map(d=>({_docId:d.id,...d}));
+    }
+
+    // Sort
     STATE.accounts.sort((a,b) => (a.c||'').localeCompare(b.c||''));
     STATE.entries.sort((a,b) => (a.id||'').localeCompare(b.id||''));
 
-    document.getElementById('tb-org-badge').textContent = STATE.org.name;
+    const badge = document.getElementById('tb-org-badge');
+    if(badge) badge.textContent = STATE.org.name;
+    
     sp('dashboard');
-    toast('✅ تم تحميل البيانات من Firebase');
+    toast('✅ تم تحميل البيانات');
+    
   } catch(e) {
-    console.error(e);
-    document.getElementById('content').innerHTML = `<div style="padding:40px;text-align:center;color:var(--red);">❌ خطأ في الاتصال بـ Firebase<br><small>${e.message}</small></div>`;
+    console.error('loadAll error:', e);
+    document.getElementById('content').innerHTML = `
+      <div style="padding:30px;text-align:center;">
+        <div style="font-size:40px;margin-bottom:14px;">❌</div>
+        <div style="font-weight:800;font-size:16px;color:var(--red);margin-bottom:8px;">خطأ في الاتصال بـ Firebase</div>
+        <div style="font-size:12px;color:var(--g400);margin-bottom:16px;">${e.message}</div>
+        <button class="btn bp" onclick="loadAll()">🔄 إعادة المحاولة</button>
+      </div>`;
   }
 }
 
@@ -428,10 +471,12 @@ window.fbDel = async (col, docId) => {
   toast('🗑️ تم الحذف');
 };
 async function reloadCol(col) {
-  const snap = await getDocs(collection(db, col));
-  STATE[col] = snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
-  if (col === 'accounts') STATE.accounts.sort((a,b) => (a.c||'').localeCompare(b.c||''));
-  if (col === 'entries') STATE.entries.sort((a,b) => (a.id||'').localeCompare(b.id||''));
+  try {
+    const snap = await getDocs(collection(db, col));
+    STATE[col] = snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
+    if (col === 'accounts') STATE.accounts.sort((a,b) => (a.c||'').localeCompare(b.c||''));
+    if (col === 'entries') STATE.entries.sort((a,b) => (a.id||'').localeCompare(b.id||''));
+  } catch(e) { console.warn('reloadCol error:', col, e.message); }
 }
 
 // ── HELPERS ───────────────────────────────────────────
