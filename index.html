@@ -101,7 +101,7 @@ tfoot td{padding:10px 12px;}
 
 .mo{position:fixed;inset:0;background:rgba(15,30,53,.6);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
 .mo.open{display:flex;}
-.mb-box{background:var(--white);border-radius:16px;width:92%;max-width:800px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);animation:mIn .25s ease;}
+.mb-box{background:var(--white);border-radius:16px;width:96%;max-width:800px;max-height:95vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);animation:mIn .25s ease;}
 @keyframes mIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
 .mh{padding:15px 20px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,var(--navy-d),var(--navy-m));border-radius:16px 16px 0 0;}
 .mt-modal{font-size:14px;font-weight:800;color:white;font-family:'Tajawal',sans-serif;}
@@ -123,16 +123,35 @@ tfoot td{padding:10px 12px;}
 .act{font-size:10.5px;font-family:monospace;background:var(--g100);color:var(--g500);padding:2px 5px;border-radius:4px;flex-shrink:0;}
 .el{display:grid;grid-template-columns:185px 1fr 115px 115px 34px;gap:5px;align-items:center;margin-bottom:5px;}
 
+/* BOTTOM NAV MOBILE */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:56px;background:var(--navy-d);z-index:150;border-top:1px solid rgba(255,255,255,.15);flex-direction:row;align-items:center;justify-content:space-around;}
+.bn-item{display:flex;flex-direction:column;align-items:center;gap:2px;color:rgba(255,255,255,.55);cursor:pointer;padding:6px 10px;border-radius:8px;transition:all .18s;font-size:9px;font-family:'Cairo',sans-serif;}
+.bn-item:hover,.bn-item.active{color:#fff;background:rgba(41,171,226,.2);}
+.bn-item span:first-child{font-size:18px;}
+
 @media(max-width:768px){
-  .sidebar{transform:translateX(100%);transition:transform .28s;}
-  .sidebar.open{transform:translateX(0);}
+  .sidebar{display:none;}
   .main{margin-right:0;}
-  .sr{grid-template-columns:1fr 1fr;}
+  .bottom-nav{display:flex;}
+  .content{padding:12px 10px 70px;}
+  .topbar{padding:0 12px;}
+  .tb-title{font-size:14px;}
+  .sr{grid-template-columns:1fr 1fr;gap:10px;}
+  .sc{padding:12px;}
+  .sv{font-size:16px;}
   .g2,.g3,.g4{grid-template-columns:1fr;}
   .el{grid-template-columns:1fr 1fr;}
-  .content{padding:14px;}
+  .hero{padding:16px;}
+  .hero div:first-child div:first-child{font-size:18px!important;}
+  table{font-size:11px;}
+  thead th{padding:7px 8px;font-size:10px;}
+  tbody td{padding:7px 8px;}
+  .card{border-radius:10px;}
+  /* Dashboard grid to single column on mobile */
+  #dashboard-grid{grid-template-columns:1fr!important;}
+  .modal-box-inner{width:96%!important;max-height:95vh!important;}
 }
-@media print{.sidebar,.topbar,.np{display:none!important;}.main{margin-right:0!important;}}
+@media print{.bottom-nav,.topbar,.np{display:none!important;}.main{margin-right:0!important;}}
 </style>
 </head>
 <body>
@@ -195,6 +214,31 @@ tfoot td{padding:10px 12px;}
     <div class="loading"><div class="spinner"></div> جاري تحميل البيانات من Firebase...</div>
   </div>
 </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav" id="bottom-nav">
+  <div class="bn-item active" onclick="sp('dashboard');setActiveNav(this)"><span>📊</span>الرئيسية</div>
+  <div class="bn-item" onclick="sp('journal');setActiveNav(this)"><span>📝</span>القيود</div>
+  <div class="bn-item" onclick="sp('projects');setActiveNav(this)"><span>🎯</span>المشروعات</div>
+  <div class="bn-item" onclick="sp('bva');setActiveNav(this)"><span>📉</span>BVA</div>
+  <div class="bn-item" onclick="showMoreMenu()"><span>☰</span>المزيد</div>
+</nav>
+
+<!-- MORE MENU -->
+<div id="more-menu" style="display:none;position:fixed;bottom:56px;left:0;right:0;background:var(--navy-d);z-index:149;border-top:1px solid rgba(255,255,255,.15);padding:8px;">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+    <div class="bn-item" onclick="sp('accounts');hideMore()" style="background:rgba(255,255,255,.05);"><span>🌳</span>الحسابات</div>
+    <div class="bn-item" onclick="sp('trial');hideMore()" style="background:rgba(255,255,255,.05);"><span>⚖️</span>ميزان</div>
+    <div class="bn-item" onclick="sp('bs');hideMore()" style="background:rgba(255,255,255,.05);"><span>📈</span>ميزانية</div>
+    <div class="bn-item" onclick="sp('income');hideMore()" style="background:rgba(255,255,255,.05);"><span>💰</span>الدخل</div>
+    <div class="bn-item" onclick="sp('banks');hideMore()" style="background:rgba(255,255,255,.05);"><span>🏦</span>البنوك</div>
+    <div class="bn-item" onclick="sp('inventory');hideMore()" style="background:rgba(255,255,255,.05);"><span>📦</span>المخازن</div>
+    <div class="bn-item" onclick="sp('employees');hideMore()" style="background:rgba(255,255,255,.05);"><span>👥</span>الموظفين</div>
+    <div class="bn-item" onclick="sp('payroll');hideMore()" style="background:rgba(255,255,255,.05);"><span>💳</span>المرتبات</div>
+    <div class="bn-item" onclick="sp('costcenters');hideMore()" style="background:rgba(255,255,255,.05);"><span>🏢</span>التكلفة</div>
+    <div class="bn-item" onclick="sp('settings');hideMore()" style="background:rgba(255,255,255,.05);"><span>⚙️</span>الإعدادات</div>
+  </div>
 </div>
 
 <div class="mo" id="modal">
@@ -426,7 +470,7 @@ function pgDashboard(){
     <div class="sc"><div class="si" style="background:#d1fae5;">🏦</div><div><div class="sv" style="color:var(--green);">${fmtK(bank)}</div><div class="sl">رصيد البنوك</div></div></div>
     <div class="sc"><div class="si" style="background:var(--sky-p);">💵</div><div><div class="sv" style="color:var(--sky);">${fmtK(cash)}</div><div class="sl">رصيد الخزينة</div></div></div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+  <div id="dashboard-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
     <div class="card">
       <div class="ch"><div class="cht">📉 المشروعات</div><button class="btn bsk bsm" onclick="sp('bva')">BVA</button></div>
       <div class="tw"><table>
@@ -802,6 +846,25 @@ window.saveEmp = async function(){
 window.delEmp = async(id)=>{ if(confirm('تأكيد حذف الموظف؟')){await fbDel('employees',id);sp('employees');} };
 
 window.saveSettings = ()=>{ STATE.org.name=document.getElementById('set-name').value; document.getElementById('tb-org-badge').textContent=STATE.org.name; toast('✅ تم الحفظ'); };
+
+// BOTTOM NAV
+window.setActiveNav = function(el){
+  document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  hideMore();
+};
+window.showMoreMenu = function(){
+  const m=document.getElementById('more-menu');
+  m.style.display=m.style.display==='none'?'block':'none';
+};
+window.hideMore = ()=>{ document.getElementById('more-menu').style.display='none'; };
+
+// Override sp to also update bottom nav
+const _sp = window.sp;
+window.sp = function(n){
+  _sp(n);
+  hideMore();
+};
 
 // START
 loadAll();
