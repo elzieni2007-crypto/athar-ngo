@@ -250,6 +250,39 @@ tfoot td{padding:10px 12px;}
 <div class="toast" id="toast"></div>
 
 <!-- FIREBASE -->
+<script>
+// Stub functions - replaced when module loads
+window._pendingNav = null;
+window.sp = function(n){ window._pendingNav = n; };
+window.stab = function(btn,id){
+  try {
+    btn.closest('.tabs').querySelectorAll('.tb-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tp').forEach(p=>p.classList.remove('active'));
+    var el = document.getElementById(id);
+    if(el) el.classList.add('active');
+  } catch(e){}
+};
+window.toggleSB = function(){ var s=document.getElementById('sidebar'); if(s) s.classList.toggle('open'); };
+window.cm = function(){ var m=document.getElementById('modal'); if(m) m.classList.remove('open'); };
+window.om = function(t,b){
+  var mt=document.getElementById('mt'); if(mt) mt.textContent=t;
+  var mb=document.getElementById('mbdy'); if(mb) mb.innerHTML=b;
+  var mo=document.getElementById('modal'); if(mo) mo.classList.add('open');
+};
+window.showMoreMenu = function(){
+  var m=document.getElementById('more-menu');
+  if(m) m.style.display = m.style.display==='none'||m.style.display==='' ? 'block' : 'none';
+};
+window.hideMore = function(){
+  var m=document.getElementById('more-menu'); if(m) m.style.display='none';
+};
+window.setActiveNav = function(el){
+  document.querySelectorAll('.bn-item').forEach(function(b){b.classList.remove('active');});
+  if(el) el.classList.add('active');
+  window.hideMore();
+};
+</script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, doc, addDoc, getDocs, setDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp }
@@ -384,20 +417,46 @@ async function seedIfEmpty(colName, data) {
 
 // ── LOAD ALL DATA ─────────────────────────────────────
 async function loadAll() {
-  // Show loading
-  document.getElementById('content').innerHTML = '<div class="loading"><div class="spinner"></div> جاري التحميل...</div>';
-  
+  // Load local defaults immediately so UI shows fast
+  STATE.accounts = DEFAULTS.accounts.map(d=>({_docId:d.c,...d}));
+  STATE.projects = DEFAULTS.projects.map(d=>({_docId:d.code,...d}));
+  STATE.locations = DEFAULTS.locations.map(d=>({_docId:d.code,...d}));
+  STATE.costCenters = DEFAULTS.costCenters.map(d=>({_docId:d.code,...d}));
+  STATE.thematicAreas = DEFAULTS.thematicAreas.map(d=>({_docId:d.code,...d}));
+  STATE.employees = DEFAULTS.employees.map(d=>({_docId:d.id,...d}));
+  STATE.inventory = DEFAULTS.inventory.map(d=>({_docId:d.code,...d}));
+  STATE.entries = DEFAULTS.entries.map(d=>({_docId:d.id,...d}));
+  STATE.stockMovements = [];
+
+  // Show dashboard immediately with local data
+  const badge = document.getElementById('tb-org-badge');
+  if(badge) badge.textContent = STATE.org.name;
+  // Handle any nav that happened before module loaded
+  if(window._pendingNav && window._pendingNav !== 'dashboard') {
+    sp(window._pendingNav);
+  } else {
+    sp('dashboard');
+  }
+  window._pendingNav = null;
+
+  // Then sync Firebase in background
   try {
-    // Load collections one by one with timeout protection
     const cols = ['accounts','projects','locations','costCenters','thematicAreas','employees','inventory','entries','stockMovements'];
-    
     for (const col of cols) {
       try {
         const snap = await getDocs(collection(db, col));
-        STATE[col] = snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
+        if(!snap.empty) {
+          STATE[col] = snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
+        } else {
+          // Seed Firebase with defaults
+          const defaults = DEFAULTS[col] || [];
+          for (const item of defaults) {
+            const id = item.code||item.c||item.id||Math.random().toString(36).slice(2);
+            try { await setDoc(doc(db,col,id),{...item,_t:Date.now()}); } catch(e){}
+          }
+        }
       } catch(colErr) {
         console.warn('Could not load', col, colErr.message);
-        STATE[col] = [];
       }
     }
 
@@ -436,25 +495,15 @@ async function loadAll() {
       STATE.entries = DEFAULTS.entries.map(d=>({_docId:d.id,...d}));
     }
 
-    // Sort
+    // Sort after Firebase sync
     STATE.accounts.sort((a,b) => (a.c||'').localeCompare(b.c||''));
     STATE.entries.sort((a,b) => (a.id||'').localeCompare(b.id||''));
-
-    const badge = document.getElementById('tb-org-badge');
-    if(badge) badge.textContent = STATE.org.name;
-    
+    // Refresh current page with Firebase data
     sp('dashboard');
-    toast('✅ تم تحميل البيانات');
-    
+    toast('✅ تمت مزامنة Firebase');
   } catch(e) {
-    console.error('loadAll error:', e);
-    document.getElementById('content').innerHTML = `
-      <div style="padding:30px;text-align:center;">
-        <div style="font-size:40px;margin-bottom:14px;">❌</div>
-        <div style="font-weight:800;font-size:16px;color:var(--red);margin-bottom:8px;">خطأ في الاتصال بـ Firebase</div>
-        <div style="font-size:12px;color:var(--g400);margin-bottom:16px;">${e.message}</div>
-        <button class="btn bp" onclick="loadAll()">🔄 إعادة المحاولة</button>
-      </div>`;
+    console.error('Firebase sync error:', e);
+    toast('⚠️ يعمل بالبيانات المحلية');
   }
 }
 
@@ -897,11 +946,11 @@ window.stab = function(btn,id){
 
 window.toggleSB = ()=>document.getElementById('sidebar')?.classList.toggle('open');
 window.om = function(t,b){
-  document.getElementById('mt').textContent=t;
-  document.getElementById('mbdy').innerHTML=b;
-  document.getElementById('modal').classList.add('open');
+  var mt=document.getElementById('mt'); if(mt) mt.textContent=t;
+  var mb=document.getElementById('mbdy'); if(mb) mb.innerHTML=b;
+  var mo=document.getElementById('modal'); if(mo) mo.classList.add('open');
 };
-window.cm = ()=>document.getElementById('modal').classList.remove('open');
+window.cm = ()=>{ var m=document.getElementById('modal'); if(m) m.classList.remove('open'); };
 
 window.setActiveNav = function(el){
   document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active'));
