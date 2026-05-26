@@ -207,8 +207,7 @@ tfoot td{padding:10px 12px;}
     <div class="tb-r">
       <span class="badge bsk2" id="tb-org-badge">جاري التحميل...</span>
       <span class="badge bn">2025</span>
-      <button class="btn bo bsm np" onclick="window.print()">🖨️</button>
-    </div>
+      </div>
   </div>
   <div class="content" id="content">
     <div class="loading"><div class="spinner"></div> جاري تحميل البيانات من Firebase...</div>
@@ -278,7 +277,7 @@ window.toast = toast;
 
 // ── FORMAT ────────────────────────────────────────────
 function fmt(n){return(n||0).toLocaleString('ar-EG',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function fmtK(n){if(n>=1000000)return(n/1000000).toFixed(1)+'م';if(n>=1000)return(n/1000).toFixed(0)+'ك';return n;}
+function fmtK(n){if(n>=1000000)return(n/1000000).toFixed(2)+' مليون';if(n>=1000)return(n/1000).toFixed(0)+' ألف';return fmt(n);}
 window.fmt=fmt; window.fmtK=fmtK;
 
 // ── STATE ─────────────────────────────────────────────
@@ -464,18 +463,18 @@ function pgDashboard(){
       <div style="margin-top:10px;font-size:10px;opacity:.5;">🔥 متصل بـ Firebase | البيانات محفوظة في السحابة</div>
     </div>
   </div>
-  <div class="sr">
-    <div class="sc"><div class="si" style="background:#dbeafe;">💰</div><div><div class="sv">${fmtK(tG)}</div><div class="sl">إجمالي المنح (ج.م)</div></div></div>
-    <div class="sc"><div class="si" style="background:#fee2e2;">📤</div><div><div class="sv" style="color:var(--red);">${fmtK(tE)}</div><div class="sl">إجمالي المصروفات</div></div></div>
-    <div class="sc"><div class="si" style="background:#d1fae5;">🏦</div><div><div class="sv" style="color:var(--green);">${fmtK(bank)}</div><div class="sl">رصيد البنوك</div></div></div>
-    <div class="sc"><div class="si" style="background:var(--sky-p);">💵</div><div><div class="sv" style="color:var(--sky);">${fmtK(cash)}</div><div class="sl">رصيد الخزينة</div></div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+    <div class="sc"><div class="si" style="background:#dbeafe;">💰</div><div><div style="font-size:13px;font-weight:900;color:var(--navy);">${fmt(tG)}</div><div class="sl">إجمالي المنح</div></div></div>
+    <div class="sc"><div class="si" style="background:#fee2e2;">📤</div><div><div style="font-size:13px;font-weight:900;color:var(--red);">${fmt(tE)}</div><div class="sl">المصروفات</div></div></div>
+    <div class="sc"><div class="si" style="background:#d1fae5;">🏦</div><div><div style="font-size:13px;font-weight:900;color:var(--green);">${fmt(bank)}</div><div class="sl">رصيد البنوك</div></div></div>
+    <div class="sc"><div class="si" style="background:var(--sky-p);">💵</div><div><div style="font-size:13px;font-weight:900;color:var(--sky);">${fmt(cash)}</div><div class="sl">رصيد الخزينة</div></div></div>
   </div>
   <div id="dashboard-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
     <div class="card">
       <div class="ch"><div class="cht">📉 المشروعات</div><button class="btn bsk bsm" onclick="sp('bva')">BVA</button></div>
       <div class="tw"><table>
         <thead><tr><th>المشروع</th><th>الموازنة</th><th>الصرف</th><th>%</th></tr></thead>
-        <tbody>${STATE.projects.map(p=>{const pc=Math.round((p.spent/p.budget)*100);const cl=pc>90?'pov':pc>70?'pwn':'pok';return`<tr><td><div style="font-weight:700;font-size:12px;">${p.name}</div><div style="font-size:10px;color:var(--g400);">${p.code}·${p.donor}</div></td><td class="tn" style="font-size:11.5px;">${fmtK(p.budget)}</td><td class="tn tdr" style="font-size:11.5px;">${fmtK(p.spent)}</td><td><div class="pw" style="width:55px;"><div class="pb ${cl}" style="width:${Math.min(pc,100)}%;"></div></div><div style="font-size:10px;margin-top:2px;">${pc}%</div></td></tr>`;}).join('')}</tbody>
+        <tbody>${STATE.projects.map(p=>{const pc=Math.round((p.spent/p.budget)*100);const cl=pc>90?'pov':pc>70?'pwn':'pok';return`<tr><td><div style="font-weight:700;font-size:12px;">${p.name}</div><div style="font-size:10px;color:var(--g400);">${p.code}·${p.donor}</div></td><td class="tn" style="font-size:11px;">${fmt(p.budget)}</td><td class="tn tdr" style="font-size:11px;">${fmt(p.spent)}</td><td><div class="pw" style="width:55px;"><div class="pb ${cl}" style="width:${Math.min(pc,100)}%;"></div></div><div style="font-size:10px;margin-top:2px;">${pc}%</div></td></tr>`;}).join('')}</tbody>
       </table></div>
     </div>
     <div class="card">
@@ -660,228 +659,100 @@ function pgEmployees(){
 
 function pgPayroll(){
   const rows=STATE.employees.filter(e=>e.status==='active');
-  const tG=rows.reduce((s,e)=>s+(e.sal||0),0);const tT=rows.reduce((s,e)=>s+Math.round((e.sal||0)*.1),0);const tI=rows.reduce((s,e)=>s+Math.round((e.sal||0)*.11),0);const tN=tG-tT-tI;
-  return`
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-    <div><div style="font-size:18px;font-weight:900;font-family:'Tajawal',sans-serif;color:var(--navy);">💳 مسير المرتبات</div><div style="font-size:11px;color:var(--g400);">شهر مايو 2025</div></div>
-    <div style="display:flex;gap:7px;"><button class="btn bg np" onclick="genPay()">✅ إنشاء قيد المرتبات</button><button class="btn bo bsm np" onclick="window.print()">🖨️</button></div>
-  </div>
-  <div class="card"><div class="tw"><table>
-    <thead><tr><th>الموظف</th><th>المسمى</th><th>الراتب</th><th>ض.دخل 10%</th><th>تأمين 11%</th><th>الصافي</th></tr></thead>
-    <tbody>${rows.map(e=>{const tx=Math.round((e.sal||0)*.1);const ins=Math.round((e.sal||0)*.11);const net=(e.sal||0)-tx-ins;return`<tr><td style="font-weight:700;">${e.name}</td><td style="font-size:11px;">${e.pos}</td><td class="tn">${fmt(e.sal)}</td><td class="tn tdr">${fmt(tx)}</td><td class="tn tdr">${fmt(ins)}</td><td class="tn tcr" style="font-weight:700;">${fmt(net)}</td></tr>`;}).join('')}</tbody>
-    <tfoot><tr style="background:var(--navy);"><td colspan="2" style="color:white;font-weight:900;padding:10px 12px;">الإجمالي</td><td class="tn" style="color:white;font-weight:800;">${fmt(tG)}</td><td class="tn" style="color:white;font-weight:800;">${fmt(tT)}</td><td class="tn" style="color:white;font-weight:800;">${fmt(tI)}</td><td class="tn" style="color:white;font-weight:800;">${fmt(tN)}</td></tr></tfoot>
-  </table></div></div>`;
-}
-
-function pgCostCenters(){
-  return`
-  <div style="font-size:18px;font-weight:900;font-family:'Tajawal',sans-serif;color:var(--navy);margin-bottom:18px;">🏢 مراكز التكلفة</div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
-    ${STATE.costCenters.map(cc=>{const ents=STATE.entries.filter(e=>e.cc===cc.code&&e.status==='posted');const sp=ents.reduce((s,e)=>{(e.lines||[]).forEach(l=>{if((l.acc||'').startsWith('5'))s+=(l.dr||0);});return s;},0);return`<div class="card"><div class="cb"><span class="badge bgr">${cc.code}</span><div style="font-weight:700;margin-top:10px;font-size:13.5px;">${cc.name}</div><div style="margin-top:10px;"><div style="font-size:10px;color:var(--g400);">إجمالي المصروفات</div><div style="font-size:17px;font-weight:900;color:var(--navy);">${fmt(sp)} <span style="font-size:10.5px;color:var(--g400);">ج.م</span></div></div><div style="font-size:10.5px;color:var(--g400);margin-top:8px;">${ents.length} قيد</div></div></div>`;}).join('')}
-  </div>`;
-}
-
-function pgSettings(){
-  return`
-  <div style="font-size:18px;font-weight:900;font-family:'Tajawal',sans-serif;color:var(--navy);margin-bottom:18px;">⚙️ الإعدادات</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-    <div class="card"><div class="ch"><div class="cht">بيانات الجمعية</div></div><div class="cb"><div class="fg" style="gap:10px;">
-      <div class="fgrp"><label class="flbl">اسم الجمعية</label><input class="fc" id="set-name" value="${STATE.org.name}"></div>
-      <div class="fgrp"><label class="flbl">السنة المالية</label><input class="fc" id="set-year" value="${STATE.org.year}"></div>
-      <button class="btn bp" onclick="saveSettings()">💾 حفظ</button>
-    </div></div></div>
-    <div class="card"><div class="ch"><div class="cht">🔥 Firebase Status</div></div><div class="cb">
-      <div style="background:var(--gbg);border-radius:9px;padding:14px;margin-bottom:12px;">
-        <div style="font-weight:800;color:#065f46;font-size:13px;">✅ متصل بـ Firebase</div>
-        <div style="font-size:11px;color:#065f46;margin-top:4px;">Project: athar-ngo</div>
-        <div style="font-size:11px;color:#065f46;">البيانات محفوظة في السحابة</div>
-      </div>
-      <div style="font-size:12px;color:var(--g500);line-height:1.9;">
-        <div>📊 ${STATE.accounts.length} حساب محاسبي</div>
-        <div>🎯 ${STATE.projects.length} مشروع</div>
-        <div>📝 ${STATE.entries.length} قيد يومية</div>
-        <div>👥 ${STATE.employees.length} موظف</div>
-        <div>📦 ${STATE.inventory.length} صنف مخزون</div>
-      </div>
-    </div></div>
-  </div>`;
-}
-
-// ── NAVIGATION ────────────────────────────────────────
-const PAGES={
-  dashboard:{t:'لوحة التحكم',fn:pgDashboard},
-  accounts:{t:'شجرة الحسابات',fn:pgAccounts},
-  journal:{t:'قيود اليومية',fn:pgJournal},
-  trial:{t:'ميزان المراجعة',fn:pgTrial},
-  bs:{t:'الميزانية العمومية',fn:pgBS},
-  income:{t:'قائمة الدخل',fn:pgIncome},
-  projects:{t:'المشروعات',fn:pgProjects},
-  bva:{t:'متابعة BVA',fn:pgBVA},
-  costcenters:{t:'مراكز التكلفة',fn:pgCostCenters},
-  banks:{t:'البنوك والخزينة',fn:pgBanks},
-  inventory:{t:'المخازن',fn:pgInventory},
-  employees:{t:'الموظفين',fn:pgEmployees},
-  payroll:{t:'مسير المرتبات',fn:pgPayroll},
-  settings:{t:'الإعدادات',fn:pgSettings},
-};
-window.sp = function(n){
-  const p=PAGES[n];if(!p)return;
-  document.getElementById('content').innerHTML=p.fn();
-  document.getElementById('tb-title').textContent=p.t;
-  document.querySelectorAll('.ni').forEach(el=>el.classList.toggle('active',el.getAttribute('onclick')?.includes("'"+n+"'")));
-  window.scrollTo(0,0);
-};
-window.stab = function(btn,id){
-  btn.closest('.tabs').querySelectorAll('.tb-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('.tp').forEach(p=>p.classList.remove('active'));
-  document.getElementById(id)?.classList.add('active');
-};
-window.toggleSB = ()=>document.getElementById('sidebar').classList.toggle('open');
-
-// ── MODALS ────────────────────────────────────────────
-window.om = function(t,b){document.getElementById('mt').textContent=t;document.getElementById('mbdy').innerHTML=b;document.getElementById('modal').classList.add('open');}
-window.cm = ()=>document.getElementById('modal').classList.remove('open');
-
-window.viewE = function(id){
-  const e=STATE.entries.find(x=>x.id===id);if(!e)return;
-  const tD=(e.lines||[]).reduce((s,l)=>s+(l.dr||0),0),tC=(e.lines||[]).reduce((s,l)=>s+(l.cr||0),0);
-  const pr=STATE.projects.find(p=>p.code===e.proj),cc=STATE.costCenters.find(c=>c.code===e.cc);
-  const ok=Math.abs(tD-tC)<0.01;
-  om('عرض قيد — '+e.id,`
-    <div class="fg g3" style="margin-bottom:14px;gap:10px;"><div><div style="font-size:10.5px;color:var(--g400);">رقم القيد</div><div style="font-weight:700;">${e.id}</div></div><div><div style="font-size:10.5px;color:var(--g400);">التاريخ</div><div style="font-weight:700;">${e.date}</div></div><div><div style="font-size:10.5px;color:var(--g400);">المرجع</div><div style="font-weight:700;">${e.ref}</div></div><div><div style="font-size:10.5px;color:var(--g400);">المشروع</div><div style="font-weight:700;">${pr?.name||'-'}</div></div><div><div style="font-size:10.5px;color:var(--g400);">مركز التكلفة</div><div style="font-weight:700;">${cc?.name||'-'}</div></div></div>
-    <div style="padding:9px 12px;background:var(--sky-p);border-radius:7px;border-right:3px solid var(--sky);margin-bottom:13px;"><strong>البيان:</strong> ${e.desc}</div>
-    <div class="tw"><table><thead><tr><th>الحساب</th><th>اسم الحساب</th><th>مدين</th><th>دائن</th></tr></thead><tbody>${(e.lines||[]).map(l=>`<tr><td><span class="act">${l.acc}</span></td><td>${l.an}</td><td class="tn tdr">${(l.dr||0)>0?fmt(l.dr):'-'}</td><td class="tn tcr">${(l.cr||0)>0?fmt(l.cr):'-'}</td></tr>`).join('')}</tbody><tfoot><tr style="background:var(--navy);"><td colspan="2" style="color:white;font-weight:900;padding:9px 12px;">الإجمالي</td><td class="tn" style="color:white;font-weight:800;">${fmt(tD)}</td><td class="tn" style="color:white;font-weight:800;">${fmt(tC)}</td></tr></tfoot></table></div>
-    <div style="margin-top:10px;padding:9px 12px;border-radius:7px;background:${ok?'var(--gbg)':'var(--rbg)'};color:${ok?'#065f46':'#991b1b'};font-weight:700;font-size:12.5px;">${ok?'✅ القيد متوازن':'⚠️ القيد غير متوازن!'}</div>
-  `);
-};
-
-// NEW ENTRY
-let lc=2;
-window.openNE = function(){
-  const aO=STATE.accounts.filter(a=>a.t==='L').map(a=>`<option value="${a.c}">${a.c}—${a.n}</option>`).join('');
-  const pO=STATE.projects.map(p=>`<option value="${p.code}">${p.code}—${p.name}</option>`).join('');
-  const cO=STATE.costCenters.map(c=>`<option value="${c.code}">${c.code}—${c.name}</option>`).join('');
-  const lO=STATE.locations.map(l=>`<option value="${l.code}">${l.code}—${l.name}</option>`).join('');
-  lc=2;
-  const nextId='J2025-'+(STATE.entries.length+1).toString().padStart(3,'0');
-  om('قيد يومية جديد',`
-    <div class="fg g3" style="margin-bottom:12px;gap:10px;"><div class="fgrp"><label class="flbl">رقم القيد</label><input class="fc" id="nd" value="${nextId}" readonly></div><div class="fgrp"><label class="flbl">التاريخ *</label><input type="date" class="fc" id="ndate" value="${new Date().toISOString().split('T')[0]}"></div><div class="fgrp"><label class="flbl">المرجع</label><input class="fc" id="nref" placeholder="PV-001"></div></div>
-    <div class="fgrp" style="margin-bottom:12px;"><label class="flbl">البيان *</label><input class="fc" id="ndesc" placeholder="وصف العملية المالية"></div>
-    <div class="fg g3" style="margin-bottom:14px;gap:10px;"><div class="fgrp"><label class="flbl">المشروع</label><select class="fc" id="np"><option value="">اختر...</option>${pO}</select></div><div class="fgrp"><label class="flbl">مركز التكلفة</label><select class="fc" id="nc"><option value="">اختر...</option>${cO}</select></div><div class="fgrp"><label class="flbl">الموقع</label><select class="fc" id="nl"><option value="">اختر...</option>${lO}</select></div></div>
-    <div style="border:1.5px solid var(--g200);border-radius:9px;padding:13px;">
-      <div style="font-weight:800;font-size:12.5px;color:var(--navy);margin-bottom:10px;">📊 سطور القيد</div>
-      <div id="el-wrap">${elH(0,aO)}${elH(1,aO)}</div>
-      <button class="btn bo bsm" style="margin-top:8px;" onclick="addEL('${btoa(unescape(encodeURIComponent(aO)))}')">+ سطر</button>
-      <div id="et" style="margin-top:10px;padding:8px 11px;background:var(--g50);border-radius:7px;font-size:12.5px;"></div>
-    </div>
-    <div style="display:flex;gap:7px;margin-top:14px;"><button class="btn bp" onclick="saveE()">✅ ترحيل القيد</button><button class="btn bo" onclick="cm()">إلغاء</button></div>
-  `);
-  updET();
-};
-window.elH=(i,opts)=>`<div class="el" id="el${i}"><select class="fc" id="ea${i}" onchange="updET()" style="font-size:11px;">${opts}</select><input class="fc" id="ed${i}" placeholder="بيان" style="font-size:11.5px;"><input type="number" class="fc" id="edr${i}" placeholder="مدين" onchange="updET()" style="font-size:11.5px;"><input type="number" class="fc" id="ecr${i}" placeholder="دائن" onchange="updET()" style="font-size:11.5px;"><button class="btn bd bsm" onclick="document.getElementById('el${i}').remove();updET();" style="padding:5px 7px;">✕</button></div>`;
-window.addEL=(b64)=>{const opts=decodeURIComponent(escape(atob(b64)));const d=document.createElement('div');d.innerHTML=elH(lc++,opts);document.getElementById('el-wrap').appendChild(d.firstChild);updET();};
-window.updET=()=>{let tD=0,tC=0;document.querySelectorAll('[id^="edr"]').forEach(e=>tD+=parseFloat(e.value)||0);document.querySelectorAll('[id^="ecr"]').forEach(e=>tC+=parseFloat(e.value)||0);const ok=Math.abs(tD-tC)<0.01;const el=document.getElementById('et');if(el)el.innerHTML=`<div style="display:flex;justify-content:space-between;"><span>مدين:<strong>${fmt(tD)}</strong> | دائن:<strong>${fmt(tC)}</strong></span><span style="color:${ok?'var(--green)':'var(--red)'};">${ok?'✅ متوازن':'⚠️ فرق:'+fmt(Math.abs(tD-tC))}</span></div>`;};
-
-window.saveE = async function(){
-  const lines=[];
-  for(let i=0;i<lc;i++){const el=document.getElementById('ea'+i);if(!el)continue;const dr=parseFloat(document.getElementById('edr'+i)?.value)||0;const cr=parseFloat(document.getElementById('ecr'+i)?.value)||0;if(el.value&&(dr>0||cr>0)){const acc=STATE.accounts.find(a=>a.c===el.value);lines.push({acc:el.value,an:acc?.n||'',dr,cr});}}
-  if(lines.length<2){alert('يجب إدخال سطرين على الأقل');return;}
-  const tD=lines.reduce((s,l)=>s+l.dr,0),tC=lines.reduce((s,l)=>s+l.cr,0);
-  if(Math.abs(tD-tC)>0.01){alert('القيد غير متوازن!');return;}
-  const id=document.getElementById('nd').value;
-  const entry={id,date:document.getElementById('ndate').value,ref:document.getElementById('nref').value||'REF',desc:document.getElementById('ndesc').value||'قيد محاسبي',proj:document.getElementById('np').value,loc:document.getElementById('nl').value,cc:document.getElementById('nc').value,lines,status:'posted'};
-  await fbAdd('entries', entry, id);
-  cm(); sp('journal');
-};
-
-window.genPay = async function(){
-  const rows=STATE.employees.filter(e=>e.status==='active');
-  let tGross=0,tEmpIns=0,tEmplIns=0,tTax=0,tMartyrs=0;
-  rows.forEach(e=>{const r=calcPayroll(e.sal||0,e.allowances||0,e.bonuses||0,e.taxFreeAllow||0,e.insured!==false);tGross+=r.gross;tEmpIns+=r.empIns;tEmplIns+=r.emplIns;tTax+=r.monthlyTax;tMartyrs+=r.martyrsFund;});
-  const tNet=tGross-tEmpIns-tTax-tMartyrs;
+  let tGross=0,tEmpIns=0,tEmplIns=0,tTax=0,tNet=0,tCost=0;
+  rows.forEach(e=>{const r=calcPayroll(e.sal||0,e.allowances||0,e.bonuses||0,e.taxFreeAllow||0,e.insured!==false);tGross+=r.gross;tEmpIns+=r.empIns;tEmplIns+=r.emplIns;tTax+=r.monthlyTax;tNet+=r.netSalary;tCost+=r.employerCost;});
   const now=new Date();const mo=(now.getMonth()+1).toString().padStart(2,'0');
-  const id='PAY-'+now.getFullYear()+'-'+mo;
-  await fbAdd('entries',{
-    id,date:now.toISOString().split('T')[0],ref:id,
-    desc:'مسير مرتبات '+mo+'/'+now.getFullYear(),
-    proj:STATE.projects[0]?.code||'P001',loc:'L01',cc:'CC04',
-    lines:[
-      {acc:'5101',an:'رواتب وأجور',dr:tGross,cr:0},
-      {acc:'2103',an:'ضرائب دخل محجوزة',dr:0,cr:tTax},
-      {acc:'5103',an:'تأمينات اجتماعية (صاحب عمل)',dr:tEmplIns,cr:0},
-      {acc:'2103',an:'تأمينات موظفين محجوزة',dr:0,cr:tEmpIns},
-      {acc:'110102',an:'بنك مصر - صافي المرتبات',dr:0,cr:tNet}
-    ],status:'posted'},id);
-  toast('✅ تم إنشاء قيد المرتبات بالمعادلات الصحيحة');
+  return`
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+    <div><div style="font-size:18px;font-weight:900;font-family:'Tajawal',sans-serif;color:var(--navy);">💳 مسير المرتبات</div><div style="font-size:11px;color:var(--g400);">${mo}/${now.getFullYear()} — ق.91/2005 وق.148/2019</div></div>
+    <div style="display:flex;gap:6px;">
+      <button class="btn bg" onclick="genPay()" style="font-size:12px;padding:8px 12px;">✅ إنشاء قيد</button>
+      </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+    <div style="background:var(--navy);border-radius:10px;padding:12px;color:white;text-align:center;">
+      <div style="font-size:10px;opacity:.7;">إجمالي الرواتب</div>
+      <div style="font-size:15px;font-weight:900;margin-top:3px;">${fmt(tGross)}</div>
+    </div>
+    <div style="background:var(--gbg);border-radius:10px;padding:12px;text-align:center;border:1px solid #6ee7b7;">
+      <div style="font-size:10px;color:var(--g400);">إجمالي الصافي</div>
+      <div style="font-size:15px;font-weight:900;color:var(--green);margin-top:3px;">${fmt(tNet)}</div>
+    </div>
+    <div style="background:var(--rbg);border-radius:10px;padding:12px;text-align:center;">
+      <div style="font-size:10px;color:var(--g400);">تأمينات موظفين 11%</div>
+      <div style="font-size:15px;font-weight:900;color:var(--red);margin-top:3px;">${fmt(tEmpIns)}</div>
+    </div>
+    <div style="background:var(--abg);border-radius:10px;padding:12px;text-align:center;">
+      <div style="font-size:10px;color:var(--g400);">ضريبة دخل</div>
+      <div style="font-size:15px;font-weight:900;color:var(--amber);margin-top:3px;">${fmt(tTax)}</div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px;">
+    ${rows.map(e=>{
+      const r=calcPayroll(e.sal||0,e.allowances||0,e.bonuses||0,e.taxFreeAllow||0,e.insured!==false);
+      return`<div class="card">
+        <div style="padding:13px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+            <div style="flex:1;">
+              <div style="font-weight:800;font-size:14px;">${e.name}</div>
+              <div style="font-size:11px;color:var(--g400);">${e.pos} · ${e.id}</div>
+            </div>
+            <div style="text-align:left;margin-right:8px;">
+              <div style="font-size:10px;color:var(--g400);">صافي المرتب</div>
+              <div style="font-weight:900;font-size:17px;color:var(--green);">${fmt(r.netSalary)}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:8px;">
+            <div style="background:var(--g50);border-radius:7px;padding:8px;"><div style="font-size:10px;color:var(--g400);">الإجمالي</div><div style="font-weight:800;font-size:13px;">${fmt(r.gross)}</div></div>
+            <div style="background:var(--rbg);border-radius:7px;padding:8px;"><div style="font-size:10px;color:var(--g400);">تأمين 11%</div><div style="font-weight:800;font-size:13px;color:var(--red);">${fmt(r.empIns)}</div></div>
+            <div style="background:var(--abg);border-radius:7px;padding:8px;"><div style="font-size:10px;color:var(--g400);">ضريبة الدخل</div><div style="font-weight:800;font-size:13px;color:var(--amber);">${fmt(r.monthlyTax)}</div></div>
+            <div style="background:var(--sky-p);border-radius:7px;padding:8px;"><div style="font-size:10px;color:var(--g400);">تكلفة صاحب العمل</div><div style="font-weight:800;font-size:13px;color:var(--navy);">${fmt(r.employerCost)}</div></div>
+          </div>
+          <button class="btn bo" onclick="openEditEmpSal('${e._docId}','${e.name}',${e.sal||0},${e.allowances||0},${e.bonuses||0},${e.taxFreeAllow||0})" style="width:100%;font-size:12px;">✏️ تعديل مكونات المرتب</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+  <div style="margin-top:10px;padding:10px;background:var(--g50);border-radius:9px;font-size:10px;color:var(--g500);text-align:center;">
+    معفى من الضريبة حتى 40,000 ج.م سنوياً — شرائح تصاعدية حتى 27.5%
+  </div>`;}
+
+window.openEditEmpSal=(docId,name,sal,allow,bonus,taxFree)=>{om('✏️ تعديل مرتب — '+name,`
+  <div style="display:flex;flex-direction:column;gap:10px;">
+    <div class="fgrp"><label class="flbl">الأجر الأساسي (التأميني) *</label><input type="number" class="fc" id="es-sal" value="${sal}" oninput="previewSal()"></div>
+    <div class="fgrp"><label class="flbl">البدلات</label><input type="number" class="fc" id="es-allow" value="${allow}" oninput="previewSal()"></div>
+    <div class="fgrp"><label class="flbl">مكافآت وبدلات أخرى</label><input type="number" class="fc" id="es-bonus" value="${bonus}" oninput="previewSal()"></div>
+    <div class="fgrp"><label class="flbl">علاوة معفاة من الضريبة</label><input type="number" class="fc" id="es-taxfree" value="${taxFree}" oninput="previewSal()"></div>
+  </div>
+  <div id="es-preview" style="margin-top:12px;"></div>
+  <div style="display:flex;gap:7px;margin-top:13px;">
+    <button class="btn bp" style="flex:1;" onclick="saveEmpSal('${docId}')">💾 حفظ في Firebase</button>
+    <button class="btn bo" onclick="cm()">إلغاء</button>
+  </div>
+`);
+// Preview calc
+window.previewSal=function(){
+  const s=parseFloat(document.getElementById('es-sal')?.value)||0;
+  const a=parseFloat(document.getElementById('es-allow')?.value)||0;
+  const b=parseFloat(document.getElementById('es-bonus')?.value)||0;
+  const t=parseFloat(document.getElementById('es-taxfree')?.value)||0;
+  const r=calcPayroll(s,a,b,t,true);
+  const el=document.getElementById('es-preview');
+  if(el) el.innerHTML=`<div style="background:var(--g50);border-radius:9px;padding:12px;">
+    <div style="font-weight:800;font-size:12px;margin-bottom:8px;color:var(--navy);">معاينة الحساب الآن:</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
+      <div style="padding:7px;background:white;border-radius:6px;"><div style="color:var(--g400);font-size:10px;">الإجمالي</div><div style="font-weight:800;">${fmt(r.gross)} ج.م</div></div>
+      <div style="padding:7px;background:var(--rbg);border-radius:6px;"><div style="color:var(--g400);font-size:10px;">تأمين 11%</div><div style="font-weight:800;color:var(--red);">${fmt(r.empIns)} ج.م</div></div>
+      <div style="padding:7px;background:var(--abg);border-radius:6px;"><div style="color:var(--g400);font-size:10px;">ضريبة الدخل</div><div style="font-weight:800;color:var(--amber);">${fmt(r.monthlyTax)} ج.م</div></div>
+      <div style="padding:7px;background:var(--gbg);border-radius:6px;"><div style="color:var(--g400);font-size:10px;">صافي المرتب</div><div style="font-weight:900;color:var(--green);font-size:14px;">${fmt(r.netSalary)} ج.م</div></div>
+    </div>
+    <div style="margin-top:8px;padding:7px;background:var(--sky-p);border-radius:6px;font-size:11px;display:flex;justify-content:space-between;">
+      <span style="color:var(--g500);">تكلفة صاحب العمل (18.75% إضافي)</span>
+      <span style="font-weight:800;color:var(--navy);">${fmt(r.employerCost)} ج.م</span>
+    </div>
+  </div>`;
+};
+setTimeout(previewSal,100);
 };
 
-window.openAddAcc = ()=>om('إضافة حساب جديد',`<div class="fg g2" style="gap:10px;"><div class="fgrp"><label class="flbl">كود الحساب *</label><input class="fc" id="acc-c" placeholder="110105"></div><div class="fgrp"><label class="flbl">اسم الحساب *</label><input class="fc" id="acc-n"></div><div class="fgrp"><label class="flbl">الحساب الأب</label><select class="fc" id="acc-p"><option value="">بدون</option>${STATE.accounts.filter(a=>a.t==='H').map(a=>`<option value="${a.c}">${a.c}—${a.n}</option>`).join('')}</select></div><div class="fgrp"><label class="flbl">طبيعة الحساب</label><select class="fc" id="acc-nat"><option value="dr">مدين</option><option value="cr">دائن</option></select></div></div><div style="display:flex;gap:7px;margin-top:13px;"><button class="btn bp" onclick="saveAcc()">إضافة لـ Firebase</button><button class="btn bo" onclick="cm()">إلغاء</button></div>`);
-
-window.saveAcc = async function(){
-  const c=document.getElementById('acc-c').value.trim();const n=document.getElementById('acc-n').value.trim();
-  if(!c||!n){alert('الكود والاسم مطلوبان');return;}
-  const p=document.getElementById('acc-p').value;const nat=document.getElementById('acc-nat').value;
-  await fbAdd('accounts',{c,n,t:'L',l:4,p:p||null,nat},c);
-  cm(); sp('accounts');
-};
-
-window.openNP = ()=>om('مشروع جديد',`<div class="fg g2" style="gap:10px;"><div class="fgrp"><label class="flbl">كود المشروع *</label><input class="fc" id="p-c" placeholder="P003"></div><div class="fgrp"><label class="flbl">اسم المشروع *</label><input class="fc" id="p-n"></div><div class="fgrp"><label class="flbl">المانح</label><input class="fc" id="p-d" placeholder="USAID / EU..."></div><div class="fgrp"><label class="flbl">الموازنة</label><input type="number" class="fc" id="p-b"></div><div class="fgrp"><label class="flbl">تاريخ البداية</label><input type="date" class="fc" id="p-s"></div><div class="fgrp"><label class="flbl">تاريخ النهاية</label><input type="date" class="fc" id="p-e"></div></div><div style="display:flex;gap:7px;margin-top:13px;"><button class="btn bp" onclick="saveProj()">إضافة لـ Firebase</button><button class="btn bo" onclick="cm()">إلغاء</button></div>`);
-
-window.saveProj = async function(){
-  const code=document.getElementById('p-c').value.trim();const name=document.getElementById('p-n').value.trim();
-  if(!code||!name){alert('الكود والاسم مطلوبان');return;}
-  await fbAdd('projects',{code,name,donor:document.getElementById('p-d').value,budget:parseFloat(document.getElementById('p-b').value)||0,spent:0,start:document.getElementById('p-s').value,end:document.getElementById('p-e').value,status:'active'},code);
-  cm(); sp('projects');
-};
-
-window.delProj = async(id)=>{ if(confirm('تأكيد حذف المشروع؟')){await fbDel('projects',id);sp('projects');} };
-
-window.openAddItem = ()=>om('صنف جديد',`<div class="fg g2" style="gap:10px;"><div class="fgrp"><label class="flbl">كود الصنف *</label><input class="fc" id="it-c" placeholder="ITM003"></div><div class="fgrp"><label class="flbl">اسم الصنف *</label><input class="fc" id="it-n"></div><div class="fgrp"><label class="flbl">الوحدة</label><input class="fc" id="it-u" placeholder="جهاز / كيت..."></div><div class="fgrp"><label class="flbl">الكمية</label><input type="number" class="fc" id="it-q"></div><div class="fgrp"><label class="flbl">سعر الوحدة</label><input type="number" class="fc" id="it-p"></div><div class="fgrp"><label class="flbl">المشروع</label><select class="fc" id="it-pr"><option value="">عام</option>${STATE.projects.map(p=>`<option value="${p.code}">${p.name}</option>`).join('')}</select></div></div><div style="display:flex;gap:7px;margin-top:13px;"><button class="btn bp" onclick="saveItem()">إضافة لـ Firebase</button><button class="btn bo" onclick="cm()">إلغاء</button></div>`);
-
-window.saveItem = async function(){
-  const code=document.getElementById('it-c').value.trim();const name=document.getElementById('it-n').value.trim();
-  if(!code||!name){alert('الكود والاسم مطلوبان');return;}
-  await fbAdd('inventory',{code,name,unit:document.getElementById('it-u').value,qty:parseFloat(document.getElementById('it-q').value)||0,cost:parseFloat(document.getElementById('it-p').value)||0,proj:document.getElementById('it-pr').value,loc:'L01'},code);
-  cm(); sp('inventory');
-};
-
-window.delItem = async(id)=>{ if(confirm('تأكيد حذف الصنف؟')){await fbDel('inventory',id);sp('inventory');} };
-
-window.openAddEmp = ()=>om('موظف جديد',`<div class="fg g2" style="gap:10px;"><div class="fgrp"><label class="flbl">كود الموظف *</label><input class="fc" id="em-id" placeholder="E003"></div><div class="fgrp"><label class="flbl">الاسم الكامل *</label><input class="fc" id="em-n"></div><div class="fgrp"><label class="flbl">المسمى الوظيفي</label><input class="fc" id="em-p"></div><div class="fgrp"><label class="flbl">الراتب الأساسي</label><input type="number" class="fc" id="em-s"></div><div class="fgrp"><label class="flbl">القسم</label><select class="fc" id="em-d">${STATE.costCenters.map(c=>`<option value="${c.code}">${c.name}</option>`).join('')}</select></div><div class="fgrp"><label class="flbl">تاريخ الانضمام</label><input type="date" class="fc" id="em-j"></div></div><div style="display:flex;gap:7px;margin-top:13px;"><button class="btn bp" onclick="saveEmp()">إضافة لـ Firebase</button><button class="btn bo" onclick="cm()">إلغاء</button></div>`);
-
-window.saveEmp = async function(){
-  const id=document.getElementById('em-id').value.trim();const name=document.getElementById('em-n').value.trim();
-  if(!id||!name){alert('الكود والاسم مطلوبان');return;}
-  await fbAdd('employees',{id,name,pos:document.getElementById('em-p').value,sal:parseFloat(document.getElementById('em-s').value)||0,dept:document.getElementById('em-d').value,join:document.getElementById('em-j').value,status:'active'},id);
-  cm(); sp('employees');
-};
-
-window.delEmp = async(id)=>{ if(confirm('تأكيد حذف الموظف؟')){await fbDel('employees',id);sp('employees');} };
-
-window.saveSettings = ()=>{ STATE.org.name=document.getElementById('set-name').value; document.getElementById('tb-org-badge').textContent=STATE.org.name; toast('✅ تم الحفظ'); };
-
-// BOTTOM NAV
-window.setActiveNav = function(el){
-  document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
-  hideMore();
-};
-window.showMoreMenu = function(){
-  const m=document.getElementById('more-menu');
-  m.style.display=m.style.display==='none'?'block':'none';
-};
-window.hideMore = ()=>{ document.getElementById('more-menu').style.display='none'; };
-
-// Override sp to also update bottom nav
-const _sp = window.sp;
-window.sp = function(n){
-  _sp(n);
-  hideMore();
-};
-
-// START
-loadAll();
-</script>
-</body>
-</html>
+>
