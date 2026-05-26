@@ -814,6 +814,50 @@ window.genPay = async function(){
   toast('✅ تم إنشاء قيد المرتبات');
 };
 
+
+// ── NAVIGATION ────────────────────────────────────────
+const PAGES={
+  dashboard:{t:'لوحة التحكم',fn:pgDashboard},
+  accounts:{t:'شجرة الحسابات',fn:pgAccounts},
+  journal:{t:'قيود اليومية',fn:pgJournal},
+  trial:{t:'ميزان المراجعة',fn:pgTrial},
+  bs:{t:'الميزانية العمومية',fn:pgBS},
+  income:{t:'قائمة الدخل',fn:pgIncome},
+  projects:{t:'المشروعات',fn:pgProjects},
+  bva:{t:'متابعة BVA',fn:pgBVA},
+  costcenters:{t:'مراكز التكلفة',fn:pgCostCenters},
+  banks:{t:'البنوك والخزينة',fn:pgBanks},
+  inventory:{t:'المخازن',fn:pgInventory},
+  employees:{t:'الموظفين',fn:pgEmployees},
+  payroll:{t:'مسير المرتبات',fn:pgPayroll},
+  settings:{t:'الإعدادات',fn:pgSettings},
+};
+
+window.sp = function(n){
+  const p=PAGES[n]; if(!p) return;
+  document.getElementById('content').innerHTML = p.fn();
+  document.getElementById('tb-title').textContent = p.t;
+  document.querySelectorAll('.ni').forEach(el=>
+    el.classList.toggle('active', el.getAttribute('onclick')?.includes("'"+n+"'"))
+  );
+  window.scrollTo(0,0);
+};
+
+window.stab = function(btn,id){
+  btn.closest('.tabs').querySelectorAll('.tb-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tp').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+};
+
+window.toggleSB = ()=>document.getElementById('sidebar')?.classList.toggle('open');
+window.om = function(t,b){
+  document.getElementById('mt').textContent=t;
+  document.getElementById('mbdy').innerHTML=b;
+  document.getElementById('modal').classList.add('open');
+};
+window.cm = ()=>document.getElementById('modal').classList.remove('open');
+
 window.setActiveNav = function(el){
   document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
@@ -825,9 +869,10 @@ window.showMoreMenu = function(){
 };
 window.hideMore = ()=>{ const m=document.getElementById('more-menu'); if(m) m.style.display='none'; };
 
-const _sp_orig = window.sp;
+// sp override for bottom nav
+const _sp_base = window.sp;
 window.sp = function(n){
-  if(_sp_orig) _sp_orig(n);
+  _sp_base(n);
   hideMore();
 };
 
