@@ -286,7 +286,7 @@ window.STATE = {
   org: { name: 'جمعية نموذجية للتنمية', year: 2025 },
   accounts: [], projects: [], locations: [], costCenters: [],
   thematicAreas: [], employees: [], inventory: [], entries: [],
-  loaded: {}
+  stockMovements: [], loaded: {}
 };
 
 // ── SEED DEFAULT DATA ─────────────────────────────────
@@ -396,7 +396,7 @@ async function loadAll() {
     await seedIfEmpty('entries', DEFAULTS.entries);
 
     // Load all
-    const cols = ['accounts','projects','locations','costCenters','thematicAreas','employees','inventory','entries'];
+    const cols = ['accounts','projects','locations','costCenters','thematicAreas','employees','inventory','entries','stockMovements'];
     for (const col of cols) {
       const snap = await getDocs(collection(db, col));
       const key = col === 'costCenters' ? 'costCenters' : col;
@@ -797,9 +797,23 @@ window.saveE = async function(){
 
 window.genPay = async function(){
   const rows=STATE.employees.filter(e=>e.status==='active');
-  const tG=rows.reduce((s,e)=>s+(e.sal||0),0);const tT=rows.reduce((s,e)=>s+Math.round((e.sal||0)*.1),0);const tI=rows.reduce((s,e)=>s+Math.round((e.sal||0)*.11),0);const tN=tG-tT-tI;
-  const id='PAY-2025-05';
-  await fbAdd('entries',{id,date:new Date().toISOString().split('T')[0],ref:'PAY-2025-05',desc:'مسير مرتبات مايو 2025',proj:'P001',loc:'L01',cc:'CC04',lines:[{acc:'5101',an:'رواتب وأجور',dr:tG,cr:0},{acc:'2103',an:'ضرائب محجوزة',dr:0,cr:tT},{acc:'5103',an:'تأمينات اجتماعية',dr:tI,cr:0},{acc:'110102',an:'بنك مصر',dr:0,cr:tN+tI}],status:'posted'},id);
+  let tGross=0,tEmpIns=0,tEmplIns=0,tTax=0,tMartyrs=0;
+  rows.forEach(e=>{const r=calcPayroll(e.sal||0,e.allowances||0,e.bonuses||0,e.taxFreeAllow||0,e.insured!==false);tGross+=r.gross;tEmpIns+=r.empIns;tEmplIns+=r.emplIns;tTax+=r.monthlyTax;tMartyrs+=r.martyrsFund;});
+  const tNet=tGross-tEmpIns-tTax-tMartyrs;
+  const now=new Date();const mo=(now.getMonth()+1).toString().padStart(2,'0');
+  const id='PAY-'+now.getFullYear()+'-'+mo;
+  await fbAdd('entries',{
+    id,date:now.toISOString().split('T')[0],ref:id,
+    desc:'مسير مرتبات '+mo+'/'+now.getFullYear(),
+    proj:STATE.projects[0]?.code||'P001',loc:'L01',cc:'CC04',
+    lines:[
+      {acc:'5101',an:'رواتب وأجور',dr:tGross,cr:0},
+      {acc:'2103',an:'ضرائب دخل محجوزة',dr:0,cr:tTax},
+      {acc:'5103',an:'تأمينات اجتماعية (صاحب عمل)',dr:tEmplIns,cr:0},
+      {acc:'2103',an:'تأمينات موظفين محجوزة',dr:0,cr:tEmpIns},
+      {acc:'110102',an:'بنك مصر - صافي المرتبات',dr:0,cr:tNet}
+    ],status:'posted'},id);
+  toast('✅ تم إنشاء قيد المرتبات بالمعادلات الصحيحة');
 };
 
 window.openAddAcc = ()=>om('إضافة حساب جديد',`<div class="fg g2" style="gap:10px;"><div class="fgrp"><label class="flbl">كود الحساب *</label><input class="fc" id="acc-c" placeholder="110105"></div><div class="fgrp"><label class="flbl">اسم الحساب *</label><input class="fc" id="acc-n"></div><div class="fgrp"><label class="flbl">الحساب الأب</label><select class="fc" id="acc-p"><option value="">بدون</option>${STATE.accounts.filter(a=>a.t==='H').map(a=>`<option value="${a.c}">${a.c}—${a.n}</option>`).join('')}</select></div><div class="fgrp"><label class="flbl">طبيعة الحساب</label><select class="fc" id="acc-nat"><option value="dr">مدين</option><option value="cr">دائن</option></select></div></div><div style="display:flex;gap:7px;margin-top:13px;"><button class="btn bp" onclick="saveAcc()">إضافة لـ Firebase</button><button class="btn bo" onclick="cm()">إلغاء</button></div>`);
