@@ -137,7 +137,10 @@ var DB={
     {c:"5303",n:"انتقالات وسفر",nat:"dr"},{c:"2103",n:"ضرائب محجوزة",nat:"cr"},
     {c:"2104",n:"تأمينات موظفين محجوزة",nat:"cr"}
   ],
-  inventory:[]
+  inventory:[],
+  invMovements:[],
+  warehouses:[{code:"WH01",name:"المخزن الرئيسي",location:"المقر الرئيسي",manager:"",notes:""}],
+  itemCategories:["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"]
 };
 
 try{var _s=localStorage.getItem("athar");if(_s)DB=JSON.parse(_s);}catch(e){}
@@ -256,7 +259,28 @@ function rDash(){
     h+='<span>الموازنة: '+fmt(p.budget)+'</span><span>الصرف: '+fmt(p.spent)+'</span></div></div>';
   });
   h+="</div>";
-  h+='<div class="card"><div class="ch"><div class="ct">📝 آخر القيود</div>';
+  // Low stock dashboard alert
+  if(typeof getLowStockItems==="function"){
+    var lowS=getLowStockItems();
+    if(lowS.length){
+      h+='<div class="card" style="border-color:var(--rd);margin-bottom:14px;">';
+      h+='<div class="ch"><div class="ct" style="color:var(--rd);">⚠️ تنبيه المخازن</div>';
+      h+='<button class="btn btn-sm btn-rd" onclick="sub(&quot;inventory&quot;)">عرض</button></div>';
+      lowS.forEach(function(item){
+        var qty=getTotalQty(item.code);
+        var pct=item.minQty>0?Math.round(qty/item.minQty*100):0;
+        h+='<div style="margin-bottom:8px;">';
+        h+='<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">';
+        h+='<span style="font-weight:700;">'+item.name+'</span>';
+        h+='<span style="color:var(--rd);font-weight:800;">'+qty+' / '+item.minQty+' '+item.unit+'</span></div>';
+        h+='<div class="pw"><div class="pb" style="width:'+Math.min(pct,100)+'%;background:var(--rd);"></div></div>';
+        h+='</div>';
+      });
+      h+='</div>';
+    }
+  }
+  h+='<div class="card"><div class="ch"><div class="ct">📝 آخر القيود</div>'
+;
   h+='<button class="btn btn-sm" onclick="newEntry()">+ قيد جديد</button></div>';
   h+='<table><thead><tr><th>رقم القيد</th><th>البيان</th><th>المبلغ</th></tr></thead><tbody>';
   DB.entries.slice(-4).reverse().forEach(function(e){
@@ -1075,76 +1099,458 @@ function resetDB(){
   location.reload();
 }
 
-function newItem(){
-  var h='<div class="fr"><div class="fg"><label>كود الصنف *</label><input id="it-c" placeholder="ITM003"></div><div class="fg"><label>اسم الصنف *</label><input id="it-n"></div></div>';
-  h+='<div class="fr"><div class="fg"><label>الوحدة</label><input id="it-u" placeholder="جهاز / كيت ..."></div><div class="fg"><label>الكمية</label><input type="number" id="it-q" value="0"></div></div>';
-  h+='<div class="fg"><label>سعر الوحدة (ج.م)</label><input type="number" id="it-p" value="0"></div>';
-  h+='<div style="display:flex;gap:8px;margin-top:4px;"><button class="btn" onclick="saveItem()" style="flex:1;">✅ إضافة</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
-  om("صنف جديد",h);
+// ============================================================
+// INVENTORY SYSTEM — FULL REWRITE
+// ============================================================
+
+// ---- helpers ----
+function nextItemCode(){
+  if(!DB.inventory||!DB.inventory.length) return "ITM001";
+  var nums=DB.inventory.map(function(x){return parseInt((x.code||"ITM000").replace(/\D/g,""))||0;});
+  return "ITM"+String(Math.max(0,...nums)+1).padStart(3,"0");
 }
-function saveItem(){
-  var c=sv("it-c"),n=sv("it-n");
-  if(!c||!n){alert("الكود والاسم مطلوبان");return;}
+function nextWHCode(){
+  if(!DB.warehouses||!DB.warehouses.length) return "WH01";
+  var nums=DB.warehouses.map(function(x){return parseInt((x.code||"WH00").replace(/\D/g,""))||0;});
+  return "WH"+String(Math.max(0,...nums)+1).padStart(2,"0");
+}
+function initInv(){
+  if(!DB.warehouses)DB.warehouses=[];
   if(!DB.inventory)DB.inventory=[];
-  DB.inventory.push({code:c,name:n,unit:sv("it-u"),qty:fv("it-q"),cost:fv("it-p")});
-  save();cm();sub("inventory");toast("✅ تم إضافة الصنف");
-}
-function addStock(i){
-  var item=DB.inventory[i];
-  var h='<div style="background:var(--gbg);border-radius:8px;padding:10px;margin-bottom:12px;color:#065f46;font-size:12px;">الكمية الحالية: <strong>'+item.qty+' '+item.unit+'</strong></div>';
-  h+='<div class="fg"><label>الكمية المضافة *</label><input type="number" id="add-stq" min="1"></div>';
-  h+='<div class="fg"><label>السبب / المرجع</label><input id="add-str2" placeholder="فاتورة شراء رقم ..."></div>';
-  h+='<div style="display:flex;gap:8px;margin-top:4px;"><button class="btn btn-gr" onclick="doStock('+i+',true,&quot;add-stq&quot;,&quot;add-str2&quot;)" style="flex:1;">✅ تأكيد</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
-  om("📥 إضافة — "+item.name,h);
-}
-function outStock(i){
-  var item=DB.inventory[i];
-  var h='<div style="background:var(--rbg);border-radius:8px;padding:10px;margin-bottom:12px;color:#991b1b;font-size:12px;">الكمية المتاحة: <strong>'+item.qty+' '+item.unit+'</strong></div>';
-  h+='<div class="fg"><label>الكمية المصروفة *</label><input type="number" id="out-stq" min="1" max="'+item.qty+'"></div>';
-  h+='<div class="fg"><label>المستلم / السبب</label><input id="out-str2" placeholder="اسم المستلم ..."></div>';
-  h+='<div style="display:flex;gap:8px;margin-top:4px;"><button class="btn btn-rd" onclick="doStock('+i+',false,&quot;out-stq&quot;,&quot;out-str2&quot;)" style="flex:1;">✅ تأكيد</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
-  om("📤 صرف — "+item.name,h);
-}
-function doStock(i,add,qId,rId){
-  qId=qId||'stq-in';
-  rId=rId||'str2-in';
-  var q=parseInt(el(qId)?el(qId).value:0)||0;
-  var reason=sv(rId)||"";
-  if(q<=0){alert("ادخل كمية صحيحة");return;}
-  if(!add&&q>DB.inventory[i].qty){alert("الكمية أكبر من المتاح!");return;}
-  var item=DB.inventory[i];
   if(!DB.invMovements)DB.invMovements=[];
-  DB.invMovements.push({
-    date:new Date().toISOString().split("T")[0],
-    code:item.code,name:item.name,unit:item.unit,
-    type:add?"in":"out",qty:q,
-    before:item.qty,after:add?item.qty+q:item.qty-q,
-    reason:reason
+  if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
+}
+function getItemQtyInWH(itemCode, whCode){
+  // sum all movements for this item in this warehouse
+  if(!DB.invMovements) return 0;
+  var qty=0;
+  DB.invMovements.forEach(function(m){
+    if(m.itemCode!==itemCode||m.warehouse!==whCode) return;
+    if(m.type==="in"||m.type==="transfer-in") qty+=m.qty;
+    else if(m.type==="out"||m.type==="scrap"||m.type==="transfer-out") qty-=m.qty;
   });
-  DB.inventory[i].qty=add?item.qty+q:item.qty-q;
-  save();cm();sub("inventory");toast(add?"✅ تم إضافة المخزون":"✅ تم الصرف");
+  return Math.max(0,qty);
+}
+function getTotalQty(itemCode){
+  if(!DB.invMovements) return 0;
+  var qty=0;
+  DB.invMovements.forEach(function(m){
+    if(m.itemCode!==itemCode) return;
+    if(m.type==="in"||m.type==="transfer-in") qty+=m.qty;
+    else if(m.type==="out"||m.type==="scrap"||m.type==="transfer-out") qty-=m.qty;
+  });
+  return Math.max(0,qty);
+}
+function getLowStockItems(){
+  initInv();
+  return DB.inventory.filter(function(item){
+    var qty=getTotalQty(item.code);
+    return (item.minQty||0)>0 && qty <= (item.minQty||0);
+  });
 }
 
-function showInvHistory(){
-  if(!DB.invMovements||!DB.invMovements.length){
-    om('📋 حركة المخزون','<div style="text-align:center;color:var(--g4);padding:30px;">لا توجد حركات بعد</div>');
+// ---- MAIN PAGE ----
+function rInvPage(){
+  initInv();
+  var _inv_filter={cat:"",wh:"",q:""};
+  var cats=DB.itemCategories||[];
+  var whs=DB.warehouses;
+  var low=getLowStockItems();
+
+  var h='';
+  // Header
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+  h+='<div><div class="ph-t">📦 المخازن</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+DB.inventory.length+' صنف · '+whs.length+' مخزن</div></div>';
+  h+='<div style="display:flex;gap:6px;">';
+  h+='<button class="btn btn-sky btn-sm" onclick="newWarehouse()">🏪 مخزن جديد</button>';
+  h+='<button class="btn btn-gr btn-sm" onclick="newItem()">+ صنف</button>';
+  h+='</div></div>';
+
+  // Low stock alert
+  if(low.length){
+    h+='<div style="background:var(--rbg);border:1.5px solid var(--rd);border-radius:10px;padding:10px 12px;margin-bottom:10px;">';
+    h+='<div style="font-weight:800;font-size:12px;color:var(--rd);margin-bottom:6px;">⚠️ تنبيه — أصناف قاربت على النفاد ('+low.length+')</div>';
+    low.forEach(function(item){
+      var qty=getTotalQty(item.code);
+      h+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(220,38,38,.1);">';
+      h+='<span>'+item.name+'</span>';
+      h+='<span style="font-weight:800;color:var(--rd);">'+qty+' / '+item.minQty+' '+item.unit+'</span>';
+      h+='</div>';
+    });
+    h+='</div>';
+  }
+
+  // Warehouses bar
+  if(whs.length){
+    h+='<div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;">';
+    h+='<div class="btn btn-sm inv-wh-btn" style="background:var(--n);color:white;white-space:nowrap;font-size:11px;" onclick="invFilterWH(\'\')">🏪 الكل</div>';
+    whs.forEach(function(wh){
+      h+='<div class="btn btn-sm inv-wh-btn" style="background:var(--g2);color:var(--n);white-space:nowrap;font-size:11px;" onclick="invFilterWH(\''+wh.code+'\')">'+wh.name+'</div>';
+    });
+    h+='</div>';
+  }
+
+  // Search + category filter
+  h+='<div style="display:flex;gap:7px;margin-bottom:10px;">';
+  h+='<input id="inv-search" placeholder="🔍 بحث بالاسم أو الكود أو الفئة..." style="flex:1;padding:9px 12px;border:1.5px solid var(--g2);border-radius:9px;font-size:12px;font-family:Cairo,sans-serif;" oninput="invSearch()">';
+  h+='</div>';
+  h+='<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;" id="inv-cats">';
+  h+='<span class="badge bb inv-cat-btn" style="cursor:pointer;font-size:10.5px;padding:5px 11px;" onclick="invFilterCat(\'\')">الكل</span>';
+  cats.forEach(function(c){
+    h+='<span class="badge bgy inv-cat-btn" style="cursor:pointer;white-space:nowrap;font-size:10.5px;padding:5px 11px;" onclick="invFilterCat(\''+c+'\')">'+c+'</span>';
+  });
+  h+='</div>';
+
+  // Items list
+  h+='<div id="inv-list">';
+  h+=renderInvList("","","");
+  h+='</div>';
+  return h;
+}
+
+function renderInvList(q,cat,wh){
+  initInv();
+  var items=DB.inventory.filter(function(item){
+    var qty=getTotalQty(item.code);
+    var matchQ=!q||(item.name||"").includes(q)||(item.code||"").toLowerCase().includes(q.toLowerCase())||(item.category||"").includes(q)||(item.barcode||"").includes(q);
+    var matchC=!cat||(item.category||"")=== cat;
+    var matchW=!wh||(DB.invMovements||[]).some(function(m){return m.itemCode===item.code&&m.warehouse===wh;});
+    return matchQ&&matchC&&matchW;
+  });
+  if(!items.length) return '<div style="text-align:center;color:var(--g4);padding:30px;">لا توجد أصناف مطابقة</div>';
+
+  // Group by category
+  var groups={};
+  items.forEach(function(item){
+    var c=item.category||"أخرى";
+    if(!groups[c])groups[c]=[];
+    groups[c].push(item);
+  });
+
+  var h="";
+  Object.keys(groups).forEach(function(cat){
+    h+='<div class="sd">'+cat+'</div>';
+    groups[cat].forEach(function(item){
+      var i=DB.inventory.indexOf(item);
+      var qty=getTotalQty(item.code);
+      var isLow=(item.minQty||0)>0&&qty<=(item.minQty||0);
+      var val=(qty*(item.cost||0));
+      h+='<div class="card" style="margin-bottom:9px;'+(isLow?'border-color:var(--rd);':'')+'">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+      h+='<div style="flex:1;">';
+      h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">';
+      h+='<code style="font-size:10.5px;background:var(--g1);padding:2px 7px;border-radius:5px;color:var(--n);">'+item.code+'</code>';
+      h+='<span class="badge bgy" style="font-size:9.5px;">'+( item.category||"أخرى")+'</span>';
+      if(isLow)h+='<span class="badge br" style="font-size:9.5px;">⚠️ قارب النفاد</span>';
+      h+='</div>';
+      h+='<div style="font-weight:800;font-size:14px;">'+item.name+'</div>';
+      if(item.nameEn)h+='<div style="font-size:11px;color:var(--g4);">'+item.nameEn+'</div>';
+      if(item.location)h+='<div style="font-size:11px;color:var(--g4);">📍 '+item.location+'</div>';
+      h+='</div>';
+      h+='<div style="text-align:left;min-width:70px;">';
+      h+='<div style="font-weight:900;font-size:20px;color:'+(isLow?'var(--rd)':qty===0?'var(--g4)':'var(--n)')+';">'+qty+'</div>';
+      h+='<div style="font-size:10.5px;color:var(--g4);">'+item.unit+'</div>';
+      if(val>0)h+='<div style="font-size:10px;color:var(--gr);font-weight:700;">'+fmt(val)+' ج.م</div>';
+      h+='</div></div>';
+      // Action buttons
+      h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;">';
+      h+='<button class="btn btn-sm" style="background:var(--gr);font-size:10px;" onclick="invIn('+i+')">📥 إضافة</button>';
+      h+='<button class="btn btn-sm btn-gy" style="font-size:10px;" onclick="invOut('+i+')">📤 صرف</button>';
+      h+='<button class="btn btn-sm" style="background:var(--rd);font-size:10px;" onclick="invScrap('+i+')">🗑️ هالك</button>';
+      h+='<button class="btn btn-sm" style="background:var(--sk);font-size:10px;" onclick="invMove('+i+')">🔄 تحويل</button>';
+      h+='</div>';
+      // Per-warehouse breakdown
+      if(DB.warehouses.length>0){
+        var whBreak=DB.warehouses.filter(function(wh){return getItemQtyInWH(item.code,wh.code)>0;});
+        if(whBreak.length){
+          h+='<div style="margin-top:7px;background:var(--g1);border-radius:7px;padding:7px;display:flex;gap:6px;flex-wrap:wrap;">';
+          whBreak.forEach(function(wh){
+            var q2=getItemQtyInWH(item.code,wh.code);
+            h+='<span style="font-size:10.5px;background:white;border-radius:5px;padding:3px 8px;border:1px solid var(--g2);">🏪 '+wh.name+': <strong>'+q2+'</strong></span>';
+          });
+          h+='</div>';
+        }
+      }
+      h+='</div>';
+    });
+  });
+  return h;
+}
+
+// Search + filter helpers (called from inline onclick)
+function invSearch(){
+  var q=(document.getElementById("inv-search")||{}).value||"";
+  window._invQ=q;
+  var el2=document.getElementById("inv-list");
+  if(el2)el2.innerHTML=renderInvList(q,window._invCat||"",window._invWH||"");
+}
+function invFilterCat(c){
+  window._invCat=c;
+  document.querySelectorAll(".inv-cat-btn").forEach(function(b){
+    b.className=b.className.replace(" bb","").replace(" bgy","")+" "+(b.textContent.trim()===c||(!c&&b.textContent.trim()==="الكل")?"bb":"bgy");
+  });
+  var el2=document.getElementById("inv-list");
+  if(el2)el2.innerHTML=renderInvList(window._invQ||"",c,window._invWH||"");
+}
+function invFilterWH(wh){
+  window._invWH=wh;
+  var el2=document.getElementById("inv-list");
+  if(el2)el2.innerHTML=renderInvList(window._invQ||"",window._invCat||"",wh);
+}
+
+// ---- WAREHOUSE CRUD ----
+function newWarehouse(){
+  initInv();
+  var code=nextWHCode();
+  var h='<div style="font-size:11px;color:var(--sk);font-weight:700;margin-bottom:10px;">كود المخزن: <strong style="color:var(--n);">'+code+'</strong></div>';
+  h+='<div class="fg"><label>اسم المخزن *</label><input id="wh-n" placeholder="المخزن الرئيسي"></div>';
+  h+='<div class="fg"><label>الموقع / العنوان</label><input id="wh-loc" placeholder="الطابق الأول — مبنى الإدارة"></div>';
+  h+='<div class="fg"><label>المسؤول</label><input id="wh-mgr" placeholder="اسم أمين المخزن"></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="wh-notes"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px;">';
+  h+='<button class="btn btn-gr" onclick="saveWarehouse(\''+code+'\')" style="flex:1;">✅ إضافة المخزن</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("🏪 مخزن جديد",h);
+}
+function saveWarehouse(code){
+  var n=sv("wh-n");
+  if(!n){alert("اسم المخزن مطلوب");return;}
+  initInv();
+  DB.warehouses.push({code:code,name:n,location:sv("wh-loc"),manager:sv("wh-mgr"),notes:sv("wh-notes")});
+  save();cm();sub("inventory");toast("✅ تم إضافة المخزن "+code);
+}
+
+// ---- ITEM CRUD ----
+function newItem(){
+  initInv();
+  var code=nextItemCode();
+  var catO=(DB.itemCategories||[]).map(function(c){return'<option>'+c+'</option>';}).join("");
+  var whO=DB.warehouses.map(function(w){return'<option value="'+w.code+'">'+w.name+'</option>';}).join("");
+  var h='<div style="font-size:11px;color:var(--sk);font-weight:700;margin-bottom:10px;">كود الصنف: <strong style="color:var(--n);">'+code+'</strong></div>';
+  h+='<div class="sd">بيانات الصنف</div>';
+  h+='<div class="fr"><div class="fg"><label>اسم الصنف (عربي) *</label><input id="it-n" placeholder="لاب توب Dell"></div>';
+  h+='<div class="fg"><label>الاسم بالإنجليزي</label><input id="it-ne" placeholder="Dell Laptop"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>التصنيف</label><select id="it-cat">'+catO+'</select></div>';
+  h+='<div class="fg"><label>الوحدة</label><input id="it-u" placeholder="جهاز / كيت / قطعة"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>الباركود / السيريال</label><input id="it-bar"></div>';
+  h+='<div class="fg"><label>الموقع في المخزن</label><input id="it-loc" placeholder="رف A1 — الطابق 2"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>سعر الوحدة (ج.م)</label><input type="number" id="it-p" value="0"></div>';
+  h+='<div class="fg"><label>حد التنبيه (أدنى كمية)</label><input type="number" id="it-min" value="0" placeholder="0 = بدون تنبيه"></div></div>';
+  if(DB.warehouses.length){
+    h+='<div class="sd">كمية افتتاحية</div>';
+    h+='<div class="fr"><div class="fg"><label>الكمية الافتتاحية</label><input type="number" id="it-q" value="0"></div>';
+    h+='<div class="fg"><label>المخزن</label><select id="it-wh">'+whO+'</select></div></div>';
+  } else {
+    h+='<div style="background:var(--abg);border-radius:8px;padding:9px;font-size:11.5px;color:#92400e;margin-top:8px;">💡 أضف مخازن أولاً لتحديد الكمية الافتتاحية</div>';
+  }
+  h+='<div class="fg" style="margin-top:8px;"><label>ملاحظات</label><input id="it-notes"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:10px;">';
+  h+='<button class="btn btn-gr" onclick="saveItem(\''+code+'\')" style="flex:1;">✅ إضافة الصنف</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("➕ صنف جديد",h);
+}
+function saveItem(code){
+  var n=sv("it-n");
+  if(!n){alert("اسم الصنف مطلوب");return;}
+  initInv();
+  var item={code:code,name:n,nameEn:sv("it-ne"),category:sv("it-cat"),unit:sv("it-u")||"قطعة",
+    barcode:sv("it-bar"),location:sv("it-loc"),cost:fv("it-p"),minQty:fv("it-min"),notes:sv("it-notes")};
+  DB.inventory.push(item);
+  // opening balance movement
+  var q=DB.warehouses.length?fv("it-q"):0;
+  var wh=DB.warehouses.length?sv("it-wh"):"";
+  if(q>0&&wh){
+    DB.invMovements.push({
+      id:"MOV"+Date.now(),date:new Date().toISOString().split("T")[0],
+      itemCode:code,itemName:n,unit:item.unit,
+      warehouse:wh,type:"in",qty:q,
+      balAfter:q,ref:"OB-"+code,reason:"رصيد افتتاحي"
+    });
+  }
+  save();cm();sub("inventory");toast("✅ تم إضافة الصنف "+code);
+}
+
+// ---- IN ----
+function invIn(i){
+  var item=DB.inventory[i];
+  if(!item)return;
+  var qty=getTotalQty(item.code);
+  var whO=DB.warehouses.map(function(w){return'<option value="'+w.code+'">'+w.name+'</option>';}).join("");
+  var h='<div style="background:var(--gbg);border-radius:8px;padding:10px;margin-bottom:12px;">';
+  h+='<div style="font-weight:800;font-size:13px;">'+item.name+' <code style="font-size:10.5px;color:var(--g5);">'+item.code+'</code></div>';
+  h+='<div style="font-size:12px;color:#065f46;">الرصيد الحالي: <strong>'+qty+' '+item.unit+'</strong></div></div>';
+  if(DB.warehouses.length){
+    h+='<div class="fg"><label>المخزن *</label><select id="mv-wh">'+whO+'</select></div>';
+  }
+  h+='<div class="fr"><div class="fg"><label>الكمية *</label><input type="number" id="mv-q" min="1" placeholder="0"></div>';
+  h+='<div class="fg"><label>سعر الوحدة (ج.م)</label><input type="number" id="mv-cost" value="'+(item.cost||0)+'"></div></div>';
+  h+='<div class="fg"><label>رقم المرجع / الفاتورة</label><input id="mv-ref" placeholder="INV-2025-001"></div>';
+  h+='<div class="fg"><label>المورد / البيان</label><input id="mv-reason" placeholder="اسم المورد أو سبب الإضافة"></div>';
+  h+='<div class="fg"><label>التاريخ</label><input type="date" id="mv-date" value="'+new Date().toISOString().split("T")[0]+'"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px;">';
+  h+='<button class="btn btn-gr" onclick="doInv('+i+',\'in\')" style="flex:1;">📥 تأكيد الإضافة</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("📥 إضافة مخزون — "+item.name,h);
+}
+
+// ---- OUT ----
+function invOut(i){
+  var item=DB.inventory[i];
+  if(!item)return;
+  var qty=getTotalQty(item.code);
+  var whO=DB.warehouses.map(function(w){
+    var q=getItemQtyInWH(item.code,w.code);
+    return'<option value="'+w.code+'">'+w.name+' ('+q+' '+item.unit+')</option>';
+  }).join("");
+  var h='<div style="background:var(--rbg);border-radius:8px;padding:10px;margin-bottom:12px;">';
+  h+='<div style="font-weight:800;font-size:13px;">'+item.name+'</div>';
+  h+='<div style="font-size:12px;color:#991b1b;">الرصيد الإجمالي: <strong>'+qty+' '+item.unit+'</strong></div></div>';
+  if(DB.warehouses.length){
+    h+='<div class="fg"><label>المخزن *</label><select id="mv-wh">'+whO+'</select></div>';
+  }
+  h+='<div class="fg"><label>الكمية المصروفة *</label><input type="number" id="mv-q" min="1" max="'+qty+'" placeholder="0"></div>';
+  h+='<div class="fg"><label>المستلم</label><input id="mv-reason" placeholder="اسم المستلم أو الجهة"></div>';
+  h+='<div class="fg"><label>المشروع / الغرض</label><input id="mv-ref" placeholder="رقم المشروع أو الغرض"></div>';
+  h+='<div class="fg"><label>التاريخ</label><input type="date" id="mv-date" value="'+new Date().toISOString().split("T")[0]+'"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px;">';
+  h+='<button class="btn btn-rd" onclick="doInv('+i+',\'out\')" style="flex:1;">📤 تأكيد الصرف</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("📤 صرف مخزون — "+item.name,h);
+}
+
+// ---- SCRAP ----
+function invScrap(i){
+  var item=DB.inventory[i];
+  if(!item)return;
+  var qty=getTotalQty(item.code);
+  var h='<div style="background:#fef3c7;border-radius:8px;padding:10px;margin-bottom:12px;">';
+  h+='<div style="font-weight:800;color:#92400e;">⚠️ إعدام / هالك — '+item.name+'</div>';
+  h+='<div style="font-size:12px;color:#92400e;">الرصيد الحالي: '+qty+' '+item.unit+'</div></div>';
+  var whO=DB.warehouses.map(function(w){var q=getItemQtyInWH(item.code,w.code);return'<option value="'+w.code+'">'+w.name+' ('+q+')';}).join("");
+  if(DB.warehouses.length)h+='<div class="fg"><label>المخزن</label><select id="mv-wh">'+whO+'</select></div>';
+  h+='<div class="fg"><label>الكمية المعدومة *</label><input type="number" id="mv-q" min="1" max="'+qty+'"></div>';
+  h+='<div class="fg"><label>سبب الإعدام *</label><input id="mv-reason" placeholder="تلف / انتهاء صلاحية / فاقد ..."></div>';
+  h+='<div class="fg"><label>رقم محضر الإعدام</label><input id="mv-ref" placeholder="SCR-001"></div>';
+  h+='<div class="fg"><label>التاريخ</label><input type="date" id="mv-date" value="'+new Date().toISOString().split("T")[0]+'"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px;">';
+  h+='<button class="btn" style="background:var(--am);flex:1;" onclick="doInv('+i+',\'scrap\')">🗑️ تأكيد الإعدام</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("🗑️ إعدام / هالك",h);
+}
+
+// ---- TRANSFER ----
+function invMove(i){
+  var item=DB.inventory[i];
+  if(!item||DB.warehouses.length<2){
+    if(DB.warehouses.length<2) toast("⚠️ تحتاج مخزنين على الأقل للتحويل");
     return;
   }
-  var h='<table><thead><tr><th>التاريخ</th><th>الصنف</th><th>النوع</th><th>الكمية</th><th>قبل</th><th>بعد</th><th>السبب</th></tr></thead><tbody>';
+  var qty=getTotalQty(item.code);
+  var fromO=DB.warehouses.map(function(w){var q=getItemQtyInWH(item.code,w.code);return'<option value="'+w.code+'">'+w.name+' ('+q+' '+item.unit+')</option>';}).join("");
+  var toO=DB.warehouses.map(function(w){return'<option value="'+w.code+'">'+w.name+'</option>';}).join("");
+  var h='<div style="background:var(--skp);border-radius:8px;padding:10px;margin-bottom:12px;">';
+  h+='<div style="font-weight:800;color:var(--n);">🔄 تحويل — '+item.name+'</div>';
+  h+='<div style="font-size:12px;color:var(--g5);">الرصيد الإجمالي: '+qty+' '+item.unit+'</div></div>';
+  h+='<div class="fg"><label>من مخزن *</label><select id="mv-from">'+fromO+'</select></div>';
+  h+='<div class="fg"><label>إلى مخزن *</label><select id="mv-to">'+toO+'</select></div>';
+  h+='<div class="fg"><label>الكمية *</label><input type="number" id="mv-q" min="1" placeholder="0"></div>';
+  h+='<div class="fg"><label>البيان</label><input id="mv-reason" placeholder="سبب التحويل"></div>';
+  h+='<div class="fg"><label>التاريخ</label><input type="date" id="mv-date" value="'+new Date().toISOString().split("T")[0]+'"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px;">';
+  h+='<button class="btn btn-sky" onclick="doTransfer('+i+')" style="flex:1;">🔄 تأكيد التحويل</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("🔄 تحويل بين المخازن",h);
+}
+function doTransfer(i){
+  var item=DB.inventory[i];
+  var from=sv("mv-from"),to=sv("mv-to");
+  var q=parseInt((document.getElementById("mv-q")||{}).value)||0;
+  var reason=sv("mv-reason");
+  var date=sv("mv-date")||new Date().toISOString().split("T")[0];
+  if(!from||!to){toast("⚠️ حدد المخزنين");return;}
+  if(from===to){toast("⚠️ المخزن المصدر والمقصد متماثلان");return;}
+  if(q<=0){toast("⚠️ ادخل كمية صحيحة");return;}
+  var avail=getItemQtyInWH(item.code,from);
+  if(q>avail){toast("⚠️ الكمية أكبر من المتاح ("+avail+")");return;}
+  var ts=Date.now();
+  DB.invMovements.push({id:"MOV"+ts,date:date,itemCode:item.code,itemName:item.name,unit:item.unit,
+    warehouse:from,type:"transfer-out",qty:q,balAfter:avail-q,ref:"TRF-"+ts,reason:"تحويل إلى: "+(DB.warehouses.find(function(w){return w.code===to;})||{}).name+(" — "+reason)});
+  var toQty=getItemQtyInWH(item.code,to);
+  DB.invMovements.push({id:"MOV"+(ts+1),date:date,itemCode:item.code,itemName:item.name,unit:item.unit,
+    warehouse:to,type:"transfer-in",qty:q,balAfter:toQty+q,ref:"TRF-"+ts,reason:"تحويل من: "+(DB.warehouses.find(function(w){return w.code===from;})||{}).name+(" — "+reason)});
+  save();cm();sub("inventory");toast("✅ تم التحويل ("+q+" "+item.unit+")");
+}
+
+// ---- EXECUTE IN/OUT/SCRAP ----
+function doInv(i,type){
+  var item=DB.inventory[i];
+  var q=parseInt((document.getElementById("mv-q")||{}).value)||0;
+  var wh=sv("mv-wh")||"";
+  var reason=sv("mv-reason")||"";
+  var ref=sv("mv-ref")||"";
+  var date=sv("mv-date")||new Date().toISOString().split("T")[0];
+  var newCost=fv("mv-cost")||item.cost||0;
+  if(q<=0){toast("⚠️ ادخل كمية صحيحة");return;}
+  if(DB.warehouses.length&&!wh){toast("⚠️ حدد المخزن");return;}
+  if((type==="out"||type==="scrap")){
+    var avail=wh?getItemQtyInWH(item.code,wh):getTotalQty(item.code);
+    if(q>avail){toast("⚠️ الكمية أكبر من المتاح ("+avail+")");return;}
+  }
+  if(type==="in"&&newCost>0) DB.inventory[i].cost=newCost;
+  var balBefore=wh?getItemQtyInWH(item.code,wh):getTotalQty(item.code);
+  var balAfter=type==="in"?balBefore+q:balBefore-q;
+  DB.invMovements.push({
+    id:"MOV"+Date.now(),date:date,
+    itemCode:item.code,itemName:item.name,unit:item.unit,
+    warehouse:wh,type:type,qty:q,
+    balBefore:balBefore,balAfter:Math.max(0,balAfter),
+    ref:ref,reason:reason
+  });
+  save();cm();sub("inventory");
+  var msgs={"in":"✅ تم الإضافة","out":"✅ تم الصرف","scrap":"✅ تم الإعدام"};
+  toast(msgs[type]||"✅ تم");
+}
+
+// ---- HISTORY ----
+function showInvHistory(){
+  initInv();
+  if(!DB.invMovements||!DB.invMovements.length){
+    om("📋 بيان الحركات","<div style='text-align:center;color:var(--g4);padding:30px;'>لا توجد حركات بعد</div>");
+    return;
+  }
+  var typeMap={
+    "in":{lbl:"📥 إضافة",cls:"bg"},
+    "out":{lbl:"📤 صرف",cls:"br"},
+    "scrap":{lbl:"🗑️ إعدام",cls:"ba"},
+    "transfer-in":{lbl:"🔄 تحويل وارد",cls:"bb"},
+    "transfer-out":{lbl:"🔄 تحويل صادر",cls:"bgy"}
+  };
+  var whMap={};
+  (DB.warehouses||[]).forEach(function(w){whMap[w.code]=w.name;});
+
+  var h='<div style="overflow-x:auto;">';
+  h+='<table><thead><tr>';
+  h+='<th>التاريخ</th><th>الصنف</th><th>المخزن</th><th>النوع</th>';
+  h+='<th>الكمية</th><th>الرصيد بعد</th><th>المرجع</th><th>البيان</th>';
+  h+='</tr></thead><tbody>';
   DB.invMovements.slice().reverse().forEach(function(m){
+    var tm=typeMap[m.type]||{lbl:m.type,cls:"bgy"};
     h+='<tr>';
-    h+='<td style="font-size:11px;">'+m.date+'</td>';
-    h+='<td>'+m.name+'</td>';
-    h+='<td><span class="badge '+(m.type==='in'?'bg':'br')+'">'+(m.type==='in'?'📥 إضافة':'📤 صرف')+'</span></td>';
-    h+='<td class="tn" style="font-weight:800;color:'+(m.type==='in'?'var(--gr)':'var(--rd)')+';">'+m.qty+'</td>';
-    h+='<td class="tn">'+m.before+'</td>';
-    h+='<td class="tn" style="font-weight:700;">'+m.after+'</td>';
-    h+='<td style="font-size:11px;color:var(--g4);">'+(m.reason||'—')+'</td>';
+    h+='<td style="font-size:11px;white-space:nowrap;">'+m.date+'</td>';
+    h+='<td><div style="font-weight:700;font-size:12px;">'+m.itemName+'</div><code style="font-size:10px;color:var(--g4);">'+m.itemCode+'</code></td>';
+    h+='<td style="font-size:11px;">'+(whMap[m.warehouse]||m.warehouse||"—")+'</td>';
+    h+='<td><span class="badge '+tm.cls+'" style="font-size:10px;white-space:nowrap;">'+tm.lbl+'</span></td>';
+    h+='<td class="tn" style="font-weight:800;color:'+(m.type==="in"||m.type==="transfer-in"?"var(--gr)":"var(--rd)")+';">'+m.qty+'</td>';
+    h+='<td class="tn" style="font-weight:700;">'+(m.balAfter!==undefined?m.balAfter:"—")+'</td>';
+    h+='<td style="font-size:10.5px;color:var(--sk);">'+(m.ref||"—")+'</td>';
+    h+='<td style="font-size:11px;color:var(--g4);">'+(m.reason||"—")+'</td>';
     h+='</tr>';
   });
-  h+='</tbody></table>';
-  om('📋 حركة المخزون',h);
+  h+='</tbody></table></div>';
+  om("📋 بيان حركة المخازن",h);
 }
+
 
 
 document.addEventListener('click',function(ev){var n=ev.target.closest('[data-nav]');if(n){nav(n.getAttribute('data-nav'),n);return;}var t=ev.target.closest('[data-eid]');if(t){viewE(t.getAttribute('data-eid'));return;}var s=ev.target.closest('[data-sub]');if(s){sub(s.getAttribute('data-sub'));return;}});
