@@ -122,8 +122,8 @@ var DB={
     {id:"J2025-003",date:"2025-02-15",ref:"REC-002",desc:"استلام منحة EU",proj:"P002",lines:[{acc:"110103",an:"البنك الأهلي",dr:400000,cr:0},{acc:"4002",an:"منحة EU",dr:0,cr:400000}],status:"posted"}
   ],
   employees:[
-    {id:"E001",name:"أحمد محمد السيد",pos:"مدير مالي",sal:18000,allow:2000,natWork:500,transport:300,overtime:0,deduct:0,ins:"full",status:"active"},
-    {id:"E002",name:"سارة علي حسن",pos:"محاسبة",sal:12000,allow:1000,natWork:300,transport:200,overtime:0,deduct:0,ins:"full",status:"active"}
+    {id:"E001",nameAr:"أحمد محمد السيد",nameEn:"Ahmed Mohamed El-Sayed",name:"أحمد محمد السيد",pos:"مدير مالي",dept:"المالية",grade:"",manager:"",branch:"القاهرة",sector:"commercial",empType:"full-time",contractType:"indefinite",hireDate:"2020-01-01",contractStart:"2020-01-01",contractEnd:"",probEnd:"",nationalId:"",gender:"male",dob:"",marital:"married",nationality:"مصري",religion:"مسلم",mobile:"",email:"",address:"",emergName:"",emergPhone:"",emergRel:"",bankName:"",bankAccount:"",socialInsNo:"",taxId:"",disability:false,hazardous:false,schedule:"5 أيام",dailyHours:8,sal:18000,allow:2000,natWork:500,transport:300,overtime:0,deduct:0,ins:"full",status:"active",exitDate:"",exitReason:"",notes:""},
+    {id:"E002",nameAr:"سارة علي حسن",nameEn:"Sara Ali Hassan",name:"سارة علي حسن",pos:"محاسبة",dept:"المالية",grade:"",manager:"E001",branch:"القاهرة",sector:"commercial",empType:"full-time",contractType:"indefinite",hireDate:"2021-06-01",contractStart:"2021-06-01",contractEnd:"",probEnd:"",nationalId:"",gender:"female",dob:"",marital:"single",nationality:"مصرية",religion:"مسلم",mobile:"",email:"",address:"",emergName:"",emergPhone:"",emergRel:"",bankName:"",bankAccount:"",socialInsNo:"",taxId:"",disability:false,hazardous:false,schedule:"5 أيام",dailyHours:8,sal:12000,allow:1000,natWork:300,transport:200,overtime:0,deduct:0,ins:"full",status:"active",exitDate:"",exitReason:"",notes:""}
   ],
   accounts:[
     {c:"110101",n:"الخزينة",nat:"dr"},{c:"110102",n:"بنك مصر",nat:"dr"},
@@ -787,33 +787,260 @@ function rInvPage(){
   });
   return h;
 }
+function nextEmpId(){
+  var ids=DB.employees.map(function(e){return parseInt((e.id||"E000").replace(/\D/g,""))||0;});
+  return "E"+String(Math.max(0,...ids)+1).padStart(3,"0");
+}
+
 function rEmpPage(){
-  if(!DB.employees||!DB.employees.length)
-    return '<div class="ph-t" style="margin-bottom:12px;">👥 الموظفين</div><div style="text-align:center;color:var(--g4);padding:30px;">لا يوجد موظفون — أضف موظفين من صفحة المرتبات</div>';
+  var active=DB.employees.filter(function(e){return e.status==="active";});
+  var inactive=DB.employees.filter(function(e){return e.status!=="active";});
   var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-  h+='<div class="ph-t">👥 الموظفين</div>';
-  h+='<span class="badge bb">'+DB.employees.length+' موظف</span></div>';
+  h+='<div><div class="ph-t">👥 الموظفين</div><div style="font-size:11px;color:var(--g4);">'+active.length+' نشط · '+inactive.length+' غير نشط</div></div>';
+  h+='<button class="btn btn-gr btn-sm" onclick="newEmp()">+ موظف جديد</button></div>';
+  if(!DB.employees.length)
+    return h+'<div style="text-align:center;color:var(--g4);padding:30px;">لا يوجد موظفون بعد</div>';
   DB.employees.forEach(function(e,i){
     var r=calc(e);
     var iCls={"full":"bg","partial":"ba","none":"bgy"}[e.ins||"full"];
     var iLbl={"full":"تأمين كامل","partial":"جزئي","none":"بدون"}[e.ins||"full"];
+    var sts=e.status==="active"?"bg":"br";
+    var stsLbl=e.status==="active"?"نشط":"غير نشط";
     h+='<div class="ec" style="margin-bottom:10px;">';
-    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
-    h+='<div><div style="font-weight:800;font-size:14px;">'+e.name+'</div>';
-    h+='<div style="font-size:11px;color:var(--g4);">'+e.pos+' · <span class="badge '+iCls+'">'+iLbl+'</span></div></div>';
-    h+='<div style="text-align:left;"><div style="font-size:10px;color:var(--g4);">صافي المرتب</div>';
-    h+='<div style="font-weight:900;font-size:16px;color:var(--gr);">'+fmt(r.net)+'</div></div></div>';
-    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;font-size:11px;text-align:center;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+    h+='<div>';
+    h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">';
+    h+='<span style="font-weight:900;font-size:13px;color:var(--g4);">'+e.id+'</span>';
+    h+='<span class="badge '+sts+'" style="font-size:9.5px;">'+stsLbl+'</span></div>';
+    h+='<div style="font-weight:800;font-size:14px;">'+e.name+'</div>';
+    h+='<div style="font-size:11px;color:var(--g4);">'+(e.pos||"—")+' · '+(e.dept||"—")+'</div>';
+    h+='<div style="font-size:11px;color:var(--g4);margin-top:2px;"><span class="badge '+iCls+'" style="font-size:9.5px;">'+iLbl+'</span>'+(e.hireDate?' · تعيين: '+e.hireDate:'')+'</div>';
+    h+='</div>';
+    h+='<div style="text-align:left;min-width:80px;">';
+    h+='<div style="font-size:10px;color:var(--g4);">صافي المرتب</div>';
+    h+='<div style="font-weight:900;font-size:16px;color:var(--gr);">'+fmt(r.net)+'</div>';
+    h+='<div style="font-size:10px;color:var(--g4);">ج.م</div></div></div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;font-size:11px;text-align:center;margin-bottom:8px;">';
     h+='<div style="background:var(--g1);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:10px;">الإجمالي</div><div style="font-weight:800;">'+fmt(r.gross)+'</div></div>';
     h+='<div style="background:var(--rbg);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:10px;">تأمين</div><div style="font-weight:800;color:var(--rd);">'+fmt(r.empI)+'</div></div>';
     h+='<div style="background:var(--abg);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:10px;">ضريبة</div><div style="font-weight:800;color:var(--am);">'+fmt(r.tax)+'</div></div>';
     h+='</div>';
-    h+='<button class="btn btn-sm" onclick="editSal('+i+');cm();" style="width:100%;margin-top:8px;background:var(--sk);font-size:12px;">✏️ تعديل المرتب</button>';
-    h+='</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
+    h+='<button class="btn btn-sm" onclick="viewEmp('+i+')" style="background:var(--n);font-size:11px;">📋 الملف الكامل</button>';
+    h+='<button class="btn btn-sm" onclick="editSal('+i+')" style="background:var(--sk);font-size:11px;">✏️ المرتب</button>';
+    h+='</div></div>';
   });
   return h;
 }
 
+function newEmp(){
+  var id=nextEmpId();
+  var depts=["المالية","الإدارة","المشروعات","الموارد البشرية","الصحة","التعليم","التنمية المجتمعية","اللوجستيات"];
+  var dO=depts.map(function(d){return'<option>'+d+'</option>';}).join("");
+  var mgO='<option value="">— بدون مدير مباشر —</option>'+DB.employees.map(function(e){return'<option value="'+e.id+'">'+e.id+' — '+e.name+'</option>';}).join("");
+  var h='<div style="font-size:11px;color:var(--sk);font-weight:700;margin-bottom:10px;">كود الموظف سيكون: <strong style="color:var(--n);">'+id+'</strong></div>';
+
+  h+='<div class="sd">البيانات الأساسية</div>';
+  h+='<div class="fr"><div class="fg"><label>الاسم بالعربي *</label><input id="en-nameAr" placeholder="أحمد محمد السيد"></div>';
+  h+='<div class="fg"><label>الاسم بالإنجليزي</label><input id="en-nameEn" placeholder="Ahmed Mohamed"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>الرقم القومي</label><input id="en-nid" placeholder="28801011234567" maxlength="14"></div>';
+  h+='<div class="fg"><label>الجنس</label><select id="en-gender"><option value="male">ذكر</option><option value="female">أنثى</option></select></div></div>';
+  h+='<div class="fr"><div class="fg"><label>تاريخ الميلاد</label><input type="date" id="en-dob"></div>';
+  h+='<div class="fg"><label>الحالة الاجتماعية</label><select id="en-marital"><option value="single">أعزب</option><option value="married">متزوج</option><option value="divorced">مطلق</option><option value="widowed">أرمل</option></select></div></div>';
+  h+='<div class="fr"><div class="fg"><label>الجنسية</label><input id="en-nat" value="مصري"></div>';
+  h+='<div class="fg"><label>الديانة</label><input id="en-rel" value="مسلم"></div></div>';
+
+  h+='<div class="sd">بيانات التواصل</div>';
+  h+='<div class="fr"><div class="fg"><label>الموبايل</label><input id="en-mob" placeholder="01xxxxxxxxx"></div>';
+  h+='<div class="fg"><label>البريد الإلكتروني</label><input id="en-email" placeholder="email@org.com"></div></div>';
+  h+='<div class="fg"><label>العنوان</label><input id="en-addr" placeholder="العنوان بالتفصيل"></div>';
+  h+='<div class="fr"><div class="fg"><label>اسم جهة الطوارئ</label><input id="en-emgN"></div>';
+  h+='<div class="fg"><label>موبايل الطوارئ</label><input id="en-emgP"></div></div>';
+  h+='<div class="fg"><label>صفة جهة الطوارئ</label><input id="en-emgR" placeholder="زوج / أخ / والد ..."></div>';
+
+  h+='<div class="sd">بيانات الوظيفة</div>';
+  h+='<div class="fr"><div class="fg"><label>المسمى الوظيفي *</label><input id="en-pos" placeholder="مدير مشروع"></div>';
+  h+='<div class="fg"><label>القسم</label><select id="en-dept">'+dO+'</select></div></div>';
+  h+='<div class="fr"><div class="fg"><label>الدرجة الوظيفية</label><input id="en-grade" placeholder="Grade 3"></div>';
+  h+='<div class="fg"><label>المدير المباشر</label><select id="en-mgr">'+mgO+'</select></div></div>';
+  h+='<div class="fr"><div class="fg"><label>الفرع / الموقع</label><input id="en-branch" value="القاهرة"></div>';
+  h+='<div class="fg"><label>القطاع</label><select id="en-sector"><option value="commercial">تجاري</option><option value="industrial">صناعي</option></select></div></div>';
+  h+='<div class="fr"><div class="fg"><label>نوع التوظيف</label><select id="en-etype"><option value="full-time">دوام كامل</option><option value="part-time">دوام جزئي</option><option value="consultant">استشاري</option><option value="volunteer">متطوع</option></select></div>';
+  h+='<div class="fg"><label>نوع العقد</label><select id="en-ctype"><option value="indefinite">غير محدد المدة</option><option value="fixed">محدد المدة</option><option value="project">مشروع</option></select></div></div>';
+
+  h+='<div class="sd">تواريخ التعاقد</div>';
+  h+='<div class="fr"><div class="fg"><label>تاريخ التعيين *</label><input type="date" id="en-hire" value="'+new Date().toISOString().split("T")[0]+'"></div>';
+  h+='<div class="fg"><label>بداية العقد</label><input type="date" id="en-cs" value="'+new Date().toISOString().split("T")[0]+'"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>نهاية العقد</label><input type="date" id="en-ce"></div>';
+  h+='<div class="fg"><label>نهاية التجربة</label><input type="date" id="en-prob"></div></div>';
+
+  h+='<div class="sd">المرتب والتأمينات</div>';
+  h+='<div class="fr"><div class="fg"><label>الأجر الأساسي (ج.م) *</label><input type="number" id="en-sal" value="0" placeholder="0"></div>';
+  h+='<div class="fg"><label>العلاوات</label><input type="number" id="en-allow" value="0"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>بدل طبيعة عمل</label><input type="number" id="en-nw" value="0"></div>';
+  h+='<div class="fg"><label>بدل انتقال</label><input type="number" id="en-tr" value="0"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>ساعات إضافية</label><input type="number" id="en-ot" value="0"></div>';
+  h+='<div class="fg"><label>خصومات</label><input type="number" id="en-ded" value="0"></div></div>';
+  h+='<div class="fg"><label>نوع التأمين</label><select id="en-ins">';
+  h+='<option value="full">تأمين كامل (11% موظف + 18.75% جمعية)</option>';
+  h+='<option value="partial">تأمين جزئي (11% موظف فقط)</option>';
+  h+='<option value="none">بدون تأمين</option></select></div>';
+  h+='<div class="fr"><div class="fg"><label>ذوو إعاقة</label><select id="en-dis"><option value="false">لا</option><option value="true">نعم</option></select></div>';
+  h+='<div class="fg"><label>أعمال خطرة / بعيدة</label><select id="en-haz"><option value="false">لا</option><option value="true">نعم (+7 أيام إجازة)</option></select></div></div>';
+
+  h+='<div class="sd">البيانات البنكية والتأمينية</div>';
+  h+='<div class="fr"><div class="fg"><label>اسم البنك</label><input id="en-bank" placeholder="بنك مصر"></div>';
+  h+='<div class="fg"><label>رقم الحساب / IBAN</label><input id="en-iban"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>رقم التأمين الاجتماعي</label><input id="en-sins"></div>';
+  h+='<div class="fg"><label>الرقم الضريبي</label><input id="en-tax"></div></div>';
+
+  h+='<div class="sd">بيانات أخرى</div>';
+  h+='<div class="fr"><div class="fg"><label>جدول العمل</label><input id="en-sched" value="5 أيام"></div>';
+  h+='<div class="fg"><label>ساعات العمل اليومية</label><input type="number" id="en-dhrs" value="8"></div></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="en-notes" placeholder="أي ملاحظات إضافية"></div>';
+
+  h+='<div style="display:flex;gap:8px;margin-top:12px;">';
+  h+='<button class="btn btn-gr" onclick="saveEmp(\''+id+'\')" style="flex:1;">✅ إضافة الموظف</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("➕ موظف جديد",h);
+}
+
+function saveEmp(id){
+  var nameAr=sv("en-nameAr");
+  var pos=sv("en-pos");
+  if(!nameAr||!pos){alert("الاسم بالعربي والمسمى الوظيفي مطلوبان");return;}
+  var emp={
+    id:id, nameAr:nameAr, nameEn:sv("en-nameEn"), name:nameAr,
+    pos:pos, dept:sv("en-dept"), grade:sv("en-grade"),
+    manager:sv("en-mgr"), branch:sv("en-branch"),
+    sector:sv("en-sector"), empType:sv("en-etype"), contractType:sv("en-ctype"),
+    hireDate:sv("en-hire"), contractStart:sv("en-cs"),
+    contractEnd:sv("en-ce"), probEnd:sv("en-prob"),
+    nationalId:sv("en-nid"), gender:sv("en-gender"),
+    dob:sv("en-dob"), marital:sv("en-marital"),
+    nationality:sv("en-nat"), religion:sv("en-rel"),
+    mobile:sv("en-mob"), email:sv("en-email"),
+    address:sv("en-addr"), emergName:sv("en-emgN"),
+    emergPhone:sv("en-emgP"), emergRel:sv("en-emgR"),
+    bankName:sv("en-bank"), bankAccount:sv("en-iban"),
+    socialInsNo:sv("en-sins"), taxId:sv("en-tax"),
+    disability:sv("en-dis")==="true", hazardous:sv("en-haz")==="true",
+    schedule:sv("en-sched"), dailyHours:fv("en-dhrs"),
+    sal:fv("en-sal"), allow:fv("en-allow"),
+    natWork:fv("en-nw"), transport:fv("en-tr"),
+    overtime:fv("en-ot"), deduct:fv("en-ded"),
+    ins:sv("en-ins")||"full",
+    status:"active", exitDate:"", exitReason:"",
+    notes:sv("en-notes")
+  };
+  DB.employees.push(emp);
+  save(); cm();
+  sub("employees");
+  rPay();
+  toast("✅ تمت إضافة الموظف "+id);
+}
+
+function viewEmp(i){
+  var e=DB.employees[i];
+  if(!e)return;
+  var r=calc(e);
+  var mgr=DB.employees.find(function(x){return x.id===e.manager;});
+  var iLbl={"full":"تأمين كامل","partial":"جزئي","none":"بدون"}[e.ins||"full"];
+  var yos="";
+  if(e.hireDate){var ms=new Date()-new Date(e.hireDate);yos=(ms/31536000000).toFixed(1)+" سنة";}
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:10px;padding:14px;margin-bottom:12px;color:white;">';
+  h+='<div style="font-size:12px;opacity:.7;">'+e.id+' · '+(e.dept||"—")+'</div>';
+  h+='<div style="font-weight:900;font-size:18px;margin:4px 0;">'+e.name+'</div>';
+  h+='<div style="font-size:12px;opacity:.85;">'+e.pos+(e.grade?' · '+e.grade:'')+'</div>';
+  if(yos)h+='<div style="font-size:11px;opacity:.7;margin-top:3px;">مدة الخدمة: '+yos+'</div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h+='<div style="background:var(--gbg);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:10px;color:var(--g4);">صافي المرتب</div><div style="font-weight:900;color:var(--gr);font-size:15px;">'+fmt(r.net)+'</div></div>';
+  h+='<div style="background:var(--rbg);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:10px;color:var(--g4);">التأمين</div><div style="font-weight:800;color:var(--rd);font-size:13px;">'+fmt(r.empI)+'</div></div>';
+  h+='<div style="background:var(--skp);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:10px;color:var(--g4);">تكلفة الجمعية</div><div style="font-weight:800;color:var(--n);font-size:13px;">'+fmt(r.cost)+'</div></div>';
+  h+='</div>';
+  function row(lbl,val){if(!val)return"";return'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--g1);font-size:12px;"><span style="color:var(--g5);">'+lbl+'</span><span style="font-weight:700;text-align:left;max-width:60%;">'+val+'</span></div>';}
+  h+='<div style="background:white;border-radius:10px;border:1px solid var(--g2);padding:10px 12px;margin-bottom:10px;">';
+  h+='<div style="font-weight:800;font-size:12px;color:var(--n);margin-bottom:6px;">📋 البيانات الشخصية</div>';
+  h+=row("الاسم بالإنجليزي",e.nameEn);
+  h+=row("الرقم القومي",e.nationalId);
+  h+=row("الجنس",e.gender==="male"?"ذكر":"أنثى");
+  h+=row("تاريخ الميلاد",e.dob);
+  h+=row("الحالة الاجتماعية",{single:"أعزب",married:"متزوج",divorced:"مطلق",widowed:"أرمل"}[e.marital]||e.marital);
+  h+=row("الجنسية",e.nationality);
+  h+=row("الديانة",e.religion);
+  h+='</div>';
+  h+='<div style="background:white;border-radius:10px;border:1px solid var(--g2);padding:10px 12px;margin-bottom:10px;">';
+  h+='<div style="font-weight:800;font-size:12px;color:var(--n);margin-bottom:6px;">📞 بيانات التواصل</div>';
+  h+=row("الموبايل",e.mobile);
+  h+=row("البريد الإلكتروني",e.email);
+  h+=row("العنوان",e.address);
+  h+=row("جهة الطوارئ",e.emergName+(e.emergRel?" ("+e.emergRel+")":""));
+  h+=row("موبايل الطوارئ",e.emergPhone);
+  h+='</div>';
+  h+='<div style="background:white;border-radius:10px;border:1px solid var(--g2);padding:10px 12px;margin-bottom:10px;">';
+  h+='<div style="font-weight:800;font-size:12px;color:var(--n);margin-bottom:6px;">💼 بيانات الوظيفة</div>';
+  h+=row("الفرع",e.branch);
+  h+=row("القطاع",e.sector==="commercial"?"تجاري":"صناعي");
+  h+=row("نوع التوظيف",{"full-time":"دوام كامل","part-time":"جزئي","consultant":"استشاري","volunteer":"متطوع"}[e.empType]||e.empType);
+  h+=row("نوع العقد",{indefinite:"غير محدد",fixed:"محدد المدة",project:"مشروع"}[e.contractType]||e.contractType);
+  h+=row("المدير المباشر",mgr?mgr.name:"—");
+  h+=row("تاريخ التعيين",e.hireDate);
+  h+=row("نهاية العقد",e.contractEnd||"غير محدد");
+  h+=row("نهاية التجربة",e.probEnd||"—");
+  h+='</div>';
+  h+='<div style="background:white;border-radius:10px;border:1px solid var(--g2);padding:10px 12px;margin-bottom:10px;">';
+  h+='<div style="font-weight:800;font-size:12px;color:var(--n);margin-bottom:6px;">💰 المرتب والتأمينات</div>';
+  h+=row("الأجر الأساسي",fmt(e.sal)+" ج.م");
+  h+=row("العلاوات",fmt(e.allow||0)+" ج.م");
+  h+=row("بدل طبيعة عمل",fmt(e.natWork||0)+" ج.م");
+  h+=row("بدل انتقال",fmt(e.transport||0)+" ج.م");
+  h+=row("الإجمالي",fmt(r.gross)+" ج.م");
+  h+=row("تأمين الموظف 11%",fmt(r.empI)+" ج.م");
+  h+=row("ضريبة الدخل",fmt(r.tax)+" ج.م");
+  h+=row("صافي المرتب","<strong style='color:var(--gr);font-size:14px;'>"+fmt(r.net)+" ج.م</strong>");
+  h+=row("نوع التأمين",iLbl);
+  h+=row("رقم التأمين الاجتماعي",e.socialInsNo);
+  h+=row("الرقم الضريبي",e.taxId);
+  h+='</div>';
+  h+='<div style="background:white;border-radius:10px;border:1px solid var(--g2);padding:10px 12px;margin-bottom:12px;">';
+  h+='<div style="font-weight:800;font-size:12px;color:var(--n);margin-bottom:6px;">🏦 البيانات البنكية</div>';
+  h+=row("البنك",e.bankName);
+  h+=row("رقم الحساب",e.bankAccount);
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<button class="btn btn-sky btn-sm" onclick="editSal('+i+')">✏️ تعديل المرتب</button>';
+  h+='<button class="btn btn-sm btn-gy" onclick="editEmpStatus('+i+')">🔄 تغيير الحالة</button>';
+  h+='</div>';
+  om("📋 ملف الموظف",h);
+}
+
+function editEmpStatus(i){
+  var e=DB.employees[i];
+  if(!e)return;
+  var h='<div style="font-size:13px;font-weight:700;margin-bottom:12px;">الموظف: '+e.name+'</div>';
+  h+='<div class="fg"><label>الحالة الوظيفية</label><select id="est-s">';
+  h+='<option value="active"'+(e.status==="active"?" selected":"")+'>نشط</option>';
+  h+='<option value="inactive"'+(e.status==="inactive"?" selected":"")+'>غير نشط</option>';
+  h+='<option value="resigned"'+(e.status==="resigned"?" selected":"")+'>استقالة</option>';
+  h+='<option value="terminated"'+(e.status==="terminated"?" selected":"")+'>إنهاء خدمة</option>';
+  h+='</select></div>';
+  h+='<div class="fg"><label>تاريخ المغادرة</label><input type="date" id="est-d" value="'+(e.exitDate||"")+'"></div>';
+  h+='<div class="fg"><label>سبب المغادرة</label><input id="est-r" value="'+(e.exitReason||"")+'"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px;">';
+  h+='<button class="btn" onclick="saveEmpStatus('+i+')" style="flex:1;">💾 حفظ</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("🔄 تغيير حالة الموظف",h);
+}
+
+function saveEmpStatus(i){
+  var e=DB.employees[i];if(!e)return;
+  e.status=sv("est-s")||"active";
+  e.exitDate=sv("est-d");
+  e.exitReason=sv("est-r");
+  save();cm();sub("employees");rPay();
+  toast("✅ تم تحديث حالة الموظف");
+}
 function rSetPage(){
   var org=DB.org||{};
   var h='<div class="ph-t" style="margin-bottom:14px;">⚙️ الإعدادات</div>';
