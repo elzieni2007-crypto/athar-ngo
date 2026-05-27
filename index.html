@@ -127,16 +127,106 @@ var DB={
     {id:"E002",nameAr:"سارة علي حسن",nameEn:"Sara Ali Hassan",name:"سارة علي حسن",pos:"محاسبة",dept:"المالية",grade:"",manager:"E001",branch:"القاهرة",sector:"commercial",empType:"full-time",contractType:"indefinite",hireDate:"2021-06-01",contractStart:"2021-06-01",contractEnd:"",probEnd:"",nationalId:"",gender:"female",dob:"",marital:"single",nationality:"مصرية",religion:"مسلم",mobile:"",email:"",address:"",emergName:"",emergPhone:"",emergRel:"",bankName:"",bankAccount:"",socialInsNo:"",taxId:"",disability:false,hazardous:false,schedule:"5 أيام",dailyHours:8,sal:12000,allow:1000,natWork:300,transport:200,overtime:0,deduct:0,ins:"full",status:"active",exitDate:"",exitReason:"",notes:""}
   ],
   accounts:[
-    {c:"110101",n:"الخزينة",nat:"dr"},{c:"110102",n:"بنك مصر",nat:"dr"},
-    {c:"110103",n:"البنك الأهلي",nat:"dr"},{c:"110104",n:"CIB",nat:"dr"},
-    {c:"4001",n:"منحة USAID",nat:"cr"},{c:"4002",n:"منحة EU",nat:"cr"},
-    {c:"4003",n:"منحة UNDP",nat:"cr"},{c:"4004",n:"تبرعات محلية",nat:"cr"},
-    {c:"5101",n:"رواتب وأجور",nat:"dr"},{c:"5102",n:"مكافآت",nat:"dr"},
-    {c:"5103",n:"تأمينات اجتماعية",nat:"dr"},{c:"5201",n:"إيجارات",nat:"dr"},
-    {c:"5202",n:"كهرباء ومياه",nat:"dr"},{c:"5203",n:"اتصالات",nat:"dr"},
-    {c:"5301",n:"تدريب وورش عمل",nat:"dr"},{c:"5302",n:"مواد ومستلزمات",nat:"dr"},
-    {c:"5303",n:"انتقالات وسفر",nat:"dr"},{c:"2103",n:"ضرائب محجوزة",nat:"cr"},
-    {c:"2104",n:"تأمينات موظفين محجوزة",nat:"cr"}
+    {c:"1111",n:"الخزينة — نقدية بالصندوق",nat:"dr"},
+    {c:"1112",n:"ح/ البنك الجاري",nat:"dr"},
+    {c:"1113",n:"ح/ البنك الادخاري / الوديعة",nat:"dr"},
+    {c:"1114",n:"السلفة المستديمة (عهدة)",nat:"dr"},
+    {c:"1121",n:"دفعات مقدمة للجمعيات والمؤسسات الأهلية",nat:"dr"},
+    {c:"1122",n:"دفعات مقدمة للموردين",nat:"dr"},
+    {c:"1123",n:"سلف الموظفين",nat:"dr"},
+    {c:"1124",n:"مبالغ تحت التسوية",nat:"dr"},
+    {c:"1125",n:"ذمم مدينة متنوعة",nat:"dr"},
+    {c:"1131",n:"تأمينات دفعات مقدمة (خطابات ضمان صادرة)",nat:"dr"},
+    {c:"1132",n:"تأمينات نهائية (كفالات للغير)",nat:"dr"},
+    {c:"1133",n:"تأمينات إيجار ومرافق",nat:"dr"},
+    {c:"1141",n:"مخزون مواد إغاثية / إنسانية",nat:"dr"},
+    {c:"1142",n:"مخزون مواد تعليمية وتوعوية",nat:"dr"},
+    {c:"1143",n:"مخزون لوازم مكتبية وتشغيلية",nat:"dr"},
+    {c:"1144",n:"مخزون هدايا وفعاليات",nat:"dr"},
+    {c:"1211",n:"أراضي",nat:"dr"},
+    {c:"1212",n:"مبانى ومنشآت",nat:"dr"},
+    {c:"1213",n:"أثاث وتجهيزات مكتبية",nat:"dr"},
+    {c:"1214",n:"أجهزة تكنولوجيا المعلومات والاتصالات",nat:"dr"},
+    {c:"1215",n:"آلات ومعدات",nat:"dr"},
+    {c:"1216",n:"وسائل نقل وانتقال",nat:"dr"},
+    {c:"1217",n:"مشروعات تحت التنفيذ",nat:"dr"},
+    {c:"1221",n:"مجمع إهلاك مبانى ومنشآت",nat:"cr"},
+    {c:"1222",n:"مجمع إهلاك أثاث وتجهيزات",nat:"cr"},
+    {c:"1223",n:"مجمع إهلاك أجهزة تكنولوجيا المعلومات",nat:"cr"},
+    {c:"1224",n:"مجمع إهلاك آلات ومعدات",nat:"cr"},
+    {c:"1225",n:"مجمع إهلاك وسائل النقل",nat:"cr"},
+    {c:"1231",n:"برمجيات وأنظمة معلومات",nat:"dr"},
+    {c:"1232",n:"مجمع إهلاك برمجيات",nat:"cr"},
+    {c:"2111",n:"مستحقات للموردين",nat:"cr"},
+    {c:"2112",n:"مستحقات رواتب وأجور",nat:"cr"},
+    {c:"2113",n:"مستحقات تأمينات اجتماعية",nat:"cr"},
+    {c:"2114",n:"ضرائب مستحقة (خصم وتحصيل — قيمة مضافة — دمغة)",nat:"cr"},
+    {c:"2115",n:"ذمم دائنة متنوعة",nat:"cr"},
+    {c:"2121",n:"تأمينات محتجزة لصالح الجمعيات (ضمان أعمال)",nat:"cr"},
+    {c:"2122",n:"أمانات إيجار (تأمين شهرين)",nat:"cr"},
+    {c:"2123",n:"مبالغ محتجزة تحت التسوية",nat:"cr"},
+    {c:"2131",n:"رسوم وتبرعات محصلة مقدماً",nat:"cr"},
+    {c:"2132",n:"منح وتمويلات مقيدة لم تُصرف بعد",nat:"cr"},
+    {c:"2211",n:"قروض من جهات حكومية",nat:"cr"},
+    {c:"2212",n:"قروض من مؤسسات تمويلية",nat:"cr"},
+    {c:"3111",n:"الرصيد الافتتاحي",nat:"cr"},
+    {c:"3121",n:"فائض / عجز السنوات السابقة",nat:"cr"},
+    {c:"3122",n:"فائض / عجز السنة الحالية",nat:"cr"},
+    {c:"3131",n:"احتياطي رأسمالي",nat:"cr"},
+    {c:"3132",n:"احتياطي للطوارئ",nat:"cr"},
+    {c:"4111",n:"منح من وزارة التضامن الاجتماعي",nat:"cr"},
+    {c:"4112",n:"منح من صندوق دعم مشروعات الجمعيات (CSF)",nat:"cr"},
+    {c:"4113",n:"منح من جهات حكومية أخرى",nat:"cr"},
+    {c:"4121",n:"منح من منظمات دولية",nat:"cr"},
+    {c:"4122",n:"منح من حكومات أجنبية",nat:"cr"},
+    {c:"4123",n:"منح من شركات (CSR)",nat:"cr"},
+    {c:"4131",n:"تبرعات نقدية من أفراد",nat:"cr"},
+    {c:"4132",n:"تبرعات نقدية من جهات",nat:"cr"},
+    {c:"4133",n:"تبرعات عينية (بالقيمة السوقية)",nat:"cr"},
+    {c:"4134",n:"حصيلة حملات جمع التبرعات",nat:"cr"},
+    {c:"4141",n:"رسوم تسجيل الأعضاء والاشتراكات السنوية",nat:"cr"},
+    {c:"4142",n:"رسوم تقديم الخدمات والبرامج",nat:"cr"},
+    {c:"4143",n:"رسوم التدريب والمؤتمرات",nat:"cr"},
+    {c:"4211",n:"فوائد بنكية وعوائد ودائع",nat:"cr"},
+    {c:"4212",n:"إيرادات إيجار عقارات / أصول",nat:"cr"},
+    {c:"4221",n:"إيرادات بيع مطبوعات ومنتجات",nat:"cr"},
+    {c:"4222",n:"غرامات وتعويضات محصلة",nat:"cr"},
+    {c:"4223",n:"إيرادات متنوعة أخرى",nat:"cr"},
+    {c:"5111",n:"دفعات مالية للجمعيات والمؤسسات الأهلية",nat:"dr"},
+    {c:"5112",n:"إعانات ومساعدات للأفراد",nat:"dr"},
+    {c:"5113",n:"كفالات ودعم مؤسسي",nat:"dr"},
+    {c:"5121",n:"مستلزمات وتوريدات البرامج",nat:"dr"},
+    {c:"5122",n:"أتعاب وعقود خدمات برامجية",nat:"dr"},
+    {c:"5123",n:"مصروفات التدريب وبناء القدرات",nat:"dr"},
+    {c:"5124",n:"مصروفات الإغاثة والمساعدات العينية",nat:"dr"},
+    {c:"5125",n:"مصروفات الفعاليات والمؤتمرات",nat:"dr"},
+    {c:"5211",n:"رواتب وأجور العاملين",nat:"dr"},
+    {c:"5212",n:"حوافز ومكافآت",nat:"dr"},
+    {c:"5213",n:"اشتراكات التأمينات الاجتماعية (حصة صاحب العمل)",nat:"dr"},
+    {c:"5214",n:"بدلات ومزايا عينية",nat:"dr"},
+    {c:"5215",n:"مكافآت نهاية الخدمة",nat:"dr"},
+    {c:"5221",n:"إيجار المقرات والمكاتب",nat:"dr"},
+    {c:"5222",n:"كهرباء وماء وغاز",nat:"dr"},
+    {c:"5223",n:"اتصالات وإنترنت",nat:"dr"},
+    {c:"5231",n:"قرطاسية ولوازم مكتبية",nat:"dr"},
+    {c:"5232",n:"مطبوعات ودعاية وإعلان",nat:"dr"},
+    {c:"5233",n:"وقود ومواصلات",nat:"dr"},
+    {c:"5241",n:"صيانة المباني والمنشآت",nat:"dr"},
+    {c:"5242",n:"صيانة الأجهزة والمعدات",nat:"dr"},
+    {c:"5243",n:"صيانة وسائل النقل",nat:"dr"},
+    {c:"5251",n:"أتعاب المراجعة والتدقيق الخارجي",nat:"dr"},
+    {c:"5252",n:"أتعاب قانونية واستشارية",nat:"dr"},
+    {c:"5253",n:"عمولات ورسوم بنكية",nat:"dr"},
+    {c:"5254",n:"أقساط التأمين",nat:"dr"},
+    {c:"5261",n:"مصروفات السفر والانتقالات",nat:"dr"},
+    {c:"5262",n:"ضرائب ورسوم حكومية",nat:"dr"},
+    {c:"5263",n:"مصروفات متنوعة",nat:"dr"},
+    {c:"5311",n:"إهلاك مبانى ومنشآت",nat:"dr"},
+    {c:"5312",n:"إهلاك أثاث وتجهيزات",nat:"dr"},
+    {c:"5313",n:"إهلاك أجهزة تكنولوجيا المعلومات",nat:"dr"},
+    {c:"5314",n:"إهلاك آلات ومعدات",nat:"dr"},
+    {c:"5315",n:"إهلاك وسائل النقل",nat:"dr"},
+    {c:"5316",n:"إهلاك برمجيات",nat:"dr"}
   ],
   inventory:[],
   invMovements:[],
@@ -710,15 +800,197 @@ function genPay(){
 
 // SUB PAGES
 function rAccPage(){
+  // COA hierarchy definitions
+  var groups=[
+    {code:"1",  label:"الأصول",                         icon:"🏦"},
+    {code:"11", label:"الأصول الجارية",                  icon:"💵", parent:"1"},
+    {code:"111",label:"النقدية وما في حكمها",            icon:"💰", parent:"11"},
+    {code:"112",label:"الذمم المدينة والدفعات المقدمة",   icon:"📄", parent:"11"},
+    {code:"113",label:"التأمينات والكفالات المدفوعة",     icon:"🔒", parent:"11"},
+    {code:"114",label:"المخزون",                          icon:"📦", parent:"11"},
+    {code:"12", label:"الأصول غير الجارية",               icon:"🏢", parent:"1"},
+    {code:"121",label:"الأصول الثابتة",                   icon:"🏗️", parent:"12"},
+    {code:"122",label:"مجمع الإهلاك",                     icon:"📉", parent:"12"},
+    {code:"123",label:"الأصول غير الملموسة",              icon:"💻", parent:"12"},
+    {code:"2",  label:"الخصوم",                           icon:"💳"},
+    {code:"21", label:"الخصوم الجارية",                   icon:"⏰", parent:"2"},
+    {code:"211",label:"الذمم الدائنة",                    icon:"📋", parent:"21"},
+    {code:"212",label:"الأمانات والتأمينات المحتجزة",      icon:"🔐", parent:"21"},
+    {code:"213",label:"الإيرادات المحصلة مقدماً",          icon:"📅", parent:"21"},
+    {code:"22", label:"الخصوم طويلة الأجل",               icon:"🏛️", parent:"2"},
+    {code:"221",label:"قروض طويلة الأجل",                 icon:"🏦", parent:"22"},
+    {code:"3",  label:"صافي الأصول (حقوق الملكية)",        icon:"💎"},
+    {code:"31", label:"رأس المال والاحتياطيات",            icon:"🏦", parent:"3"},
+    {code:"311",label:"رأس مال الجمعية / الصندوق الافتتاحي",icon:"🏁",parent:"31"},
+    {code:"312",label:"الفائض أو العجز المرحّل",           icon:"📊", parent:"31"},
+    {code:"313",label:"الاحتياطيات",                       icon:"🛡️", parent:"31"},
+    {code:"4",  label:"الإيرادات",                         icon:"📈"},
+    {code:"41", label:"إيرادات البرامج والمشروعات",         icon:"🎯", parent:"4"},
+    {code:"411",label:"منح ودعم حكومي",                    icon:"🏛️", parent:"41"},
+    {code:"412",label:"منح ودعم دولي",                     icon:"🌍", parent:"41"},
+    {code:"413",label:"تبرعات",                            icon:"🤝", parent:"41"},
+    {code:"414",label:"رسوم الخدمات والاشتراكات",          icon:"💼", parent:"41"},
+    {code:"42", label:"إيرادات متنوعة",                    icon:"💡", parent:"4"},
+    {code:"421",label:"إيرادات استثمارية",                 icon:"📊", parent:"42"},
+    {code:"422",label:"إيرادات أخرى",                      icon:"➕", parent:"42"},
+    {code:"5",  label:"المصروفات",                         icon:"📤"},
+    {code:"51", label:"مصروفات البرامج والمشروعات",         icon:"🎯", parent:"5"},
+    {code:"511",label:"دعم مالي مباشر للمستفيدين",          icon:"🤲", parent:"51"},
+    {code:"512",label:"مصروفات تنفيذ البرامج",              icon:"⚙️", parent:"51"},
+    {code:"52", label:"المصروفات الإدارية والتشغيلية",       icon:"🏢", parent:"5"},
+    {code:"521",label:"تكاليف الموارد البشرية",             icon:"👥", parent:"52"},
+    {code:"522",label:"مصروفات الإيجار والمرافق",           icon:"🏠", parent:"52"},
+    {code:"523",label:"مصروفات المشتريات والتوريدات",       icon:"🛒", parent:"52"},
+    {code:"524",label:"مصروفات الصيانة",                    icon:"🔧", parent:"52"},
+    {code:"525",label:"مصروفات مالية وقانونية",             icon:"⚖️", parent:"52"},
+    {code:"526",label:"مصروفات أخرى",                       icon:"📎", parent:"52"},
+    {code:"53", label:"الاستهلاك والإهلاك",                 icon:"📉", parent:"5"},
+    {code:"531",label:"مصروف إهلاك الأصول الثابتة",         icon:"📉", parent:"53"}
+  ];
+
   var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div>';
   h+='<div class="ph-t">🌳 شجرة الحسابات</div>';
-  h+='<button class="btn btn-sm" onclick="newAcc()">+ حساب جديد</button></div>';
-  h+='<table><thead><tr><th>كود</th><th>الحساب</th><th>الطبيعة</th></tr></thead><tbody>';
-  DB.accounts.forEach(function(a){
-    h+='<tr><td><code>'+a.c+'</code></td><td>'+a.n+'</td>';
-    h+='<td><span class="badge '+(a.nat==="dr"?"bb":"bg")+'">'+(a.nat==="dr"?"مدين":"دائن")+'</span></td></tr>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+DB.accounts.length+' حساب تفصيلي</div>';
+  h+='</div>';
+  h+='<button class="btn btn-sm" onclick="newAcc()">+ حساب جديد</button>';
+  h+='</div>';
+
+  // Search box
+  h+='<input id="acc-search" placeholder="🔍 بحث في الحسابات..." style="width:100%;padding:9px 12px;border:1.5px solid var(--g2);border-radius:9px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;margin-bottom:12px;" oninput="accSearch()">';
+  h+='<div id="acc-tree">';
+
+  // Build by group
+  var mainGroups=groups.filter(function(g){return !g.parent;});
+  mainGroups.forEach(function(mg){
+    h+=renderAccGroup(mg,groups,DB.accounts,0);
   });
-  return h+'</tbody></table>';
+  h+='</div>';
+  return h;
+}
+
+function renderAccGroup(grp,groups,accounts,depth){
+  // accounts belonging to this group: code starts with grp.code and is length grp.code.length+1 more
+  var directAccs=accounts.filter(function(a){
+    return a.c.startsWith(grp.code) && a.c.length===grp.code.length+1;
+  });
+  // subgroups of this group
+  var subGroups=groups.filter(function(g){return g.parent===grp.code;});
+  if(!directAccs.length&&!subGroups.length) return "";
+
+  var bgColors=["var(--n)","var(--nd)","var(--sk)","var(--g2)","white"];
+  var txtColors=["white","white","white","var(--n)","var(--n)"];
+  var paddings=[12,10,9,8,7];
+  var depth2=Math.min(depth,4);
+
+  var h='<div style="margin-bottom:8px;">';
+  // Group header
+  h+='<div style="background:'+bgColors[depth2]+';color:'+txtColors[depth2]+';border-radius:9px;padding:'+paddings[depth2]+'px 14px;font-weight:800;font-size:'+(depth===0?14:depth===1?13:12)+'px;margin-bottom:'+(depth<2?6:4)+'px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<span>'+(grp.icon||"")+" "+grp.label+'</span>';
+  h+='<code style="font-size:10px;opacity:.65;font-weight:400;">'+grp.code+'</code>';
+  h+='</div>';
+
+  // Render sub-groups recursively
+  if(subGroups.length){
+    h+='<div style="padding-right:'+(depth*8+8)+'px;">';
+    subGroups.forEach(function(sg){
+      h+=renderAccGroup(sg,groups,accounts,depth+1);
+    });
+    h+='</div>';
+  }
+
+  // Render direct accounts
+  if(directAccs.length){
+    h+='<div style="padding-right:'+(depth*8+12)+'px;">';
+    directAccs.forEach(function(a){
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:white;border:1px solid var(--g2);border-radius:8px;margin-bottom:4px;font-size:12px;">';
+      h+='<div style="display:flex;align-items:center;gap:8px;">';
+      h+='<code style="font-size:10.5px;background:var(--g1);padding:2px 7px;border-radius:5px;color:var(--n);">'+a.c+'</code>';
+      h+='<span style="font-weight:600;">'+a.n+'</span>';
+      h+='</div>';
+      h+='<div style="display:flex;align-items:center;gap:6px;">';
+      h+='<span class="badge '+(a.nat==="dr"?"bb":"bg")+'" style="font-size:9.5px;">'+(a.nat==="dr"?"مدين":"دائن")+'</span>';
+      h+='</div>';
+      h+='</div>';
+    });
+    h+='</div>';
+  }
+
+  h+='</div>';
+  return h;
+}
+
+function accSearch(){
+  var q=(document.getElementById("acc-search")||{}).value||"";
+  var tree=document.getElementById("acc-tree");
+  if(!tree) return;
+  if(!q){
+    // re-render full tree
+    var groups2=[
+      {code:"1",label:"الأصول",icon:"🏦"},
+      {code:"11",label:"الأصول الجارية",icon:"💵",parent:"1"},
+      {code:"111",label:"النقدية وما في حكمها",icon:"💰",parent:"11"},
+      {code:"112",label:"الذمم المدينة والدفعات المقدمة",icon:"📄",parent:"11"},
+      {code:"113",label:"التأمينات والكفالات المدفوعة",icon:"🔒",parent:"11"},
+      {code:"114",label:"المخزون",icon:"📦",parent:"11"},
+      {code:"12",label:"الأصول غير الجارية",icon:"🏢",parent:"1"},
+      {code:"121",label:"الأصول الثابتة",icon:"🏗️",parent:"12"},
+      {code:"122",label:"مجمع الإهلاك",icon:"📉",parent:"12"},
+      {code:"123",label:"الأصول غير الملموسة",icon:"💻",parent:"12"},
+      {code:"2",label:"الخصوم",icon:"💳"},
+      {code:"21",label:"الخصوم الجارية",icon:"⏰",parent:"2"},
+      {code:"211",label:"الذمم الدائنة",icon:"📋",parent:"21"},
+      {code:"212",label:"الأمانات والتأمينات المحتجزة",icon:"🔐",parent:"21"},
+      {code:"213",label:"الإيرادات المحصلة مقدماً",icon:"📅",parent:"21"},
+      {code:"22",label:"الخصوم طويلة الأجل",icon:"🏛️",parent:"2"},
+      {code:"221",label:"قروض طويلة الأجل",icon:"🏦",parent:"22"},
+      {code:"3",label:"صافي الأصول (حقوق الملكية)",icon:"💎"},
+      {code:"31",label:"رأس المال والاحتياطيات",icon:"🏦",parent:"3"},
+      {code:"311",label:"رأس مال الجمعية / الصندوق الافتتاحي",icon:"🏁",parent:"31"},
+      {code:"312",label:"الفائض أو العجز المرحّل",icon:"📊",parent:"31"},
+      {code:"313",label:"الاحتياطيات",icon:"🛡️",parent:"31"},
+      {code:"4",label:"الإيرادات",icon:"📈"},
+      {code:"41",label:"إيرادات البرامج والمشروعات",icon:"🎯",parent:"4"},
+      {code:"411",label:"منح ودعم حكومي",icon:"🏛️",parent:"41"},
+      {code:"412",label:"منح ودعم دولي",icon:"🌍",parent:"41"},
+      {code:"413",label:"تبرعات",icon:"🤝",parent:"41"},
+      {code:"414",label:"رسوم الخدمات والاشتراكات",icon:"💼",parent:"41"},
+      {code:"42",label:"إيرادات متنوعة",icon:"💡",parent:"4"},
+      {code:"421",label:"إيرادات استثمارية",icon:"📊",parent:"42"},
+      {code:"422",label:"إيرادات أخرى",icon:"➕",parent:"42"},
+      {code:"5",label:"المصروفات",icon:"📤"},
+      {code:"51",label:"مصروفات البرامج والمشروعات",icon:"🎯",parent:"5"},
+      {code:"511",label:"دعم مالي مباشر للمستفيدين",icon:"🤲",parent:"51"},
+      {code:"512",label:"مصروفات تنفيذ البرامج",icon:"⚙️",parent:"51"},
+      {code:"52",label:"المصروفات الإدارية والتشغيلية",icon:"🏢",parent:"5"},
+      {code:"521",label:"تكاليف الموارد البشرية",icon:"👥",parent:"52"},
+      {code:"522",label:"مصروفات الإيجار والمرافق",icon:"🏠",parent:"52"},
+      {code:"523",label:"مصروفات المشتريات والتوريدات",icon:"🛒",parent:"52"},
+      {code:"524",label:"مصروفات الصيانة",icon:"🔧",parent:"52"},
+      {code:"525",label:"مصروفات مالية وقانونية",icon:"⚖️",parent:"52"},
+      {code:"526",label:"مصروفات أخرى",icon:"📎",parent:"52"},
+      {code:"53",label:"الاستهلاك والإهلاك",icon:"📉",parent:"5"},
+      {code:"531",label:"مصروف إهلاك الأصول الثابتة",icon:"📉",parent:"53"}
+    ];
+    var html2="";
+    groups2.filter(function(g){return !g.parent;}).forEach(function(mg){html2+=renderAccGroup(mg,groups2,DB.accounts,0);});
+    tree.innerHTML=html2;
+    return;
+  }
+  // flat search
+  var results=DB.accounts.filter(function(a){return a.n.includes(q)||a.c.includes(q);});
+  if(!results.length){tree.innerHTML='<div style="text-align:center;color:var(--g4);padding:20px;">لا توجد نتائج</div>';return;}
+  var html3='<div style="font-size:11.5px;color:var(--g4);margin-bottom:8px;">'+results.length+' نتيجة</div>';
+  results.forEach(function(a){
+    html3+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:white;border:1px solid var(--g2);border-radius:8px;margin-bottom:5px;font-size:12px;">';
+    html3+='<div style="display:flex;align-items:center;gap:8px;">';
+    html3+='<code style="font-size:10.5px;background:var(--g1);padding:2px 7px;border-radius:5px;color:var(--n);">'+a.c+'</code>';
+    html3+='<span style="font-weight:600;">'+a.n+'</span>';
+    html3+='</div>';
+    html3+='<span class="badge '+(a.nat==="dr"?"bb":"bg")+'" style="font-size:9.5px;">'+(a.nat==="dr"?"مدين":"دائن")+'</span>';
+    html3+='</div>';
+  });
+  tree.innerHTML=html3;
 }
 
 function newAcc(){
