@@ -205,7 +205,14 @@ function sub(n){
     income:rIncPage,bva:rBVAPage,banks:rBankPage,
     inventory:rInvPage,employees:rEmpPage,settings:rSetPage
   };
-  if(f[n])om(n,f[n]());
+  var titles={
+    accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
+    balance:"📈 الميزانية العمومية",income:"💰 قائمة الدخل",
+    bva:"📉 متابعة BVA",banks:"🏦 البنوك والخزينة",
+    inventory:"📦 المخازن",employees:"👥 الموظفين",
+    settings:"⚙️ الإعدادات"
+  };
+  if(f[n])om(titles[n]||n, f[n]());
 }
 
 // DASHBOARD
