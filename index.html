@@ -232,7 +232,8 @@ var DB={
   invMovements:[],
   warehouses:[{code:"WH01",name:"المخزن الرئيسي",location:"المقر الرئيسي",manager:"",notes:""}],
   itemCategories:["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"],
-  suppliers:[]
+  suppliers:[],
+  thirdParties:[]
 };
 
 try{var _s=localStorage.getItem("athar");if(_s)DB=JSON.parse(_s);}catch(e){}
@@ -303,7 +304,8 @@ function sub(n){
     income:rIncPage,bva:rBVAPage,banks:rBankPage,
     inventory:rInvPage,employees:rEmpPage,settings:rSetPage,
     suppliers:rSuppliersPage,invreports:rInvReports,
-    hrreports:rHRReports
+    hrreports:rHRReports,
+    tpledger:rTPLedger
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -312,7 +314,8 @@ function sub(n){
     inventory:"📦 المخازن",employees:"🏢 الموارد البشرية",
     settings:"⚙️ الإعدادات",
     suppliers:"🏭 الموردون",invreports:"📊 تقارير المخازن",
-    hrreports:"📊 تقارير الموارد البشرية"
+    hrreports:"📊 تقارير الموارد البشرية",
+    tpledger:"📒 الأستاذ المساعد"
   };
   if(f[n]){try{om(titles[n]||n, f[n]());}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
 }
@@ -394,14 +397,20 @@ function rDash(){
 
 // JOURNAL
 function rJour(){
+  syncTPFromHR();
   var h='<div class="ph"><div><div class="ph-t">📝 قيود اليومية</div>';
   h+='<div class="ph-s">'+DB.entries.length+' قيد مسجل</div></div>';
   h+='<button class="btn" onclick="newEntry()">+ قيد جديد</button></div>';
+  h+='<div style="display:flex;gap:7px;margin-bottom:10px;">';
+  h+='<button class="btn btn-sm" style="background:var(--n);font-size:11px;" data-sub="tpledger">📒 الأستاذ المساعد</button>';
+  h+='<button class="btn btn-sm btn-gy" onclick="rptTPBalances()" style="font-size:11px;">📊 أرصدة الأطراف</button>';
+  h+='</div>';
   if(!DB.entries.length){
     h+='<div class="card" style="text-align:center;color:var(--g4);padding:30px;">لا توجد قيود بعد</div>';
   } else {
     DB.entries.slice().reverse().forEach(function(e){
-      var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
+      syncTPFromHR();
+  var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
       h+='<div class="card">';
       h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
       h+='<div style="flex:1;"><div style="margin-bottom:5px;display:flex;gap:5px;flex-wrap:wrap;">';
@@ -415,7 +424,10 @@ function rJour(){
       h+='<div style="margin-top:10px;background:var(--g1);border-radius:8px;padding:9px;">';
       (e.lines||[]).forEach(function(l){
         h+='<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;">';
-        h+='<span style="color:var(--g5);">'+l.acc+' — '+l.an+'</span>';
+        h+='<div><span style="color:var(--g5);">'+l.acc+' — '+l.an+'</span>';
+        var tp3l=l.tpId?(DB.thirdParties||[]).find(function(t){return t.id===l.tpId;}):null;
+        if(tp3l) h+=' <span class="badge '+tpTypeCls(tp3l.type)+'" style="font-size:9px;">'+tpTypeIcon(tp3l.type)+' '+tp3l.name+'</span>';
+        h+='</div>';
         h+='<span style="font-weight:700;color:'+((l.dr||0)>0?"var(--rd)":"var(--gr)")+';">';
         h+=((l.dr||0)>0?"م "+fmt(l.dr):"د "+fmt(l.cr))+'</span></div>';
       });
@@ -518,7 +530,8 @@ function rMore(){
     {i:"🏦",t:"البنوك والخزينة",n:"banks"},
     {i:"📦",t:"المخازن",n:"inventory"},
     {i:"🏢",t:"الموارد البشرية",n:"employees"},
-    {i:"⚙️",t:"الإعدادات",n:"settings"}
+    {i:"⚙️",t:"الإعدادات",n:"settings"},
+    {i:"📒",t:"الأستاذ المساعد",n:"tpledger"}
   ];
   var h='<div class="ph-t" style="margin-bottom:14px;">القائمة الكاملة</div><div class="mg">';
   items.forEach(function(item){
@@ -532,7 +545,343 @@ function rMore(){
 
 // JOURNAL MODAL
 var _eL=2, _eAO="";
+// ============================================================
+// THIRD PARTY (الأستاذ المساعد) SYSTEM
+// ============================================================
+
+// ---- init ----
+function initTP(){
+  if(!DB.thirdParties)DB.thirdParties=[];
+  // Auto-seed employees as third parties if not already there
+  (DB.employees||[]).forEach(function(e){
+    var id="EMP-"+e.id;
+    if(!DB.thirdParties.find(function(t){return t.id===id;})){
+      DB.thirdParties.push({id:id,name:e.name,type:"employee",ref:e.id,active:true});
+    }
+  });
+  // Auto-seed suppliers
+  (DB.suppliers||[]).forEach(function(s){
+    var id="SUP-"+s.id;
+    if(!DB.thirdParties.find(function(t){return t.id===id;})){
+      DB.thirdParties.push({id:id,name:s.name,type:"supplier",ref:s.id,active:true});
+    }
+  });
+}
+
+function tpTypeLabel(type){
+  return {employee:"موظف",supplier:"مورد",customer:"عميل",other:"أخرى"}[type]||type;
+}
+function tpTypeIcon(type){
+  return {employee:"👤",supplier:"🏭",customer:"🤝",other:"📋"}[type]||"📋";
+}
+function tpTypeCls(type){
+  return {employee:"bb",supplier:"bg",customer:"ba",other:"bgy"}[type]||"bgy";
+}
+
+// ---- eLn with third-party dropdown (replaces the old eLn) ----
+function eLnTP(i,opts){
+  initTP();
+  var tpO='<option value="">— بدون طرف ثالث —</option>';
+  var empGroup='<optgroup label="👤 الموظفين">';
+  var supGroup='<optgroup label="🏭 الموردون">';
+  var otherGroup='<optgroup label="📋 أخرى">';
+  DB.thirdParties.filter(function(t){return t.active!==false;}).forEach(function(t){
+    var opt='<option value="'+t.id+'">'+tpTypeIcon(t.type)+' '+t.name+'</option>';
+    if(t.type==="employee") empGroup+=opt;
+    else if(t.type==="supplier") supGroup+=opt;
+    else otherGroup+=opt;
+  });
+  empGroup+='</optgroup>';
+  supGroup+='</optgroup>';
+  otherGroup+='</optgroup>';
+  tpO+=empGroup+supGroup+otherGroup;
+
+  return '<div class="tp-line" id="el-'+i+'" style="background:var(--g1);border-radius:9px;padding:8px;margin-bottom:7px;">'
+    +'<select id="ea-'+i+'" onchange="updET()" style="margin-bottom:6px;"><option value="">اختر الحساب</option>'+opts+'</select>'
+    +'<div class="fr" style="margin-bottom:5px;">'
+    +'<input type="number" id="edr-'+i+'" placeholder="مدين" oninput="updET()">'
+    +'<input type="number" id="ecr-'+i+'" placeholder="دائن" oninput="updET()">'
+    +'</div>'
+    +'<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpO+'</select>'
+    +'</div>';
+}
+
+// Override the old eLn for new entries
+function eLn(i,opts){ return eLnTP(i,opts); }
+
+// ---- collect third-party from lines ----
+function collectTP(prefix, lineCount){
+  // prefix = "e" for new, "ed" for edit
+  var tpField = prefix==="e" ? "etp-" : "etp-";
+  var lines=[];
+  for(var i=0;i<lineCount;i++){
+    var s=el("ea-"+i)||el((prefix==="ed"?"ea-":"")+i);
+    var acc = s ? s.value : "";
+    var dr=parseFloat((el("edr-"+i)||{}).value)||0;
+    var cr=parseFloat((el("ecr-"+i)||{}).value)||0;
+    if(!acc||(dr===0&&cr===0)) continue;
+    var a=DB.accounts.find(function(x){return x.c===acc;});
+    var tpEl=el("etp-"+i);
+    var tpId=tpEl?tpEl.value:"";
+    var tp=tpId?DB.thirdParties.find(function(t){return t.id===tpId;}):null;
+    lines.push({
+      acc:acc, an:a?a.n:"", dr:dr, cr:cr,
+      tpId: tp?tp.id:"",
+      tpName: tp?tp.name:"",
+      tpType: tp?tp.type:""
+    });
+  }
+  return lines;
+}
+
+// ---- THIRD PARTY LEDGER PAGE ----
+function rTPLedger(){
+  initTP();
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div class="ph-t">📒 الأستاذ المساعد</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+DB.thirdParties.length+' طرف ثالث</div></div>';
+  h+='<button class="btn btn-gr btn-sm" onclick="newTP()">+ طرف جديد</button>';
+  h+='</div>';
+
+  // Filter buttons
+  var types=["all","employee","supplier","customer","other"];
+  var typeLabels={all:"الكل",employee:"موظفون",supplier:"موردون",customer:"عملاء",other:"أخرى"};
+  h+='<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;" id="tp-type-pills">';
+  types.forEach(function(t){
+    h+='<span class="badge '+(t==="all"?"bb":"bgy")+' tp-type-pill" style="cursor:pointer;white-space:nowrap;font-size:10.5px;padding:5px 11px;" onclick="tpFilterType(\''+t+'\')">'+typeLabels[t]+'</span>';
+  });
+  h+='</div>';
+
+  h+='<input id="tp-search" placeholder="🔍 بحث..." style="width:100%;padding:9px 12px;border:1.5px solid var(--g2);border-radius:9px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;margin-bottom:10px;" oninput="tpSearch()">';
+  h+='<div id="tp-list">'+renderTPList("","")+'</div>';
+  return h;
+}
+
+function renderTPList(q,typeF){
+  initTP();
+  var list=DB.thirdParties.filter(function(t){
+    var mq=!q||(t.name||"").includes(q)||(t.id||"").includes(q);
+    var mt=!typeF||typeF==="all"||t.type===typeF;
+    return mq&&mt;
+  });
+  if(!list.length) return '<div style="text-align:center;color:var(--g4);padding:30px;">لا يوجد أطراف ثالثة مطابقة</div>';
+
+  var h="";
+  list.forEach(function(tp){
+    var bal=calcTPBal(tp.id);
+    h+='<div class="ec" style="margin-bottom:8px;cursor:pointer;" onclick="viewTPLedger(\''+tp.id+'\')">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;">';
+    h+='<div>';
+    h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">';
+    h+='<span class="badge '+tpTypeCls(tp.type)+'" style="font-size:9.5px;">'+tpTypeIcon(tp.type)+' '+tpTypeLabel(tp.type)+'</span>';
+    if(tp.active===false) h+='<span class="badge br" style="font-size:9px;">غير نشط</span>';
+    h+='</div>';
+    h+='<div style="font-weight:800;font-size:13.5px;">'+tp.name+'</div>';
+    h+='<div style="font-size:10.5px;color:var(--g4);">'+tp.id+'</div>';
+    h+='</div>';
+    h+='<div style="text-align:left;">';
+    var netAbs=Math.abs(bal.net);
+    var netLbl=bal.net===0?"متوازن":bal.net>0?"مدين":"دائن";
+    var netClr=bal.net===0?"var(--g4)":bal.net>0?"var(--n)":"var(--gr)";
+    h+='<div style="font-size:9px;color:var(--g4);">الرصيد</div>';
+    h+='<div style="font-weight:900;font-size:15px;color:'+netClr+';">'+fmt(netAbs)+'</div>';
+    h+='<div style="font-size:9.5px;color:'+netClr+';">'+netLbl+'</div>';
+    h+='</div></div></div>';
+  });
+  return h;
+}
+
+function tpSearch(){
+  var q=(document.getElementById("tp-search")||{}).value||"";
+  window._tpQ=q;
+  var el2=document.getElementById("tp-list");
+  if(el2) el2.innerHTML=renderTPList(q,window._tpTypeF||"");
+}
+function tpFilterType(t){
+  window._tpTypeF=t;
+  document.querySelectorAll(".tp-type-pill").forEach(function(b){
+    var typeMap={all:"الكل",employee:"موظفون",supplier:"موردون",customer:"عملاء",other:"أخرى"};
+    b.className=b.className.replace(" bb","").replace(" bgy","")+" "+(b.textContent.trim()===typeMap[t]?"bb":"bgy");
+  });
+  var el2=document.getElementById("tp-list");
+  if(el2) el2.innerHTML=renderTPList(window._tpQ||"",t);
+}
+
+// ---- calc TP balance ----
+function calcTPBal(tpId){
+  var dr=0,cr=0;
+  (DB.entries||[]).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(l.tpId===tpId){dr+=l.dr||0;cr+=l.cr||0;}
+    });
+  });
+  return {dr:dr,cr:cr,net:dr-cr};
+}
+
+// ---- VIEW TP LEDGER (كشف حساب) ----
+function viewTPLedger(tpId){
+  initTP();
+  var tp=DB.thirdParties.find(function(t){return t.id===tpId;});
+  if(!tp)return;
+
+  // Filter fields
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:11px;padding:13px;margin-bottom:12px;color:white;">';
+  h+='<div style="font-size:10.5px;opacity:.7;">'+tpTypeIcon(tp.type)+' '+tpTypeLabel(tp.type)+' · '+tp.id+'</div>';
+  h+='<div style="font-weight:900;font-size:17px;">'+tp.name+'</div>';
+  h+='</div>';
+
+  // Date filter
+  h+='<div class="fr" style="margin-bottom:10px;">';
+  h+='<div class="fg"><label>من تاريخ</label><input type="date" id="tp-from" onchange="refreshTPLedger(\''+tpId+'\')"></div>';
+  h+='<div class="fg"><label>إلى تاريخ</label><input type="date" id="tp-to" onchange="refreshTPLedger(\''+tpId+'\')"></div>';
+  h+='</div>';
+  h+='<div id="tp-ledger-body">'+buildTPLedgerTable(tpId,"","")+'</div>';
+  om("📒 كشف حساب — "+tp.name, h);
+}
+
+function refreshTPLedger(tpId){
+  var from=sv("tp-from")||"";
+  var to=sv("tp-to")||"";
+  var el2=document.getElementById("tp-ledger-body");
+  if(el2) el2.innerHTML=buildTPLedgerTable(tpId,from,to);
+}
+
+function buildTPLedgerTable(tpId,fromD,toD){
+  var rows=[];
+  (DB.entries||[]).forEach(function(e){
+    if(fromD&&e.date<fromD)return;
+    if(toD&&e.date>toD)return;
+    (e.lines||[]).forEach(function(l){
+      if(l.tpId!==tpId)return;
+      rows.push({date:e.date,ref:e.ref,desc:e.desc,proj:e.proj,acc:l.acc,an:l.an,dr:l.dr||0,cr:l.cr||0,entryId:e.id});
+    });
+  });
+
+  rows.sort(function(a,b){return a.date<b.date?-1:1;});
+
+  if(!rows.length) return '<div style="text-align:center;color:var(--g4);padding:20px;">لا توجد حركات'+(fromD||toD?" في هذه الفترة":"")+'</div>';
+
+  var tDr=0,tCr=0,runBal=0;
+  var h='<div style="overflow-x:auto;"><table><thead><tr>';
+  h+='<th>التاريخ</th><th>المرجع</th><th>البيان</th><th>الحساب</th><th>مدين</th><th>دائن</th><th>الرصيد</th>';
+  h+='</tr></thead><tbody>';
+  rows.forEach(function(r){
+    tDr+=r.dr;tCr+=r.cr;
+    runBal+=r.dr-r.cr;
+    var balAbs=Math.abs(runBal);
+    var balDir=runBal===0?"":runBal>0?" م":" د";
+    h+='<tr>';
+    h+='<td style="font-size:11px;white-space:nowrap;">'+r.date+'</td>';
+    h+='<td style="font-size:11px;color:var(--sk);">'+r.ref+'</td>';
+    h+='<td style="font-size:11px;">'+r.desc+'</td>';
+    h+='<td style="font-size:10.5px;"><code style="background:var(--g1);padding:1px 5px;border-radius:4px;">'+r.acc+'</code><div style="font-size:10px;color:var(--g4);">'+r.an+'</div></td>';
+    h+='<td class="tn" style="color:var(--n);font-weight:700;">'+(r.dr>0?fmt(r.dr):"-")+'</td>';
+    h+='<td class="tn" style="color:var(--gr);font-weight:700;">'+(r.cr>0?fmt(r.cr):"-")+'</td>';
+    h+='<td class="tn" style="font-weight:800;">'+fmt(balAbs)+balDir+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody><tfoot><tr style="background:var(--n);">';
+  h+='<td colspan="4" style="color:white;font-weight:900;padding:9px;">الإجمالي</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tDr)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tCr)+'</td>';
+  var netAbs=Math.abs(tDr-tCr);
+  var netLbl=tDr-tCr===0?"متوازن":tDr-tCr>0?" مدين":" دائن";
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(netAbs)+netLbl+'</td>';
+  h+='</tr></tfoot></table></div>';
+  return h;
+}
+
+// ---- NEW / EDIT TP ----
+function newTP(){
+  initTP();
+  var h='<div class="fg"><label>اسم الطرف الثالث *</label><input id="tp-n" placeholder="اسم الشركة / الموظف / العميل"></div>';
+  h+='<div class="fg"><label>النوع</label><select id="tp-t">';
+  h+='<option value="supplier">🏭 مورد</option>';
+  h+='<option value="customer">🤝 عميل</option>';
+  h+='<option value="other">📋 أخرى</option>';
+  h+='</select></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="tp-notes"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px;">';
+  h+='<button class="btn btn-gr" onclick="saveTP()" style="flex:1;">✅ إضافة</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("➕ طرف ثالث جديد",h);
+}
+function saveTP(){
+  var n=sv("tp-n");if(!n){alert("الاسم مطلوب");return;}
+  initTP();
+  var id="TP"+String(Date.now()).slice(-6);
+  DB.thirdParties.push({id:id,name:n,type:sv("tp-t")||"other",notes:sv("tp-notes"),active:true});
+  save();cm();sub("tpledger");toast("✅ تم إضافة الطرف الثالث");
+}
+
+// ---- Sync employees/suppliers to TP ----
+function syncTPFromHR(){
+  initTP();
+  var added=0;
+  (DB.employees||[]).forEach(function(e){
+    var id="EMP-"+e.id;
+    if(!DB.thirdParties.find(function(t){return t.id===id;})){
+      DB.thirdParties.push({id:id,name:e.name,type:"employee",ref:e.id,active:e.status==="active"});
+      added++;
+    } else {
+      // Update name and status
+      var tp=DB.thirdParties.find(function(t){return t.id===id;});
+      if(tp){tp.name=e.name;tp.active=e.status==="active";}
+    }
+  });
+  (DB.suppliers||[]).forEach(function(s){
+    var id="SUP-"+s.id;
+    if(!DB.thirdParties.find(function(t){return t.id===id;})){
+      DB.thirdParties.push({id:id,name:s.name,type:"supplier",ref:s.id,active:true});
+      added++;
+    } else {
+      var tp=DB.thirdParties.find(function(t){return t.id===id;});
+      if(tp) tp.name=s.name;
+    }
+  });
+  save();
+  return added;
+}
+
+// ---- TP REPORT: all parties with balances ----
+function rptTPBalances(){
+  initTP();
+  syncTPFromHR();
+  var parties=DB.thirdParties.filter(function(t){
+    var b=calcTPBal(t.id);
+    return b.dr>0||b.cr>0;
+  });
+  if(!parties.length){om("📊 أرصدة الأطراف الثالثة","<div style='text-align:center;color:var(--g4);padding:30px;'>لا توجد أرصدة مقيدة بأطراف ثالثة</div>");return;}
+
+  var tDr=0,tCr=0;
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📊 أرصدة الأطراف الثالثة</div>';
+  h+='<table><thead><tr><th>النوع</th><th>الاسم</th><th>إجمالي مدين</th><th>إجمالي دائن</th><th>الرصيد</th></tr></thead><tbody>';
+  parties.forEach(function(tp){
+    var b=calcTPBal(tp.id);
+    tDr+=b.dr;tCr+=b.cr;
+    var netAbs=Math.abs(b.net);
+    var netDir=b.net===0?"متوازن":b.net>0?"مدين":"دائن";
+    var netClr=b.net===0?"var(--g4)":b.net>0?"var(--n)":"var(--gr)";
+    h+='<tr>';
+    h+='<td><span class="badge '+tpTypeCls(tp.type)+'" style="font-size:9.5px;">'+tpTypeIcon(tp.type)+' '+tpTypeLabel(tp.type)+'</span></td>';
+    h+='<td style="font-weight:700;cursor:pointer;color:var(--n);" onclick="cm();setTimeout(function(){viewTPLedger(\''+tp.id+'\');},100);">'+tp.name+'</td>';
+    h+='<td class="tn">'+(b.dr>0?fmt(b.dr):"-")+'</td>';
+    h+='<td class="tn" style="color:var(--gr);">'+(b.cr>0?fmt(b.cr):"-")+'</td>';
+    h+='<td class="tn" style="font-weight:800;color:'+netClr+';">'+fmt(netAbs)+' '+netDir+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody><tfoot><tr style="background:var(--n);">';
+  h+='<td colspan="2" style="color:white;font-weight:900;padding:9px;">الإجمالي</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tDr)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tCr)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;"></td>';
+  h+='</tr></tfoot></table>';
+  om("📊 أرصدة الأطراف الثالثة",h);
+}
+
+
 function newEntry(){
+  syncTPFromHR();
   var aO=DB.accounts.map(function(a){return'<option value="'+a.c+'">'+a.c+' — '+a.n+'</option>';}).join("");
   var pO=DB.projects.map(function(p){return'<option value="'+p.code+'">'+p.name+'</option>';}).join("");
   _eL=2; _eAO=aO;
@@ -540,8 +889,8 @@ function newEntry(){
   h+='<div class="fg"><label>المرجع</label><input id="e-r" placeholder="PV-001"></div></div>';
   h+='<div class="fg"><label>البيان *</label><input id="e-ds" placeholder="وصف العملية المالية"></div>';
   h+='<div class="fg"><label>المشروع</label><select id="e-p"><option value="">—</option>'+pO+'</select></div>';
-  h+='<div class="sd">سطور القيد</div>';
-  h+='<div id="els">'+eLn(0,aO)+eLn(1,aO)+'</div>';
+  h+='<div class="sd" style="font-size:11px;">سطور القيد — <span style="color:var(--g4);">يمكن ربط كل سطر بطرف ثالث (مورد/موظف/عميل)</span></div>';
+  h+='<div id="els">'+eLnTP(0,aO)+eLnTP(1,aO)+'</div>';
   h+='<button class="btn btn-sm btn-gy" onclick="addEL()" style="width:100%;margin-bottom:10px;">+ سطر</button>';
   h+='<div id="etot" style="background:var(--g1);border-radius:8px;padding:10px;font-size:12.5px;margin-bottom:12px;"></div>';
   h+='<div style="display:flex;gap:8px;"><button class="btn" onclick="saveE()" style="flex:1;">✅ ترحيل القيد</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
@@ -573,16 +922,7 @@ function saveE(){
   if(!requirePerm("canEditEntries","المحاسب لا يمكنه إدخال قيود"))return;
   var dt=sv("e-d")||new Date().toISOString().split("T")[0];
   if(!checkPeriodLock(dt))return;
-  var lines=[];
-  for(var i=0;i<_eL;i++){
-    var s=el("ea-"+i);
-    var dr=parseFloat(el("edr-"+i)?el("edr-"+i).value:0)||0;
-    var cr=parseFloat(el("ecr-"+i)?el("ecr-"+i).value:0)||0;
-    if(s&&s.value&&(dr>0||cr>0)){
-      var a=DB.accounts.find(function(x){return x.c===s.value;});
-      lines.push({acc:s.value,an:a?a.n:"",dr:dr,cr:cr});
-    }
-  }
+  var lines=collectTP("e",_eL);
   if(lines.length<2){alert("يجب إدخال سطرين على الأقل");return;}
   var tD=lines.reduce(function(s,l){return s+l.dr;},0);
   var tC=lines.reduce(function(s,l){return s+l.cr;},0);
@@ -604,9 +944,12 @@ function viewE(id){
   h+='<div><span style="color:var(--g4);">التاريخ</span><div style="font-weight:700;">'+e.date+'</div></div>';
   h+='<div><span style="color:var(--g4);">المرجع</span><div style="font-weight:700;">'+e.ref+'</div></div></div>';
   h+='<div style="background:var(--skp);border-radius:8px;padding:10px;margin-bottom:12px;font-size:13px;border-right:3px solid var(--sk);"><strong>البيان:</strong> '+e.desc+'</div>';
-  h+='<table><thead><tr><th>الحساب</th><th>البيان</th><th>مدين</th><th>دائن</th></tr></thead><tbody>';
+  h+='<table><thead><tr><th>الحساب</th><th>الطرف الثالث</th><th>مدين</th><th>دائن</th></tr></thead><tbody>';
   (e.lines||[]).forEach(function(l){
-    h+='<tr><td><code>'+l.acc+'</code></td><td>'+l.an+'</td>';
+    var tp3v=l.tpId?(DB.thirdParties||[]).find(function(t){return t.id===l.tpId;}):null;
+    h+='<tr>';
+    h+='<td><code style="font-size:10.5px;">'+l.acc+'</code><div style="font-size:11px;">'+l.an+'</div></td>';
+    h+='<td>'+(tp3v?'<span class="badge '+tpTypeCls(tp3v.type)+'" style="font-size:9px;display:block;margin-bottom:2px;">'+tpTypeIcon(tp3v.type)+' '+tpTypeLabel(tp3v.type)+'</span><span style="font-size:11px;font-weight:700;cursor:pointer;color:var(--n);" onclick="cm();setTimeout(function(){viewTPLedger(\''+l.tpId+'\');},100);">'+tp3v.name+'</span>':'<span style="color:var(--g4);font-size:10px;">—</span>')+'</td>';
     h+='<td class="td tn">'+((l.dr||0)>0?fmt(l.dr):'-')+'</td>';
     h+='<td class="tc tn">'+((l.cr||0)>0?fmt(l.cr):'-')+'</td></tr>';
   });
@@ -659,17 +1002,31 @@ function editEntry(id){
   h+='<div class="sd">سطور القيد</div>';
   h+='<div id="ed-ls">';
   e.lines.forEach(function(l,i){
-    h+='<div class="fg" id="el-'+i+'">';
-    h+='<select id="ea-'+i+'" onchange="updET()">';
-    h+='<option value="">اختر الحساب</option>';
+    // Build TP options
+    var tpOe='<option value="">— بدون طرف ثالث —</option>';
+    var empGe='<optgroup label="👤 الموظفين">';
+    var supGe='<optgroup label="🏭 الموردون">';
+    var othGe='<optgroup label="📋 أخرى">';
+    (DB.thirdParties||[]).forEach(function(t){
+      var sel=t.id===l.tpId?' selected':'';
+      var opt='<option value="'+t.id+'"'+sel+'>'+tpTypeIcon(t.type)+' '+t.name+'</option>';
+      if(t.type==="employee")empGe+=opt;
+      else if(t.type==="supplier")supGe+=opt;
+      else othGe+=opt;
+    });
+    tpOe+=empGe+'</optgroup>'+supGe+'</optgroup>'+othGe+'</optgroup>';
+    h+='<div class="tp-line" id="el-'+i+'" style="background:var(--g1);border-radius:9px;padding:8px;margin-bottom:7px;">';
+    h+='<select id="ea-'+i+'" onchange="updETE()" style="margin-bottom:6px;"><option value="">اختر الحساب</option>';
     DB.accounts.forEach(function(a){
       h+='<option value="'+a.c+'"'+(a.c===l.acc?' selected':'')+'>'+a.c+' — '+a.n+'</option>';
     });
     h+='</select>';
-    h+='<div class="fr" style="margin-top:5px;">';
-    h+='<input type="number" id="edr-'+i+'" value="'+(l.dr||'')+'" placeholder="مدين" oninput="updET()">';
-    h+='<input type="number" id="ecr-'+i+'" value="'+(l.cr||'')+'" placeholder="دائن" oninput="updET()">';
-    h+='</div></div>';
+    h+='<div class="fr" style="margin-bottom:5px;">';
+    h+='<input type="number" id="edr-'+i+'" value="'+(l.dr||'')+'" placeholder="مدين" oninput="updETE()">';
+    h+='<input type="number" id="ecr-'+i+'" value="'+(l.cr||'')+'" placeholder="دائن" oninput="updETE()">';
+    h+='</div>';
+    h+='<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpOe+'</select>';
+    h+='</div>';
   });
   h+='</div>';
   h+='<button class="btn btn-sm btn-gy" onclick="addELEdit()" style="width:100%;margin-bottom:10px;">+ سطر</button>';
@@ -684,16 +1041,7 @@ function editEntry(id){
 }
 
 function saveEditEntry(id){
-  var lines=[];
-  for(var i=0;i<_eL;i++){
-    var s=el('ea-'+i);
-    var dr=parseFloat(el('edr-'+i)?el('edr-'+i).value:0)||0;
-    var cr=parseFloat(el('ecr-'+i)?el('ecr-'+i).value:0)||0;
-    if(s&&s.value&&(dr>0||cr>0)){
-      var a=DB.accounts.find(function(x){return x.c===s.value;});
-      lines.push({acc:s.value,an:a?a.n:'',dr:dr,cr:cr});
-    }
-  }
+  var lines=collectTP("ed",_eL);
   if(lines.length<2){alert('يجب إدخال سطرين على الأقل');return;}
   var tD=lines.reduce(function(s,l){return s+l.dr;},0);
   var tC=lines.reduce(function(s,l){return s+l.cr;},0);
