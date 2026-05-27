@@ -212,7 +212,7 @@ function sub(n){
     inventory:"📦 المخازن",employees:"👥 الموظفين",
     settings:"⚙️ الإعدادات"
   };
-  if(f[n])om(titles[n]||n, f[n]());
+  if(f[n]){try{om(titles[n]||n, f[n]());}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
 }
 
 // DASHBOARD
@@ -787,6 +787,67 @@ function rInvPage(){
   });
   return h;
 }
+function rEmpPage(){
+  if(!DB.employees||!DB.employees.length)
+    return '<div class="ph-t" style="margin-bottom:12px;">👥 الموظفين</div><div style="text-align:center;color:var(--g4);padding:30px;">لا يوجد موظفون — أضف موظفين من صفحة المرتبات</div>';
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">👥 الموظفين</div>';
+  h+='<span class="badge bb">'+DB.employees.length+' موظف</span></div>';
+  DB.employees.forEach(function(e,i){
+    var r=calc(e);
+    var iCls={"full":"bg","partial":"ba","none":"bgy"}[e.ins||"full"];
+    var iLbl={"full":"تأمين كامل","partial":"جزئي","none":"بدون"}[e.ins||"full"];
+    h+='<div class="ec" style="margin-bottom:10px;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+    h+='<div><div style="font-weight:800;font-size:14px;">'+e.name+'</div>';
+    h+='<div style="font-size:11px;color:var(--g4);">'+e.pos+' · <span class="badge '+iCls+'">'+iLbl+'</span></div></div>';
+    h+='<div style="text-align:left;"><div style="font-size:10px;color:var(--g4);">صافي المرتب</div>';
+    h+='<div style="font-weight:900;font-size:16px;color:var(--gr);">'+fmt(r.net)+'</div></div></div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;font-size:11px;text-align:center;">';
+    h+='<div style="background:var(--g1);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:10px;">الإجمالي</div><div style="font-weight:800;">'+fmt(r.gross)+'</div></div>';
+    h+='<div style="background:var(--rbg);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:10px;">تأمين</div><div style="font-weight:800;color:var(--rd);">'+fmt(r.empI)+'</div></div>';
+    h+='<div style="background:var(--abg);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:10px;">ضريبة</div><div style="font-weight:800;color:var(--am);">'+fmt(r.tax)+'</div></div>';
+    h+='</div>';
+    h+='<button class="btn btn-sm" onclick="editSal('+i+');cm();" style="width:100%;margin-top:8px;background:var(--sk);font-size:12px;">✏️ تعديل المرتب</button>';
+    h+='</div>';
+  });
+  return h;
+}
+
+function rSetPage(){
+  var org=DB.org||{};
+  var h='<div class="ph-t" style="margin-bottom:14px;">⚙️ الإعدادات</div>';
+  h+='<div class="fg"><label>اسم الجمعية</label><input id="set-org" value="'+(org.name||'')+'" placeholder="اسم الجمعية"></div>';
+  h+='<div class="fg"><label>رقم السجل</label><input id="set-reg" value="'+(org.reg||'')+'" placeholder="رقم السجل"></div>';
+  h+='<div class="fg"><label>المحافظة</label><input id="set-gov" value="'+(org.gov||'')+'" placeholder="القاهرة"></div>';
+  h+='<div style="display:flex;gap:8px;margin-bottom:16px;">';
+  h+='<button class="btn" onclick="saveSet()" style="flex:1;">✅ حفظ</button></div>';
+  h+='<div class="sd">البيانات والنسخ الاحتياطي</div>';
+  h+='<button class="btn btn-gy" style="width:100%;margin-bottom:8px;" onclick="exportDB()">📤 تصدير البيانات (JSON)</button>';
+  h+='<button class="btn btn-rd" style="width:100%;" onclick="if(confirm(\'هل أنت متأكد من مسح جميع البيانات؟\'))resetDB()">🗑️ مسح جميع البيانات</button>';
+  h+='<div style="margin-top:14px;background:var(--g1);border-radius:8px;padding:10px;font-size:10.5px;color:var(--g4);text-align:center;">';
+  h+='أثر للحلول المالية — النسخة 1.0<br>تطوير تنمويين مصر</div>';
+  return h;
+}
+function saveSet(){
+  if(!DB.org)DB.org={};
+  DB.org.name=sv("set-org");DB.org.reg=sv("set-reg");DB.org.gov=sv("set-gov");
+  save();toast("✅ تم حفظ الإعدادات");
+  var tb=document.querySelector(".tb-org");
+  if(tb&&DB.org.name)tb.textContent=DB.org.name;
+}
+function exportDB(){
+  var d=JSON.stringify(DB,null,2);
+  var b=new Blob([d],{type:"application/json"});
+  var u=URL.createObjectURL(b);
+  var a=document.createElement("a");a.href=u;a.download="athar-backup.json";a.click();
+  URL.revokeObjectURL(u);toast("✅ تم التصدير");
+}
+function resetDB(){
+  localStorage.removeItem("atharDB");
+  location.reload();
+}
+
 function newItem(){
   var h='<div class="fr"><div class="fg"><label>كود الصنف *</label><input id="it-c" placeholder="ITM003"></div><div class="fg"><label>اسم الصنف *</label><input id="it-n"></div></div>';
   h+='<div class="fr"><div class="fg"><label>الوحدة</label><input id="it-u" placeholder="جهاز / كيت ..."></div><div class="fg"><label>الكمية</label><input type="number" id="it-q" value="0"></div></div>';
