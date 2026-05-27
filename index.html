@@ -810,12 +810,14 @@ function outStock(i){
   h+='<div style="display:flex;gap:8px;margin-top:4px;"><button class="btn btn-rd" onclick="doStock('+i+',false,&quot;out-stq&quot;,&quot;out-str2&quot;)" style="flex:1;">✅ تأكيد</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
   om("📤 صرف — "+item.name,h);
 }
-function doStock(i,add,qId,rId){if(!qId)qId='stq';if(!rId)rId='str2';
-  var q=parseInt(el("stq")?el("stq").value:0)||0;
+function doStock(i,add,qId,rId){
+  qId=qId||'stq-in';
+  rId=rId||'str2-in';
+  var q=parseInt(el(qId)?el(qId).value:0)||0;
+  var reason=sv(rId)||"";
   if(q<=0){alert("ادخل كمية صحيحة");return;}
   if(!add&&q>DB.inventory[i].qty){alert("الكمية أكبر من المتاح!");return;}
   var item=DB.inventory[i];
-  var reason=sv("str2")||"";
   if(!DB.invMovements)DB.invMovements=[];
   DB.invMovements.push({
     date:new Date().toISOString().split("T")[0],
@@ -851,6 +853,10 @@ function showInvHistory(){
 
 
 document.addEventListener('click',function(ev){var n=ev.target.closest('[data-nav]');if(n){nav(n.getAttribute('data-nav'),n);return;}var t=ev.target.closest('[data-eid]');if(t){viewE(t.getAttribute('data-eid'));return;}var s=ev.target.closest('[data-sub]');if(s){sub(s.getAttribute('data-sub'));return;}});
+
+document.addEventListener("DOMContentLoaded", function(){
+  nav("dash", document.querySelector('[data-nav="dash"]'));
+});
 </script>
 </body>
 </html>
