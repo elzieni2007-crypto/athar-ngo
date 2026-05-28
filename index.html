@@ -601,75 +601,171 @@ function sub(n){
 // DASHBOARD
 function rDash(){
   var B=bals();
-  var tG=0,tE=0,cash=0,bank=0;
-  DB.entries.forEach(function(e){
-    if(e.status!=="posted")return;
-    (e.lines||[]).forEach(function(l){
-      var a=l.acc||"";
-      if(a==="110101")cash+=(l.dr||0)-(l.cr||0);
-      if(a==="110102"||a==="110103"||a==="110104")bank+=(l.dr||0)-(l.cr||0);
-      if(a[0]==="4")tG+=l.cr||0;
-      if(a[0]==="5")tE+=l.dr||0;
+
+  // ---- CASH & BANK from COA (111x accounts) ----
+  var cash=0, bank=0, totalCash=0;
+  DB.accounts.filter(function(a){return a.c.startsWith('111')&&a.nat==='dr';}).forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    var bal=b.dr-b.cr;
+    if(a.c==='1111') cash+=bal;
+    else bank+=bal;
+    totalCash+=bal;
+  });
+
+  // ---- REVENUE & EXPENSE ----
+  var tRev=0,tExp=0;
+  Object.keys(B).forEach(function(acc){
+    var b=B[acc];
+    if(acc[0]==='4') tRev+=b.cr-b.dr;
+    if(acc[0]==='5') tExp+=b.dr-b.cr;
+  });
+  var surplus=tRev-tExp;
+
+  // ---- PROJECTS ----
+  var projStats=DB.projects.map(function(p){
+    var spent=getProjectSpent(p.code);
+    var budget=p.budget||0;
+    return{code:p.code,name:p.name,donor:p.donor,budget:budget,spent:spent,rem:budget-spent,
+      pct:budget>0?Math.round(spent/budget*100):0};
+  });
+  var totalBudget=projStats.reduce(function(s,p){return s+p.budget;},0);
+  var totalSpent=projStats.reduce(function(s,p){return s+p.spent;},0);
+
+  // ---- HR ----
+  var activeEmps=DB.employees.filter(function(e){return e.status==='active';});
+  var totPayroll=activeEmps.reduce(function(s,e){return s+calcFull(e,{}).cost;},0);
+  var expiring=activeEmps.filter(function(e){
+    if(!e.contractEnd) return false;
+    return (new Date(e.contractEnd)-new Date())/86400000<=60;
+  }).length;
+
+  // ---- INVENTORY ----
+  var lowStock=getLowStockItems();
+  var totalInvVal=DB.inventory.reduce(function(s,item){return s+getTotalQty(item.code)*(item.cost||0);},0);
+
+  // ---- RECENT ENTRIES ----
+  var recentEntries=(DB.entries||[]).filter(function(e){return e.status==='posted';})
+    .slice(-5).reverse();
+
+  var h='';
+
+  // === ROW 1: KPI STRIP ===
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+  // Cash
+  h+='<div style="background:linear-gradient(135deg,#0e4d2e,#059669);border-radius:12px;padding:13px;color:white;">';
+  h+='<div style="font-size:10px;opacity:.7;">💵 النقدية</div>';
+  h+='<div style="font-weight:900;font-size:18px;">'+fmt(cash)+'</div>';
+  h+='<div style="font-size:10px;opacity:.6;">ج.م بالصندوق</div></div>';
+  // Bank
+  h+='<div style="background:linear-gradient(135deg,#0e3a5f,#0e7490);border-radius:12px;padding:13px;color:white;">';
+  h+='<div style="font-size:10px;opacity:.7;">🏦 البنوك</div>';
+  h+='<div style="font-weight:900;font-size:18px;">'+fmt(bank)+'</div>';
+  h+='<div style="font-size:10px;opacity:.6;">ج.م إجمالي</div></div>';
+  // Revenue
+  h+='<div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:12px;padding:13px;color:white;">';
+  h+='<div style="font-size:10px;opacity:.7;">📈 الإيرادات</div>';
+  h+='<div style="font-weight:900;font-size:18px;">'+fmt(tRev)+'</div>';
+  h+='<div style="font-size:10px;opacity:.6;">ج.م</div></div>';
+  // Expenses
+  h+='<div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border-radius:12px;padding:13px;color:white;">';
+  h+='<div style="font-size:10px;opacity:.7;">📤 المصروفات</div>';
+  h+='<div style="font-weight:900;font-size:18px;">'+fmt(tExp)+'</div>';
+  h+='<div style="font-size:10px;opacity:.6;">ج.م</div></div>';
+  h+='</div>';
+
+  // === SURPLUS / DEFICIT ===
+  var surplusClr=surplus>=0?'#065f46':'#991b1b';
+  var surplusBg=surplus>=0?'#d1fae5':'#fee2e2';
+  h+='<div style="background:'+surplusBg+';border-radius:12px;padding:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div><div style="font-size:11px;color:'+surplusClr+';font-weight:700;">'+(surplus>=0?'✅ الفائض التراكمي':'⚠️ العجز التراكمي')+'</div>';
+  h+='<div style="font-size:10.5px;color:'+surplusClr+';opacity:.8;">إيرادات — مصروفات</div></div>';
+  h+='<div style="font-weight:900;font-size:22px;color:'+surplusClr+';">'+fmt(Math.abs(surplus))+'<span style="font-size:12px;"> ج.م</span></div></div>';
+
+  // === PROJECTS BVA STRIP ===
+  if(projStats.length){
+    h+='<div class="card" style="margin-bottom:12px;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+    h+='<div class="ct" style="font-weight:800;font-size:13px;">🎯 المشروعات</div>';
+    h+='<div style="font-size:11px;color:var(--g4);">'+projStats.length+' مشروع · موازنة: '+fmt(totalBudget)+' ج.م</div></div>';
+    projStats.forEach(function(p){
+      var pctClr=p.pct>90?'var(--rd)':p.pct>70?'var(--am)':'var(--gr)';
+      h+='<div style="margin-bottom:8px;">';
+      h+='<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">';
+      h+='<span style="font-weight:700;">'+p.name+'</span>';
+      h+='<span style="color:'+pctClr+';font-weight:800;">'+p.pct+'%</span></div>';
+      h+='<div style="display:flex;align-items:center;gap:8px;">';
+      h+='<div style="flex:1;background:var(--g2);border-radius:4px;height:6px;">';
+      h+='<div style="background:'+pctClr+';height:6px;border-radius:4px;width:'+Math.min(p.pct,100)+'%;"></div></div>';
+      h+='<span style="font-size:10px;color:var(--g4);white-space:nowrap;">'+fmt(p.spent)+' / '+fmt(p.budget)+'</span></div></div>';
     });
-  });
-  var h="";
-  h+='<div class="hero">';
-  h+='<img src="'+""+document.querySelector(".tb-logo").src+""+'" class="hero-logo" alt="أثر">';
-  h+='<div class="hero-t">أثر للحلول المالية</div>';
-  h+='<div class="hero-s">النظام المحاسبي المتكامل للجمعيات الأهلية — برعاية تنمويين مصر</div>';
-  h+='<div class="hero-tags"><span class="htag">📊 محاسبة</span><span class="htag">🎯 مشروعات</span><span class="htag">💳 مرتبات</span><span class="htag">📦 مخازن</span></div>';
-  h+="</div>";
-  h+='<div class="sg">';
-  h+='<div class="st"><div class="si">💰</div><div class="sv">'+fmt(tG)+'</div><div class="sl">إجمالي المنح (ج.م)</div></div>';
-  h+='<div class="st"><div class="si">📤</div><div class="sv" style="color:var(--rd)">'+fmt(tE)+'</div><div class="sl">المصروفات (ج.م)</div></div>';
-  h+='<div class="st"><div class="si">🏦</div><div class="sv" style="color:var(--gr)">'+fmt(bank)+'</div><div class="sl">رصيد البنوك (ج.م)</div></div>';
-  h+='<div class="st"><div class="si">💵</div><div class="sv" style="color:var(--sk)">'+fmt(cash)+'</div><div class="sl">رصيد الخزينة (ج.م)</div></div>';
-  h+="</div>";
-  h+='<div class="card">';
-  h+='<div class="ch"><div class="ct">📉 المشروعات</div>';
-  h+='<button class="btn btn-sky btn-sm" onclick="nav(&quot;proj&quot;,null)">عرض الكل</button></div>';
-  DB.projects.forEach(function(p){
-    var pc=Math.round((p.spent/p.budget)*100);
-    var col=pc>90?"var(--rd)":pc>70?"var(--am)":"var(--gr)";
-    h+='<div style="margin-bottom:12px;">';
-    h+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;">';
-    h+='<strong>'+p.name+'</strong><span style="color:'+col+';font-weight:800;">'+pc+'%</span></div>';
-    h+='<div class="pw"><div class="pb" style="width:'+Math.min(pc,100)+'%;background:'+col+';"></div></div>';
-    h+='<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--g4);margin-top:3px;">';
-    h+='<span>الموازنة: '+fmt(p.budget)+'</span><span>الصرف: '+fmt(p.spent)+'</span></div></div>';
-  });
-  h+="</div>";
-  // Low stock dashboard alert
-  if(typeof getLowStockItems==="function"){
-    var lowS=getLowStockItems();
-    if(lowS.length){
-      h+='<div class="card" style="border-color:var(--rd);margin-bottom:14px;">';
-      h+='<div class="ch"><div class="ct" style="color:var(--rd);">⚠️ تنبيه المخازن</div>';
-      h+='<button class="btn btn-sm btn-rd" onclick="sub(&quot;inventory&quot;)">عرض</button></div>';
-      lowS.forEach(function(item){
-        var qty=getTotalQty(item.code);
-        var pct=item.minQty>0?Math.round(qty/item.minQty*100):0;
-        h+='<div style="margin-bottom:8px;">';
-        h+='<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">';
-        h+='<span style="font-weight:700;">'+item.name+'</span>';
-        h+='<span style="color:var(--rd);font-weight:800;">'+qty+' / '+item.minQty+' '+item.unit+'</span></div>';
-        h+='<div class="pw"><div class="pb" style="width:'+Math.min(pct,100)+'%;background:var(--rd);"></div></div>';
-        h+='</div>';
-      });
-      h+='</div>';
-    }
+    var totPct=totalBudget>0?Math.round(totalSpent/totalBudget*100):0;
+    h+='<div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--g2);font-size:12px;">';
+    h+='<span style="font-weight:800;">الإجمالي</span>';
+    h+='<span style="font-weight:800;">صُرف '+totPct+'% · متبقي: '+fmt(totalBudget-totalSpent)+' ج.م</span></div>';
+    h+='</div>';
   }
-  h+='<div class="card"><div class="ch"><div class="ct">📝 آخر القيود</div>'
-;
-  h+='<button class="btn btn-sm" onclick="newEntry()">+ قيد جديد</button></div>';
-  h+='<table><thead><tr><th>رقم القيد</th><th>البيان</th><th>المبلغ</th></tr></thead><tbody>';
-  DB.entries.slice(-4).reverse().forEach(function(e){
-    var t=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
-    h+='<tr><td><span class="badge bb">'+e.id+'</span></td>';
-    h+='<td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">'+e.desc+'</td>';
-    h+='<td class="tn" style="font-weight:800;">'+fmt(t)+'</td></tr>';
-  });
-  h+="</tbody></table></div>";
+
+  // === ROW 2: HR + INVENTORY ===
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+  // HR
+  h+='<div class="card">';
+  h+='<div style="font-weight:800;font-size:12px;margin-bottom:8px;">👥 الموارد البشرية</div>';
+  h+='<div style="font-size:22px;font-weight:900;color:var(--n);">'+activeEmps.length+'</div>';
+  h+='<div style="font-size:10.5px;color:var(--g4);">موظف نشط</div>';
+  h+='<div style="margin-top:8px;background:var(--skp);border-radius:7px;padding:7px;">';
+  h+='<div style="font-size:9.5px;color:var(--g4);">تكلفة الرواتب / شهر</div>';
+  h+='<div style="font-weight:800;font-size:13px;color:var(--n);">'+fmt(totPayroll)+'</div></div>';
+  if(expiring>0) h+='<div style="margin-top:6px;font-size:10.5px;color:var(--am);">⏰ '+expiring+' عقد ينتهي قريباً</div>';
+  h+='</div>';
+  // Inventory
+  h+='<div class="card">';
+  h+='<div style="font-weight:800;font-size:12px;margin-bottom:8px;">📦 المخازن</div>';
+  h+='<div style="font-size:22px;font-weight:900;color:var(--n);">'+DB.inventory.length+'</div>';
+  h+='<div style="font-size:10.5px;color:var(--g4);">صنف مسجل</div>';
+  h+='<div style="margin-top:8px;background:var(--gbg);border-radius:7px;padding:7px;">';
+  h+='<div style="font-size:9.5px;color:var(--g4);">قيمة المخزون</div>';
+  h+='<div style="font-weight:800;font-size:13px;color:var(--gr);">'+fmt(totalInvVal)+'</div></div>';
+  if(lowStock.length>0) h+='<div style="margin-top:6px;font-size:10.5px;color:var(--rd);">⚠️ '+lowStock.length+' صنف قارب النفاد</div>';
+  h+='</div>';
+  h+='</div>';
+
+  // === LOW STOCK ALERT ===
+  if(lowStock.length){
+    h+='<div style="background:var(--rbg);border:1.5px solid var(--rd);border-radius:10px;padding:10px 12px;margin-bottom:12px;">';
+    h+='<div style="font-weight:800;font-size:12px;color:var(--rd);margin-bottom:6px;">⚠️ تنبيه المخازن ('+lowStock.length+')</div>';
+    lowStock.slice(0,3).forEach(function(item){
+      var qty=getTotalQty(item.code);
+      var pct=item.minQty>0?Math.round(qty/item.minQty*100):0;
+      h+='<div style="margin-bottom:5px;">';
+      h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:2px;">';
+      h+='<span style="font-weight:700;">'+item.name+'</span>';
+      h+='<span style="color:var(--rd);">'+qty+' / '+item.minQty+' '+item.unit+'</span></div>';
+      h+='<div class="pw"><div class="pb" style="width:'+Math.min(pct,100)+'%;background:var(--rd);"></div></div>';
+      h+='</div>';
+    });
+    if(lowStock.length>3) h+='<div style="font-size:10.5px;color:var(--rd);margin-top:4px;">و'+( lowStock.length-3)+' أخرى...</div>';
+    h+='</div>';
+  }
+
+  // === RECENT ENTRIES ===
+  h+='<div class="card"><div class="ch"><div class="ct">📝 آخر القيود</div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="nav(\'jour\',document.querySelector(\'[data-nav=\\\"jour\\\"]\'))" style="font-size:10.5px;">عرض الكل</button></div>';
+  if(!recentEntries.length){
+    h+='<div style="text-align:center;color:var(--g4);padding:16px;font-size:12px;">لا توجد قيود بعد</div>';
+  } else {
+    recentEntries.forEach(function(e){
+      var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--g1);">';
+      h+='<div><div style="font-size:12px;font-weight:700;">'+e.desc+'</div>';
+      h+='<div style="font-size:10.5px;color:var(--g4);">'+e.date+' · '+e.ref+'</div></div>';
+      h+='<div style="text-align:left;">';
+      h+='<div style="font-weight:800;font-size:13px;color:var(--n);">'+fmt(tD)+'</div>';
+      h+='<button class="btn btn-sm btn-gy" data-eid="'+e.id+'" style="font-size:9.5px;padding:2px 7px;margin-top:2px;">عرض</button>';
+      h+='</div></div>';
+    });
+  }
+  h+='</div>';
+
   el("pg-dash").innerHTML=h;
 }
 
@@ -1006,6 +1102,183 @@ function rptTPBalances(){
   h+='<td class="tn" style="color:white;font-weight:900;padding:9px;"></td>';
   h+='</tr></tfoot></table>';
   om("📊 أرصدة الأطراف الثالثة",h);
+}
+
+
+// ============================================================
+// JOURNAL ENTRY MANAGEMENT
+// ============================================================
+var _eL=2, _eAO='';
+
+function newEntry(){
+  if(!requirePerm("canEditEntries","المحاسب لا يمكنه إدخال قيود"))return;
+  syncTPFromHR();
+  var pO=DB.projects.map(function(p){return'<option value="'+p.code+'">'+p.name+'</option>';}).join("");
+  _eL=2; _eAO='';
+  var h='<div class="fr"><div class="fg"><label>التاريخ *</label><input type="date" id="e-d" value="'+new Date().toISOString().split("T")[0]+'"></div>';
+  h+='<div class="fg"><label>المرجع</label><input id="e-r" placeholder="PV-001"></div></div>';
+  h+='<div class="fg"><label>البيان *</label><input id="e-ds" placeholder="وصف العملية المالية"></div>';
+  h+='<div class="fg"><label>المشروع</label><select id="e-p" onchange="onProjChange()"><option value="">—</option>'+pO+'</select></div>';
+  var ccO=getMDOptions('costCenters','code','name');
+  var locO=getMDOptions('locations','code','name');
+  var actO=getMDOptions('activities','code','name');
+  var dtO=getMDOptions('docTypes','code','name');
+  var pmO=getMDOptions('paymentMethods','code','name');
+  if(ccO||locO||actO){
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">';
+    if(ccO)h+='<div class="fg"><label>مركز التكلفة</label><select id="e-cc"><option value="">—</option>'+ccO+'</select></div>';
+    if(locO)h+='<div class="fg"><label>الموقع</label><select id="e-loc"><option value="">—</option>'+locO+'</select></div>';
+    if(actO)h+='<div class="fg"><label>النشاط</label><select id="e-act"><option value="">—</option>'+actO+'</select></div>';
+    if(dtO)h+='<div class="fg"><label>نوع المستند</label><select id="e-dt"><option value="">—</option>'+dtO+'</select></div>';
+    if(pmO)h+='<div class="fg"><label>طريقة الدفع</label><select id="e-pm"><option value="">—</option>'+pmO+'</select></div>';
+    h+='</div>';
+  }
+  h+='<div class="sd" style="font-size:11px;">سطور القيد</div>';
+  h+='<div id="els">'+eLnTPwbs(0,'')+eLnTPwbs(1,'')+'</div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="addEL()" style="width:100%;margin-bottom:10px;">+ سطر</button>';
+  h+='<div id="etot" style="background:var(--g1);border-radius:8px;padding:10px;font-size:12.5px;margin-bottom:12px;"></div>';
+  h+='<div style="display:flex;gap:8px;"><button class="btn" onclick="saveE()" style="flex:1;">✅ ترحيل القيد</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("قيد يومية جديد",h);
+  updET();
+}
+
+function addEL(){
+  var d=document.createElement("div");
+  var pCode=(el("e-p")||{}).value||"";
+  d.innerHTML=eLnTPwbs(_eL++,pCode);
+  el("els").appendChild(d.firstChild);
+  updET();
+}
+
+function updET(){
+  var tD=0,tC=0;
+  for(var i=0;i<_eL;i++){
+    tD+=fv("edr-"+i);tC+=fv("ecr-"+i);
+  }
+  var e=el("etot");if(!e)return;
+  var ok=Math.abs(tD-tC)<0.01;
+  e.innerHTML='<div style="display:flex;justify-content:space-between;">'
+    +'<span>مدين: <strong>'+fmt(tD)+'</strong></span>'
+    +'<span>دائن: <strong>'+fmt(tC)+'</strong></span>'
+    +'<span style="color:'+(ok?'var(--gr)':'var(--rd)')+';font-weight:700;">'+(ok?'✅ متوازن':'⚠️ فرق: '+fmt(Math.abs(tD-tC)))+'</span>'
+    +'</div>';
+}
+
+function saveE(){
+  if(!requirePerm("canEditEntries","المحاسب لا يمكنه إدخال قيود"))return;
+  var dt=sv("e-d")||new Date().toISOString().split("T")[0];
+  if(!checkPeriodLock(dt))return;
+  var lines=collectTP("e",_eL);
+  if(lines.length<2){toast("⚠️ القيد يحتاج سطرين على الأقل");return;}
+  var tD=lines.reduce(function(s,l){return s+(l.dr||0);},0);
+  var tC=lines.reduce(function(s,l){return s+(l.cr||0);},0);
+  if(Math.abs(tD-tC)>0.01){toast("⚠️ القيد غير متوازن — فرق: "+fmt(Math.abs(tD-tC)));return;}
+  var desc=sv("e-ds");if(!desc){toast("⚠️ البيان مطلوب");return;}
+  var id="J"+new Date().getFullYear()+"-"+String(Date.now()).slice(-6);
+  DB.entries.push({
+    id:id,date:dt,ref:sv("e-r")||id,desc:desc,
+    proj:sv("e-p"),costCenter:sv("e-cc"),location:sv("e-loc"),
+    activity:sv("e-act"),docType:sv("e-dt"),payMethod:sv("e-pm"),
+    lines:lines,status:"posted"
+  });
+  save();cm();rJour();rDash();
+  toast("✅ تم ترحيل القيد "+id);
+}
+
+function viewE(id){
+  var e=(DB.entries||[]).find(function(x){return x.id===id;});
+  if(!e){toast("القيد غير موجود");return;}
+  var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
+  var h='<div style="background:var(--g1);border-radius:9px;padding:10px;margin-bottom:10px;">';
+  h+='<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;">';
+  h+='<div><span class="badge bb">'+e.id+'</span> <span class="badge '+(e.status==="posted"?"bg":"ba")+'">'+(e.status==="posted"?"مرحّل":"مسودة")+'</span></div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+e.date+' · '+e.ref+'</div></div>';
+  h+='<div style="font-weight:700;font-size:13px;margin-top:6px;">'+e.desc+'</div>';
+  if(e.proj){var pr=DB.projects.find(function(p){return p.code===e.proj;});h+='<div style="font-size:11px;color:var(--sk);">📁 '+(pr?pr.name:e.proj)+'</div>';}
+  if(e.costCenter)h+='<div style="font-size:10.5px;color:var(--g4);">🏢 '+e.costCenter+(e.location?' · 📍'+e.location:'')+'</div>';
+  h+='</div>';
+  h+='<table><thead><tr><th>الحساب</th><th>الطرف الثالث</th><th>مدين</th><th>دائن</th></tr></thead><tbody>';
+  (e.lines||[]).forEach(function(l){
+    var tp3v=l.tpId?(DB.thirdParties||[]).find(function(t){return t.id===l.tpId;}):null;
+    h+='<tr><td><code style="font-size:10.5px;">'+l.acc+'</code><div style="font-size:10px;color:var(--g4);">'+l.an+'</div>'+(l.wbsCode?'<code style="font-size:9.5px;color:var(--sk);">'+l.wbsCode+'</code>':'')+'</td>';
+    h+='<td>'+(tp3v?'<span class="badge '+tpTypeCls(tp3v.type)+'" style="font-size:9px;">'+tpTypeIcon(tp3v.type)+'</span> <span style="font-size:11px;font-weight:700;">'+tp3v.name+'</span>':'<span style="color:var(--g4);font-size:10px;">—</span>')+'</td>';
+    h+='<td class="td tn">'+(l.dr>0?fmt(l.dr):"-")+'</td><td class="tc tn">'+(l.cr>0?fmt(l.cr):"-")+'</td></tr>';
+  });
+  h+='</tbody><tfoot><tr style="background:var(--g1);"><td colspan="2" style="font-weight:700;padding:7px;">الإجمالي</td>';
+  h+='<td class="td tn" style="font-weight:700;">'+fmt(tD)+'</td><td class="tc tn" style="font-weight:700;">'+fmt(tD)+'</td></tr></tfoot></table>';
+  var btns=document.createElement("div");btns.style.display="flex";btns.style.gap="8px";btns.style.marginTop="10px";
+  if(can("canEditEntries")){var b1=document.createElement("button");b1.className="btn btn-sky btn-sm";b1.style.flex="1";b1.textContent="✏️ تعديل";b1.onclick=function(){editEntry(id);};btns.appendChild(b1);}
+  if(can("canDeleteEntries")){var b2=document.createElement("button");b2.className="btn btn-rd btn-sm";b2.style.flex="1";b2.textContent="🗑️ حذف";b2.onclick=function(){delEntry(id);};btns.appendChild(b2);}
+  var b3=document.createElement("button");b3.className="btn btn-gy btn-sm";b3.style.flex="1";b3.textContent="إغلاق";b3.onclick=function(){cm();};btns.appendChild(b3);
+  om("📋 تفاصيل القيد",h,btns);
+}
+
+function om(t,b,extraEl){
+  document.getElementById("mo-t").textContent=t;
+  var mbd=document.getElementById("mo-b");
+  if(typeof b==="string") mbd.innerHTML=b;
+  if(extraEl) mbd.appendChild(extraEl);
+  document.getElementById("mo").classList.add("on");
+}
+
+function editEntry(id){
+  if(!requirePerm("canEditEntries","ليس لديك صلاحية تعديل القيود"))return;
+  syncTPFromHR();
+  var e=(DB.entries||[]).find(function(x){return x.id===id;});
+  if(!e)return;
+  if(!checkPeriodLock(e.date))return;
+  var pO='<option value="">—</option>'+DB.projects.map(function(p){return'<option value="'+p.code+'"'+(p.code===e.proj?" selected":"")+'>'+p.name+'</option>';}).join("");
+  _eL=(e.lines||[]).length||2; _eAO='';
+  var h='<div class="fr"><div class="fg"><label>التاريخ</label><input type="date" id="e-d" value="'+(e.date||"")+'"></div>';
+  h+='<div class="fg"><label>المرجع</label><input id="e-r" value="'+(e.ref||"")+'"></div></div>';
+  h+='<div class="fg"><label>البيان</label><input id="e-ds" value="'+(e.desc||"")+'"></div>';
+  h+='<div class="fg"><label>المشروع</label><select id="e-p">'+pO+'</select></div>';
+  h+='<div class="sd">سطور القيد</div><div id="els">';
+  (e.lines||[]).forEach(function(l,i){
+    var aN=(DB.accounts.find(function(a){return a.c===l.acc;})||{}).n||'';
+    var dispVal=l.acc?(l.acc+' — '+aN):'';
+    var tpOe=buildTPOptions(l.tpId||"");
+    h+='<div class="tp-line" id="el-'+i+'" style="background:var(--g1);border-radius:9px;padding:8px;margin-bottom:7px;">';
+    h+='<div style="position:relative;margin-bottom:5px;">';
+    h+='<input id="eaSearch-'+i+'" value="'+dispVal+'" placeholder="🔍 ابحث عن حساب..." style="width:100%;padding:8px 12px;border:1.5px solid var(--g2);border-radius:8px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterAccSel('+i+')" onfocus="showAccDrop('+i+')" onblur="setTimeout(function(){hideAccDrop('+i+')},200)">';
+    h+='<div id="eaDrop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--n);border-radius:8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.15);">'+buildAccDropHtml(i,'')+'</div>';
+    h+='<input type="hidden" id="ea-'+i+'" value="'+l.acc+'">';
+    h+='</div>';
+    h+='<div class="fr" style="margin-bottom:5px;"><input type="number" id="edr-'+i+'" value="'+(l.dr||'')+'" placeholder="مدين" oninput="updET()"><input type="number" id="ecr-'+i+'" value="'+(l.cr||'')+'" placeholder="دائن" oninput="updET()"></div>';
+    h+='<input type="hidden" id="ewbs-'+i+'" value="'+(l.wbsCode||'')+'">';
+    h+='<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpOe+'</select>';
+    h+='</div>';
+  });
+  h+='</div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="addEL()" style="width:100%;margin-bottom:10px;">+ سطر</button>';
+  h+='<div id="etot" style="background:var(--g1);border-radius:8px;padding:10px;font-size:12.5px;margin-bottom:12px;"></div>';
+  h+='<div style="display:flex;gap:8px;"><button class="btn" onclick="saveEditEntry(\''+id+'\')" style="flex:1;">💾 حفظ التعديلات</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("✏️ تعديل القيد — "+id,h);
+  updET();
+}
+
+function saveEditEntry(id){
+  if(!requirePerm("canEditEntries","ليس لديك صلاحية تعديل القيود"))return;
+  var lines=collectTP("ed",_eL);
+  if(lines.length<2){toast("⚠️ القيد يحتاج سطرين على الأقل");return;}
+  var tD=lines.reduce(function(s,l){return s+(l.dr||0);},0);
+  var tC=lines.reduce(function(s,l){return s+(l.cr||0);},0);
+  if(Math.abs(tD-tC)>0.01){toast("⚠️ القيد غير متوازن");return;}
+  var idx=(DB.entries||[]).findIndex(function(x){return x.id===id;});
+  if(idx<0){toast("القيد غير موجود");return;}
+  DB.entries[idx].date=sv("e-d")||DB.entries[idx].date;
+  DB.entries[idx].ref=sv("e-r")||DB.entries[idx].ref;
+  DB.entries[idx].desc=sv("e-ds")||DB.entries[idx].desc;
+  DB.entries[idx].proj=sv("e-p");
+  DB.entries[idx].lines=lines;
+  save();cm();rJour();rDash();toast("✅ تم تعديل القيد "+id);
+}
+
+function delEntry(id){
+  if(!requirePerm("canDeleteEntries","ليس لديك صلاحية حذف القيود"))return;
+  if(!confirm("تأكيد حذف القيد "+id+"؟"))return;
+  DB.entries=(DB.entries||[]).filter(function(e){return e.id!==id;});
+  save();cm();rJour();rDash();toast("🗑️ تم حذف القيد");
 }
 
 
