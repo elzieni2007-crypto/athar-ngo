@@ -471,9 +471,11 @@ function rProj(){
   h+='<div class="ph-s">'+DB.projects.length+' مشروع</div></div>';
   h+='<button class="btn" onclick="newProj()">+ مشروع جديد</button></div>';
   DB.projects.forEach(function(p){
-    var pc=(p.spent/p.budget)*100;
-    var col=pc>90?"var(--rd)":pc>70?"var(--am)":"var(--gr)";
-    var rem=p.budget-p.spent;
+    var spent=getProjectSpent(p.code);
+    var budget=p.budget||0;
+    var pc=budget>0?(spent/budget)*100:0;
+    var col=pc>90?'var(--rd)':pc>70?'var(--am)':'var(--gr)';
+    var rem=budget-spent;
     h+='<div class="card">';
     h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">';
     h+='<div><span class="badge bb">'+p.code+'</span>';
@@ -487,6 +489,7 @@ function rProj(){
     h+='<div class="st" style="padding:10px;"><div style="font-size:10.5px;color:var(--g4);">نسبة الصرف</div><div style="font-weight:900;font-size:16px;color:'+col+';">'+pc.toFixed(1)+'%</div></div>';
     h+="</div>";
     h+='<div class="pw"><div class="pb" style="width:'+Math.min(pc,100)+'%;background:'+col+';"></div></div>';
+    h+='<button class="btn btn-sm" style="background:var(--n);width:100%;margin-top:6px;font-size:11px;" onclick="viewProject(\''+p.code+'\')">📁 الموازنة والـ BVA</button>';
     h+="</div>";
   });
   if(!DB.projects.length)h+='<div class="card" style="text-align:center;color:var(--g4);padding:30px;">لا توجد مشروعات</div>';
@@ -1011,7 +1014,7 @@ function newEntry(){
   var h='<div class="fr"><div class="fg"><label>التاريخ *</label><input type="date" id="e-d" value="'+new Date().toISOString().split("T")[0]+'"></div>';
   h+='<div class="fg"><label>المرجع</label><input id="e-r" placeholder="PV-001"></div></div>';
   h+='<div class="fg"><label>البيان *</label><input id="e-ds" placeholder="وصف العملية المالية"></div>';
-  h+='<div class="fg"><label>المشروع</label><select id="e-p"><option value="">—</option>'+pO+'</select></div>';
+  h+='<div class="fg"><label>المشروع</label><select id="e-p" onchange="onProjChange()"><option value="">—</option>'+pO+'</select></div>';
   // Master Data fields
   var ccO=getMDOptions('costCenters','code','name');
   var locO=getMDOptions('locations','code','name');
@@ -1028,7 +1031,7 @@ function newEntry(){
     h+='</div>';
   }
   h+='<div class="sd" style="font-size:11px;">سطور القيد — <span style="color:var(--g4);">يمكن ربط كل سطر بطرف ثالث (مورد/موظف/عميل)</span></div>';
-  h+='<div id="els">'+eLnTP(0,'')+eLnTP(1,'')+'</div>';
+  h+='<div id="els">'+eLnTPwbs(0,'')+eLnTPwbs(1,'')+'</div>';
   h+='<button class="btn btn-sm btn-gy" onclick="addEL()" style="width:100%;margin-bottom:10px;">+ سطر</button>';
   h+='<div id="etot" style="background:var(--g1);border-radius:8px;padding:10px;font-size:12.5px;margin-bottom:12px;"></div>';
   h+='<div style="display:flex;gap:8px;"><button class="btn" onclick="saveE()" style="flex:1;">✅ ترحيل القيد</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
@@ -1036,7 +1039,7 @@ function newEntry(){
   updET();
 }
 // eLn — see eLnTP above
-function addEL(){var d=document.createElement("div");d.innerHTML=eLn(_eL++,_eAO);el("els").appendChild(d.firstChild);updET();}
+function addEL(){var d=document.createElement("div");var pCode=(el("e-p")||{}).value||"";d.innerHTML=eLnTPwbs(_eL++,pCode);el("els").appendChild(d.firstChild);updET();}
 function addELEdit(){var d=document.createElement("div");d.innerHTML=eLn(_eL++,_eAO);el("ed-ls").appendChild(d.firstChild);updETE();}
 function updETE(){var tD=0,tC=0;for(var i=0;i<_eL;i++){tD+=parseFloat(el("edr-"+i)?el("edr-"+i).value:0)||0;tC+=parseFloat(el("ecr-"+i)?el("ecr-"+i).value:0)||0;}var ok=Math.abs(tD-tC)<0.01;var e=el("ed-etot");if(e)e.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;"><span>مدين: <strong>'+fmt(tD)+'</strong> | دائن: <strong>'+fmt(tC)+'</strong></span><span style="font-weight:700;color:'+(ok?'var(--gr)':'var(--rd)')+';">'+(ok?'✅ متوازن':'⚠️ غير متوازن')+'</span></div>';}
 function updET(){
@@ -1535,20 +1538,38 @@ function rIncPage(){
     +'<span style="font-size:18px;font-weight:900;">'+fmt(Math.abs(sur))+' ج.م</span></div>';
 }
 function rBVAPage(){
-  var h='<div class="ph-t" style="margin-bottom:12px;">📉 متابعة BVA</div>';
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">📉 متابعة BVA</div></div>';
+  if(!DB.projects.length) return h+'<div style="text-align:center;color:var(--g4);padding:20px;">لا توجد مشروعات</div>';
   DB.projects.forEach(function(p){
-    var pc=(p.spent/p.budget)*100;
+    var spent=getProjectSpent(p.code);
+    var budget=p.budget||0;
+    var pc=budget>0?Math.round(spent/budget*100):0;
     var col=pc>90?"var(--rd)":pc>70?"var(--am)":"var(--gr)";
+    var rem=budget-spent;
     h+='<div class="card" style="margin-bottom:10px;">';
-    h+='<div style="font-weight:800;margin-bottom:8px;">'+p.name+'<span class="badge bb" style="float:left;">'+p.code+'</span></div>';
-    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:12px;text-align:center;margin-bottom:8px;">';
-    h+='<div style="background:var(--g1);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:10px;">الموازنة</div><div style="font-weight:800;">'+fmt(p.budget)+'</div></div>';
-    h+='<div style="background:var(--rbg);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:10px;">الصرف</div><div style="font-weight:800;color:var(--rd);">'+fmt(p.spent)+'</div></div>';
-    h+='<div style="background:var(--skp);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:10px;">نسبة الصرف</div><div style="font-weight:900;color:'+col+';">'+pc.toFixed(1)+'%</div></div>';
-    h+='</div><div class="pw"><div class="pb" style="width:'+Math.min(pc,100)+'%;background:'+col+';"></div></div></div>';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+    h+='<div><span class="badge bb" style="font-size:9.5px;">'+p.code+'</span>';
+    h+='<div style="font-weight:800;font-size:14px;margin-top:3px;">'+p.name+'</div>';
+    if(p.donor)h+='<div style="font-size:11px;color:var(--g4);">'+p.donor+'</div>';
+    h+='</div>';
+    h+='<div style="text-align:left;"><div style="font-size:9px;color:var(--g4);">صُرف</div>';
+    h+='<div style="font-weight:900;font-size:16px;color:'+col+';">'+pc+'%</div></div></div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px;text-align:center;margin-bottom:8px;">';
+    h+='<div style="background:var(--g1);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:9.5px;">الموازنة</div><div style="font-weight:800;">'+fmt(budget)+'</div></div>';
+    h+='<div style="background:var(--rbg);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:9.5px;">الصرف الفعلي</div><div style="font-weight:800;color:var(--rd);">'+fmt(spent)+'</div></div>';
+    var remClr=rem<0?"var(--rd)":"var(--gr)";
+    h+='<div style="background:var(--g1);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:9.5px;">المتبقي</div><div style="font-weight:800;color:'+remClr+';">'+fmt(rem)+'</div></div>';
+    h+='</div>';
+    h+='<div class="pw" style="margin-bottom:8px;"><div class="pb" style="width:'+Math.min(pc,100)+'%;background:'+col+';"></div></div>';
+    if((p.wbs||[]).length){
+      h+='<button class="btn btn-sm" style="background:var(--n);width:100%;font-size:11px;" onclick="viewProject(\''+p.code+'\')" >📉 BVA التفصيلي</button>';
+    }
+    h+='</div>';
   });
   return h;
 }
+
 // ============================================================
 // BANK RECONCILIATION SYSTEM — التسوية البنكية
 // ============================================================
@@ -4261,7 +4282,8 @@ function rMasterData(){
     {icon:"🎯",key:"activities",     label:"أكواد الأنشطة",     sub:"تصنيف الأنشطة البرامجية"},
     {icon:"🌍",key:"thematics",      label:"المحاور الموضوعية",  sub:"Thematic Areas للمشروعات"},
     {icon:"🏦",key:"bankAccounts",   label:"الحسابات البنكية",   sub:"بيانات البنوك والحسابات"},
-    {icon:"🏭",key:"supplierCategories",label:"تصنيفات الموردين",sub:"تجميع الموردين حسب النوع"},
+    {icon:"🏭",key:"suppliers",label:"الموردون",sub:"قاعدة بيانات الموردين الكاملة"},
+    {icon:"📁",key:"supplierCategories",label:"تصنيفات الموردين",sub:"تجميع الموردين حسب النوع"},
     {icon:"💱",key:"currencies",     label:"العملات",            sub:"العملات المستخدمة في العمليات"},
     {icon:"📄",key:"docTypes",       label:"أنواع المستندات",    sub:"تصنيفات المستندات المحاسبية"},
     {icon:"💳",key:"paymentMethods", label:"طرق الدفع",         sub:"وسائل الدفع والتحصيل"}
@@ -4620,10 +4642,768 @@ function getMDOptions(key, idField, nameField){
 }
 
 
+// ============================================================
+// WBS + PROJECT BUDGET SYSTEM
+// ============================================================
+
+// ---- WBS helpers ----
+function initWBS(){
+  DB.projects.forEach(function(p){
+    if(!p.wbs)p.wbs=[];
+    if(!p.budgetLines)p.budgetLines=[];
+  });
+}
+
+function getWBSTree(projCode){
+  var p=DB.projects.find(function(x){return x.code===projCode;});
+  if(!p||!(p.wbs||[]).length) return [];
+  // Build tree with parent-child
+  var items=(p.wbs||[]).slice().sort(function(a,b){
+    return a.code<b.code?-1:1;
+  });
+  return items;
+}
+
+function isWBSParent(code, items){
+  var prefix=code+'.';
+  return items.some(function(x){return x.code.startsWith(prefix);});
+}
+
+function getWBSSpent(projCode, wbsCode){
+  // Sum all entries for this project where wbsCode matches
+  var total=0;
+  (DB.entries||[]).filter(function(e){
+    return e.status==='posted' && e.proj===projCode;
+  }).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(l.wbsCode===wbsCode && (l.dr||0)>0 && isExpenseAcc(l.acc)){
+        total+=l.dr||0;
+      }
+    });
+  });
+  return total;
+}
+
+function getWBSSpentWithChildren(projCode, wbsCode, allItems){
+  // Sum for this code AND all children
+  var total=getWBSSpent(projCode, wbsCode);
+  allItems.forEach(function(item){
+    if(item.code!==wbsCode && item.code.startsWith(wbsCode+'.'))
+      total+=getWBSSpent(projCode, item.code);
+  });
+  return total;
+}
+
+function isExpenseAcc(accCode){
+  return accCode && accCode.startsWith('5');
+}
+
+function getWBSBudget(p, wbsCode, allItems){
+  // Direct budget
+  var direct=(p.wbs||[]).find(function(x){return x.code===wbsCode;});
+  var dirBudget=direct?direct.budget||0:0;
+  // If parent: sum children budgets
+  var children=(p.wbs||[]).filter(function(x){
+    return x.code!==wbsCode && x.code.startsWith(wbsCode+'.');
+  });
+  if(children.length) return children.reduce(function(s,c){return s+(c.budget||0);},0);
+  return dirBudget;
+}
+
+// ---- PROJECT DETAIL PAGE ----
+function viewProject(projCode){
+  initWBS();
+  var p=DB.projects.find(function(x){return x.code===projCode;});
+  if(!p)return;
+  var wbs=p.wbs||[];
+  var totalBudget=p.budget||0;
+  // Recalculate total from WBS level-1 items
+  var l1=wbs.filter(function(x){return x.code.split('.').length===1||x.code.indexOf('.')===-1;});
+  var wbsBudgetTotal=wbs.filter(function(x){return !isWBSParent(x.code,wbs);})
+    .reduce(function(s,x){return s+(x.budget||0);},0);
+
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:12px;padding:14px;margin-bottom:12px;color:white;">';
+  h+='<div style="font-size:10.5px;opacity:.7;">'+p.code+(p.donor?' · '+p.donor:'')+'</div>';
+  h+='<div style="font-weight:900;font-size:17px;margin:3px 0;">'+p.name+'</div>';
+  if(p.thematic||p.start){
+    h+='<div style="font-size:11px;opacity:.75;">'+(p.thematic?'🌍 '+p.thematic:'')+(p.start?' · 📅 '+p.start+' → '+(p.end||'...'):'')+'</div>';
+  }
+  h+='</div>';
+
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
+  var spent=getProjectSpent(projCode);
+  var rem=totalBudget-spent;
+  var pct=totalBudget>0?Math.round(spent/totalBudget*100):0;
+  h+='<div style="background:var(--skp);border-radius:9px;padding:10px;text-align:center;"><div style="font-size:9.5px;color:var(--g4);">الموازنة</div><div style="font-weight:900;font-size:14px;color:var(--n);">'+fmt(totalBudget)+'</div></div>';
+  h+='<div style="background:var(--rbg);border-radius:9px;padding:10px;text-align:center;"><div style="font-size:9.5px;color:var(--g4);">الصرف</div><div style="font-weight:900;font-size:14px;color:var(--rd);">'+fmt(spent)+'</div></div>';
+  h+='<div style="background:var(--gbg);border-radius:9px;padding:10px;text-align:center;"><div style="font-size:9.5px;color:var(--g4);">المتبقي</div><div style="font-weight:900;font-size:14px;color:'+(rem>=0?'var(--gr)':'var(--rd)')+';">'+fmt(rem)+'</div></div>';
+  h+='</div>';
+  h+='<div class="pw" style="margin-bottom:14px;"><div class="pb" style="width:'+Math.min(pct,100)+'%;background:'+(pct>90?'var(--rd)':pct>70?'var(--am)':'var(--gr)')+'"></div></div>';
+
+  // Tabs
+  h+='<div style="display:flex;gap:7px;margin-bottom:12px;">';
+  h+='<button class="btn btn-sm" style="background:var(--n);" onclick="showProjTab(\''+projCode+'\',\'wbs\')">📋 الموازنة التفصيلية</button>';
+  h+='<button class="btn btn-sm btn-gy" onclick="showProjTab(\''+projCode+'\',\'bva\')">📉 BVA</button>';
+  h+='<button class="btn btn-sm btn-gy" onclick="showProjTab(\''+projCode+'\',\'entries\')">📝 القيود</button>';
+  h+='</div>';
+  h+='<div id="proj-tab-body">'+buildProjWBSTab(projCode)+'</div>';
+  om('📁 '+p.name, h);
+}
+
+function showProjTab(projCode,tab){
+  var el2=document.getElementById('proj-tab-body');
+  if(!el2)return;
+  if(tab==='wbs') el2.innerHTML=buildProjWBSTab(projCode);
+  else if(tab==='bva') el2.innerHTML=buildProjBVATab(projCode);
+  else if(tab==='entries') el2.innerHTML=buildProjEntriesTab(projCode);
+}
+
+// ---- WBS TAB ----
+function buildProjWBSTab(projCode){
+  var p=DB.projects.find(function(x){return x.code===projCode;});
+  if(!p)return '';
+  var wbs=(p.wbs||[]).slice().sort(function(a,b){return a.code<b.code?-1:1;});
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+  h+='<div style="font-weight:800;font-size:13px;">📋 الموازنة التفصيلية (WBS)</div>';
+  h+='<div style="display:flex;gap:6px;">';
+  if(can('canEditProjects')||can('canEditEntries')){
+    h+='<button class="btn btn-gr btn-sm" onclick="openAddWBS(\''+projCode+'\')">+ بند</button>';
+  }
+  h+='<button class="btn btn-sm btn-gy" onclick="exportWBS(\''+projCode+'\')">📥 CSV</button>';
+  h+='</div></div>';
+
+  if(!wbs.length){
+    return h+'<div style="text-align:center;color:var(--g4);background:var(--g1);border-radius:10px;padding:20px;font-size:12px;">لا توجد موازنة تفصيلية — اضغط + بند للإضافة</div>';
+  }
+
+  var totalBudget=0,totalSpent=0;
+  h+='<div style="overflow-x:auto;"><table><thead><tr>';
+  h+='<th>الكود</th><th>البند / النشاط</th><th>الحساب</th><th>الموازنة</th><th>الصرف</th><th>المتبقي</th><th>%</th><th></th>';
+  h+='</tr></thead><tbody>';
+
+  wbs.forEach(function(item,i){
+    var depth=item.code.split('.').length-1;
+    var isParent=isWBSParent(item.code,wbs);
+    var budget=isParent?getWBSBudget(p,item.code,wbs):item.budget||0;
+    var spent=isParent?getWBSSpentWithChildren(projCode,item.code,wbs):getWBSSpent(projCode,item.code);
+    var rem=budget-spent;
+    var pct=budget>0?Math.round(spent/budget*100):0;
+    var barClr=pct>100?'var(--rd)':pct>85?'var(--am)':'var(--gr)';
+    if(!isParent){totalBudget+=budget;totalSpent+=spent;}
+
+    var acc=item.accCode?DB.accounts.find(function(a){return a.c===item.accCode;}):null;
+
+    h+='<tr style="background:'+(isParent?'var(--g1)':'white')+';border-bottom:1px solid var(--g2);">';
+    h+='<td><code style="font-size:10.5px;color:var(--n);font-weight:'+(depth===0?'900':'700')+';">'+item.code+'</code></td>';
+    h+='<td style="font-size:12px;font-weight:'+(isParent?'800':'600')+';padding-right:'+(depth*12+8)+'px;">'+item.name+'</td>';
+    h+='<td style="font-size:10px;color:var(--g4);">'+(acc?acc.n:'—')+'</td>';
+    h+='<td class="tn" style="font-weight:700;">'+(budget>0?fmt(budget):'—')+'</td>';
+    var spClr=spent>budget?'var(--rd)':'var(--n)';
+    h+='<td class="tn" style="color:'+spClr+';font-weight:700;">'+(spent>0?fmt(spent):'—')+'</td>';
+    var remClr=rem<0?'var(--rd)':'var(--gr)';
+    h+='<td class="tn" style="color:'+remClr+';font-weight:700;">'+(budget>0?fmt(rem):'—')+'</td>';
+    h+='<td style="min-width:60px;padding:6px;">';
+    if(budget>0){
+      h+='<div style="display:flex;align-items:center;gap:4px;">';
+      h+='<div style="flex:1;background:var(--g2);border-radius:3px;height:5px;"><div style="background:'+barClr+';height:5px;border-radius:3px;width:'+Math.min(pct,100)+'%;"></div></div>';
+      h+='<span style="font-size:9.5px;font-weight:700;color:'+barClr+';">'+pct+'%</span></div>';
+    }
+    h+='</td>';
+    h+='<td>';
+    if(can('canEditProjects')||can('canEditEntries')){
+      h+='<div style="display:flex;gap:3px;">';
+      h+='<button class="btn btn-sm btn-sky" onclick="editWBSItem(\''+projCode+'\','+i+')" style="font-size:9.5px;padding:3px 7px;">✏️</button>';
+      h+='<button class="btn btn-sm btn-rd" onclick="deleteWBSItem(\''+projCode+'\','+i+')" style="font-size:9.5px;padding:3px 7px;">🗑️</button>';
+      h+='</div>';
+    }
+    h+='</td></tr>';
+  });
+
+  h+='</tbody><tfoot><tr style="background:var(--n);">';
+  h+='<td colspan="3" style="color:white;font-weight:900;padding:9px;font-size:12px;">الإجمالي</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(totalBudget)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(totalSpent)+'</td>';
+  var totRem=totalBudget-totalSpent;
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(totRem)+'</td>';
+  var totPct=totalBudget>0?Math.round(totalSpent/totalBudget*100):0;
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+totPct+'%</td>';
+  h+='<td></td></tr></tfoot></table></div>';
+  return h;
+}
+
+// ---- BVA TAB ----
+function buildProjBVATab(projCode){
+  var p=DB.projects.find(function(x){return x.code===projCode;});
+  if(!p)return '';
+  var wbs=(p.wbs||[]).slice().sort(function(a,b){return a.code<b.code?-1:1;});
+  var h='<div style="font-weight:800;font-size:13px;margin-bottom:10px;">📉 Budget vs Actual (BVA)</div>';
+  if(!wbs.length) return h+'<div style="color:var(--g4);text-align:center;padding:16px;">أضف موازنة تفصيلية أولاً</div>';
+
+  h+='<div style="overflow-x:auto;"><table><thead><tr>';
+  h+='<th>الكود</th><th>البند</th><th>الموازنة</th><th>الفعلي</th><th>الفرق</th><th>%</th><th>الحالة</th>';
+  h+='</tr></thead><tbody>';
+
+  wbs.forEach(function(item){
+    var isParent=isWBSParent(item.code,wbs);
+    var budget=isParent?getWBSBudget(p,item.code,wbs):item.budget||0;
+    var actual=isParent?getWBSSpentWithChildren(projCode,item.code,wbs):getWBSSpent(projCode,item.code);
+    var diff=budget-actual;
+    var pct=budget>0?Math.round(actual/budget*100):0;
+    var depth=item.code.split('.').length-1;
+    var status=pct>100?{lbl:'تجاوز',cls:'br'}:pct>90?{lbl:'تحذير',cls:'ba'}:pct>50?{lbl:'طبيعي',cls:'bb'}:{lbl:'منخفض',cls:'bg'};
+
+    h+='<tr style="background:'+(isParent?'var(--g1)':'white')+';border-bottom:1px solid var(--g2);">';
+    h+='<td><code style="font-size:10.5px;font-weight:'+(isParent?'900':'700')+';">'+item.code+'</code></td>';
+    h+='<td style="font-size:12px;font-weight:'+(isParent?'800':'600')+';padding-right:'+(depth*12+8)+'px;">'+item.name+'</td>';
+    h+='<td class="tn" style="font-weight:700;">'+(budget>0?fmt(budget):'—')+'</td>';
+    var actClr=actual>budget?'var(--rd)':'var(--n)';
+    h+='<td class="tn" style="font-weight:700;color:'+actClr+';">'+(actual>0?fmt(actual):'—')+'</td>';
+    var diffClr=diff<0?'var(--rd)':'var(--gr)';
+    h+='<td class="tn" style="font-weight:800;color:'+diffClr+';">'+(budget>0?fmt(Math.abs(diff))+(diff<0?' (تجاوز)':''):' —')+'</td>';
+    h+='<td style="font-size:11px;font-weight:700;color:'+(pct>100?'var(--rd)':pct>85?'var(--am)':'var(--gr)')+';">'+(budget>0?pct+'%':'—')+'</td>';
+    h+='<td>'+(budget>0?'<span class="badge '+status.cls+'" style="font-size:9.5px;">'+status.lbl+'</span>':'')+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+
+  // Export button
+  h+='<button class="btn btn-sm btn-gy" onclick="exportBVA(\''+projCode+'\')" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير BVA</button>';
+  return h;
+}
+
+// ---- ENTRIES TAB ----
+function buildProjEntriesTab(projCode){
+  var entries=(DB.entries||[]).filter(function(e){return e.proj===projCode&&e.status==='posted';});
+  var h='<div style="font-weight:800;font-size:13px;margin-bottom:10px;">📝 القيود ('+entries.length+')</div>';
+  if(!entries.length) return h+'<div style="color:var(--g4);text-align:center;padding:16px;">لا توجد قيود</div>';
+  h+='<div style="overflow-x:auto;"><table><thead><tr><th>التاريخ</th><th>المرجع</th><th>البيان</th><th>النشاط WBS</th><th>المدين</th><th>الدائن</th></tr></thead><tbody>';
+  entries.slice().reverse().forEach(function(e){
+    var dr=e.lines.reduce(function(s,l){return s+(l.dr||0);},0);
+    var cr=e.lines.reduce(function(s,l){return s+(l.cr||0);},0);
+    var wbsCodes=[...new Set(e.lines.filter(function(l){return l.wbsCode;}).map(function(l){return l.wbsCode;}))];
+    h+='<tr><td style="font-size:11px;white-space:nowrap;">'+e.date+'</td>';
+    h+='<td style="font-size:11px;color:var(--sk);">'+e.ref+'</td>';
+    h+='<td style="font-size:11px;">'+e.desc+'</td>';
+    h+='<td>'+(wbsCodes.length?wbsCodes.map(function(c){return'<code style="font-size:10px;background:var(--g1);padding:1px 5px;border-radius:4px;">'+c+'</code>';}).join(' '):'—')+'</td>';
+    h+='<td class="tn" style="font-weight:700;">'+fmt(dr)+'</td>';
+    h+='<td class="tn" style="font-weight:700;color:var(--gr);">'+fmt(cr)+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  return h;
+}
+
+// ---- GET PROJECT SPENT (from entries) ----
+function getProjectSpent(projCode){
+  var total=0;
+  (DB.entries||[]).filter(function(e){return e.status==='posted'&&e.proj===projCode;}).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(isExpenseAcc(l.acc)) total+=l.dr||0;
+    });
+  });
+  return total;
+}
+
+// ---- ADD/EDIT WBS ITEM ----
+function openAddWBS(projCode){
+  var p=DB.projects.find(function(x){return x.code===projCode;});
+  if(!p)return;
+  var wbs=p.wbs||[];
+  // Suggest next code
+  var parentO='<option value="">— بند رئيسي (مستوى 1) —</option>';
+  wbs.forEach(function(x){parentO+='<option value="'+x.code+'">'+x.code+' — '+x.name+'</option>';});
+
+  var expAccO='<option value="">— بدون حساب —</option>';
+  DB.accounts.filter(function(a){return a.c.startsWith('5');}).forEach(function(a){
+    expAccO+='<option value="'+a.c+'">'+a.c+' — '+a.n+'</option>';
+  });
+
+  var h='<div class="fg"><label>الحساب الأب (للتسلسل الهرمي)</label><select id="wbs-parent">'+parentO+'</select></div>';
+  h+='<div class="fr"><div class="fg"><label>كود البند *</label><input id="wbs-code" placeholder="1.1.1" oninput="previewWBSCode()"></div>';
+  h+='<div id="wbs-code-preview" style="align-self:flex-end;padding-bottom:12px;font-size:11px;color:var(--g4);"></div></div>';
+  h+='<div class="fg"><label>اسم البند / النشاط *</label><input id="wbs-name" placeholder="مرتب مدير المشروع"></div>';
+  h+='<div class="fg"><label>حساب المصروف (من 5xxx فقط)</label><select id="wbs-acc">'+expAccO+'</select></div>';
+  h+='<div class="fg"><label>الموازنة (ج.م)</label><input type="number" id="wbs-budget" placeholder="0" step="0.01"></div>';
+  h+='<div class="fg"><label>وحدة القياس</label><input id="wbs-unit" placeholder="شخص/شهر · رحلة · جلسة ..."></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="wbs-notes" placeholder="تفاصيل إضافية"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:10px;">';
+  h+='<button class="btn btn-gr" onclick="saveWBSItem(\''+projCode+'\',-1)" style="flex:1;">✅ إضافة البند</button>';
+  h+='<button class="btn btn-gy" onclick="viewProject(\''+projCode+'\')">إلغاء</button></div>';
+  om('➕ بند موازنة — '+p.code, h);
+}
+
+function previewWBSCode(){
+  var code=(document.getElementById('wbs-code')||{}).value||'';
+  var pv=document.getElementById('wbs-code-preview');
+  if(!pv)return;
+  var depth=code.split('.').length;
+  var labels=['رئيسي','فرعي','تفصيلي','مستوى 4'];
+  pv.textContent=code?'مستوى '+(labels[depth-1]||depth):'';
+}
+
+function editWBSItem(projCode,idx){
+  var p=DB.projects.find(function(x){return x.code===projCode;});
+  if(!p)return;
+  var item=(p.wbs||[])[idx];if(!item)return;
+  var expAccO='<option value="">— بدون حساب —</option>';
+  DB.accounts.filter(function(a){return a.c.startsWith('5');}).forEach(function(a){
+    expAccO+='<option value="'+a.c+'"'+(a.c===item.accCode?' selected':'')+'>'+a.c+' — '+a.n+'</option>';
+  });
+  var h='<div class="fg"><label>كود البند</label><input id="wbs-code" value="'+item.code+'"></div>';
+  h+='<div class="fg"><label>اسم البند / النشاط</label><input id="wbs-name" value="'+item.name+'"></div>';
+  h+='<div class="fg"><label>حساب المصروف</label><select id="wbs-acc">'+expAccO+'</select></div>';
+  h+='<div class="fg"><label>الموازنة (ج.م)</label><input type="number" id="wbs-budget" value="'+(item.budget||0)+'"></div>';
+  h+='<div class="fg"><label>وحدة القياس</label><input id="wbs-unit" value="'+(item.unit||'')+'"></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="wbs-notes" value="'+(item.notes||'')+'"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:10px;">';
+  h+='<button class="btn" onclick="saveWBSItem(\''+projCode+'\','+idx+')" style="flex:1;">💾 حفظ</button>';
+  h+='<button class="btn btn-gy" onclick="viewProject(\''+projCode+'\')">إلغاء</button></div>';
+  om('✏️ تعديل بند', h);
+}
+
+function saveWBSItem(projCode,idx){
+  var p=DB.projects.find(function(x){return x.code===projCode;});
+  if(!p)return;
+  if(!p.wbs)p.wbs=[];
+  var code=sv('wbs-code'),name=sv('wbs-name');
+  if(!code||!name){toast('⚠️ الكود والاسم مطلوبان');return;}
+  var item={code:code,name:name,accCode:sv('wbs-acc'),budget:fv('wbs-budget'),unit:sv('wbs-unit'),notes:sv('wbs-notes')};
+  if(idx<0){
+    if(p.wbs.find(function(x){return x.code===code;})){toast('⚠️ الكود '+code+' موجود بالفعل');return;}
+    p.wbs.push(item);
+  } else {
+    p.wbs[idx]=item;
+  }
+  // Update project total budget from WBS
+  var leafBudget=p.wbs.filter(function(x){return !isWBSParent(x.code,p.wbs);})
+    .reduce(function(s,x){return s+(x.budget||0);},0);
+  if(leafBudget>0) p.budget=leafBudget;
+  save();
+  toast('✅ تم حفظ البند');
+  viewProject(projCode);
+}
+
+function deleteWBSItem(projCode,idx){
+  var p=DB.projects.find(function(x){return x.code===projCode;});
+  if(!p||!confirm('حذف هذا البند؟'))return;
+  var code=(p.wbs||[])[idx]?p.wbs[idx].code:'';
+  // Delete children too
+  p.wbs=p.wbs.filter(function(x,i){
+    return i!==idx && !x.code.startsWith(code+'.');
+  });
+  save();toast('🗑️ تم الحذف');viewProject(projCode);
+}
+
+// ---- EXPORTS ----
+function exportWBS(projCode){
+  var p=DB.projects.find(function(x){return x.code===projCode;});if(!p)return;
+  var wbs=(p.wbs||[]).slice().sort(function(a,b){return a.code<b.code?-1:1;});
+  var rows=[['كود WBS','البند','الحساب','الموازنة','الصرف الفعلي','المتبقي','%']];
+  wbs.forEach(function(item){
+    var isParent=isWBSParent(item.code,wbs);
+    var budget=isParent?getWBSBudget(p,item.code,wbs):item.budget||0;
+    var spent=getWBSSpentWithChildren(projCode,item.code,wbs);
+    var pct=budget>0?Math.round(spent/budget*100):0;
+    var acc=item.accCode?DB.accounts.find(function(a){return a.c===item.accCode;}):null;
+    rows.push([item.code,item.name,acc?acc.n:'',budget,spent,budget-spent,pct+'%']);
+  });
+  dlCSV(rows,'wbs-'+projCode+'-'+new Date().toISOString().split('T')[0]+'.csv');
+  toast('✅ تم تصدير الموازنة التفصيلية');
+}
+
+function exportBVA(projCode){
+  var p=DB.projects.find(function(x){return x.code===projCode;});if(!p)return;
+  var wbs=(p.wbs||[]).slice().sort(function(a,b){return a.code<b.code?-1:1;});
+  var rows=[['كود WBS','البند','الموازنة','الفعلي','الفرق','%','الحالة']];
+  wbs.forEach(function(item){
+    var isParent=isWBSParent(item.code,wbs);
+    var budget=isParent?getWBSBudget(p,item.code,wbs):item.budget||0;
+    var actual=getWBSSpentWithChildren(projCode,item.code,wbs);
+    var diff=budget-actual;
+    var pct=budget>0?Math.round(actual/budget*100):0;
+    var status=pct>100?'تجاوز':pct>90?'تحذير':pct>50?'طبيعي':'منخفض';
+    rows.push([item.code,item.name,budget,actual,diff,pct+'%',status]);
+  });
+  dlCSV(rows,'bva-'+projCode+'-'+new Date().toISOString().split('T')[0]+'.csv');
+  toast('✅ تم تصدير BVA');
+}
+
+// ---- WBS LOOKUP for journal entry ----
+function getWBSForProject(projCode){
+  var p=projCode?DB.projects.find(function(x){return x.code===projCode;}):null;
+  if(!p||!(p.wbs||[]).length) return [];
+  return (p.wbs||[]).slice().sort(function(a,b){return a.code<b.code?-1:1;});
+}
+
+
+// ============================================================
+// WBS INTEGRATION IN JOURNAL ENTRY LINE
+// ============================================================
+
+// Override eLnTP to add WBS code field (called when proj selected)
+function eLnTPwbs(i, projCode){
+  initTP();
+  var tpOpts=buildTPOptions('');
+  // WBS dropdown for selected project
+  var wbsItems=projCode?getWBSForProject(projCode):[];
+  var wbsO='<option value="">— بدون كود نشاط —</option>';
+  wbsItems.forEach(function(w){
+    var isLeaf=!isWBSParent(w.code,wbsItems);
+    wbsO+='<option value="'+w.code+'">'+(isLeaf?'':'▶ ')+w.code+' — '+w.name+'</option>';
+  });
+  var hasWBS=wbsItems.length>0;
+
+  return '<div class="tp-line" id="el-'+i+'" style="background:var(--g1);border-radius:9px;padding:8px;margin-bottom:7px;">'
+    +'<div style="position:relative;margin-bottom:5px;">'
+    +'<input id="eaSearch-'+i+'" placeholder="🔍 ابحث عن حساب مصروف..." style="width:100%;padding:8px 12px;border:1.5px solid var(--g2);border-radius:8px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterAccSel('+i+')" onfocus="showAccDrop('+i+')" onblur="setTimeout(function(){hideAccDrop('+i+')},200)">'
+    +'<div id="eaDrop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--n);border-radius:8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.15);">'
+    +buildAccDropHtml(i,'')
+    +'</div>'
+    +'<input type="hidden" id="ea-'+i+'" onchange="updET()">'
+    +'</div>'
+    +'<div class="fr" style="margin-bottom:5px;">'
+    +'<input type="number" id="edr-'+i+'" placeholder="مدين" oninput="updET()">'
+    +'<input type="number" id="ecr-'+i+'" placeholder="دائن" oninput="updET()">'
+    +'</div>'
+    +(hasWBS
+      ? '<div style="display:flex;gap:6px;margin-bottom:5px;align-items:center;">'
+        +'<div style="flex:1;position:relative;">'
+        +'<input id="ewbs-search-'+i+'" placeholder="🔍 كود النشاط (WBS)..." style="width:100%;padding:7px 10px;border:1.5px solid var(--sk);border-radius:7px;font-size:11.5px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterWBS('+i+')" onfocus="showWBSDrop('+i+')" onblur="setTimeout(function(){hideWBSDrop('+i+')},200)">'
+        +'<div id="ewbs-drop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--sk);border-radius:8px;max-height:180px;overflow-y:auto;z-index:998;box-shadow:0 4px 16px rgba(0,0,0,.15);">'
+        +buildWBSDropHtml(i, wbsItems, '')
+        +'</div>'
+        +'<input type="hidden" id="ewbs-'+i+'">'
+        +'</div>'
+        +'<div id="ewbs-name-'+i+'" style="font-size:10px;color:var(--sk);min-width:60px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>'
+        +'</div>'
+      : '<input type="hidden" id="ewbs-'+i+'">'
+    )
+    +'<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpOpts+'</select>'
+    +'</div>';
+}
+
+function buildWBSDropHtml(i, wbsItems, q){
+  if(!wbsItems.length) return '<div style="padding:8px;color:var(--g4);font-size:11px;text-align:center;">لا توجد بنود</div>';
+  var filtered=q?wbsItems.filter(function(w){return w.code.includes(q)||w.name.includes(q);}):wbsItems;
+  if(!filtered.length) return '<div style="padding:8px;color:var(--g4);font-size:11px;text-align:center;">لا نتائج</div>';
+  var h='';
+  filtered.forEach(function(w){
+    var isLeaf=!isWBSParent(w.code,wbsItems);
+    var depth=w.code.split('.').length-1;
+    h+='<div class="acc-drop-item" data-wbs-i="'+i+'" data-wbs-c="'+w.code+'" onclick="selectWBSFromDrop(this)" style="padding-right:'+(depth*10+10)+'px;">'
+      +'<code style="font-size:10.5px;color:var(--sk);background:var(--g1);padding:2px 6px;border-radius:4px;margin-left:6px;">'+w.code+'</code>'
+      +'<span style="font-size:11.5px;font-weight:'+(isLeaf?'600':'800')+';" data-wbs-n>'+w.name+'</span>'
+      +(w.budget?'<span style="margin-right:auto;font-size:10px;color:var(--g4);">'+fmt(w.budget)+'</span>':'')
+      +'</div>';
+  });
+  return h;
+}
+
+function showWBSDrop(i){var d=el('ewbs-drop-'+i);if(d)d.style.display='block';}
+function hideWBSDrop(i){var d=el('ewbs-drop-'+i);if(d)d.style.display='none';}
+function filterWBS(i){
+  var q=(el('ewbs-search-'+i)||{}).value||'';
+  var d=el('ewbs-drop-'+i);
+  if(!d)return;
+  // Get proj code from entry form
+  var projCode=(el('e-p')||{}).value||'';
+  var wbsItems=getWBSForProject(projCode);
+  d.style.display='block';
+  d.innerHTML=buildWBSDropHtml(i,wbsItems,q);
+  el('ewbs-'+i).value='';
+}
+function selectWBSFromDrop(el2){
+  var i=el2.getAttribute('data-wbs-i');
+  var code=el2.getAttribute('data-wbs-c');
+  var nameEl=el2.querySelector('[data-wbs-n]');
+  var name=nameEl?nameEl.textContent:'';
+  var hidden=el('ewbs-'+i);if(hidden)hidden.value=code;
+  var inp=el('ewbs-search-'+i);if(inp)inp.value=code+' — '+name;
+  var nameDisp=el('ewbs-name-'+i);if(nameDisp)nameDisp.textContent='';
+  hideWBSDrop(i);
+  // Auto-fill account if WBS item has accCode
+  var projCode=(el('e-p')||{}).value||'';
+  if(projCode){
+    var p=DB.projects.find(function(x){return x.code===projCode;});
+    var wbsItem=p&&p.wbs?p.wbs.find(function(w){return w.code===code;}):null;
+    if(wbsItem&&wbsItem.accCode){
+      var acc=DB.accounts.find(function(a){return a.c===wbsItem.accCode;});
+      if(acc){
+        var accInp=el('eaSearch-'+i);if(accInp)accInp.value=acc.c+' — '+acc.n;
+        var accHid=el('ea-'+i);if(accHid)accHid.value=acc.c;
+      }
+    }
+  }
+}
+
+// Rebuild lines when project changes in entry form
+function onProjChange(){
+  var projCode=(el('e-p')||{}).value||'';
+  var hasWBS=projCode&&getWBSForProject(projCode).length>0;
+  // Rebuild all current lines with WBS
+  var container=el('els');if(!container)return;
+  var oldCount=_eL;
+  container.innerHTML='';
+  for(var i=0;i<oldCount;i++){
+    container.innerHTML+=eLnTPwbs(i,projCode);
+  }
+  updET();
+}
+
+// Override collectTP to also capture wbsCode
+function collectTP(prefix,lineCount){
+  var lines=[];
+  for(var i=0;i<lineCount;i++){
+    var acc=(el('ea-'+i)||{}).value||'';
+    var dr=parseFloat((el('edr-'+i)||{}).value)||0;
+    var cr=parseFloat((el('ecr-'+i)||{}).value)||0;
+    if(!acc||(dr===0&&cr===0)) continue;
+    var a=DB.accounts.find(function(x){return x.c===acc;});
+    var tpEl=el('etp-'+i);
+    var tpId=tpEl?tpEl.value:'';
+    var tp=tpId?(DB.thirdParties||[]).find(function(t){return t.id===tpId;}):null;
+    var wbsCode=(el('ewbs-'+i)||{}).value||'';
+    lines.push({
+      acc:acc, an:a?a.n:'', dr:dr, cr:cr,
+      tpId:tp?tp.id:'', tpName:tp?tp.name:'', tpType:tp?tp.type:'',
+      wbsCode:wbsCode
+    });
+  }
+  return lines;
+}
+
+// buildAccDropHtml override — filter to expense accounts when wbs search active
+// (existing function already shows all — this is fine, user can search by 5xxx)
+
+
+// ============================================================
+// SUPPLIERS IN MASTER DATA (replaces separate supplier page)
+// ============================================================
+
+// Add suppliers section to MD_CONFIG
+function initSuppliersInMD(){
+  if(!MD_CONFIG.suppliers){
+    MD_CONFIG.suppliers={
+      label:"الموردون", icon:"🏭",
+      fields:[
+        {id:"id",label:"الكود *",ph:"SUP001"},
+        {id:"name",label:"اسم المورد *",ph:"شركة المستلزمات"},
+        {id:"type",label:"نوع المورد",type:"select",opts:["شركة","فرد","جهة حكومية","منظمة دولية"]},
+        {id:"category",label:"التصنيف",type:"select-supplierCat"},
+        {id:"reg",label:"السجل التجاري",ph:""},
+        {id:"tax",label:"الرقم الضريبي",ph:""},
+        {id:"mobile",label:"الموبايل",ph:"01xxxxxxxxx"},
+        {id:"email",label:"البريد الإلكتروني",ph:""},
+        {id:"address",label:"العنوان",ph:""},
+        {id:"contact",label:"اسم المسؤول / المندوب",ph:""},
+        {id:"bankName",label:"البنك",ph:"بنك مصر"},
+        {id:"bankAccount",label:"رقم الحساب",ph:""},
+        {id:"paymentTerms",label:"شروط الدفع",ph:"30 يوم"},
+        {id:"active",label:"نشط",type:"bool"}
+      ],
+      idKey:"id", nameKey:"name",
+      storageKey:"suppliers" // store in DB.suppliers not DB.masterData.suppliers
+    };
+  }
+  // Extend buildMDForm to handle select-supplierCat
+  var origBuild=buildMDForm;
+  // (handled inline below)
+}
+
+// Patch buildMDForm for select-supplierCat type
+var _origBuildMDForm=null;
+function patchBuildMDForm(){
+  if(_origBuildMDForm)return;
+  _origBuildMDForm=buildMDForm;
+  buildMDForm=function(key,item){
+    if(key==='suppliers'){
+      return buildSupplierMDForm(item);
+    }
+    return _origBuildMDForm(key,item);
+  };
+}
+
+function buildSupplierMDForm(item){
+  item=item||{};
+  var scO='<option value="">— بدون تصنيف —</option>';
+  getMDList('supplierCategories').forEach(function(s){
+    scO+='<option value="'+s.code+'"'+(s.code===item.category?' selected':'')+'>'+s.name+'</option>';
+  });
+  var typeOpts=['شركة','فرد','جهة حكومية','منظمة دولية'];
+  var h='<div class="fr"><div class="fg"><label>الكود *</label><input id="mdf-id" value="'+(item.id||'')+'" placeholder="SUP001"></div>';
+  h+='<div class="fg"><label>اسم المورد *</label><input id="mdf-name" value="'+(item.name||'')+'" placeholder="شركة المستلزمات"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>نوع المورد</label><select id="mdf-type">';
+  typeOpts.forEach(function(o){h+='<option'+(o===item.type?' selected':'')+'>'+o+'</option>';});
+  h+='</select></div>';
+  h+='<div class="fg"><label>التصنيف</label><select id="mdf-category">'+scO+'</select></div></div>';
+  h+='<div class="fr"><div class="fg"><label>السجل التجاري</label><input id="mdf-reg" value="'+(item.reg||'')+'"></div>';
+  h+='<div class="fg"><label>الرقم الضريبي</label><input id="mdf-tax" value="'+(item.tax||'')+'"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>الموبايل</label><input id="mdf-mobile" value="'+(item.mobile||'')+'" placeholder="01xxxxxxxxx"></div>';
+  h+='<div class="fg"><label>البريد الإلكتروني</label><input id="mdf-email" value="'+(item.email||'')+'"></div></div>';
+  h+='<div class="fg"><label>العنوان</label><input id="mdf-address" value="'+(item.address||'')+'"></div>';
+  h+='<div class="fg"><label>اسم المسؤول / المندوب</label><input id="mdf-contact" value="'+(item.contact||'')+'"></div>';
+  h+='<div class="fr"><div class="fg"><label>البنك</label><input id="mdf-bankName" value="'+(item.bankName||'')+'" placeholder="بنك مصر"></div>';
+  h+='<div class="fg"><label>رقم الحساب</label><input id="mdf-bankAccount" value="'+(item.bankAccount||'')+'"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>شروط الدفع</label><input id="mdf-paymentTerms" value="'+(item.paymentTerms||'')+'" placeholder="30 يوم"></div>';
+  h+='<div class="fg"><label>نشط</label><select id="mdf-active"><option value="true"'+(item.active!==false?' selected':'')+'>نعم</option><option value="false"'+(item.active===false?' selected':'')+'>لا</option></select></div></div>';
+  return h;
+}
+
+// Override saveMDItem for suppliers — save to DB.suppliers
+var _origSaveMDItem=null;
+function patchSaveMDItem(){
+  if(_origSaveMDItem)return;
+  _origSaveMDItem=saveMDItem;
+  saveMDItem=function(key,idx){
+    if(key==='suppliers'){
+      saveMDSupplier(idx);return;
+    }
+    return _origSaveMDItem(key,idx);
+  };
+}
+
+function saveMDSupplier(idx){
+  if(!DB.suppliers)DB.suppliers=[];
+  var obj={
+    id:sv('mdf-id'),name:sv('mdf-name'),type:sv('mdf-type'),
+    category:sv('mdf-category'),reg:sv('mdf-reg'),tax:sv('mdf-tax'),
+    mobile:sv('mdf-mobile'),email:sv('mdf-email'),address:sv('mdf-address'),
+    contact:sv('mdf-contact'),bankName:sv('mdf-bankName'),bankAccount:sv('mdf-bankAccount'),
+    paymentTerms:sv('mdf-paymentTerms'),
+    active:(sv('mdf-active')==='true')
+  };
+  if(!obj.id||!obj.name){toast('⚠️ الكود والاسم مطلوبان');return;}
+  if(idx<0){
+    if(DB.suppliers.find(function(x){return x.id===obj.id;})){toast('⚠️ الكود موجود');return;}
+    DB.suppliers.push(obj);
+    // Add to TP
+    initTP();
+    var tpId='SUP-'+obj.id;
+    if(!DB.thirdParties.find(function(t){return t.id===tpId;})){
+      DB.thirdParties.push({id:tpId,name:obj.name,type:'supplier',ref:obj.id,active:obj.active});
+    }
+  } else {
+    var old=DB.suppliers[idx];
+    DB.suppliers[idx]=obj;
+    // Update TP name
+    initTP();
+    var tpId2='SUP-'+obj.id;
+    var tp=DB.thirdParties.find(function(t){return t.id===tpId2;});
+    if(tp)tp.name=obj.name;
+  }
+  save();toast('✅ تم حفظ المورد');
+  openMDSection('suppliers');
+}
+
+// Override openMDSection for suppliers to use DB.suppliers
+var _origOpenMDSection=null;
+function patchOpenMDSection(){
+  if(_origOpenMDSection)return;
+  _origOpenMDSection=openMDSection;
+  openMDSection=function(key){
+    if(key==='suppliers'){
+      openSuppliersSection();return;
+    }
+    return _origOpenMDSection(key);
+  };
+}
+
+function openSuppliersSection(){
+  if(!DB.suppliers)DB.suppliers=[];
+  var items=DB.suppliers;
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div style="font-weight:900;font-size:15px;">🏭 الموردون</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+items.length+' مورد</div></div>';
+  h+='<button class="btn btn-gr btn-sm" onclick="openMDAdd(\'suppliers\')">+ إضافة مورد</button></div>';
+
+  // Search
+  h+='<input id="sup-md-search" placeholder="🔍 بحث..." style="width:100%;padding:9px 12px;border:1.5px solid var(--g2);border-radius:9px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;margin-bottom:10px;" oninput="filterSupMD()">';
+  h+='<div id="sup-md-list">'+buildSupMDList(items,'')+'</div>';
+  om('🏭 الموردون',h);
+}
+
+function buildSupMDList(items,q){
+  var filtered=q?items.filter(function(s){return (s.name||'').includes(q)||(s.id||'').includes(q);}):items;
+  if(!filtered.length) return '<div style="text-align:center;color:var(--g4);padding:20px;">لا يوجد موردون</div>';
+  var h='';
+  filtered.forEach(function(s,i){
+    var realIdx=DB.suppliers.indexOf(s);
+    var catName='';
+    if(s.category){
+      var cat=getMDList('supplierCategories').find(function(x){return x.code===s.category;});
+      if(cat)catName=cat.name;
+    }
+    h+='<div style="background:white;border:1.5px solid var(--g2);border-radius:10px;padding:10px 12px;margin-bottom:7px;opacity:'+(s.active!==false?'1':'0.6')+'">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
+    h+='<div>';
+    h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">';
+    h+='<code style="font-size:10.5px;background:var(--g1);padding:2px 7px;border-radius:5px;color:var(--n);">'+s.id+'</code>';
+    if(catName)h+='<span class="badge bgy" style="font-size:9px;">'+catName+'</span>';
+    if(s.active===false)h+='<span class="badge br" style="font-size:9px;">غير نشط</span>';
+    h+='</div>';
+    h+='<div style="font-weight:800;font-size:13.5px;">'+s.name+'</div>';
+    var extras=[];
+    if(s.type)extras.push(s.type);
+    if(s.mobile)extras.push('📞 '+s.mobile);
+    if(s.contact)extras.push(s.contact);
+    if(extras.length)h+='<div style="font-size:11px;color:var(--g4);">'+extras.join(' · ')+'</div>';
+    h+='</div>';
+    h+='<div style="display:flex;gap:5px;">';
+    h+='<button class="btn btn-sm btn-sky" onclick="openMDEdit(\'suppliers\','+realIdx+')" style="font-size:10px;">✏️</button>';
+    h+='<button class="btn btn-sm btn-rd" onclick="deleteMDSupplier('+realIdx+')" style="font-size:10px;">🗑️</button>';
+    h+='</div></div></div>';
+  });
+  return h;
+}
+
+function filterSupMD(){
+  var q=(document.getElementById('sup-md-search')||{}).value||'';
+  var el2=document.getElementById('sup-md-list');
+  if(el2)el2.innerHTML=buildSupMDList(DB.suppliers||[],q);
+}
+
+function deleteMDSupplier(idx){
+  if(!confirm('حذف هذا المورد؟'))return;
+  if(DB.suppliers)DB.suppliers.splice(idx,1);
+  save();openSuppliersSection();toast('🗑️ تم الحذف');
+}
+
+// Override openMDEdit for suppliers
+var _origOpenMDEdit=null;
+function patchOpenMDEdit(){
+  if(_origOpenMDEdit)return;
+  _origOpenMDEdit=openMDEdit;
+  openMDEdit=function(key,idx){
+    if(key==='suppliers'){
+      var cfg=MD_CONFIG.suppliers;
+      var item=(DB.suppliers||[])[idx];
+      if(!item)return;
+      var h=buildSupplierMDForm(item);
+      h+='<div style="display:flex;gap:8px;margin-top:10px;">';
+      h+='<button class="btn" onclick="saveMDItem(\'suppliers\','+idx+')" style="flex:1;">💾 حفظ</button>';
+      h+='<button class="btn btn-gy" onclick="openMDSection(\'suppliers\')">إلغاء</button></div>';
+      om('✏️ تعديل المورد',h);return;
+    }
+    return _origOpenMDEdit(key,idx);
+  };
+}
+
+// Apply all patches on init
+function initSupplierMDPatches(){
+  patchBuildMDForm();
+  patchSaveMDItem();
+  patchOpenMDSection();
+  patchOpenMDEdit();
+  // Add suppliers to rMasterData grid
+}
+
+
 document.addEventListener('click',function(ev){var n=ev.target.closest('[data-nav]');if(n){nav(n.getAttribute('data-nav'),n);return;}var t=ev.target.closest('[data-eid]');if(t){viewE(t.getAttribute('data-eid'));return;}var s=ev.target.closest('[data-sub]');if(s){sub(s.getAttribute('data-sub'));return;}});
 
 document.addEventListener("DOMContentLoaded", function(){
   initAuth();
+  initMD();
+  initSupplierMDPatches();
   var cu=getCurrentUser();
   if(!cu){
     showLogin();
