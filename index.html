@@ -323,46 +323,88 @@ function editSal(i){
   if(!requirePerm("canEditSalaries","ليس لديك صلاحية تعديل المرتبات"))return;
   var e=DB.employees[i];
   if(!e)return;
+  var now=new Date();
+  var mk=now.getFullYear()+"-"+(now.getMonth()+1).toString().padStart(2,"0");
+  var stored=getStoredVar(e.id,mk)||{};
+
   var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:10px;padding:12px;margin-bottom:12px;color:white;">';
-  h+='<div style="font-size:10.5px;opacity:.7;">'+e.id+'</div>';
+  h+='<div style="font-size:10.5px;opacity:.7;">'+e.id+' · '+mk+'</div>';
   h+='<div style="font-weight:900;font-size:16px;">'+e.name+'</div>';
   h+='<div style="font-size:11px;opacity:.75;">'+e.pos+(e.dept?' · '+e.dept:'')+'</div></div>';
 
-  h+='<div class="sd">المكونات الثابتة</div>';
-  h+='<div class="fr"><div class="fg"><label>الأجر الأساسي *</label><input type="number" id="ss" value="'+(e.sal||0)+'" oninput="prvS('+i+')"></div>';
-  h+='<div class="fg"><label>العلاوات</label><input type="number" id="sa" value="'+(e.allow||0)+'" oninput="prvS('+i+')"></div></div>';
-  h+='<div class="fr"><div class="fg"><label>بدل طبيعة عمل</label><input type="number" id="snw" value="'+(e.natWork||0)+'" oninput="prvS('+i+')"></div>';
-  h+='<div class="fg"><label>بدل انتقال</label><input type="number" id="str" value="'+(e.transport||0)+'" oninput="prvS('+i+')"></div></div>';
-  h+='<div class="fg"><label>خصومات ثابتة شهرية</label><input type="number" id="sdd" value="'+(e.deduct||0)+'" oninput="prvS('+i+')"></div>';
-
-  h+='<div class="sd">نوع التأمين</div>';
-  h+='<div class="fg"><select id="sins" onchange="prvS('+i+')">';
+  // ---- FIXED COMPONENTS ----
+  h+='<div class="sd">📌 المكونات الثابتة (تحفظ في سجل الموظف)</div>';
+  h+='<div class="fr"><div class="fg"><label>الأجر الأساسي *</label><input type="number" id="ss" value="'+(e.sal||0)+'" oninput="prvSFull('+i+')" placeholder="0"></div>';
+  h+='<div class="fg"><label>العلاوات الثابتة</label><input type="number" id="sa" value="'+(e.allow||0)+'" oninput="prvSFull('+i+')" placeholder="0"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>بدل طبيعة عمل</label><input type="number" id="snw" value="'+(e.natWork||0)+'" oninput="prvSFull('+i+')" placeholder="0"></div>';
+  h+='<div class="fg"><label>بدل انتقال</label><input type="number" id="str" value="'+(e.transport||0)+'" oninput="prvSFull('+i+')" placeholder="0"></div></div>';
+  h+='<div class="fg"><label>نوع التأمين</label><select id="sins" onchange="prvSFull('+i+')">';
   h+='<option value="full"'+(e.ins==="full"?" selected":"")+'>تأمين كامل (11% موظف + 18.75% جمعية)</option>';
   h+='<option value="partial"'+(e.ins==="partial"?" selected":"")+'>تأمين جزئي (11% موظف فقط)</option>';
   h+='<option value="none"'+(e.ins==="none"?" selected":"")+'>بدون تأمين</option>';
   h+='</select></div>';
 
-  h+='<div id="sprev" style="background:var(--g1);border-radius:10px;padding:12px;margin:10px 0;"></div>';
-  h+='<div style="display:flex;gap:8px;">';
-  h+='<button class="btn" onclick="saveSal('+i+')" style="flex:1;">💾 حفظ المكونات الثابتة</button>';
+  // ---- VARIABLE ADDITIONS ----
+  h+='<div class="sd">➕ الإضافات لهذا الشهر ('+mk+')</div>';
+  h+='<div class="fr"><div class="fg"><label>ساعات إضافية (ج.م)</label><input type="number" id="vc-ot" value="'+(stored.overtime||0)+'" oninput="prvSFull('+i+')" placeholder="0"></div>';
+  h+='<div class="fg"><label>مكافأة / حافز</label><input type="number" id="vc-bonus" value="'+(stored.bonus||0)+'" oninput="prvSFull('+i+')" placeholder="0"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>Stipend / منحة استثنائية</label><input type="number" id="vc-stipend" value="'+(stored.stipend||0)+'" oninput="prvSFull('+i+')" placeholder="0"></div>';
+  h+='<div class="fg"><label>بيان الإضافات</label><input id="vc-add-note" value="'+(stored.addNote||'')+'" placeholder="سبب المكافأة..."></div></div>';
+
+  // ---- VARIABLE DEDUCTIONS ----
+  h+='<div class="sd">➖ الاستقطاعات لهذا الشهر ('+mk+')</div>';
+  h+='<div class="fr"><div class="fg"><label>خصومات ثابتة</label><input type="number" id="sdd" value="'+(e.deduct||0)+'" oninput="prvSFull('+i+')" placeholder="0"></div>';
+  h+='<div class="fg"><label>جزاءات</label><input type="number" id="vc-penalty" value="'+(stored.penalty||0)+'" oninput="prvSFull('+i+')" placeholder="0"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>خصم غياب (ج.م)</label><input type="number" id="vc-absence" value="'+(stored.absence||0)+'" oninput="prvSFull('+i+')" placeholder="0"></div>';
+  h+='<div class="fg"><label>بيان الاستقطاعات</label><input id="vc-ded-note" value="'+(stored.dedNote||'')+'" placeholder="سبب الخصم..."></div></div>';
+
+  // ---- PREVIEW ----
+  h+='<div id="sprev" style="margin:10px 0;"></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<button class="btn" onclick="saveSalFull('+i+')" style="background:var(--n);">💾 حفظ الثابت + تسجيل المتغير</button>';
   h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
-  om("✏️ تعديل المرتب — "+e.name,h);
-  prvS(i);
+  om("✏️ مرتب الشهر — "+e.name,h);
+  window._vcEmp=e;
+  prvSFull(i);
 }
 
-function prvS(i){
-  var tmp={sal:fv("ss"),allow:fv("sa"),natWork:fv("snw"),transport:fv("str"),deduct:fv("sdd"),ins:sv("sins")||"full"};
+
+function prvS(i){ prvSFull(i); }
+function prvSFull(i){
+  var tmp={
+    sal:fv("ss"),allow:fv("sa"),natWork:fv("snw"),transport:fv("str"),
+    deduct:fv("sdd"),ins:sv("sins")||"full",
+    overtime:fv("vc-ot"),bonus:fv("vc-bonus"),stipend:fv("vc-stipend"),
+    penalty:fv("vc-penalty"),absence:fv("vc-absence")
+  };
   var r=calcFull(DB.employees[i]||{},tmp);
   var e=el("sprev");if(!e)return;
   e.innerHTML=buildSalPreviewHTML(r);
+  window._vcEmp=DB.employees[i]||{};
 }
 
-function saveSal(i){
+function saveSal(i){ saveSalFull(i); }
+function saveSalFull(i){
   if(!requirePerm("canEditSalaries","ليس لديك صلاحية تعديل المرتبات"))return;
   var e=DB.employees[i];if(!e)return;
+  // Save fixed components
   e.sal=fv("ss");e.allow=fv("sa");e.natWork=fv("snw");e.transport=fv("str");
-  e.overtime=0;e.deduct=fv("sdd");e.ins=sv("sins")||"full";
-  save();cm();rPay();toast("✅ تم تحديث المرتب");
+  e.deduct=fv("sdd");e.ins=sv("sins")||"full";e.overtime=0;
+  // Save variable components for this month
+  var now=new Date();
+  var mk=now.getFullYear()+"-"+(now.getMonth()+1).toString().padStart(2,"0");
+  if(!DB.payrollVars)DB.payrollVars={};
+  var key="VAR_"+e.id+"_"+mk;
+  var ot=fv("vc-ot"),bonus=fv("vc-bonus"),stipend=fv("vc-stipend");
+  var penalty=fv("vc-penalty"),absence=fv("vc-absence");
+  if(ot||bonus||stipend||penalty||absence||sv("vc-add-note")||sv("vc-ded-note")){
+    DB.payrollVars[key]={overtime:ot,bonus:bonus,stipend:stipend,
+      penalty:penalty,absence:absence,
+      addNote:sv("vc-add-note"),dedNote:sv("vc-ded-note")};
+  }
+  save();cm();rPay();
+  var r=calcFull(e,DB.payrollVars[key]||{});
+  toast("✅ تم حفظ المرتب — صافي: "+fmt(r.net)+" ج.م");
 }
 
 // ---- SALARY PREVIEW HTML (reusable) ----
@@ -642,7 +684,6 @@ function rJour(){
   h+='<button class="btn btn-sm btn-gy" onclick="rptTPBalances()" style="font-size:11px;">📊 أرصدة الأطراف</button>';
   h+='<button class="btn btn-sm btn-gy" style="font-size:11px;" data-sub="importexport">📁 استيراد/تصدير</button>';
   h+='</div>';
-  syncTPFromHR();
   if(!DB.entries.length){
     h+='<div class="card" style="text-align:center;color:var(--g4);padding:30px;">لا توجد قيود بعد</div>';
   } else {
@@ -4012,6 +4053,9 @@ function dlCSV(rows,filename){
   var blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
   dlBlob(blob,filename);
 }
+function exportRptCSV(name){
+  if(window._lastRptCSV) dlCSV(window._lastRptCSV,name+'-'+new Date().toISOString().split('T')[0]+'.csv');
+}
 function dlBlob(blob,filename){
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
@@ -5966,6 +6010,55 @@ function rptTrialBal(){
   om("⚖️ ميزان المراجعة",h);
 }
 
+
+function rptIncomeStmt(){
+  var B=bals();
+  var tR=0,tX=0;
+  var revRows=[],expRows=[];
+  DB.accounts.forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    if(a.c[0]==="4"){var v=b.cr-b.dr;if(v!==0){tR+=v;revRows.push({c:a.c,n:a.n,v:v});}}
+    if(a.c[0]==="5"){var v2=b.dr-b.cr;if(v2!==0){tX+=v2;expRows.push({c:a.c,n:a.n,v:v2});}}
+  });
+  var sur=tR-tX;
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">💰 قائمة الدخل والمصروفات</div>';
+
+  h+='<div style="background:var(--gbg);border-radius:9px;padding:10px;margin-bottom:8px;">';
+  h+='<div style="font-weight:800;font-size:12px;color:var(--gr);margin-bottom:6px;">📈 الإيرادات</div>';
+  h+='<table style="width:100%;"><tbody>';
+  revRows.sort(function(a,b){return b.v-a.v;}).forEach(function(r){
+    h+='<tr><td style="font-size:12px;padding:3px 0;"><code style="font-size:10px;color:var(--g4);">'+r.c+'</code> '+r.n+'</td>';
+    h+='<td class="tn" style="font-weight:700;color:var(--gr);">'+fmt(r.v)+'</td></tr>';
+  });
+  h+='<tr style="border-top:2px solid var(--gr);"><td style="font-weight:900;padding-top:5px;">إجمالي الإيرادات</td>';
+  h+='<td class="tn" style="font-weight:900;color:var(--gr);padding-top:5px;">'+fmt(tR)+'</td></tr>';
+  h+='</tbody></table></div>';
+
+  h+='<div style="background:var(--rbg);border-radius:9px;padding:10px;margin-bottom:8px;">';
+  h+='<div style="font-weight:800;font-size:12px;color:var(--rd);margin-bottom:6px;">📤 المصروفات</div>';
+  h+='<table style="width:100%;"><tbody>';
+  expRows.sort(function(a,b){return b.v-a.v;}).forEach(function(r){
+    h+='<tr><td style="font-size:12px;padding:3px 0;"><code style="font-size:10px;color:var(--g4);">'+r.c+'</code> '+r.n+'</td>';
+    h+='<td class="tn" style="font-weight:700;color:var(--rd);">'+fmt(r.v)+'</td></tr>';
+  });
+  h+='<tr style="border-top:2px solid var(--rd);"><td style="font-weight:900;padding-top:5px;">إجمالي المصروفات</td>';
+  h+='<td class="tn" style="font-weight:900;color:var(--rd);padding-top:5px;">'+fmt(tX)+'</td></tr>';
+  h+='</tbody></table></div>';
+
+  h+='<div style="background:'+(sur>=0?"var(--gbg)":"var(--rbg)")+';border-radius:9px;padding:12px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div style="font-weight:800;font-size:13px;">'+(sur>=0?"✅ صافي الفائض":"⚠️ صافي العجز")+'</div>';
+  h+='<div style="font-weight:900;font-size:20px;color:'+(sur>=0?"var(--gr)":"var(--rd)")+';">'+fmt(Math.abs(sur))+' ج.م</div>';
+  h+='</div>';
+
+  var csvRows=[["الحساب","الاسم","النوع","المبلغ"]];
+  revRows.forEach(function(r){csvRows.push([r.c,r.n,"إيراد",r.v]);});
+  expRows.forEach(function(r){csvRows.push([r.c,r.n,"مصروف",r.v]);});
+  csvRows.push(["","الفائض / العجز","",sur]);
+    h+='<button class="btn btn-sm btn-gy" onclick="if(window._lastRptCSV)dlCSV(window._lastRptCSV,\"income.csv\")" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  window._lastRptCSV=csvRows;
+  om("💰 قائمة الدخل والمصروفات",h);
+}
+
 function rptDetailedJournal(){
   initMD();
   var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📋 دفتر اليومية التفصيلي</div>';
@@ -6419,6 +6512,10 @@ document.addEventListener("DOMContentLoaded", function(){
   if(!cu){
     showLogin();
     return;
+  }
+  // Auto-load seed if completely empty
+  if(!DB.entries.length&&!DB.projects.length&&!DB.suppliers.length){
+    loadSeedData();
   }
   nav("dash", document.querySelector('[data-nav="dash"]'));
 });
