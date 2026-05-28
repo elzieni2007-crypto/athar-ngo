@@ -322,7 +322,8 @@ function sub(n){
     inventory:rInvPage,employees:rEmpPage,settings:rSetPage,
     suppliers:rSuppliersPage,invreports:rInvReports,
     hrreports:rHRReports,
-    tpledger:rTPLedger
+    tpledger:rTPLedger,
+    importexport:rImportExport
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -332,7 +333,8 @@ function sub(n){
     settings:"⚙️ الإعدادات",
     suppliers:"🏭 الموردون",invreports:"📊 تقارير المخازن",
     hrreports:"📊 تقارير الموارد البشرية",
-    tpledger:"📒 الأستاذ المساعد"
+    tpledger:"📒 الأستاذ المساعد",
+    importexport:"📁 استيراد وتصدير"
   };
   if(f[n]){try{om(titles[n]||n, f[n]());}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
 }
@@ -421,6 +423,7 @@ function rJour(){
   h+='<div style="display:flex;gap:7px;margin-bottom:10px;">';
   h+='<button class="btn btn-sm" style="background:var(--n);font-size:11px;" data-sub="tpledger">📒 الأستاذ المساعد</button>';
   h+='<button class="btn btn-sm btn-gy" onclick="rptTPBalances()" style="font-size:11px;">📊 أرصدة الأطراف</button>';
+  h+='<button class="btn btn-sm btn-gy" style="font-size:11px;" data-sub="importexport">📁 استيراد/تصدير</button>';
   h+='</div>';
   if(!DB.entries.length){
     h+='<div class="card" style="text-align:center;color:var(--g4);padding:30px;">لا توجد قيود بعد</div>';
@@ -548,7 +551,8 @@ function rMore(){
     {i:"📦",t:"المخازن",n:"inventory"},
     {i:"🏢",t:"الموارد البشرية",n:"employees"},
     {i:"⚙️",t:"الإعدادات",n:"settings"},
-    {i:"📒",t:"الأستاذ المساعد",n:"tpledger"}
+    {i:"📒",t:"الأستاذ المساعد",n:"tpledger"},
+    {i:"📁",t:"استيراد وتصدير",n:"importexport"}
   ];
   var h='<div class="ph-t" style="margin-bottom:14px;">القائمة الكاملة</div><div class="mg">';
   items.forEach(function(item){
@@ -842,6 +846,9 @@ function viewTPLedger(tpId){
   h+='<div class="fg"><label>من تاريخ</label><input type="date" id="tp-from" onchange="refreshTPLedger(\''+tpId+'\')"></div>';
   h+='<div class="fg"><label>إلى تاريخ</label><input type="date" id="tp-to" onchange="refreshTPLedger(\''+tpId+'\')"></div>';
   h+='</div>';
+  h+='<div style="display:flex;gap:7px;margin-bottom:10px;">';
+  h+='<button class="btn btn-sm btn-gy" onclick="exportTPLedgerCSV(\''+tpId+'\')" style="font-size:11px;">📥 تصدير CSV</button>';
+  h+='</div>';
   h+='<div id="tp-ledger-body">'+buildTPLedgerTable(tpId,"","")+'</div>';
   om("📒 كشف حساب — "+tp.name, h);
 }
@@ -996,7 +1003,7 @@ function newEntry(){
   h+='<div class="fg"><label>البيان *</label><input id="e-ds" placeholder="وصف العملية المالية"></div>';
   h+='<div class="fg"><label>المشروع</label><select id="e-p"><option value="">—</option>'+pO+'</select></div>';
   h+='<div class="sd" style="font-size:11px;">سطور القيد — <span style="color:var(--g4);">يمكن ربط كل سطر بطرف ثالث (مورد/موظف/عميل)</span></div>';
-  h+='<div id="els">'+eLnTP(0,aO)+eLnTP(1,aO)+'</div>';
+  h+='<div id="els">'+eLnTP(0,'')+eLnTP(1,'')+'</div>';
   h+='<button class="btn btn-sm btn-gy" onclick="addEL()" style="width:100%;margin-bottom:10px;">+ سطر</button>';
   h+='<div id="etot" style="background:var(--g1);border-radius:8px;padding:10px;font-size:12.5px;margin-bottom:12px;"></div>';
   h+='<div style="display:flex;gap:8px;"><button class="btn" onclick="saveE()" style="flex:1;">✅ ترحيل القيد</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
@@ -2510,7 +2517,7 @@ function rSetPage(){
   // Data & backup (admin only)
   if(isAdmin){
     h+='<div class="sd">البيانات والنسخ الاحتياطي</div>';
-    h+='<button class="btn btn-gy" style="width:100%;margin-bottom:8px;" onclick="exportDB()">📤 تصدير البيانات (JSON)</button>';
+    h+='<button class="btn btn-gr" style="width:100%;margin-bottom:8px;" onclick="sub(\'importexport\')">📁 استيراد وتصدير البيانات</button>';
     h+='<button class="btn btn-rd" style="width:100%;" onclick="if(confirm(\'هل أنت متأكد من مسح جميع البيانات؟\'))resetDB()">🗑️ مسح جميع البيانات</button>';
   }
 
@@ -3528,6 +3535,292 @@ function rptMonthly(){
 
 
 
+
+
+
+// ============================================================
+// IMPORT / EXPORT SYSTEM
+// ============================================================
+
+// ---- EXPORT ----
+function exportAll(){
+  // Full JSON backup
+  var data={
+    version:"2.0",
+    exportDate:new Date().toISOString(),
+    org:DB.org,
+    accounts:DB.accounts,
+    entries:DB.entries,
+    projects:DB.projects,
+    employees:DB.employees,
+    inventory:DB.inventory,
+    invMovements:DB.invMovements,
+    warehouses:DB.warehouses,
+    suppliers:DB.suppliers,
+    thirdParties:DB.thirdParties,
+    closedPeriods:DB.closedPeriods,
+    users:(DB.users||[]).map(function(u){return{id:u.id,name:u.name,username:u.username,role:u.role,active:u.active};})
+  };
+  dlJSON(data,"athar-backup-"+new Date().toISOString().split("T")[0]+".json");
+  toast("✅ تم تصدير النسخة الاحتياطية الكاملة");
+}
+
+function exportEntries(){
+  if(!DB.entries.length){toast("⚠️ لا توجد قيود للتصدير");return;}
+  var rows=[["رقم القيد","التاريخ","المرجع","البيان","المشروع","الحساب","اسم الحساب","الطرف الثالث","مدين","دائن"]];
+  DB.entries.forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      rows.push([e.id,e.date,e.ref,e.desc,e.proj||"",l.acc,l.an,l.tpName||"",l.dr||0,l.cr||0]);
+    });
+  });
+  dlCSV(rows,"journal-"+new Date().toISOString().split("T")[0]+".csv");
+  toast("✅ تم تصدير قيود اليومية");
+}
+
+function exportTrialBalance(){
+  var B=bals();
+  var rows=[["كود الحساب","اسم الحساب","الطبيعة","إجمالي مدين","إجمالي دائن","الرصيد"]];
+  var tD=0,tC=0;
+  DB.accounts.forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    if(!b.dr&&!b.cr) return;
+    var net=a.nat==="dr"?b.dr-b.cr:b.cr-b.dr;
+    tD+=b.dr;tC+=b.cr;
+    rows.push([a.c,a.n,a.nat==="dr"?"مدين":"دائن",b.dr||0,b.cr||0,net]);
+  });
+  rows.push(["","الإجمالي","",""+tD,""+tC,""]);
+  dlCSV(rows,"trial-balance-"+new Date().toISOString().split("T")[0]+".csv");
+  toast("✅ تم تصدير ميزان المراجعة");
+}
+
+function exportTPLedgerCSV(tpId){
+  initTP();
+  var tp=DB.thirdParties.find(function(t){return t.id===tpId;});
+  if(!tp) return;
+  var rows=[["التاريخ","المرجع","البيان","الحساب","اسم الحساب","مدين","دائن","الرصيد"]];
+  var run=0;
+  var mvs=[];
+  (DB.entries||[]).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(l.tpId===tpId) mvs.push({date:e.date,ref:e.ref,desc:e.desc,acc:l.acc,an:l.an,dr:l.dr||0,cr:l.cr||0});
+    });
+  });
+  mvs.sort(function(a,b){return a.date<b.date?-1:1;});
+  mvs.forEach(function(m){
+    run+=m.dr-m.cr;
+    rows.push([m.date,m.ref,m.desc,m.acc,m.an,m.dr||0,m.cr||0,run]);
+  });
+  dlCSV(rows,"ledger-"+tp.name+"-"+new Date().toISOString().split("T")[0]+".csv");
+  toast("✅ تم تصدير كشف حساب "+tp.name);
+}
+
+function exportEmployees(){
+  if(!DB.employees.length){toast("⚠️ لا يوجد موظفون");return;}
+  var rows=[["الكود","الاسم بالعربي","الاسم بالإنجليزي","المسمى الوظيفي","القسم","الدرجة","نوع التوظيف","نوع العقد","تاريخ التعيين","نهاية العقد","الحالة","الأجر الأساسي","إجمالي المرتب","الصافي","نوع التأمين","الموبايل","البريد"]];
+  DB.employees.forEach(function(e){
+    var r=calc(e);
+    rows.push([e.id,e.name,e.nameEn||"",e.pos,e.dept||"",e.grade||"",e.empType||"",e.contractType||"",e.hireDate||"",e.contractEnd||"",e.status,e.sal||0,r.gross,r.net,e.ins,e.mobile||"",e.email||""]);
+  });
+  dlCSV(rows,"employees-"+new Date().toISOString().split("T")[0]+".csv");
+  toast("✅ تم تصدير بيانات الموظفين");
+}
+
+function exportInventory(){
+  if(!DB.inventory.length){toast("⚠️ لا توجد أصناف");return;}
+  var rows=[["الكود","الصنف","التصنيف","الوحدة","الكمية الإجمالية","سعر الوحدة","القيمة الإجمالية","حد التنبيه","الموقع"]];
+  DB.inventory.forEach(function(item){
+    var qty=getTotalQty(item.code);
+    rows.push([item.code,item.name,item.category||"",item.unit,qty,item.cost||0,qty*(item.cost||0),item.minQty||0,item.location||""]);
+  });
+  dlCSV(rows,"inventory-"+new Date().toISOString().split("T")[0]+".csv");
+  toast("✅ تم تصدير كشف المخزون");
+}
+
+function exportInvMovements(){
+  if(!(DB.invMovements||[]).length){toast("⚠️ لا توجد حركات مخزون");return;}
+  var whMap={};(DB.warehouses||[]).forEach(function(w){whMap[w.code]=w.name;});
+  var typeMap={"in":"إضافة","out":"صرف","scrap":"إعدام","transfer-in":"تحويل وارد","transfer-out":"تحويل صادر"};
+  var rows=[["رقم الحركة","التاريخ","كود الصنف","اسم الصنف","المخزن","نوع الحركة","الكمية","الرصيد بعد","المورد/الموظف","المشروع","المرجع","البيان"]];
+  DB.invMovements.forEach(function(m){
+    var proj=m.projectId?(DB.projects||[]).find(function(p){return p.code===m.projectId;}):null;
+    rows.push([m.id,m.date,m.itemCode,m.itemName,whMap[m.warehouse]||m.warehouse||"",typeMap[m.type]||m.type,m.qty,m.balAfter||0,m.supplierName||m.employeeName||"",proj?proj.name:"",m.ref||"",m.reason||""]);
+  });
+  dlCSV(rows,"inv-movements-"+new Date().toISOString().split("T")[0]+".csv");
+  toast("✅ تم تصدير حركات المخزون");
+}
+
+// ---- Download helpers ----
+function dlJSON(data,filename){
+  var blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  dlBlob(blob,filename);
+}
+function dlCSV(rows,filename){
+  var bom="\uFEFF"; // BOM for Excel Arabic support
+  var csv=bom+rows.map(function(r){
+    return r.map(function(cell){
+      var s=String(cell).replace(/"/g,'""');
+      return (s.indexOf(',')>-1||s.indexOf('"')>-1||s.indexOf('\n')>-1)?'"'+s+'"':s;
+    }).join(',');
+  }).join('\n');
+  var blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  dlBlob(blob,filename);
+}
+function dlBlob(blob,filename){
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download=filename;a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---- IMPORT ----
+function importBackup(){
+  var input=document.createElement('input');
+  input.type='file';
+  input.accept='.json';
+  input.onchange=function(ev){
+    var file=ev.target.files[0];
+    if(!file) return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{
+        var data=JSON.parse(e.target.result);
+        if(!data.version){toast("❌ الملف غير متوافق");return;}
+        if(!confirm("سيتم استبدال جميع البيانات الحالية بمحتوى النسخة الاحتياطية. هل أنت متأكد؟")) return;
+        // Merge: keep new accounts from source, load everything else
+        var newAccounts=DB.accounts.slice();
+        DB=data;
+        DB.accounts=data.accounts&&data.accounts.length>20?data.accounts:newAccounts;
+        if(!DB.thirdParties)DB.thirdParties=[];
+        if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"المدير",username:"admin",password:"admin123",role:"admin",active:true}];
+        save();
+        toast("✅ تم استيراد النسخة الاحتياطية بنجاح");
+        setTimeout(function(){location.reload();},1500);
+      }catch(err){
+        toast("❌ خطأ في قراءة الملف: "+err.message);
+      }
+    };
+    reader.readAsText(file,'utf-8');
+  };
+  input.click();
+}
+
+function importEntriesCSV(){
+  var input=document.createElement('input');
+  input.type='file';
+  input.accept='.csv';
+  input.onchange=function(ev){
+    var file=ev.target.files[0];
+    if(!file) return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{
+        var text=e.target.result.replace(/^\uFEFF/,''); // strip BOM
+        var rows=parseCSV(text);
+        if(rows.length<2){toast("⚠️ الملف فارغ");return;}
+        var header=rows[0];
+        // Expected: رقم القيد, التاريخ, المرجع, البيان, المشروع, الحساب, اسم الحساب, الطرف الثالث, مدين, دائن
+        var idIdx=0,dateIdx=1,refIdx=2,descIdx=3,projIdx=4,accIdx=5,anIdx=6,tpNameIdx=7,drIdx=8,crIdx=9;
+        var entriesMap={};
+        rows.slice(1).forEach(function(row){
+          if(row.length<8) return;
+          var eid=row[idIdx]||"";
+          var acc=row[accIdx]||"";
+          var dr=parseFloat(row[drIdx])||0;
+          var cr=parseFloat(row[crIdx])||0;
+          if(!eid||!acc) return;
+          if(!entriesMap[eid]){
+            entriesMap[eid]={id:eid,date:row[dateIdx],ref:row[refIdx],desc:row[descIdx],proj:row[projIdx]||"",lines:[],status:"posted"};
+          }
+          var a=DB.accounts.find(function(x){return x.c===acc;});
+          entriesMap[eid].lines.push({acc:acc,an:a?a.n:(row[anIdx]||""),dr:dr,cr:cr,tpName:row[tpNameIdx]||""});
+        });
+        var newEntries=Object.values(entriesMap).filter(function(e){return e.lines.length>=2;});
+        if(!newEntries.length){toast("⚠️ لم يتم العثور على قيود صالحة");return;}
+        // skip duplicates
+        var existingIds=DB.entries.map(function(e){return e.id;});
+        var toAdd=newEntries.filter(function(e){return existingIds.indexOf(e.id)<0;});
+        DB.entries=DB.entries.concat(toAdd);
+        save();rJour();rDash();
+        toast("✅ تم استيراد "+toAdd.length+" قيد (تم تجاهل "+(newEntries.length-toAdd.length)+" مكرر)");
+        cm();
+      }catch(err){
+        toast("❌ خطأ: "+err.message);
+      }
+    };
+    reader.readAsText(file,'utf-8');
+  };
+  input.click();
+}
+
+function parseCSV(text){
+  var rows=[];
+  var lines=text.split('\n');
+  lines.forEach(function(line){
+    if(!line.trim()) return;
+    var cells=[],cur='',inQ=false;
+    for(var i=0;i<line.length;i++){
+      var ch=line[i];
+      if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
+      else if(ch===','&&!inQ){cells.push(cur.trim());cur='';}
+      else cur+=ch;
+    }
+    cells.push(cur.trim());
+    rows.push(cells);
+  });
+  return rows;
+}
+
+// ---- IMPORT/EXPORT PAGE ----
+function rImportExport(){
+  var h='<div class="ph-t" style="margin-bottom:14px;">📁 استيراد وتصدير البيانات</div>';
+
+  // EXPORT SECTION
+  h+='<div class="sd">📤 تصدير البيانات</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">';
+  var exports=[
+    {icon:"🔒",label:"نسخة احتياطية كاملة",sub:"JSON — كل البيانات",fn:"exportAll()",cls:"btn-gr"},
+    {icon:"📝",label:"قيود اليومية",sub:"CSV — كل القيود والسطور",fn:"exportEntries()",cls:""},
+    {icon:"⚖️",label:"ميزان المراجعة",sub:"CSV — أرصدة الحسابات",fn:"exportTrialBalance()",cls:""},
+    {icon:"👥",label:"بيانات الموظفين",sub:"CSV — كل بيانات HR",fn:"exportEmployees()",cls:""},
+    {icon:"📦",label:"كشف المخزون",sub:"CSV — الأصناف والأرصدة",fn:"exportInventory()",cls:""},
+    {icon:"📋",label:"حركات المخزون",sub:"CSV — كل الحركات",fn:"exportInvMovements()",cls:""}
+  ];
+  exports.forEach(function(ex){
+    h+='<button class="btn '+(ex.cls||'btn-gy')+'" onclick="'+ex.fn+'" style="display:flex;flex-direction:column;align-items:flex-start;padding:11px 13px;height:auto;text-align:right;">';
+    h+='<div style="font-size:16px;margin-bottom:3px;">'+ex.icon+'</div>';
+    h+='<div style="font-weight:700;font-size:12px;">'+ex.label+'</div>';
+    h+='<div style="font-size:10px;opacity:.7;margin-top:1px;">'+ex.sub+'</div>';
+    h+='</button>';
+  });
+  h+='</div>';
+
+  // IMPORT SECTION
+  h+='<div class="sd">📥 استيراد البيانات</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">';
+  var imports=[
+    {icon:"🔒",label:"استيراد نسخة احتياطية",sub:"JSON — يستبدل كل البيانات",fn:"importBackup()",cls:"btn-rd"},
+    {icon:"📝",label:"استيراد قيود (CSV)",sub:"يضيف قيود من ملف CSV",fn:"importEntriesCSV()",cls:"btn-sky"}
+  ];
+  imports.forEach(function(im){
+    h+='<button class="btn '+(im.cls||'btn-gy')+'" onclick="'+im.fn+'" style="display:flex;flex-direction:column;align-items:flex-start;padding:11px 13px;height:auto;text-align:right;">';
+    h+='<div style="font-size:16px;margin-bottom:3px;">'+im.icon+'</div>';
+    h+='<div style="font-weight:700;font-size:12px;">'+im.label+'</div>';
+    h+='<div style="font-size:10px;opacity:.7;margin-top:1px;">'+im.sub+'</div>';
+    h+='</button>';
+  });
+  h+='</div>';
+
+  // Format notes
+  h+='<div style="background:var(--g1);border-radius:10px;padding:12px;font-size:11.5px;">';
+  h+='<div style="font-weight:800;margin-bottom:8px;">📌 ملاحظات مهمة</div>';
+  h+='<div style="color:var(--g4);line-height:1.8;">';
+  h+='• <strong>النسخة الاحتياطية JSON</strong> تحتوي على كل البيانات — استخدمها للنقل بين أجهزة<br>';
+  h+='• <strong>ملفات CSV</strong> تفتح بـ Excel مباشرة وتدعم اللغة العربية<br>';
+  h+='• عند استيراد نسخة احتياطية، ستُحذف البيانات الحالية<br>';
+  h+='• استيراد القيود CSV يضيف فقط — لا يحذف القيود الموجودة';
+  h+='</div></div>';
+  return h;
+}
 
 
 document.addEventListener('click',function(ev){var n=ev.target.closest('[data-nav]');if(n){nav(n.getAttribute('data-nav'),n);return;}var t=ev.target.closest('[data-eid]');if(t){viewE(t.getAttribute('data-eid'));return;}var s=ev.target.closest('[data-sub]');if(s){sub(s.getAttribute('data-sub'));return;}});
