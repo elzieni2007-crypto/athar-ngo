@@ -230,7 +230,8 @@ var DB={
   thirdParties:[],
   bankRecons:[],
   masterData:null,
-  payrollHistory:[]
+  payrollHistory:[],
+  payrollVars:{}
 };
 
 try{
@@ -246,6 +247,7 @@ try{
     if(!DB.bankRecons)DB.bankRecons=[];
     if(!DB.masterData)DB.masterData=null;
     if(!DB.payrollHistory)DB.payrollHistory=[];
+    if(!DB.payrollVars)DB.payrollVars={};
     if(!DB.warehouses)DB.warehouses=DB.warehouses||[];
     if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
     if(!DB.suppliers)DB.suppliers=[];
@@ -263,25 +265,207 @@ function fv(id){return parseFloat(el(id)?el(id).value:0)||0;}
 function sv(id){return el(id)?el(id).value.trim():"";}
 
 // PAYROLL CALC
-function calc(e){
-  var sal=e.sal||0,al=e.allow||0,nw=e.natWork||0,tr=e.transport||0,ot=e.overtime||0,ded=e.deduct||0;
-  var gross=sal+al+nw+tr+ot;
-  var iBase=Math.min(sal+al,10400);
-  var empI=e.ins==="none"?0:Math.round(iBase*0.11);
-  var emplI=e.ins==="full"?Math.round(iBase*0.1875):0;
-  var mar=Math.round(gross*0.0005);
-  var tBase=Math.max(0,gross-empI-1666.67)*12;
+// ============================================================
+// SALARY VARIABLE COMPONENTS — المكونات المتغيرة للمرتب
+// ============================================================
+
+// ---- EXTENDED CALC — يشمل المكونات المتغيرة ----
+function calcFull(e, overrides){
+  // Base fixed components from employee record
+  var o=overrides||{};
+  var sal   = o.sal   !==undefined ? o.sal   : (e.sal||0);
+  var al    = o.allow !==undefined ? o.allow : (e.allow||0);
+  var nw    = o.natWork!==undefined? o.natWork:(e.natWork||0);
+  var tr    = o.transport!==undefined?o.transport:(e.transport||0);
+  // Variable components (monthly overrides)
+  var ot    = o.overtime!==undefined? o.overtime:(e.overtime||0);  // إضافي
+  var bonus = o.bonus !==undefined ? o.bonus : 0;                  // مكافأة
+  var stipend=o.stipend!==undefined? o.stipend: 0;                 // منحة / بدل استثنائي
+  var ded   = o.deduct!==undefined ? o.deduct : (e.deduct||0);    // خصومات ثابتة
+  var penalty=o.penalty!==undefined? o.penalty: 0;                 // جزاءات
+  var absence=o.absence!==undefined? o.absence: 0;                 // خصم غياب
+
+  var ins   = o.ins!==undefined ? o.ins : (e.ins||"full");
+
+  // Gross = ثابت + متغيرات
+  var gross = sal + al + nw + tr + ot + bonus + stipend;
+  // التأمينات تُحسب على الأجر الأساسي + علاوات فقط (لا تشمل المكافآت المتغيرة)
+  var iBase = Math.min(sal+al, 10400);
+  var empI  = ins==="none" ? 0 : Math.round(iBase*0.11);
+  var emplI = ins==="full" ? Math.round(iBase*0.1875) : 0;
+  var mar   = Math.round(gross*0.0005);
+  // الضريبة تُحسب على الإجمالي بعد خصم حصة الموظف في التأمين والإعفاء
+  var tBase = Math.max(0, gross-empI-1666.67)*12;
   var at=0;
-  if(tBase>1200000)at=241375+(tBase-1200000)*0.275;
-  else if(tBase>400000)at=61375+(tBase-400000)*0.225;
-  else if(tBase>200000)at=21375+(tBase-200000)*0.2;
-  else if(tBase>70000)at=1875+(tBase-70000)*0.15;
-  else if(tBase>55000)at=375+(tBase-55000)*0.1;
-  else if(tBase>40000)at=(tBase-40000)*0.025;
-  var tax=Math.round(at/12);
-  var net=gross-empI-tax-mar-ded;
-  return{gross:gross,empI:empI,emplI:emplI,mar:mar,tax:tax,net:net,cost:gross+emplI};
+  if(tBase>1200000)     at=241375+(tBase-1200000)*0.275;
+  else if(tBase>400000) at=61375+(tBase-400000)*0.225;
+  else if(tBase>200000) at=21375+(tBase-200000)*0.2;
+  else if(tBase>70000)  at=1875+(tBase-70000)*0.15;
+  else if(tBase>55000)  at=375+(tBase-55000)*0.1;
+  else if(tBase>40000)  at=(tBase-40000)*0.025;
+  var tax   = Math.round(at/12);
+  var totalDed = ded + penalty + absence;
+  var net   = gross - empI - tax - mar - totalDed;
+  return {
+    sal:sal, al:al, nw:nw, tr:tr,
+    ot:ot, bonus:bonus, stipend:stipend,
+    gross:gross, empI:empI, emplI:emplI, mar:mar, tax:tax,
+    ded:ded, penalty:penalty, absence:absence, totalDed:totalDed,
+    net:Math.max(0,net), cost:gross+emplI
+  };
 }
+
+// Keep old calc as alias
+function calc(e){ return calcFull(e,{}); }
+
+// ---- EDIT SAL MODAL (fixed components) ----
+function editSal(i){
+  if(!requirePerm("canEditSalaries","ليس لديك صلاحية تعديل المرتبات"))return;
+  var e=DB.employees[i];
+  if(!e)return;
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:10px;padding:12px;margin-bottom:12px;color:white;">';
+  h+='<div style="font-size:10.5px;opacity:.7;">'+e.id+'</div>';
+  h+='<div style="font-weight:900;font-size:16px;">'+e.name+'</div>';
+  h+='<div style="font-size:11px;opacity:.75;">'+e.pos+(e.dept?' · '+e.dept:'')+'</div></div>';
+
+  h+='<div class="sd">المكونات الثابتة</div>';
+  h+='<div class="fr"><div class="fg"><label>الأجر الأساسي *</label><input type="number" id="ss" value="'+(e.sal||0)+'" oninput="prvS('+i+')"></div>';
+  h+='<div class="fg"><label>العلاوات</label><input type="number" id="sa" value="'+(e.allow||0)+'" oninput="prvS('+i+')"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>بدل طبيعة عمل</label><input type="number" id="snw" value="'+(e.natWork||0)+'" oninput="prvS('+i+')"></div>';
+  h+='<div class="fg"><label>بدل انتقال</label><input type="number" id="str" value="'+(e.transport||0)+'" oninput="prvS('+i+')"></div></div>';
+  h+='<div class="fg"><label>خصومات ثابتة شهرية</label><input type="number" id="sdd" value="'+(e.deduct||0)+'" oninput="prvS('+i+')"></div>';
+
+  h+='<div class="sd">نوع التأمين</div>';
+  h+='<div class="fg"><select id="sins" onchange="prvS('+i+')">';
+  h+='<option value="full"'+(e.ins==="full"?" selected":"")+'>تأمين كامل (11% موظف + 18.75% جمعية)</option>';
+  h+='<option value="partial"'+(e.ins==="partial"?" selected":"")+'>تأمين جزئي (11% موظف فقط)</option>';
+  h+='<option value="none"'+(e.ins==="none"?" selected":"")+'>بدون تأمين</option>';
+  h+='</select></div>';
+
+  h+='<div id="sprev" style="background:var(--g1);border-radius:10px;padding:12px;margin:10px 0;"></div>';
+  h+='<div style="display:flex;gap:8px;">';
+  h+='<button class="btn" onclick="saveSal('+i+')" style="flex:1;">💾 حفظ المكونات الثابتة</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("✏️ تعديل المرتب — "+e.name,h);
+  prvS(i);
+}
+
+function prvS(i){
+  var tmp={sal:fv("ss"),allow:fv("sa"),natWork:fv("snw"),transport:fv("str"),deduct:fv("sdd"),ins:sv("sins")||"full"};
+  var r=calcFull(DB.employees[i]||{},tmp);
+  var e=el("sprev");if(!e)return;
+  e.innerHTML=buildSalPreviewHTML(r);
+}
+
+function saveSal(i){
+  if(!requirePerm("canEditSalaries","ليس لديك صلاحية تعديل المرتبات"))return;
+  var e=DB.employees[i];if(!e)return;
+  e.sal=fv("ss");e.allow=fv("sa");e.natWork=fv("snw");e.transport=fv("str");
+  e.overtime=0;e.deduct=fv("sdd");e.ins=sv("sins")||"full";
+  save();cm();rPay();toast("✅ تم تحديث المرتب");
+}
+
+// ---- SALARY PREVIEW HTML (reusable) ----
+function buildSalPreviewHTML(r){
+  var h='<div style="font-weight:800;font-size:12px;color:var(--n);margin-bottom:8px;">📊 معاينة الحساب:</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:8px;">';
+  h+='<div style="background:white;border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">الإجمالي</div><div style="font-weight:800;font-size:14px;color:var(--n);">'+fmt(r.gross)+'</div></div>';
+  h+='<div style="background:white;border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">تأمين موظف 11%</div><div style="font-weight:800;color:var(--rd);">'+fmt(r.empI)+'</div></div>';
+  h+='<div style="background:white;border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">ضريبة الدخل</div><div style="font-weight:800;color:var(--am);">'+fmt(r.tax)+'</div></div>';
+  h+='<div style="background:white;border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">تأمين الجمعية 18.75%</div><div style="font-weight:800;color:var(--sk);">'+fmt(r.emplI)+'</div></div>';
+  h+='</div>';
+  if(r.ot>0||r.bonus>0||r.stipend>0||r.totalDed>0){
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;font-size:11px;margin-bottom:8px;">';
+    if(r.ot>0)h+='<div style="background:var(--gbg);border-radius:6px;padding:6px;text-align:center;"><div style="color:var(--g4);font-size:9.5px;">إضافي</div><div style="font-weight:700;color:var(--gr);">+'+fmt(r.ot)+'</div></div>';
+    if(r.bonus>0)h+='<div style="background:var(--gbg);border-radius:6px;padding:6px;text-align:center;"><div style="color:var(--g4);font-size:9.5px;">مكافأة</div><div style="font-weight:700;color:var(--gr);">+'+fmt(r.bonus)+'</div></div>';
+    if(r.stipend>0)h+='<div style="background:var(--gbg);border-radius:6px;padding:6px;text-align:center;"><div style="color:var(--g4);font-size:9.5px;">منحة</div><div style="font-weight:700;color:var(--gr);">+'+fmt(r.stipend)+'</div></div>';
+    if(r.penalty>0)h+='<div style="background:var(--rbg);border-radius:6px;padding:6px;text-align:center;"><div style="color:var(--g4);font-size:9.5px;">جزاء</div><div style="font-weight:700;color:var(--rd);">-'+fmt(r.penalty)+'</div></div>';
+    if(r.absence>0)h+='<div style="background:var(--rbg);border-radius:6px;padding:6px;text-align:center;"><div style="color:var(--g4);font-size:9.5px;">خصم غياب</div><div style="font-weight:700;color:var(--rd);">-'+fmt(r.absence)+'</div></div>';
+    h+='</div>';
+  }
+  h+='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:9px;padding:12px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div style="color:rgba(255,255,255,.75);font-size:11px;">الصافي المستحق</div>';
+  h+='<div style="font-weight:900;font-size:20px;color:white;">'+fmt(r.net)+' <span style="font-size:12px;opacity:.7;">ج.م</span></div></div>';
+  h+='<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--g4);margin-top:6px;padding:0 4px;">';
+  h+='<span>تكلفة الجمعية الكاملة</span><span style="font-weight:800;color:var(--n);">'+fmt(r.cost)+' ج.م</span></div>';
+  return h;
+}
+
+// ---- MONTHLY VARIABLE COMPONENTS MODAL ----
+// Called from openGenPayModal for per-employee overrides
+function openVarComponents(empId, monthKey){
+  var e=DB.employees.find(function(x){return x.id===empId;});
+  if(!e)return;
+  var stored=getStoredVar(empId, monthKey)||{};
+
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:10px;padding:11px;margin-bottom:12px;color:white;">';
+  h+='<div style="font-size:10.5px;opacity:.7;">'+e.id+' · '+monthKey+'</div>';
+  h+='<div style="font-weight:900;font-size:15px;">'+e.name+'</div>';
+  h+='<div style="font-size:11px;opacity:.75;">الأجر الأساسي: '+fmt(e.sal||0)+' ج.م</div></div>';
+
+  h+='<div class="sd">➕ الإضافات والمكافآت</div>';
+  h+='<div class="fr"><div class="fg"><label>ساعات إضافية (ج.م)</label>';
+  h+='<input type="number" id="vc-ot" value="'+(stored.overtime||0)+'" placeholder="0" oninput="prvVC()"></div>';
+  h+='<div class="fg"><label>مكافأة / حافز</label>';
+  h+='<input type="number" id="vc-bonus" value="'+(stored.bonus||0)+'" placeholder="0" oninput="prvVC()"></div></div>';
+  h+='<div class="fr"><div class="fg"><label>Stipend / منحة استثنائية</label>';
+  h+='<input type="number" id="vc-stipend" value="'+(stored.stipend||0)+'" placeholder="0" oninput="prvVC()"></div>';
+  h+='<div class="fg"><label>بيان الإضافات</label>';
+  h+='<input id="vc-add-note" value="'+(stored.addNote||'')+'" placeholder="سبب المكافأة..."></div></div>';
+
+  h+='<div class="sd">➖ الخصومات والجزاءات</div>';
+  h+='<div class="fr"><div class="fg"><label>جزاءات (ج.م)</label>';
+  h+='<input type="number" id="vc-penalty" value="'+(stored.penalty||0)+'" placeholder="0" oninput="prvVC()"></div>';
+  h+='<div class="fg"><label>خصم غياب (ج.م)</label>';
+  h+='<input type="number" id="vc-absence" value="'+(stored.absence||0)+'" placeholder="0" oninput="prvVC()"></div></div>';
+  h+='<div class="fg"><label>بيان الخصومات</label>';
+  h+='<input id="vc-ded-note" value="'+(stored.dedNote||'')+'" placeholder="سبب الخصم أو الجزاء..."></div>';
+
+  h+='<div class="sd">📊 معاينة المرتب هذا الشهر</div>';
+  h+='<div id="vc-prev">'+buildSalPreviewHTML(calcFull(e,stored))+'</div>';
+
+  h+='<div style="display:flex;gap:8px;margin-top:10px;">';
+  h+='<button class="btn btn-gr" onclick="saveVarComponents(\''+empId+'\',\''+monthKey+'\')" style="flex:1;">💾 حفظ</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+
+  om("🔧 المكونات المتغيرة — "+e.name,h);
+  window._vcEmp=e;
+}
+
+function prvVC(){
+  var e=window._vcEmp;if(!e)return;
+  var ov={overtime:fv("vc-ot"),bonus:fv("vc-bonus"),stipend:fv("vc-stipend"),
+          penalty:fv("vc-penalty"),absence:fv("vc-absence")};
+  var el2=document.getElementById("vc-prev");
+  if(el2)el2.innerHTML=buildSalPreviewHTML(calcFull(e,ov));
+}
+
+// Storage for monthly variable components
+function varKey(empId,monthKey){return "VAR_"+empId+"_"+monthKey;}
+function getStoredVar(empId,monthKey){
+  if(!DB.payrollVars)DB.payrollVars={};
+  return DB.payrollVars[varKey(empId,monthKey)]||null;
+}
+function saveVarComponents(empId,monthKey){
+  if(!DB.payrollVars)DB.payrollVars={};
+  var key=varKey(empId,monthKey);
+  DB.payrollVars[key]={
+    overtime:fv("vc-ot"),bonus:fv("vc-bonus"),stipend:fv("vc-stipend"),
+    penalty:fv("vc-penalty"),absence:fv("vc-absence"),
+    addNote:sv("vc-add-note"),dedNote:sv("vc-ded-note")
+  };
+  save();cm();
+  toast("✅ تم حفظ المكونات المتغيرة");
+  // Refresh preview in payroll modal if open
+  if(typeof refreshPayPreview==="function") refreshPayPreview();
+}
+
+// Get effective override for an employee in a given month
+function getEmpOverride(empId,monthKey){
+  return getStoredVar(empId,monthKey)||{};
+}
+
+
 
 // BALANCES
 function bals(){
@@ -313,6 +497,34 @@ function nav(pg,btn){
   else if(pg==="more")rMore();
   window.scrollTo(0,0);
 }
+
+function rMore(){
+  var items=[
+    {i:"🌳",t:"شجرة الحسابات",n:"accounts"},
+    {i:"⚖️",t:"ميزان المراجعة",n:"trial"},
+    {i:"📈",t:"الميزانية العمومية",n:"balance"},
+    {i:"💰",t:"قائمة الدخل",n:"income"},
+    {i:"📉",t:"متابعة BVA",n:"bva"},
+    {i:"🏦",t:"البنوك والخزينة",n:"banks"},
+    {i:"📦",t:"المخازن",n:"inventory"},
+    {i:"🏢",t:"الموارد البشرية",n:"employees"},
+    {i:"⚙️",t:"الإعدادات",n:"settings"},
+    {i:"📒",t:"الأستاذ المساعد",n:"tpledger"},
+    {i:"📁",t:"استيراد وتصدير",n:"importexport"},
+    {i:"🔄",t:"سجل التسويات",n:"reconhist"},
+    {i:"🗂️",t:"البيانات الرئيسية",n:"masterdata"},
+    {i:"📊",t:"التقارير",n:"reports"}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">القائمة الكاملة</div><div class="mg">';
+  items.forEach(function(item){
+    h+='<div class="mi" data-sub="'+item.n+'">';
+    h+='<div class="mi-i">'+item.i+'</div>';
+    h+='<div class="mi-t">'+item.t+'</div></div>';
+  });
+  h+="</div>";
+  el("pg-more").innerHTML=h;
+}
+
 
 function sub(n){
   var f={
@@ -430,12 +642,12 @@ function rJour(){
   h+='<button class="btn btn-sm btn-gy" onclick="rptTPBalances()" style="font-size:11px;">📊 أرصدة الأطراف</button>';
   h+='<button class="btn btn-sm btn-gy" style="font-size:11px;" data-sub="importexport">📁 استيراد/تصدير</button>';
   h+='</div>';
+  syncTPFromHR();
   if(!DB.entries.length){
     h+='<div class="card" style="text-align:center;color:var(--g4);padding:30px;">لا توجد قيود بعد</div>';
   } else {
     DB.entries.slice().reverse().forEach(function(e){
-      syncTPFromHR();
-  var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
+      var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
       h+='<div class="card">';
       h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
       h+='<div style="flex:1;"><div style="margin-bottom:5px;display:flex;gap:5px;flex-wrap:wrap;">';
@@ -608,9 +820,12 @@ function buildPayList(q,dept){
       h+='<div style="background:var(--abg);border-radius:7px;padding:6px;"><div style="color:var(--g4);font-size:9px;">ضريبة</div><div style="font-weight:800;color:var(--am);">'+fmt(r.tax)+'</div></div>';
       h+='<div style="background:var(--skp);border-radius:7px;padding:6px;"><div style="color:var(--g4);font-size:9px;">تكلفة</div><div style="font-weight:800;color:var(--n);">'+fmt(r.cost)+'</div></div>';
       h+='</div>';
-      h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">';
-      h+='<button class="btn btn-sm btn-sky" onclick="editSal('+i+')" style="font-size:10.5px;">✏️ تعديل</button>';
-      h+='<button class="btn btn-sm btn-gr" onclick="openGenPayModal(\''+e.id+'\')" style="font-size:10.5px;">💳 إعداد مرتب</button>';
+            h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">';
+      h+='<button class="btn btn-sm btn-sky" onclick="editSal('+i+')" style="font-size:10px;">✏️ ثابت</button>';
+      var mk3=new Date().getFullYear()+"-"+(new Date().getMonth()+1).toString().padStart(2,"0");
+      var hv=getEmpOverride(e.id,mk3);var hvd=(hv.overtime||0)+(hv.bonus||0)+(hv.stipend||0)+(hv.penalty||0)+(hv.absence||0)>0;
+      h+='<button class="btn btn-sm" onclick="openVarComponents(\''+e.id+'\',\''+mk3+'\')" style="font-size:10px;background:'+(hvd?'var(--gr)':'var(--am)')+';">🔧'+(hvd?' ✓ متغير':' متغير')+'</button>';
+      h+='<button class="btn btn-sm btn-gr" onclick="openGenPayModal(\''+e.id+'\')" style="font-size:10px;">💳 مسير</button>';
       h+='</div></div>';
     });
   });
@@ -642,6 +857,7 @@ function openGenPayModal(filterEmpId){
   var defDate=now.toISOString().split("T")[0];
   var defMonth=(now.getMonth()+1).toString().padStart(2,"0");
   var defYear=now.getFullYear();
+  window._payMonthKey=defYear+"-"+defMonth;
 
   // Check if payroll already run this month
   var thisMonthKey=defYear+"-"+defMonth;
@@ -681,13 +897,13 @@ function openGenPayModal(filterEmpId){
 
   h+='<div class="sd">بيانات المسير</div>';
   h+='<div class="fr"><div class="fg"><label>شهر المسير</label>';
-  h+='<select id="pay-month">';
+  h+='<select id="pay-month" onchange="updatePayMK()">';
   MONTHS.forEach(function(m,i){
     var mo=(i+1).toString().padStart(2,"0");
     h+='<option value="'+mo+'"'+(mo===defMonth?" selected":"")+'>'+m+'</option>';
   });
   h+='</select></div>';
-  h+='<div class="fg"><label>السنة</label><input type="number" id="pay-year" value="'+defYear+'" min="2020" max="2030"></div></div>';
+  h+='<div class="fg"><label>السنة</label><input type="number" id="pay-year" oninput="updatePayMK()" value="'+defYear+'" min="2020" max="2030"></div></div>';
 
   h+='<div class="fg"><label>تاريخ الدفع</label><input type="date" id="pay-date" value="'+defDate+'"></div>';
   h+='<div class="fg"><label>البنك / حساب الصرف</label><select id="pay-bank">'+bankO+'</select></div>';
@@ -725,6 +941,12 @@ function setPayScope(scope){
   refreshPayPreview();
 }
 
+function updatePayMK(){
+  var mo=sv("pay-month")||"01";
+  var yr=sv("pay-year")||new Date().getFullYear().toString();
+  window._payMonthKey=yr+"-"+mo;
+  refreshPayPreview();
+}
 function refreshPayPreview(){
   var dept=scope==="dept"?(sv("pay-dept-sel")||""):"";
   var empId=_payScope==="single"?(sv("pay-emp-sel")||""):"";
@@ -737,30 +959,43 @@ function buildPayPreview(scope,empId,dept){
   if(!emps.length) return '<div style="text-align:center;color:var(--g4);padding:12px;">لا يوجد موظفون</div>';
 
   var tot={gross:0,empI:0,emplI:0,tax:0,mar:0,net:0,cost:0};
-  emps.forEach(function(e){var r=calc(e);Object.keys(tot).forEach(function(k){tot[k]+=r[k];});});
+  var mk=window._payMonthKey||"";
+  emps.forEach(function(e){var ov=getEmpOverride(e.id,mk);var r=calcFull(e,ov);Object.keys(tot).forEach(function(k){if(r[k]!==undefined)tot[k]+=r[k];});});
 
   var h='<div style="overflow-x:auto;"><table style="font-size:11px;"><thead><tr>';
-  h+='<th>الموظف</th><th>الإجمالي</th><th>تأمين 11%</th><th>ضريبة</th><th>خصومات</th><th style="color:var(--gr);">الصافي</th>';
+  h+='<th>الموظف</th><th>إضافات</th><th>الإجمالي</th><th>تأمين 11%</th><th>ضريبة</th><th>خصم/جزاء</th><th style="color:var(--gr);">الصافي</th><th></th>';
   h+='</tr></thead><tbody>';
   emps.forEach(function(e){
-    var r=calc(e);
-    h+='<tr>';
+    var ov=getEmpOverride(e.id,mk);
+    var r=calcFull(e,ov);
+    var hasVar=(ov.overtime||0)+(ov.bonus||0)+(ov.stipend||0)+(ov.penalty||0)+(ov.absence||0)>0;
+    h+='<tr style="'+(hasVar?"background:#f0fdf4;":"")+'">';
     h+='<td><div style="font-weight:700;">'+e.name+'</div><div style="font-size:10px;color:var(--g4);">'+e.pos+'</div></td>';
-    h+='<td class="tn">'+fmt(r.gross)+'</td>';
+    h+='<td class="tn" style="color:var(--gr);">';
+    if(ov.overtime>0)h+='<div style="font-size:9.5px;">إضافي: +'+fmt(ov.overtime)+'</div>';
+    if(ov.bonus>0)h+='<div style="font-size:9.5px;">مكافأة: +'+fmt(ov.bonus)+'</div>';
+    if(ov.stipend>0)h+='<div style="font-size:9.5px;">منحة: +'+fmt(ov.stipend)+'</div>';
+    if(!hasVar)h+='<span style="color:var(--g4);">—</span>';
+    h+='</td>';
+    h+='<td class="tn" style="font-weight:700;">'+fmt(r.gross)+'</td>';
     h+='<td class="tn" style="color:var(--rd);">'+fmt(r.empI)+'</td>';
     h+='<td class="tn" style="color:var(--am);">'+fmt(r.tax)+'</td>';
-    h+='<td class="tn">'+(e.deduct>0?fmt(e.deduct):"—")+'</td>';
+    h+='<td class="tn" style="color:var(--rd);">';
+    if(r.totalDed>0)h+='<div style="font-size:9.5px;color:var(--rd);">'+fmt(r.totalDed)+'</div>';
+    else h+='—';
+    h+='</td>';
     h+='<td class="tn" style="font-weight:800;color:var(--gr);">'+fmt(r.net)+'</td>';
+    h+='<td><button class="btn btn-sm btn-sky" data-vc-emp="'+e.id+'" data-vc-mk="'+mk+'" onclick="openVarComponents(this.getAttribute(\'data-vc-emp\'),this.getAttribute(\'data-vc-mk\'))" style="font-size:9px;padding:3px 7px;" title="المكونات المتغيرة">🔧</button></td>';
     h+='</tr>';
   });
-  h+='</tbody><tfoot><tr style="background:var(--g1);font-weight:900;">';
-  h+='<td style="font-weight:900;padding:8px;">الإجمالي ('+emps.length+' موظف)</td>';
-  h+='<td class="tn" style="padding:8px;font-weight:900;">'+fmt(tot.gross)+'</td>';
-  h+='<td class="tn" style="color:var(--rd);padding:8px;font-weight:900;">'+fmt(tot.empI)+'</td>';
-  h+='<td class="tn" style="color:var(--am);padding:8px;font-weight:900;">'+fmt(tot.tax)+'</td>';
-  h+='<td class="tn" style="padding:8px;">'+fmt(tot.mar)+'</td>';
-  h+='<td class="tn" style="color:var(--gr);padding:8px;font-weight:900;font-size:13px;">'+fmt(tot.net)+'</td>';
-  h+='</tr></tfoot></table></div>';
+  h+='</tbody><tfoot><tr style="background:var(--n);">';
+  h+='<td colspan="2" style="color:white;font-weight:900;padding:8px;">الإجمالي ('+emps.length+' موظف)</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:8px;">'+fmt(tot.gross)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:8px;">'+fmt(tot.empI)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:8px;">'+fmt(tot.tax)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:8px;">'+fmt(tot.totalDed)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:8px;font-size:13px;">'+fmt(tot.net)+'</td>';
+  h+='<td></td></tr></tfoot></table></div>';
   h+='<div style="background:var(--skp);border-radius:8px;padding:8px 12px;margin-top:8px;display:flex;justify-content:space-between;">';
   h+='<span style="font-size:12px;font-weight:700;color:var(--n);">تكلفة الجمعية الكاملة</span>';
   h+='<span style="font-weight:900;color:var(--n);font-size:14px;">'+fmt(tot.cost)+' ج.م</span></div>';
@@ -807,9 +1042,13 @@ function generatePayroll(){
     if(dup&&!confirm("تم إعداد مسير المرتبات لشهر "+monthName+" "+year+" بالفعل. هل تريد إعداده مرة أخرى؟"))return;
   }
 
-  // Calculate totals
-  var tot={gross:0,empI:0,emplI:0,tax:0,mar:0,net:0,cost:0};
-  emps.forEach(function(e){var r=calc(e);Object.keys(tot).forEach(function(k){tot[k]+=r[k];});});
+  // Calculate totals using variable components
+  var tot={gross:0,empI:0,emplI:0,tax:0,mar:0,net:0,cost:0,totalDed:0};
+  emps.forEach(function(e){
+    var ov=getEmpOverride(e.id,monthKey);
+    var r=calcFull(e,ov);
+    Object.keys(tot).forEach(function(k){if(r[k]!==undefined)tot[k]+=r[k];});
+  });
 
   // Build journal entry
   var entryId="PAY-"+monthKey+(scope==="single"?"-"+empId:scope==="dept"?"-"+dept.substring(0,4):"");
@@ -827,23 +1066,28 @@ function generatePayroll(){
 
   if(scope==="single"&&emps.length===1){
     // Detailed single employee
-    var e=emps[0];var r=calc(e);
+    var e=emps[0];var ov0=getEmpOverride(e.id,monthKey);var r=calcFull(e,ov0);
     lines.push({acc:"5211",an:"رواتب وأجور العاملين",dr:r.gross,cr:0,tpId:"EMP-"+e.id,tpName:e.name,wbsCode:wbsCode});
     if(r.emplI>0) lines.push({acc:"5213",an:"اشتراكات التأمينات الاجتماعية (حصة صاحب العمل)",dr:r.emplI,cr:0,tpId:"EMP-"+e.id,tpName:e.name,wbsCode:wbsCode});
     if(r.empI>0)  lines.push({acc:"2113",an:"مستحقات تأمينات اجتماعية",dr:0,cr:r.empI});
     if(r.tax>0)   lines.push({acc:"2114",an:"ضرائب مستحقة (خصم وتحصيل)",dr:0,cr:r.tax});
+    if(r.totalDed>0) lines.push({acc:"2115",an:"خصومات وجزاءات محجوزة"+(ov0.dedNote?" — "+ov0.dedNote:""),dr:0,cr:r.totalDed});
     lines.push({acc:bankAcc,an:bankAccObj.n,dr:0,cr:r.net,tpId:"EMP-"+e.id,tpName:e.name});
   } else {
     // Summary grouped entry + per-employee detail in lines
     emps.forEach(function(e){
-      var r=calc(e);
-      lines.push({acc:"5211",an:"رواتب وأجور — "+e.name,dr:r.gross,cr:0,tpId:"EMP-"+e.id,tpName:e.name,wbsCode:wbsCode});
+      var ovE=getEmpOverride(e.id,monthKey);
+      var r=calcFull(e,ovE);
+      var varNote="";
+      if(ovE.overtime>0||ovE.bonus>0||ovE.stipend>0) varNote=" (يشمل: "+(ovE.overtime>0?"إضافي "+fmt(ovE.overtime):"")+(ovE.bonus>0?" مكافأة "+fmt(ovE.bonus):"")+(ovE.stipend>0?" منحة "+fmt(ovE.stipend):"")+")";
+      lines.push({acc:"5211",an:"رواتب وأجور — "+e.name+varNote,dr:r.gross,cr:0,tpId:"EMP-"+e.id,tpName:e.name,wbsCode:wbsCode});
       if(r.emplI>0) lines.push({acc:"5213",an:"تأمين صاحب العمل — "+e.name,dr:r.emplI,cr:0,tpId:"EMP-"+e.id,tpName:e.name,wbsCode:wbsCode});
     });
     // Consolidated credit lines
     if(tot.empI>0)  lines.push({acc:"2113",an:"مستحقات تأمينات اجتماعية (محجوزة من الموظفين)",dr:0,cr:tot.empI});
     if(tot.tax>0)   lines.push({acc:"2114",an:"ضرائب دخل محجوزة من الموظفين",dr:0,cr:tot.tax});
     if(tot.mar>0)   lines.push({acc:"2114",an:"صندوق الشهداء والمصابين",dr:0,cr:tot.mar});
+    if(tot.totalDed>0) lines.push({acc:"2115",an:"خصومات وجزاءات محجوزة — "+monthName+" "+year,dr:0,cr:tot.totalDed});
     lines.push({acc:bankAcc,an:"صافي المرتبات المدفوعة — "+monthName+" "+year,dr:0,cr:tot.net});
   }
 
@@ -5611,6 +5855,25 @@ function loadSeedData(){
 // ============================================================
 // UNIFIED REPORTS SYSTEM — نظام التقارير المتكامل
 // ============================================================
+
+function rTPLedger(){
+  syncTPFromHR();
+  initTP();
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div class="ph-t">📒 الأستاذ المساعد</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+DB.thirdParties.length+' طرف ثالث</div></div>';
+  h+='<button class="btn btn-gr btn-sm" onclick="newTP()">+ طرف جديد</button></div>';
+  var types=["all","employee","supplier","customer","other"];
+  var typeLabels={all:"الكل",employee:"موظفون",supplier:"موردون",customer:"عملاء",other:"أخرى"};
+  h+='<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;" id="tp-type-pills">';
+  types.forEach(function(t){
+    h+='<span class="badge '+(t==="all"?"bb":"bgy")+' tp-type-pill" style="cursor:pointer;white-space:nowrap;font-size:10.5px;padding:5px 11px;" data-tp-type="'+t+'" onclick="tpFilterType(this.getAttribute(\'data-tp-type\'))">'+typeLabels[t]+'</span>';
+  });
+  h+='</div>';
+  h+='<input id="tp-search" placeholder="🔍 بحث..." style="width:100%;padding:9px 12px;border:1.5px solid var(--g2);border-radius:9px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;margin-bottom:10px;" oninput="tpSearch()">';
+  h+='<div id="tp-list">'+renderTPList("","")+'</div>';
+  return h;
+}
 
 function rReportsPage(){
   var h='<div class="ph-t" style="margin-bottom:14px;">📊 التقارير</div>';
