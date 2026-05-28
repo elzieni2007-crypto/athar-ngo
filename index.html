@@ -114,15 +114,8 @@ tbody tr:hover td{background:var(--skp);}
 <script>
 var DB={
   org:{name:"جمعية نموذجية للتنمية",year:2025},
-  projects:[
-    {code:"P001",name:"مشروع التمكين الاقتصادي",donor:"USAID",budget:1500000,spent:820000,status:"active"},
-    {code:"P002",name:"برنامج الصحة الإنجابية",donor:"EU",budget:800000,spent:320000,status:"active"}
-  ],
-  entries:[
-    {id:"J2025-001",date:"2025-01-15",ref:"REC-001",desc:"استلام منحة USAID",proj:"P001",lines:[{acc:"110102",an:"بنك مصر",dr:750000,cr:0},{acc:"4001",an:"منحة USAID",dr:0,cr:750000}],status:"posted"},
-    {id:"J2025-002",date:"2025-01-20",ref:"PV-001",desc:"رواتب يناير",proj:"P001",lines:[{acc:"5101",an:"رواتب",dr:85000,cr:0},{acc:"110101",an:"الخزينة",dr:0,cr:85000}],status:"posted"},
-    {id:"J2025-003",date:"2025-02-15",ref:"REC-002",desc:"استلام منحة EU",proj:"P002",lines:[{acc:"110103",an:"البنك الأهلي",dr:400000,cr:0},{acc:"4002",an:"منحة EU",dr:0,cr:400000}],status:"posted"}
-  ],
+  projects:[],
+  entries:[],
   employees:[
     {id:"E001",nameAr:"أحمد محمد السيد",nameEn:"Ahmed Mohamed El-Sayed",name:"أحمد محمد السيد",pos:"مدير مالي",dept:"المالية",grade:"",manager:"",branch:"القاهرة",sector:"commercial",empType:"full-time",contractType:"indefinite",hireDate:"2020-01-01",contractStart:"2020-01-01",contractEnd:"",probEnd:"",nationalId:"",gender:"male",dob:"",marital:"married",nationality:"مصري",religion:"مسلم",mobile:"",email:"",address:"",emergName:"",emergPhone:"",emergRel:"",bankName:"",bankAccount:"",socialInsNo:"",taxId:"",disability:false,hazardous:false,schedule:"5 أيام",dailyHours:8,sal:18000,allow:2000,natWork:500,transport:300,overtime:0,deduct:0,ins:"full",status:"active",exitDate:"",exitReason:"",notes:""},
     {id:"E002",nameAr:"سارة علي حسن",nameEn:"Sara Ali Hassan",name:"سارة علي حسن",pos:"محاسبة",dept:"المالية",grade:"",manager:"E001",branch:"القاهرة",sector:"commercial",empType:"full-time",contractType:"indefinite",hireDate:"2021-06-01",contractStart:"2021-06-01",contractEnd:"",probEnd:"",nationalId:"",gender:"female",dob:"",marital:"single",nationality:"مصرية",religion:"مسلم",mobile:"",email:"",address:"",emergName:"",emergPhone:"",emergRel:"",bankName:"",bankAccount:"",socialInsNo:"",taxId:"",disability:false,hazardous:false,schedule:"5 أيام",dailyHours:8,sal:12000,allow:1000,natWork:300,transport:200,overtime:0,deduct:0,ins:"full",status:"active",exitDate:"",exitReason:"",notes:""}
@@ -236,7 +229,8 @@ var DB={
   suppliers:[],
   thirdParties:[],
   bankRecons:[],
-  masterData:null
+  masterData:null,
+  payrollHistory:[]
 };
 
 try{
@@ -251,6 +245,7 @@ try{
     if(!DB.thirdParties)DB.thirdParties=[];
     if(!DB.bankRecons)DB.bankRecons=[];
     if(!DB.masterData)DB.masterData=null;
+    if(!DB.payrollHistory)DB.payrollHistory=[];
     if(!DB.warehouses)DB.warehouses=DB.warehouses||[];
     if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
     if(!DB.suppliers)DB.suppliers=[];
@@ -329,7 +324,8 @@ function sub(n){
     tpledger:rTPLedger,
     importexport:rImportExport,
     reconhist:function(){rReconHistory('');},
-    masterdata:rMasterData
+    masterdata:rMasterData,
+    reports:rReportsPage
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -342,7 +338,8 @@ function sub(n){
     tpledger:"📒 الأستاذ المساعد",
     importexport:"📁 استيراد وتصدير",
     reconhist:"📊 سجل التسويات",
-    masterdata:"⚙️ البيانات الرئيسية"
+    masterdata:"⚙️ البيانات الرئيسية",
+    reports:"📊 التقارير"
   };
   if(f[n]){try{om(titles[n]||n, f[n]());}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
 }
@@ -497,789 +494,476 @@ function rProj(){
 }
 
 // PAYROLL
+// ============================================================
+// PAYROLL SYSTEM — نظام إعداد المرتبات الكامل
+// ============================================================
+
+function initPayroll(){
+  if(!DB.payrollHistory)DB.payrollHistory=[];
+}
+
+// ============================================================
+// MAIN PAYROLL PAGE
+// ============================================================
 function rPay(){
-  var now=new Date();
-  var mo=MONTHS[now.getMonth()]+" "+now.getFullYear();
-  var rows=DB.employees.filter(function(e){return e.status==="active";});
-  var tG=0,tI=0,tT=0,tN=0,tC=0;
-  rows.forEach(function(e){var r=calc(e);tG+=r.gross;tI+=r.empI;tT+=r.tax;tN+=r.net;tC+=r.cost;});
-  var h='<div class="ph">';
-  h+='<div><div class="ph-t">💳 مسير المرتبات</div>';
-  h+='<div class="ph-s">'+mo+' — '+rows.length+' موظف</div></div>';
-  h+='<button class="btn btn-gr btn-sm" onclick="genPay()">✅ إنشاء قيد</button></div>';
-  h+='<div class="ps">';
-  h+='<div class="pb2" style="background:var(--n);"><div class="pv" style="color:white;">'+fmt(tG)+'</div><div class="pl" style="color:rgba(255,255,255,.6);">إجمالي الرواتب</div></div>';
-  h+='<div class="pb2" style="background:var(--gbg);border:1px solid #6ee7b7;"><div class="pv" style="color:var(--gr);">'+fmt(tN)+'</div><div class="pl">إجمالي الصافي</div></div>';
-  h+='<div class="pb2" style="background:var(--rbg);"><div class="pv" style="color:var(--rd);">'+fmt(tI)+'</div><div class="pl">تأمينات الموظفين</div></div>';
-  h+='<div class="pb2" style="background:var(--abg);"><div class="pv" style="color:var(--am);">'+fmt(tT)+'</div><div class="pl">ضريبة الدخل</div></div>';
-  h+="</div>";
-  h+='<div class="card" style="background:var(--skp);border-color:var(--sk);margin-bottom:14px;">';
-  h+='<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">';
-  h+='<span style="color:var(--g5);">تكلفة الجمعية (شامل 18.75% صاحب عمل)</span>';
-  h+='<span style="font-weight:900;color:var(--n);font-size:14px;">'+fmt(tC)+' ج.م</span></div></div>';
-  rows.forEach(function(e,i){
+  initPayroll();
+  var active=DB.employees.filter(function(e){return e.status==="active";});
+
+  // Summary KPIs
+  var totals={gross:0,empI:0,emplI:0,tax:0,mar:0,net:0,cost:0};
+  active.forEach(function(e){
     var r=calc(e);
-    var iLbl={"full":"تأمين كامل","partial":"تأمين جزئي","none":"بدون تأمين"}[e.ins||"full"];
-    var iCls={"full":"bg","partial":"ba","none":"bgy"}[e.ins||"full"];
-    h+='<div class="ec">';
-    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">';
-    h+='<div><div style="font-weight:800;font-size:14px;">'+e.name+'</div>';
-    h+='<div style="font-size:11px;color:var(--g4);">'+e.pos+' · <span class="badge '+iCls+'">'+iLbl+'</span></div></div>';
-    h+='<div style="text-align:left;"><div style="font-size:10px;color:var(--g4);">صافي المرتب</div>';
-    h+='<div style="font-weight:900;font-size:18px;color:var(--gr);">'+fmt(r.net)+'</div></div></div>';
-    h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;">';
-    h+='<div class="sb" style="background:var(--g1);"><div style="font-size:10px;color:var(--g4);">الإجمالي</div><div style="font-weight:800;font-size:13px;">'+fmt(r.gross)+'</div></div>';
-    h+='<div class="sb" style="background:var(--rbg);"><div style="font-size:10px;color:var(--g4);">تأمين 11%</div><div style="font-weight:800;font-size:13px;color:var(--rd);">'+fmt(r.empI)+'</div></div>';
-    h+='<div class="sb" style="background:var(--abg);"><div style="font-size:10px;color:var(--g4);">ضريبة دخل</div><div style="font-weight:800;font-size:13px;color:var(--am);">'+fmt(r.tax)+'</div></div>';
-    h+="</div>";
-    h+='<div style="background:var(--g1);border-radius:8px;padding:9px;margin-bottom:10px;font-size:11px;">';
-    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">';
-    h+='<div style="color:var(--g5);">الأجر الأساسي: <strong>'+fmt(e.sal)+'</strong></div>';
-    h+='<div style="color:var(--g5);">العلاوات: <strong>'+fmt(e.allow||0)+'</strong></div>';
-    if(e.natWork)h+='<div style="color:var(--g5);">طبيعة عمل: <strong>'+fmt(e.natWork)+'</strong></div>';
-    if(e.transport)h+='<div style="color:var(--g5);">انتقال: <strong>'+fmt(e.transport)+'</strong></div>';
-    if(e.overtime)h+='<div style="color:var(--g5);">إضافي: <strong>'+fmt(e.overtime)+'</strong></div>';
-    if(e.deduct)h+='<div style="color:var(--rd);">خصومات: <strong>'+fmt(e.deduct)+'</strong></div>';
-    h+='<div style="color:var(--g5);">صندوق الشهداء: <strong>'+fmt(r.mar)+'</strong></div>';
-    h+='<div style="color:var(--n);">تكلفة الجمعية: <strong>'+fmt(r.cost)+'</strong></div>';
-    h+="</div></div>";
-    h+='<button class="btn btn-sm" onclick="editSal('+i+')" style="width:100%;background:var(--sk);font-size:12px;">✏️ تعديل مكونات المرتب</button>';
-    h+="</div>";
+    totals.gross+=r.gross;totals.empI+=r.empI;totals.emplI+=r.emplI;
+    totals.tax+=r.tax;totals.mar+=r.mar;totals.net+=r.net;totals.cost+=r.cost;
   });
-  h+='<div class="card" style="background:var(--g1);text-align:center;font-size:10.5px;color:var(--g4);">قانون الضرائب 91/2005 — قانون التأمينات 148/2019<br>شريحة ضريبة صفر حتى 40,000 ج.م سنوياً</div>';
+
+  var now=new Date();
+  var curMoStr=MONTHS[now.getMonth()]+" "+now.getFullYear();
+
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div class="ph-t">💳 مسير المرتبات</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+active.length+' موظف نشط · '+curMoStr+'</div></div>';
+  h+='<div style="display:flex;gap:5px;">';
+  h+='<button class="btn btn-sm btn-gy" onclick="viewPayHistory()" style="font-size:10.5px;">📋 السجل</button>';
+  h+='<button class="btn btn-gr btn-sm" onclick="openGenPayModal()" style="font-size:10.5px;">⚙️ إعداد مسير</button>';
+  h+='</div></div>';
+
+  // KPI bar
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h+='<div style="background:var(--n);border-radius:10px;padding:11px;text-align:center;">';
+  h+='<div style="font-size:9.5px;color:rgba(255,255,255,.65);">إجمالي الرواتب</div>';
+  h+='<div style="font-weight:900;font-size:16px;color:white;">'+fmt(totals.gross)+'</div></div>';
+  h+='<div style="background:var(--gbg);border-radius:10px;padding:11px;text-align:center;">';
+  h+='<div style="font-size:9.5px;color:var(--g4);">صافي المدفوع</div>';
+  h+='<div style="font-weight:900;font-size:16px;color:var(--gr);">'+fmt(totals.net)+'</div></div>';
+  h+='<div style="background:var(--rbg);border-radius:10px;padding:11px;text-align:center;">';
+  h+='<div style="font-size:9.5px;color:var(--g4);">تأمين موظفين 11%</div>';
+  h+='<div style="font-weight:900;font-size:14px;color:var(--rd);">'+fmt(totals.empI)+'</div></div>';
+  h+='<div style="background:var(--abg);border-radius:10px;padding:11px;text-align:center;">';
+  h+='<div style="font-size:9.5px;color:var(--g4);">ضريبة الدخل</div>';
+  h+='<div style="font-weight:900;font-size:14px;color:var(--am);">'+fmt(totals.tax)+'</div></div>';
+  h+='</div>';
+  h+='<div style="background:var(--skp);border-radius:9px;padding:10px;display:flex;justify-content:space-between;margin-bottom:14px;">';
+  h+='<div style="font-size:12px;font-weight:700;color:var(--n);">تكلفة الجمعية الإجمالية (+ 18.75% تأمين صاحب العمل)</div>';
+  h+='<div style="font-weight:900;color:var(--n);font-size:15px;">'+fmt(totals.cost)+' ج.م</div></div>';
+
+  // Filter / search
+  h+='<div style="display:flex;gap:7px;margin-bottom:10px;">';
+  h+='<input id="pay-search" placeholder="🔍 بحث بالاسم أو القسم..." style="flex:1;padding:9px 12px;border:1.5px solid var(--g2);border-radius:9px;font-size:12px;font-family:Cairo,sans-serif;" oninput="paySearch()">';
+  h+='</div>';
+
+  var depts=[...new Set(active.map(function(e){return e.dept||"غير محدد";}))];
+  h+='<div style="display:flex;gap:5px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;" id="pay-dept-pills">';
+  h+='<span class="badge bb pay-dept-btn" style="cursor:pointer;white-space:nowrap;font-size:10.5px;padding:5px 11px;" onclick="payFilterDept(\'\')">الكل</span>';
+  depts.forEach(function(d){
+    h+='<span class="badge bgy pay-dept-btn" style="cursor:pointer;white-space:nowrap;font-size:10.5px;padding:5px 11px;" onclick="payFilterDept(\''+d+'\')">'+d+'</span>';
+  });
+  h+='</div>';
+
+  h+='<div id="pay-list">'+buildPayList("","")+'</div>';
   el("pg-pay").innerHTML=h;
 }
 
-// MORE
-function rMore(){
-  var items=[
-    {i:"🌳",t:"شجرة الحسابات",n:"accounts"},
-    {i:"⚖️",t:"ميزان المراجعة",n:"trial"},
-    {i:"📈",t:"الميزانية العمومية",n:"balance"},
-    {i:"💰",t:"قائمة الدخل",n:"income"},
-    {i:"📉",t:"متابعة BVA",n:"bva"},
-    {i:"🏦",t:"البنوك والخزينة",n:"banks"},
-    {i:"📦",t:"المخازن",n:"inventory"},
-    {i:"🏢",t:"الموارد البشرية",n:"employees"},
-    {i:"⚙️",t:"الإعدادات",n:"settings"},
-    {i:"📒",t:"الأستاذ المساعد",n:"tpledger"},
-    {i:"📁",t:"استيراد وتصدير",n:"importexport"},
-    {i:"🔄",t:"سجل التسويات",n:"reconhist"},
-    {i:"🗂️",t:"البيانات الرئيسية",n:"masterdata"}
-  ];
-  var h='<div class="ph-t" style="margin-bottom:14px;">القائمة الكاملة</div><div class="mg">';
-  items.forEach(function(item){
-    h+='<div class="mi" data-sub="'+item.n+'">';
-    h+='<div class="mi-i">'+item.i+'</div>';
-    h+='<div class="mi-t">'+item.t+'</div></div>';
+function buildPayList(q,dept){
+  var rows=DB.employees.filter(function(e){
+    if(e.status!=="active")return false;
+    var mq=!q||(e.name||"").includes(q)||(e.dept||"").includes(q)||(e.pos||"").includes(q);
+    var md=!dept||(e.dept||"غير محدد")===dept;
+    return mq&&md;
   });
-  h+="</div>";
-  el("pg-more").innerHTML=h;
-}
+  if(!rows.length) return '<div style="text-align:center;color:var(--g4);padding:20px;">لا يوجد موظفون مطابقون</div>';
 
-// JOURNAL MODAL
-var _eL=2, _eAO="";
-// ============================================================
-// THIRD PARTY (الأستاذ المساعد) SYSTEM
-// ============================================================
-
-// ---- init ----
-function initTP(){
-  if(!DB.thirdParties)DB.thirdParties=[];
-  // Auto-seed employees as third parties if not already there
-  (DB.employees||[]).forEach(function(e){
-    var id="EMP-"+e.id;
-    if(!DB.thirdParties.find(function(t){return t.id===id;})){
-      DB.thirdParties.push({id:id,name:e.name,type:"employee",ref:e.id,active:true});
-    }
-  });
-  // Auto-seed suppliers
-  (DB.suppliers||[]).forEach(function(s){
-    var id="SUP-"+s.id;
-    if(!DB.thirdParties.find(function(t){return t.id===id;})){
-      DB.thirdParties.push({id:id,name:s.name,type:"supplier",ref:s.id,active:true});
-    }
-  });
-}
-
-function tpTypeLabel(type){
-  return {employee:"موظف",supplier:"مورد",customer:"عميل",other:"أخرى"}[type]||type;
-}
-function tpTypeIcon(type){
-  return {employee:"👤",supplier:"🏭",customer:"🤝",other:"📋"}[type]||"📋";
-}
-function tpTypeCls(type){
-  return {employee:"bb",supplier:"bg",customer:"ba",other:"bgy"}[type]||"bgy";
-}
-
-// ---- eLn with third-party dropdown (replaces the old eLn) ----
-// Build searchable account options (used in all entry forms)
-function buildAccOptions(selectedCode){
-  // Group by first digit
-  var groups={1:"الأصول",2:"الخصوم",3:"حقوق الملكية",4:"الإيرادات",5:"المصروفات"};
-  var grouped={};
-  DB.accounts.forEach(function(a){
-    var g=a.c.charAt(0);
-    if(!grouped[g])grouped[g]=[];
-    grouped[g].push(a);
-  });
-  var h='<option value="">— اختر الحساب —</option>';
-  Object.keys(grouped).sort().forEach(function(g){
-    h+='<optgroup label="'+groups[g]+'">';
-    grouped[g].forEach(function(a){
-      var sel=(a.c===selectedCode)?' selected':'';
-      h+='<option value="'+a.c+'"'+sel+'>'+a.c+' — '+a.n+'</option>';
-    });
-    h+='</optgroup>';
-  });
-  return h;
-}
-
-// Build TP options
-function buildTPOptions(selectedTpId){
-  initTP();
-  var h='<option value="">— بدون طرف ثالث —</option>';
-  var empG='<optgroup label="👤 الموظفين">';
-  var supG='<optgroup label="🏭 الموردون">';
-  var othG='<optgroup label="📋 أخرى">';
-  DB.thirdParties.filter(function(t){return t.active!==false;}).forEach(function(t){
-    var sel=(t.id===selectedTpId)?' selected':'';
-    var opt='<option value="'+t.id+'"'+sel+'>'+tpTypeIcon(t.type)+' '+t.name+'</option>';
-    if(t.type==="employee") empG+=opt;
-    else if(t.type==="supplier") supG+=opt;
-    else othG+=opt;
-  });
-  h+=empG+'</optgroup>'+supG+'</optgroup>'+othG+'</optgroup>';
-  return h;
-}
-
-function eLnTP(i,opts){
-  initTP();
-  var accOpts=buildAccOptions('');
-  var tpOpts=buildTPOptions('');
-  return '<div class="tp-line" id="el-'+i+'" style="background:var(--g1);border-radius:9px;padding:8px;margin-bottom:7px;">'
-    +'<div style="position:relative;margin-bottom:5px;">'
-    +'<input id="eaSearch-'+i+'" placeholder="🔍 ابحث عن حساب..." style="width:100%;padding:8px 12px;border:1.5px solid var(--g2);border-radius:8px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterAccSel('+i+')" onfocus="showAccDrop('+i+')" onblur="setTimeout(function(){hideAccDrop('+i+')},200)">'
-    +'<div id="eaDrop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--n);border-radius:8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.15);">'
-    +buildAccDropHtml(i,'')+''
-    +'</div>'
-    +'<input type="hidden" id="ea-'+i+'" onchange="updET()">'
-    +'</div>'
-    +'<div class="fr" style="margin-bottom:5px;">'
-    +'<input type="number" id="edr-'+i+'" placeholder="مدين" oninput="updET()">'
-    +'<input type="number" id="ecr-'+i+'" placeholder="دائن" oninput="updET()">'
-    +'</div>'
-    +'<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpOpts+'</select>'
-    +'</div>';
-}
-
-function buildAccDropHtml(i,q){
-  var groups={1:"الأصول",2:"الخصوم",3:"حقوق الملكية",4:"الإيرادات",5:"المصروفات"};
-  var grouped={};
-  DB.accounts.forEach(function(a){
-    if(q&&!(a.c.includes(q)||a.n.includes(q))) return;
-    var g=a.c.charAt(0);
-    if(!grouped[g])grouped[g]=[];
-    grouped[g].push(a);
-  });
-  if(!Object.keys(grouped).length)
-    return '<div style="padding:10px;color:var(--g4);font-size:12px;text-align:center;">لا نتائج</div>';
   var h='';
-  Object.keys(grouped).sort().forEach(function(g){
-    h+='<div style="padding:5px 10px 2px;font-size:10px;font-weight:800;color:var(--n);background:var(--g1);border-bottom:1px solid var(--g2);">'+groups[g]+'</div>';
-    grouped[g].forEach(function(a){
-      h+='<div data-acc-i="'+i+'" data-acc-c="'+a.c+'" class="acc-drop-item" onclick="selectAccFromDrop(this)">'
-        +'<code class="acc-drop-code">'+a.c+'</code>'
-        +'<span data-acc-n>'+a.n+'</span>'
-        +'</div>';
+  var groups={};
+  rows.forEach(function(e){var d=e.dept||"غير محدد";if(!groups[d])groups[d]=[];groups[d].push(e);});
+
+  Object.keys(groups).forEach(function(dept){
+    var deptEmps=groups[dept];
+    var dTot=deptEmps.reduce(function(s,e){var r=calc(e);return s+r.gross;},0);
+    h+='<div style="background:var(--g1);border-radius:8px;padding:7px 12px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;">';
+    h+='<span style="font-weight:800;font-size:12.5px;color:var(--n);">🏢 '+dept+' ('+deptEmps.length+')</span>';
+    h+='<span style="font-size:11px;font-weight:700;color:var(--g4);">إجمالي: '+fmt(dTot)+' ج.م</span></div>';
+
+    deptEmps.forEach(function(e){
+      var i=DB.employees.indexOf(e);
+      var r=calc(e);
+      var iCls={"full":"bg","partial":"ba","none":"bgy"}[e.ins||"full"];
+      var iLbl={"full":"كامل","partial":"جزئي","none":"بدون"}[e.ins||"full"];
+      h+='<div class="ec" style="margin-bottom:8px;">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+      h+='<div>';
+      h+='<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">';
+      h+='<code style="font-size:10px;background:var(--g1);padding:1px 6px;border-radius:4px;color:var(--n);">'+e.id+'</code>';
+      h+='<span class="badge '+iCls+'" style="font-size:9px;">'+iLbl+'</span>';
+      h+='</div>';
+      h+='<div style="font-weight:800;font-size:13.5px;">'+e.name+'</div>';
+      h+='<div style="font-size:11px;color:var(--g4);">'+e.pos+'</div>';
+      h+='</div>';
+      h+='<div style="text-align:left;">';
+      h+='<div style="font-size:9px;color:var(--g4);">صافي</div>';
+      h+='<div style="font-weight:900;font-size:16px;color:var(--gr);">'+fmt(r.net)+'</div></div></div>';
+      h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;font-size:10.5px;text-align:center;margin-bottom:8px;">';
+      h+='<div style="background:var(--g1);border-radius:7px;padding:6px;"><div style="color:var(--g4);font-size:9px;">الإجمالي</div><div style="font-weight:800;">'+fmt(r.gross)+'</div></div>';
+      h+='<div style="background:var(--rbg);border-radius:7px;padding:6px;"><div style="color:var(--g4);font-size:9px;">تأمين 11%</div><div style="font-weight:800;color:var(--rd);">'+fmt(r.empI)+'</div></div>';
+      h+='<div style="background:var(--abg);border-radius:7px;padding:6px;"><div style="color:var(--g4);font-size:9px;">ضريبة</div><div style="font-weight:800;color:var(--am);">'+fmt(r.tax)+'</div></div>';
+      h+='<div style="background:var(--skp);border-radius:7px;padding:6px;"><div style="color:var(--g4);font-size:9px;">تكلفة</div><div style="font-weight:800;color:var(--n);">'+fmt(r.cost)+'</div></div>';
+      h+='</div>';
+      h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">';
+      h+='<button class="btn btn-sm btn-sky" onclick="editSal('+i+')" style="font-size:10.5px;">✏️ تعديل</button>';
+      h+='<button class="btn btn-sm btn-gr" onclick="openGenPayModal(\''+e.id+'\')" style="font-size:10.5px;">💳 إعداد مرتب</button>';
+      h+='</div></div>';
     });
   });
   return h;
 }
 
-function showAccDrop(i){
-  var d=el('eaDrop-'+i);
-  if(d){d.style.display='block';}
+function paySearch(){
+  var q=(document.getElementById("pay-search")||{}).value||"";
+  window._payQ=q;
+  var el2=document.getElementById("pay-list");
+  if(el2)el2.innerHTML=buildPayList(q,window._payDept||"");
 }
-function hideAccDrop(i){
-  var d=el('eaDrop-'+i);
-  if(d){d.style.display='none';}
-}
-function filterAccSel(i){
-  var q=(el('eaSearch-'+i)||{}).value||'';
-  var d=el('eaDrop-'+i);
-  if(d){d.style.display='block';d.innerHTML=buildAccDropHtml(i,q);}
-  // clear selection if user is typing
-  var hidden=el('ea-'+i);
-  if(hidden){hidden.value='';}
-  updET();
-}
-function selectAcc(i,code,name){
-  var hidden=el('ea-'+i);
-  if(hidden){hidden.value=code;hidden.dispatchEvent(new Event('change'));}
-  var inp=el('eaSearch-'+i);
-  if(inp){inp.value=code+' — '+name;}
-  hideAccDrop(i);
-  updET();
-}
-function selectAccFromDrop(el2){
-  var i=el2.getAttribute('data-acc-i');
-  var code=el2.getAttribute('data-acc-c');
-  var nameEl=el2.querySelector('[data-acc-n]');
-  var name=nameEl?nameEl.textContent:'';
-  selectAcc(i,code,name);
-}
-
-// Override the old eLn for new entries
-function eLn(i,opts){ return eLnTP(i,opts); }
-
-// ---- collect third-party from lines ----
-function collectTP(prefix, lineCount){
-  // prefix = "e" for new, "ed" for edit
-  var tpField = prefix==="e" ? "etp-" : "etp-";
-  var lines=[];
-  for(var i=0;i<lineCount;i++){
-    var s=el("ea-"+i)||el((prefix==="ed"?"ea-":"")+i);
-    var acc = s ? s.value : "";
-    var dr=parseFloat((el("edr-"+i)||{}).value)||0;
-    var cr=parseFloat((el("ecr-"+i)||{}).value)||0;
-    if(!acc||(dr===0&&cr===0)) continue;
-    var a=DB.accounts.find(function(x){return x.c===acc;});
-    var tpEl=el("etp-"+i);
-    var tpId=tpEl?tpEl.value:"";
-    var tp=tpId?DB.thirdParties.find(function(t){return t.id===tpId;}):null;
-    lines.push({
-      acc:acc, an:a?a.n:"", dr:dr, cr:cr,
-      tpId: tp?tp.id:"",
-      tpName: tp?tp.name:"",
-      tpType: tp?tp.type:""
-    });
-  }
-  return lines;
-}
-
-// ---- THIRD PARTY LEDGER PAGE ----
-function rTPLedger(){
-  initTP();
-  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-  h+='<div><div class="ph-t">📒 الأستاذ المساعد</div>';
-  h+='<div style="font-size:11px;color:var(--g4);">'+DB.thirdParties.length+' طرف ثالث</div></div>';
-  h+='<button class="btn btn-gr btn-sm" onclick="newTP()">+ طرف جديد</button>';
-  h+='</div>';
-
-  // Filter buttons
-  var types=["all","employee","supplier","customer","other"];
-  var typeLabels={all:"الكل",employee:"موظفون",supplier:"موردون",customer:"عملاء",other:"أخرى"};
-  h+='<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;" id="tp-type-pills">';
-  types.forEach(function(t){
-    h+='<span class="badge '+(t==="all"?"bb":"bgy")+' tp-type-pill" style="cursor:pointer;white-space:nowrap;font-size:10.5px;padding:5px 11px;" onclick="tpFilterType(\''+t+'\')">'+typeLabels[t]+'</span>';
+function payFilterDept(d){
+  window._payDept=d;
+  document.querySelectorAll(".pay-dept-btn").forEach(function(b){
+    b.className=b.className.replace(" bb","").replace(" bgy","")+" "+((b.textContent.trim()===(d||"الكل"))?"bb":"bgy");
   });
-  h+='</div>';
-
-  h+='<input id="tp-search" placeholder="🔍 بحث..." style="width:100%;padding:9px 12px;border:1.5px solid var(--g2);border-radius:9px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;margin-bottom:10px;" oninput="tpSearch()">';
-  h+='<div id="tp-list">'+renderTPList("","")+'</div>';
-  return h;
+  var el2=document.getElementById("pay-list");
+  if(el2)el2.innerHTML=buildPayList(window._payQ||"",d);
 }
 
-function renderTPList(q,typeF){
-  initTP();
-  var list=DB.thirdParties.filter(function(t){
-    var mq=!q||(t.name||"").includes(q)||(t.id||"").includes(q);
-    var mt=!typeF||typeF==="all"||t.type===typeF;
-    return mq&&mt;
-  });
-  if(!list.length) return '<div style="text-align:center;color:var(--g4);padding:30px;">لا يوجد أطراف ثالثة مطابقة</div>';
-
-  var h="";
-  list.forEach(function(tp){
-    var bal=calcTPBal(tp.id);
-    h+='<div class="ec" style="margin-bottom:8px;cursor:pointer;" onclick="viewTPLedger(\''+tp.id+'\')">';
-    h+='<div style="display:flex;justify-content:space-between;align-items:center;">';
-    h+='<div>';
-    h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">';
-    h+='<span class="badge '+tpTypeCls(tp.type)+'" style="font-size:9.5px;">'+tpTypeIcon(tp.type)+' '+tpTypeLabel(tp.type)+'</span>';
-    if(tp.active===false) h+='<span class="badge br" style="font-size:9px;">غير نشط</span>';
-    h+='</div>';
-    h+='<div style="font-weight:800;font-size:13.5px;">'+tp.name+'</div>';
-    h+='<div style="font-size:10.5px;color:var(--g4);">'+tp.id+'</div>';
-    h+='</div>';
-    h+='<div style="text-align:left;">';
-    var netAbs=Math.abs(bal.net);
-    var netLbl=bal.net===0?"متوازن":bal.net>0?"مدين":"دائن";
-    var netClr=bal.net===0?"var(--g4)":bal.net>0?"var(--n)":"var(--gr)";
-    h+='<div style="font-size:9px;color:var(--g4);">الرصيد</div>';
-    h+='<div style="font-weight:900;font-size:15px;color:'+netClr+';">'+fmt(netAbs)+'</div>';
-    h+='<div style="font-size:9.5px;color:'+netClr+';">'+netLbl+'</div>';
-    h+='</div></div></div>';
-  });
-  return h;
-}
-
-function tpSearch(){
-  var q=(document.getElementById("tp-search")||{}).value||"";
-  window._tpQ=q;
-  var el2=document.getElementById("tp-list");
-  if(el2) el2.innerHTML=renderTPList(q,window._tpTypeF||"");
-}
-function tpFilterType(t){
-  window._tpTypeF=t;
-  document.querySelectorAll(".tp-type-pill").forEach(function(b){
-    var typeMap={all:"الكل",employee:"موظفون",supplier:"موردون",customer:"عملاء",other:"أخرى"};
-    b.className=b.className.replace(" bb","").replace(" bgy","")+" "+(b.textContent.trim()===typeMap[t]?"bb":"bgy");
-  });
-  var el2=document.getElementById("tp-list");
-  if(el2) el2.innerHTML=renderTPList(window._tpQ||"",t);
-}
-
-// ---- calc TP balance ----
-function calcTPBal(tpId){
-  var dr=0,cr=0;
-  (DB.entries||[]).forEach(function(e){
-    (e.lines||[]).forEach(function(l){
-      if(l.tpId===tpId){dr+=l.dr||0;cr+=l.cr||0;}
-    });
-  });
-  return {dr:dr,cr:cr,net:dr-cr};
-}
-
-// ---- VIEW TP LEDGER (كشف حساب) ----
-function viewTPLedger(tpId){
-  initTP();
-  var tp=DB.thirdParties.find(function(t){return t.id===tpId;});
-  if(!tp)return;
-
-  // Filter fields
-  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:11px;padding:13px;margin-bottom:12px;color:white;">';
-  h+='<div style="font-size:10.5px;opacity:.7;">'+tpTypeIcon(tp.type)+' '+tpTypeLabel(tp.type)+' · '+tp.id+'</div>';
-  h+='<div style="font-weight:900;font-size:17px;">'+tp.name+'</div>';
-  h+='</div>';
-
-  // Date filter
-  h+='<div class="fr" style="margin-bottom:10px;">';
-  h+='<div class="fg"><label>من تاريخ</label><input type="date" id="tp-from" onchange="refreshTPLedger(\''+tpId+'\')"></div>';
-  h+='<div class="fg"><label>إلى تاريخ</label><input type="date" id="tp-to" onchange="refreshTPLedger(\''+tpId+'\')"></div>';
-  h+='</div>';
-  h+='<div style="display:flex;gap:7px;margin-bottom:10px;">';
-  h+='<button class="btn btn-sm btn-gy" onclick="exportTPLedgerCSV(\''+tpId+'\')" style="font-size:11px;">📥 تصدير CSV</button>';
-  h+='</div>';
-  h+='<div id="tp-ledger-body">'+buildTPLedgerTable(tpId,"","")+'</div>';
-  om("📒 كشف حساب — "+tp.name, h);
-}
-
-function refreshTPLedger(tpId){
-  var from=sv("tp-from")||"";
-  var to=sv("tp-to")||"";
-  var el2=document.getElementById("tp-ledger-body");
-  if(el2) el2.innerHTML=buildTPLedgerTable(tpId,from,to);
-}
-
-function buildTPLedgerTable(tpId,fromD,toD){
-  var rows=[];
-  (DB.entries||[]).forEach(function(e){
-    if(fromD&&e.date<fromD)return;
-    if(toD&&e.date>toD)return;
-    (e.lines||[]).forEach(function(l){
-      if(l.tpId!==tpId)return;
-      rows.push({date:e.date,ref:e.ref,desc:e.desc,proj:e.proj,acc:l.acc,an:l.an,dr:l.dr||0,cr:l.cr||0,entryId:e.id});
-    });
-  });
-
-  rows.sort(function(a,b){return a.date<b.date?-1:1;});
-
-  if(!rows.length) return '<div style="text-align:center;color:var(--g4);padding:20px;">لا توجد حركات'+(fromD||toD?" في هذه الفترة":"")+'</div>';
-
-  var tDr=0,tCr=0,runBal=0;
-  var h='<div style="overflow-x:auto;"><table><thead><tr>';
-  h+='<th>التاريخ</th><th>المرجع</th><th>البيان</th><th>الحساب</th><th>مدين</th><th>دائن</th><th>الرصيد</th>';
-  h+='</tr></thead><tbody>';
-  rows.forEach(function(r){
-    tDr+=r.dr;tCr+=r.cr;
-    runBal+=r.dr-r.cr;
-    var balAbs=Math.abs(runBal);
-    var balDir=runBal===0?"":runBal>0?" م":" د";
-    h+='<tr>';
-    h+='<td style="font-size:11px;white-space:nowrap;">'+r.date+'</td>';
-    h+='<td style="font-size:11px;color:var(--sk);">'+r.ref+'</td>';
-    h+='<td style="font-size:11px;">'+r.desc+'</td>';
-    h+='<td style="font-size:10.5px;"><code style="background:var(--g1);padding:1px 5px;border-radius:4px;">'+r.acc+'</code><div style="font-size:10px;color:var(--g4);">'+r.an+'</div></td>';
-    h+='<td class="tn" style="color:var(--n);font-weight:700;">'+(r.dr>0?fmt(r.dr):"-")+'</td>';
-    h+='<td class="tn" style="color:var(--gr);font-weight:700;">'+(r.cr>0?fmt(r.cr):"-")+'</td>';
-    h+='<td class="tn" style="font-weight:800;">'+fmt(balAbs)+balDir+'</td>';
-    h+='</tr>';
-  });
-  h+='</tbody><tfoot><tr style="background:var(--n);">';
-  h+='<td colspan="4" style="color:white;font-weight:900;padding:9px;">الإجمالي</td>';
-  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tDr)+'</td>';
-  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tCr)+'</td>';
-  var netAbs=Math.abs(tDr-tCr);
-  var netLbl=tDr-tCr===0?"متوازن":tDr-tCr>0?" مدين":" دائن";
-  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(netAbs)+netLbl+'</td>';
-  h+='</tr></tfoot></table></div>';
-  return h;
-}
-
-// ---- NEW / EDIT TP ----
-function newTP(){
-  initTP();
-  var h='<div class="fg"><label>اسم الطرف الثالث *</label><input id="tp-n" placeholder="اسم الشركة / الموظف / العميل"></div>';
-  h+='<div class="fg"><label>النوع</label><select id="tp-t">';
-  h+='<option value="supplier">🏭 مورد</option>';
-  h+='<option value="customer">🤝 عميل</option>';
-  h+='<option value="other">📋 أخرى</option>';
-  h+='</select></div>';
-  h+='<div class="fg"><label>ملاحظات</label><input id="tp-notes"></div>';
-  h+='<div style="display:flex;gap:8px;margin-top:8px;">';
-  h+='<button class="btn btn-gr" onclick="saveTP()" style="flex:1;">✅ إضافة</button>';
-  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
-  om("➕ طرف ثالث جديد",h);
-}
-function saveTP(){
-  var n=sv("tp-n");if(!n){alert("الاسم مطلوب");return;}
-  initTP();
-  var id="TP"+String(Date.now()).slice(-6);
-  DB.thirdParties.push({id:id,name:n,type:sv("tp-t")||"other",notes:sv("tp-notes"),active:true});
-  save();cm();sub("tpledger");toast("✅ تم إضافة الطرف الثالث");
-}
-
-// ---- Sync employees/suppliers to TP ----
-function syncTPFromHR(){
-  initTP();
-  var added=0;
-  (DB.employees||[]).forEach(function(e){
-    var id="EMP-"+e.id;
-    if(!DB.thirdParties.find(function(t){return t.id===id;})){
-      DB.thirdParties.push({id:id,name:e.name,type:"employee",ref:e.id,active:e.status==="active"});
-      added++;
-    } else {
-      // Update name and status
-      var tp=DB.thirdParties.find(function(t){return t.id===id;});
-      if(tp){tp.name=e.name;tp.active=e.status==="active";}
-    }
-  });
-  (DB.suppliers||[]).forEach(function(s){
-    var id="SUP-"+s.id;
-    if(!DB.thirdParties.find(function(t){return t.id===id;})){
-      DB.thirdParties.push({id:id,name:s.name,type:"supplier",ref:s.id,active:true});
-      added++;
-    } else {
-      var tp=DB.thirdParties.find(function(t){return t.id===id;});
-      if(tp) tp.name=s.name;
-    }
-  });
-  save();
-  return added;
-}
-
-// ---- TP REPORT: all parties with balances ----
-function rptTPBalances(){
-  initTP();
-  syncTPFromHR();
-  var parties=DB.thirdParties.filter(function(t){
-    var b=calcTPBal(t.id);
-    return b.dr>0||b.cr>0;
-  });
-  if(!parties.length){om("📊 أرصدة الأطراف الثالثة","<div style='text-align:center;color:var(--g4);padding:30px;'>لا توجد أرصدة مقيدة بأطراف ثالثة</div>");return;}
-
-  var tDr=0,tCr=0;
-  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📊 أرصدة الأطراف الثالثة</div>';
-  h+='<table><thead><tr><th>النوع</th><th>الاسم</th><th>إجمالي مدين</th><th>إجمالي دائن</th><th>الرصيد</th></tr></thead><tbody>';
-  parties.forEach(function(tp){
-    var b=calcTPBal(tp.id);
-    tDr+=b.dr;tCr+=b.cr;
-    var netAbs=Math.abs(b.net);
-    var netDir=b.net===0?"متوازن":b.net>0?"مدين":"دائن";
-    var netClr=b.net===0?"var(--g4)":b.net>0?"var(--n)":"var(--gr)";
-    h+='<tr>';
-    h+='<td><span class="badge '+tpTypeCls(tp.type)+'" style="font-size:9.5px;">'+tpTypeIcon(tp.type)+' '+tpTypeLabel(tp.type)+'</span></td>';
-    h+='<td style="font-weight:700;cursor:pointer;color:var(--n);" onclick="cm();setTimeout(function(){viewTPLedger(\''+tp.id+'\');},100);">'+tp.name+'</td>';
-    h+='<td class="tn">'+(b.dr>0?fmt(b.dr):"-")+'</td>';
-    h+='<td class="tn" style="color:var(--gr);">'+(b.cr>0?fmt(b.cr):"-")+'</td>';
-    h+='<td class="tn" style="font-weight:800;color:'+netClr+';">'+fmt(netAbs)+' '+netDir+'</td>';
-    h+='</tr>';
-  });
-  h+='</tbody><tfoot><tr style="background:var(--n);">';
-  h+='<td colspan="2" style="color:white;font-weight:900;padding:9px;">الإجمالي</td>';
-  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tDr)+'</td>';
-  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tCr)+'</td>';
-  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;"></td>';
-  h+='</tr></tfoot></table>';
-  om("📊 أرصدة الأطراف الثالثة",h);
-}
-
-
-function newEntry(){
-  syncTPFromHR();
-  var pO=DB.projects.map(function(p){return'<option value="'+p.code+'">'+p.name+'</option>';}).join("");
-  _eL=2; _eAO=''; // accounts now handled by searchable dropdown
-  var h='<div class="fr"><div class="fg"><label>التاريخ *</label><input type="date" id="e-d" value="'+new Date().toISOString().split("T")[0]+'"></div>';
-  h+='<div class="fg"><label>المرجع</label><input id="e-r" placeholder="PV-001"></div></div>';
-  h+='<div class="fg"><label>البيان *</label><input id="e-ds" placeholder="وصف العملية المالية"></div>';
-  h+='<div class="fg"><label>المشروع</label><select id="e-p" onchange="onProjChange()"><option value="">—</option>'+pO+'</select></div>';
-  // Master Data fields
-  var ccO=getMDOptions('costCenters','code','name');
-  var locO=getMDOptions('locations','code','name');
-  var actO=getMDOptions('activities','code','name');
-  var dtO=getMDOptions('docTypes','code','name');
-  var pmO=getMDOptions('paymentMethods','code','name');
-  if(ccO||locO||actO){
-    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">';
-    if(ccO)h+='<div class="fg"><label>مركز التكلفة</label><select id="e-cc"><option value="">—</option>'+ccO+'</select></div>';
-    if(locO)h+='<div class="fg"><label>الموقع / الفرع</label><select id="e-loc"><option value="">—</option>'+locO+'</select></div>';
-    if(actO)h+='<div class="fg"><label>النشاط</label><select id="e-act"><option value="">—</option>'+actO+'</select></div>';
-    if(dtO)h+='<div class="fg"><label>نوع المستند</label><select id="e-dt"><option value="">—</option>'+dtO+'</select></div>';
-    if(pmO)h+='<div class="fg"><label>طريقة الدفع</label><select id="e-pm"><option value="">—</option>'+pmO+'</select></div>';
-    h+='</div>';
-  }
-  h+='<div class="sd" style="font-size:11px;">سطور القيد — <span style="color:var(--g4);">يمكن ربط كل سطر بطرف ثالث (مورد/موظف/عميل)</span></div>';
-  h+='<div id="els">'+eLnTPwbs(0,'')+eLnTPwbs(1,'')+'</div>';
-  h+='<button class="btn btn-sm btn-gy" onclick="addEL()" style="width:100%;margin-bottom:10px;">+ سطر</button>';
-  h+='<div id="etot" style="background:var(--g1);border-radius:8px;padding:10px;font-size:12.5px;margin-bottom:12px;"></div>';
-  h+='<div style="display:flex;gap:8px;"><button class="btn" onclick="saveE()" style="flex:1;">✅ ترحيل القيد</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
-  om("قيد يومية جديد",h);
-  updET();
-}
-// eLn — see eLnTP above
-function addEL(){var d=document.createElement("div");var pCode=(el("e-p")||{}).value||"";d.innerHTML=eLnTPwbs(_eL++,pCode);el("els").appendChild(d.firstChild);updET();}
-function addELEdit(){var d=document.createElement("div");d.innerHTML=eLn(_eL++,_eAO);el("ed-ls").appendChild(d.firstChild);updETE();}
-function updETE(){var tD=0,tC=0;for(var i=0;i<_eL;i++){tD+=parseFloat(el("edr-"+i)?el("edr-"+i).value:0)||0;tC+=parseFloat(el("ecr-"+i)?el("ecr-"+i).value:0)||0;}var ok=Math.abs(tD-tC)<0.01;var e=el("ed-etot");if(e)e.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;"><span>مدين: <strong>'+fmt(tD)+'</strong> | دائن: <strong>'+fmt(tC)+'</strong></span><span style="font-weight:700;color:'+(ok?'var(--gr)':'var(--rd)')+';">'+(ok?'✅ متوازن':'⚠️ غير متوازن')+'</span></div>';}
-function updET(){
-  var tD=0,tC=0;
-  for(var i=0;i<_eL;i++){
-    tD+=parseFloat(el("edr-"+i)?el("edr-"+i).value:0)||0;
-    tC+=parseFloat(el("ecr-"+i)?el("ecr-"+i).value:0)||0;
-  }
-  var ok=Math.abs(tD-tC)<0.01;
-  var e=el("etot");
-  if(e)e.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;">'
-    +'<span>مدين: <strong>'+fmt(tD)+'</strong> | دائن: <strong>'+fmt(tC)+'</strong></span>'
-    +'<span style="font-weight:700;color:'+(ok?"var(--gr)":"var(--rd)")+';">'+(ok?"✅ متوازن":"⚠️ غير متوازن")+'</span></div>';
-}
-function saveE(){
-  if(!requirePerm("canEditEntries","المحاسب لا يمكنه إدخال قيود"))return;
-  var dt=sv("e-d")||new Date().toISOString().split("T")[0];
-  if(!checkPeriodLock(dt))return;
-  var lines=collectTP("e",_eL);
-  if(lines.length<2){alert("يجب إدخال سطرين على الأقل");return;}
-  var tD=lines.reduce(function(s,l){return s+l.dr;},0);
-  var tC=lines.reduce(function(s,l){return s+l.cr;},0);
-  if(Math.abs(tD-tC)>0.01){
-    alert("⚠️ القيد غير متوازن! الفرق: "+fmt(Math.abs(tD-tC))+" ج.م");
-    return;
-  }
-  var id="J"+new Date().getFullYear()+"-"+(DB.entries.length+1).toString().padStart(3,"0");
-  DB.entries.push({id:id,date:sv("e-d"),ref:sv("e-r")||"REF",desc:sv("e-ds")||"قيد محاسبي",proj:sv("e-p"),costCenter:sv("e-cc"),location:sv("e-loc"),activity:sv("e-act"),docType:sv("e-dt"),payMethod:sv("e-pm"),lines:lines,status:"posted"});
-  save();cm();rJour();rDash();toast("✅ تم حفظ القيد");
-}
-function viewE(id){
-  var e=DB.entries.find(function(x){return x.id===id;});
-  if(!e)return;
-  var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
-  var tC=(e.lines||[]).reduce(function(s,l){return s+(l.cr||0);},0);
-  var ok=Math.abs(tD-tC)<0.01;
-  var h='<div style="font-size:12px;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
-  h+='<div><span style="color:var(--g4);">التاريخ</span><div style="font-weight:700;">'+e.date+'</div></div>';
-  h+='<div><span style="color:var(--g4);">المرجع</span><div style="font-weight:700;">'+e.ref+'</div></div></div>';
-  h+='<div style="background:var(--skp);border-radius:8px;padding:10px;margin-bottom:12px;font-size:13px;border-right:3px solid var(--sk);"><strong>البيان:</strong> '+e.desc+'</div>';
-  h+='<table><thead><tr><th>الحساب</th><th>الطرف الثالث</th><th>مدين</th><th>دائن</th></tr></thead><tbody>';
-  (e.lines||[]).forEach(function(l){
-    var tp3v=l.tpId?(DB.thirdParties||[]).find(function(t){return t.id===l.tpId;}):null;
-    h+='<tr>';
-    h+='<td><code style="font-size:10.5px;">'+l.acc+'</code><div style="font-size:11px;">'+l.an+'</div></td>';
-    h+='<td>'+(tp3v?'<span class="badge '+tpTypeCls(tp3v.type)+'" style="font-size:9px;display:block;margin-bottom:2px;">'+tpTypeIcon(tp3v.type)+' '+tpTypeLabel(tp3v.type)+'</span><span style="font-size:11px;font-weight:700;cursor:pointer;color:var(--n);" onclick="cm();setTimeout(function(){viewTPLedger(\''+l.tpId+'\');},100);">'+tp3v.name+'</span>':'<span style="color:var(--g4);font-size:10px;">—</span>')+'</td>';
-    h+='<td class="td tn">'+((l.dr||0)>0?fmt(l.dr):'-')+'</td>';
-    h+='<td class="tc tn">'+((l.cr||0)>0?fmt(l.cr):'-')+'</td></tr>';
-  });
-  h+='</tbody><tfoot><tr style="background:var(--n);"><td colspan="2" style="color:white;font-weight:900;padding:9px;">الإجمالي</td>';
-  h+='<td style="color:white;font-weight:800;padding:9px;text-align:left;">'+fmt(tD)+'</td>';
-  h+='<td style="color:white;font-weight:800;padding:9px;text-align:left;">'+fmt(tC)+'</td></tr></tfoot></table>';
-  h+='<div style="margin-top:10px;padding:9px;border-radius:8px;background:'+(ok?'var(--gbg)':'var(--rbg)')+';color:'+(ok?'#065f46':'#991b1b')+';font-weight:700;">'+(ok?'✅ متوازن':'⚠️ غير متوازن')+'</div>';
-  h+='<div style="display:flex;gap:7px;margin-top:12px;" id="ve-btns">';
-  h+='</div>';
-  om('قيد — '+e.id,h);
-  // Add buttons after modal opens - avoids quote issues
-  var btns=document.getElementById('ve-btns');
-  if(btns){
-    if(can('canEditEntries')){
-      var b1=document.createElement('button');
-      b1.className='btn btn-sky btn-sm';b1.style.flex='1';b1.textContent='✏️ تعديل';
-      b1.onclick=function(){editEntry(id);};
-      btns.appendChild(b1);
-    }
-    if(can('canDeleteEntries')){
-      var b2=document.createElement('button');
-      b2.className='btn btn-rd btn-sm';b2.style.flex='1';b2.textContent='🗑️ حذف';
-      b2.onclick=function(){delEntry(id);};
-      btns.appendChild(b2);
-    }
-    var b3=document.createElement('button');
-    b3.className='btn btn-gy btn-sm';b3.style.flex='1';b3.textContent='إغلاق';
-    b3.onclick=function(){cm();};
-    btns.appendChild(b3);
-  }
-}
-
-function delEntry(id){
-  if(!requirePerm("canDeleteEntries","ليس لديك صلاحية حذف القيود"))return;
-  if(!confirm('تأكيد حذف القيد '+id+'؟'))return;
-  DB.entries=DB.entries.filter(function(e){return e.id!==id;});
-  save();cm();rJour();rDash();toast('🗑️ تم حذف القيد');
-}
-
-function editEntry(id){
-  var e=DB.entries.find(function(x){return x.id===id;});
-  if(!e)return;
-  var aO=DB.accounts.map(function(a){return'<option value="'+a.c+'"'+(a.c===e.lines[0]?'':'')+'>'+a.c+' — '+a.n+'</option>';}).join('');
-  var pO=DB.projects.map(function(p){return'<option value="'+p.code+'"'+(p.code===e.proj?' selected':'')+'>'+p.name+'</option>';}).join('');
-  _eL=e.lines.length; _eAO=aO;
-  var h='<div class="fr"><div class="fg"><label>التاريخ *</label><input type="date" id="ed-d" value="'+e.date+'"></div>';
-  h+='<div class="fg"><label>المرجع</label><input id="ed-r" value="'+e.ref+'"></div></div>';
-  h+='<div class="fg"><label>البيان *</label><input id="ed-ds" value="'+e.desc+'"></div>';
-  h+='<div class="fg"><label>المشروع</label><select id="ed-p"><option value="">—</option>'+pO+'</select></div>';
-  h+='<div class="sd">سطور القيد</div>';
-  h+='<div id="ed-ls">';
-  e.lines.forEach(function(l,i){
-    // Build TP options
-    var tpOe=buildTPOptions(l.tpId||"");
-    h+='<div class="tp-line" id="el-'+i+'" style="background:var(--g1);border-radius:9px;padding:8px;margin-bottom:7px;">';
-    var aN=(DB.accounts.find(function(a){return a.c===l.acc;})||{}).n||'';
-    var dispVal=l.acc?(l.acc+' — '+aN):'';
-    h+='<div style="position:relative;margin-bottom:5px;">';
-    h+='<input id="eaSearch-'+i+'" value="'+dispVal+'" placeholder="🔍 ابحث عن حساب..." style="width:100%;padding:8px 12px;border:1.5px solid var(--g2);border-radius:8px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterAccSel('+i+')" onfocus="showAccDrop('+i+')" onblur="setTimeout(function(){hideAccDrop('+i+')},200)">';
-    h+='<div id="eaDrop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--n);border-radius:8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.15);">';
-    h+=buildAccDropHtml(i,'');
-    h+='</div>';
-    h+='<input type="hidden" id="ea-'+i+'" value="'+l.acc+'">';
-    h+='</div>';
-    h+='<div class="fr" style="margin-bottom:5px;">';
-    h+='<input type="number" id="edr-'+i+'" value="'+(l.dr||'')+'" placeholder="مدين" oninput="updETE()">';
-    h+='<input type="number" id="ecr-'+i+'" value="'+(l.cr||'')+'" placeholder="دائن" oninput="updETE()">';
-    h+='</div>';
-    h+='<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpOe+'</select>';
-    h+='</div>';
-  });
-  h+='</div>';
-  h+='<button class="btn btn-sm btn-gy" onclick="addELEdit()" style="width:100%;margin-bottom:10px;">+ سطر</button>';
-  h+='<div id="ed-etot" style="background:var(--g1);border-radius:8px;padding:10px;font-size:12.5px;margin-bottom:12px;"></div>';
-  h+='<div style="display:flex;gap:8px;">';
-  h+='<button class="btn" id="save-edit-btn" style="flex:1;">💾 حفظ التعديل</button>';
-  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
-  om('✏️ تعديل قيد — '+id,h);
-  updET();
-  var saveBtn=document.getElementById('save-edit-btn');
-  if(saveBtn)saveBtn.onclick=function(){saveEditEntry(id);};
-}
-
-function saveEditEntry(id){
-  var lines=collectTP("ed",_eL);
-  if(lines.length<2){alert('يجب إدخال سطرين على الأقل');return;}
-  var tD=lines.reduce(function(s,l){return s+l.dr;},0);
-  var tC=lines.reduce(function(s,l){return s+l.cr;},0);
-  if(Math.abs(tD-tC)>0.01){alert('⚠️ القيد غير متوازن! الفرق: '+fmt(Math.abs(tD-tC))+' ج.م');return;}
-  var idx=DB.entries.findIndex(function(e){return e.id===id;});
-  if(idx<0)return;
-  DB.entries[idx].date=sv('ed-d');
-  DB.entries[idx].ref=sv('ed-r')||'REF';
-  DB.entries[idx].desc=sv('ed-ds')||'قيد محاسبي';
-  DB.entries[idx].proj=sv('ed-p');
-  DB.entries[idx].lines=lines;
-  save();cm();rJour();rDash();toast('✅ تم تعديل القيد');
-}
-
-// PROJECT MODAL
-function newProj(){
-  var thO=getMDOptions('thematics','code','nameAr');
-  var actO2=getMDOptions('activities','code','name');
-  var locO2=getMDOptions('locations','code','name');
-  var h='<div class="fr"><div class="fg"><label>كود المشروع *</label><input id="pp-c" placeholder="P003"></div>';
-  h+='<div class="fg"><label>اسم المشروع *</label><input id="pp-n"></div></div>';
-  h+='<div class="fg"><label>المانح</label><input id="pp-d" placeholder="USAID / EU ..."></div>';
-  if(thO) h+='<div class="fg"><label>المحور الموضوعي</label><select id="pp-th"><option value="">—</option>'+thO+'</select></div>';
-  if(actO2) h+='<div class="fg"><label>النشاط الرئيسي</label><select id="pp-act"><option value="">—</option>'+actO2+'</select></div>';
-  if(locO2) h+='<div class="fg"><label>الموقع / المحافظة</label><select id="pp-loc"><option value="">—</option>'+locO2+'</select></div>';
-  h+='<div class="fg"><label>الموازنة الإجمالية (ج.م)</label><input type="number" id="pp-b"></div>';
-  h+='<div class="fr"><div class="fg"><label>تاريخ البداية</label><input type="date" id="pp-s"></div>';
-  h+='<div class="fg"><label>تاريخ النهاية</label><input type="date" id="pp-e"></div></div>';
-  h+='<div style="display:flex;gap:8px;margin-top:4px;"><button class="btn" onclick="saveP()" style="flex:1;">✅ إضافة</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
-  om("مشروع جديد",h);
-}
-function saveP(){
-  var c=sv("pp-c"),n=sv("pp-n");
-  if(!c||!n){alert("الكود والاسم مطلوبان");return;}
-  DB.projects.push({code:c,name:n,donor:sv("pp-d"),thematic:sv("pp-th"),activity:sv("pp-act"),location:sv("pp-loc"),budget:fv("pp-b"),spent:0,status:"active",start:sv("pp-s"),end:sv("pp-e")});
-  save();cm();rProj();rDash();toast("✅ تم إضافة المشروع");
-}
-
-// SALARY MODAL
-function editSal(i){
-  if(!requirePerm("canEditSalaries","ليس لديك صلاحية تعديل المرتبات"))return;
-  var e=DB.employees[i];
-  if(!e)return;
-  var h='<div class="sd">مكونات الراتب</div>';
-  h+='<div class="fr">';
-  h+='<div class="fg"><label>الأجر الأساسي *</label><input type="number" id="ss" value="'+(e.sal||0)+'" oninput="prvS('+i+')"></div>';
-  h+='<div class="fg"><label>العلاوات</label><input type="number" id="sa" value="'+(e.allow||0)+'" oninput="prvS('+i+')"></div>';
-  h+='<div class="fg"><label>بدل طبيعة عمل</label><input type="number" id="snw" value="'+(e.natWork||0)+'" oninput="prvS('+i+')"></div>';
-  h+='<div class="fg"><label>بدل انتقال</label><input type="number" id="str" value="'+(e.transport||0)+'" oninput="prvS('+i+')"></div>';
-  h+='<div class="fg"><label>ساعات إضافية</label><input type="number" id="sot" value="'+(e.overtime||0)+'" oninput="prvS('+i+')"></div>';
-  h+='<div class="fg"><label>خصومات</label><input type="number" id="sdd" value="'+(e.deduct||0)+'" oninput="prvS('+i+')"></div>';
-  h+="</div>";
-  h+='<div class="fg"><label>نوع التأمين</label>';
-  h+='<select id="sins" onchange="prvS('+i+')">';
-  h+='<option value="full" '+(e.ins==="full"?"selected":"")+'>تأمين كامل (11% موظف + 18.75% جمعية)</option>';
-  h+='<option value="partial" '+(e.ins==="partial"?"selected":"")+'>تأمين جزئي (11% موظف فقط)</option>';
-  h+='<option value="none" '+(e.ins==="none"?"selected":"")+'>بدون تأمين</option>';
-  h+="</select></div>";
-  h+='<div id="sprev" style="background:var(--g1);border-radius:10px;padding:12px;margin:10px 0;"></div>';
-  h+='<div style="display:flex;gap:8px;"><button class="btn" onclick="saveSal('+i+')" style="flex:1;">💾 حفظ</button><button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
-  om("✏️ تعديل مرتب — "+e.name,h);
-  prvS(i);
-}
-function prvS(i){
-  var tmp={sal:fv("ss"),allow:fv("sa"),natWork:fv("snw"),transport:fv("str"),overtime:fv("sot"),deduct:fv("sdd"),ins:sv("sins")||"full"};
-  var r=calc(tmp);
-  var e=el("sprev");
-  if(!e)return;
-  var h='<div style="font-weight:800;font-size:12px;color:var(--n);margin-bottom:8px;">معاينة الحساب:</div>';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">';
-  h+='<div style="background:white;border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">الإجمالي</div><div style="font-weight:800;">'+fmt(r.gross)+' ج.م</div></div>';
-  h+='<div style="background:var(--rbg);border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">تأمين موظف 11%</div><div style="font-weight:800;color:var(--rd);">'+fmt(r.empI)+' ج.م</div></div>';
-  h+='<div style="background:var(--abg);border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">ضريبة الدخل</div><div style="font-weight:800;color:var(--am);">'+fmt(r.tax)+' ج.م</div></div>';
-  h+='<div style="background:var(--gbg);border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">صافي المرتب</div><div style="font-weight:900;color:var(--gr);font-size:15px;">'+fmt(r.net)+' ج.م</div></div>';
-  h+='<div style="background:var(--skp);border-radius:7px;padding:8px;grid-column:1/-1;display:flex;justify-content:space-between;">';
-  h+='<span style="color:var(--g5);font-size:10.5px;">تكلفة الجمعية (18.75% إضافي)</span>';
-  h+='<span style="font-weight:900;color:var(--n);">'+fmt(r.cost)+' ج.م</span></div></div>';
-  e.innerHTML=h;
-}
-function saveSal(i){
-  if(!requirePerm("canEditSalaries","ليس لديك صلاحية تعديل المرتبات"))return;
-  var e=DB.employees[i];if(!e)return;
-  e.sal=fv("ss");e.allow=fv("sa");e.natWork=fv("snw");e.transport=fv("str");e.overtime=fv("sot");e.deduct=fv("sdd");
-  e.ins=sv("sins")||"full";
-  save();cm();rPay();toast("✅ تم تحديث المرتب");
-}
-function genPay(){
-  var rows=DB.employees.filter(function(e){return e.status==="active";});
-  var tG=0,tEI=0,tEmI=0,tT=0,tM=0;
-  rows.forEach(function(e){var r=calc(e);tG+=r.gross;tEI+=r.empI;tEmI+=r.emplI;tT+=r.tax;tM+=r.mar;});
-  var tN=tG-tEI-tT-tM;
+// ============================================================
+// PAYROLL PREPARATION MODAL
+// ============================================================
+function openGenPayModal(filterEmpId){
+  initPayroll();
+  var active=DB.employees.filter(function(e){return e.status==="active";});
   var now=new Date();
-  var mo=(now.getMonth()+1).toString().padStart(2,"0");
-  var id="PAY-"+now.getFullYear()+"-"+mo;
-  DB.entries.push({
-    id:id,date:now.toISOString().split("T")[0],ref:id,
-    desc:"مسير مرتبات "+MONTHS[now.getMonth()]+" "+now.getFullYear(),
-    proj:DB.projects.length?DB.projects[0].code:"",
-    lines:[
-      {acc:"5101",an:"رواتب وأجور",dr:tG,cr:0},
-      {acc:"2103",an:"ضرائب دخل محجوزة",dr:0,cr:tT},
-      {acc:"5103",an:"تأمينات صاحب العمل",dr:tEmI,cr:0},
-      {acc:"2104",an:"تأمينات موظفين محجوزة",dr:0,cr:tEI},
-      {acc:"110102",an:"بنك مصر — صافي المرتبات",dr:0,cr:tN}
-    ],
-    status:"posted"
+  var defDate=now.toISOString().split("T")[0];
+  var defMonth=(now.getMonth()+1).toString().padStart(2,"0");
+  var defYear=now.getFullYear();
+
+  // Check if payroll already run this month
+  var thisMonthKey=defYear+"-"+defMonth;
+  var alreadyRun=(DB.payrollHistory||[]).some(function(p){return p.monthKey===thisMonthKey&&p.scope==="all";});
+
+  // Bank account options
+  var bankO='<option value="1112">1112 — ح/ البنك الجاري</option>';
+  getBankAccounts().forEach(function(a){
+    if(a.c!=="1112")bankO+='<option value="'+a.c+'">'+a.c+' — '+a.n+'</option>';
   });
-  save();rPay();rDash();toast("✅ تم إنشاء قيد المرتبات");
+
+  // Project options
+  var projO='<option value="">— بدون مشروع —</option>';
+  DB.projects.forEach(function(p){projO+='<option value="'+p.code+'">'+p.name+'</option>';});
+
+  var h='';
+  if(alreadyRun&&!filterEmpId){
+    h+='<div style="background:var(--abg);border:1.5px solid var(--am);border-radius:9px;padding:10px;margin-bottom:12px;font-size:12px;color:#92400e;">⚠️ تم إعداد مسير المرتبات الكامل لشهر '+MONTHS[now.getMonth()]+' '+defYear+' بالفعل. يمكنك إعداد مرتب موظف محدد فقط.</div>';
+  }
+
+  h+='<div class="sd">نوع المسير</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px;">';
+  var scope=filterEmpId?"single":"all";
+  h+='<div id="pay-scope-all" onclick="setPayScope(\'all\')" style="background:'+(scope==="all"?'var(--n)':'var(--g1)')+';color:'+(scope==="all"?'white':'var(--n)')+';border-radius:9px;padding:10px;text-align:center;cursor:pointer;font-size:12px;font-weight:700;">👥 كل الموظفين</div>';
+  h+='<div id="pay-scope-dept" onclick="setPayScope(\'dept\')" style="background:'+(scope==="dept"?'var(--n)':'var(--g1)')+';color:'+(scope==="dept"?'white':'var(--n)')+';border-radius:9px;padding:10px;text-align:center;cursor:pointer;font-size:12px;font-weight:700;">🏢 قسم محدد</div>';
+  h+='<div id="pay-scope-single" onclick="setPayScope(\'single\')" style="background:'+(scope==="single"?'var(--n)':'var(--g1)')+';color:'+(scope==="single"?'white':'var(--n)')+';border-radius:9px;padding:10px;text-align:center;cursor:pointer;font-size:12px;font-weight:700;">👤 موظف واحد</div>';
+  h+='</div>';
+
+  // Dept filter (hidden by default)
+  var depts=[...new Set(active.map(function(e){return e.dept||"غير محدد";}))];
+  var deptO=depts.map(function(d){return'<option value="'+d+'">'+d+'</option>';}).join("");
+  h+='<div id="pay-dept-row" style="display:none;" class="fg"><label>القسم</label><select id="pay-dept-sel">'+deptO+'</select></div>';
+
+  // Single emp (shown if filterEmpId)
+  var empO=active.map(function(e){return'<option value="'+e.id+'"'+(e.id===filterEmpId?" selected":"")+'>'+e.id+' — '+e.name+'</option>';}).join("");
+  h+='<div id="pay-single-row" style="display:'+(filterEmpId?"block":"none")+';" class="fg"><label>الموظف</label><select id="pay-emp-sel">'+empO+'</select></div>';
+
+  h+='<div class="sd">بيانات المسير</div>';
+  h+='<div class="fr"><div class="fg"><label>شهر المسير</label>';
+  h+='<select id="pay-month">';
+  MONTHS.forEach(function(m,i){
+    var mo=(i+1).toString().padStart(2,"0");
+    h+='<option value="'+mo+'"'+(mo===defMonth?" selected":"")+'>'+m+'</option>';
+  });
+  h+='</select></div>';
+  h+='<div class="fg"><label>السنة</label><input type="number" id="pay-year" value="'+defYear+'" min="2020" max="2030"></div></div>';
+
+  h+='<div class="fg"><label>تاريخ الدفع</label><input type="date" id="pay-date" value="'+defDate+'"></div>';
+  h+='<div class="fg"><label>البنك / حساب الصرف</label><select id="pay-bank">'+bankO+'</select></div>';
+  h+='<div class="fg"><label>المشروع (اختياري)</label><select id="pay-proj">'+projO+'</select></div>';
+  h+='<div class="fg"><label>WBS / النشاط (اختياري)</label><input id="pay-wbs" placeholder="1.1 أو 1.1.1"></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="pay-notes" placeholder="مرتبات شهر ..."></div>';
+
+  // Preview area
+  h+='<div class="sd">معاينة المرتبات</div>';
+  h+='<div id="pay-preview">'+buildPayPreview("all",null,"")+'</div>';
+
+  h+='<div style="display:flex;gap:8px;margin-top:12px;">';
+  h+='<button class="btn btn-gr" onclick="generatePayroll()" style="flex:1;">✅ إنشاء قيد المرتبات</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+
+  om("💳 إعداد مسير المرتبات",h);
+  // Set initial scope
+  if(filterEmpId) setPayScope("single");
 }
+
+var _payScope="all";
+function setPayScope(scope){
+  _payScope=scope;
+  ["all","dept","single"].forEach(function(s){
+    var el2=document.getElementById("pay-scope-"+s);
+    if(el2){
+      el2.style.background=s===scope?"var(--n)":"var(--g1)";
+      el2.style.color=s===scope?"white":"var(--n)";
+    }
+  });
+  var deptRow=document.getElementById("pay-dept-row");
+  var singleRow=document.getElementById("pay-single-row");
+  if(deptRow)deptRow.style.display=scope==="dept"?"block":"none";
+  if(singleRow)singleRow.style.display=scope==="single"?"block":"none";
+  refreshPayPreview();
+}
+
+function refreshPayPreview(){
+  var dept=scope==="dept"?(sv("pay-dept-sel")||""):"";
+  var empId=_payScope==="single"?(sv("pay-emp-sel")||""):"";
+  var el2=document.getElementById("pay-preview");
+  if(el2)el2.innerHTML=buildPayPreview(_payScope,empId,dept);
+}
+
+function buildPayPreview(scope,empId,dept){
+  var emps=getPayrollEmps(scope,empId,dept);
+  if(!emps.length) return '<div style="text-align:center;color:var(--g4);padding:12px;">لا يوجد موظفون</div>';
+
+  var tot={gross:0,empI:0,emplI:0,tax:0,mar:0,net:0,cost:0};
+  emps.forEach(function(e){var r=calc(e);Object.keys(tot).forEach(function(k){tot[k]+=r[k];});});
+
+  var h='<div style="overflow-x:auto;"><table style="font-size:11px;"><thead><tr>';
+  h+='<th>الموظف</th><th>الإجمالي</th><th>تأمين 11%</th><th>ضريبة</th><th>خصومات</th><th style="color:var(--gr);">الصافي</th>';
+  h+='</tr></thead><tbody>';
+  emps.forEach(function(e){
+    var r=calc(e);
+    h+='<tr>';
+    h+='<td><div style="font-weight:700;">'+e.name+'</div><div style="font-size:10px;color:var(--g4);">'+e.pos+'</div></td>';
+    h+='<td class="tn">'+fmt(r.gross)+'</td>';
+    h+='<td class="tn" style="color:var(--rd);">'+fmt(r.empI)+'</td>';
+    h+='<td class="tn" style="color:var(--am);">'+fmt(r.tax)+'</td>';
+    h+='<td class="tn">'+(e.deduct>0?fmt(e.deduct):"—")+'</td>';
+    h+='<td class="tn" style="font-weight:800;color:var(--gr);">'+fmt(r.net)+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody><tfoot><tr style="background:var(--g1);font-weight:900;">';
+  h+='<td style="font-weight:900;padding:8px;">الإجمالي ('+emps.length+' موظف)</td>';
+  h+='<td class="tn" style="padding:8px;font-weight:900;">'+fmt(tot.gross)+'</td>';
+  h+='<td class="tn" style="color:var(--rd);padding:8px;font-weight:900;">'+fmt(tot.empI)+'</td>';
+  h+='<td class="tn" style="color:var(--am);padding:8px;font-weight:900;">'+fmt(tot.tax)+'</td>';
+  h+='<td class="tn" style="padding:8px;">'+fmt(tot.mar)+'</td>';
+  h+='<td class="tn" style="color:var(--gr);padding:8px;font-weight:900;font-size:13px;">'+fmt(tot.net)+'</td>';
+  h+='</tr></tfoot></table></div>';
+  h+='<div style="background:var(--skp);border-radius:8px;padding:8px 12px;margin-top:8px;display:flex;justify-content:space-between;">';
+  h+='<span style="font-size:12px;font-weight:700;color:var(--n);">تكلفة الجمعية الكاملة</span>';
+  h+='<span style="font-weight:900;color:var(--n);font-size:14px;">'+fmt(tot.cost)+' ج.م</span></div>';
+  return h;
+}
+
+function getPayrollEmps(scope,empId,dept){
+  var active=DB.employees.filter(function(e){return e.status==="active";});
+  if(scope==="single"&&empId) return active.filter(function(e){return e.id===empId;});
+  if(scope==="dept"&&dept) return active.filter(function(e){return (e.dept||"غير محدد")===dept;});
+  return active;
+}
+
+// ============================================================
+// GENERATE PAYROLL ENTRY
+// ============================================================
+function generatePayroll(){
+  if(!requirePerm("canEditEntries","ليس لديك صلاحية إنشاء قيود")) return;
+
+  var scope=_payScope||"all";
+  var empId=scope==="single"?(sv("pay-emp-sel")||""):"";
+  var dept=scope==="dept"?(sv("pay-dept-sel")||""):"";
+  var emps=getPayrollEmps(scope,empId,dept);
+
+  if(!emps.length){toast("⚠️ لا يوجد موظفون للإعداد");return;}
+
+  var month=sv("pay-month")||"01";
+  var year=sv("pay-year")||new Date().getFullYear().toString();
+  var payDate=sv("pay-date")||new Date().toISOString().split("T")[0];
+  var bankAcc=sv("pay-bank")||"1112";
+  var projCode=sv("pay-proj")||"";
+  var wbsCode=sv("pay-wbs")||"";
+  var notes=sv("pay-notes")||"";
+  var monthName=MONTHS[parseInt(month)-1]||month;
+
+  // Check period lock
+  if(!checkPeriodLock(payDate)) return;
+
+  var monthKey=year+"-"+month;
+
+  // Check duplicate for "all" scope
+  if(scope==="all"){
+    var dup=(DB.payrollHistory||[]).find(function(p){return p.monthKey===monthKey&&p.scope==="all";});
+    if(dup&&!confirm("تم إعداد مسير المرتبات لشهر "+monthName+" "+year+" بالفعل. هل تريد إعداده مرة أخرى؟"))return;
+  }
+
+  // Calculate totals
+  var tot={gross:0,empI:0,emplI:0,tax:0,mar:0,net:0,cost:0};
+  emps.forEach(function(e){var r=calc(e);Object.keys(tot).forEach(function(k){tot[k]+=r[k];});});
+
+  // Build journal entry
+  var entryId="PAY-"+monthKey+(scope==="single"?"-"+empId:scope==="dept"?"-"+dept.substring(0,4):"");
+  // Prevent duplicate ID
+  if((DB.entries||[]).find(function(e){return e.id===entryId;})){
+    entryId=entryId+"-"+Date.now().toString().slice(-4);
+  }
+
+  var entryDesc=(scope==="all"?"مسير مرتبات ":scope==="dept"?"مرتبات قسم "+dept+" — ":"مرتب "+(emps[0].name)+" — ")+monthName+" "+year+(notes?" — "+notes:"");
+
+  var bankAccObj=DB.accounts.find(function(a){return a.c===bankAcc;})||{n:"البنك"};
+
+  // Build lines - detailed per employee for single, summary for group
+  var lines=[];
+
+  if(scope==="single"&&emps.length===1){
+    // Detailed single employee
+    var e=emps[0];var r=calc(e);
+    lines.push({acc:"5211",an:"رواتب وأجور العاملين",dr:r.gross,cr:0,tpId:"EMP-"+e.id,tpName:e.name,wbsCode:wbsCode});
+    if(r.emplI>0) lines.push({acc:"5213",an:"اشتراكات التأمينات الاجتماعية (حصة صاحب العمل)",dr:r.emplI,cr:0,tpId:"EMP-"+e.id,tpName:e.name,wbsCode:wbsCode});
+    if(r.empI>0)  lines.push({acc:"2113",an:"مستحقات تأمينات اجتماعية",dr:0,cr:r.empI});
+    if(r.tax>0)   lines.push({acc:"2114",an:"ضرائب مستحقة (خصم وتحصيل)",dr:0,cr:r.tax});
+    lines.push({acc:bankAcc,an:bankAccObj.n,dr:0,cr:r.net,tpId:"EMP-"+e.id,tpName:e.name});
+  } else {
+    // Summary grouped entry + per-employee detail in lines
+    emps.forEach(function(e){
+      var r=calc(e);
+      lines.push({acc:"5211",an:"رواتب وأجور — "+e.name,dr:r.gross,cr:0,tpId:"EMP-"+e.id,tpName:e.name,wbsCode:wbsCode});
+      if(r.emplI>0) lines.push({acc:"5213",an:"تأمين صاحب العمل — "+e.name,dr:r.emplI,cr:0,tpId:"EMP-"+e.id,tpName:e.name,wbsCode:wbsCode});
+    });
+    // Consolidated credit lines
+    if(tot.empI>0)  lines.push({acc:"2113",an:"مستحقات تأمينات اجتماعية (محجوزة من الموظفين)",dr:0,cr:tot.empI});
+    if(tot.tax>0)   lines.push({acc:"2114",an:"ضرائب دخل محجوزة من الموظفين",dr:0,cr:tot.tax});
+    if(tot.mar>0)   lines.push({acc:"2114",an:"صندوق الشهداء والمصابين",dr:0,cr:tot.mar});
+    lines.push({acc:bankAcc,an:"صافي المرتبات المدفوعة — "+monthName+" "+year,dr:0,cr:tot.net});
+  }
+
+  var entry={
+    id:entryId,date:payDate,ref:entryId,
+    desc:entryDesc,proj:projCode,
+    costCenter:scope==="dept"?"CC03":"CC02",
+    docType:"PV",payMethod:"BANK",
+    wbsCode:wbsCode,lines:lines,status:"posted"
+  };
+
+  if(!DB.entries)DB.entries=[];
+  DB.entries.push(entry);
+
+  // Save to payroll history
+  if(!DB.payrollHistory)DB.payrollHistory=[];
+  DB.payrollHistory.push({
+    id:entryId,date:payDate,monthKey:monthKey,monthName:monthName+" "+year,
+    scope:scope,dept:dept,empId:empId,empCount:emps.length,
+    gross:tot.gross,net:tot.net,cost:tot.cost,
+    entryId:entryId,
+    preparedBy:(getCurrentUser()||{}).name||"النظام"
+  });
+
+  save();cm();rPay();rDash();
+  toast("✅ تم إنشاء قيد مرتبات "+monthName+" "+year+" ("+emps.length+" موظف — صافي: "+fmt(tot.net)+")");
+}
+
+// ============================================================
+// PAYROLL HISTORY PAGE
+// ============================================================
+function viewPayHistory(){
+  initPayroll();
+  var hist=(DB.payrollHistory||[]).slice().sort(function(a,b){return b.date>a.date?1:-1;});
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📋 سجل مسير المرتبات</div>';
+  if(!hist.length){om("📋 سجل المرتبات","<div style='text-align:center;color:var(--g4);padding:30px;'>لا يوجد سجل مرتبات بعد</div>");return;}
+
+  h+='<div style="overflow-x:auto;"><table><thead><tr>';
+  h+='<th>الشهر</th><th>تاريخ الدفع</th><th>النطاق</th><th>عدد الموظفين</th><th>الإجمالي</th><th>الصافي</th><th>التكلفة</th><th>المُعد</th><th></th>';
+  h+='</tr></thead><tbody>';
+  hist.forEach(function(p){
+    var scopeLbl={all:"كل الموظفين",dept:"قسم: "+p.dept,single:"موظف: "+p.empId}[p.scope]||p.scope;
+    h+='<tr>';
+    h+='<td style="font-weight:700;white-space:nowrap;">'+p.monthName+'</td>';
+    h+='<td style="font-size:11px;white-space:nowrap;">'+p.date+'</td>';
+    h+='<td><span class="badge '+(p.scope==="all"?"bg":p.scope==="dept"?"bb":"bgy")+'" style="font-size:9.5px;">'+scopeLbl+'</span></td>';
+    h+='<td class="tn">'+p.empCount+'</td>';
+    h+='<td class="tn" style="font-weight:700;">'+fmt(p.gross)+'</td>';
+    h+='<td class="tn" style="font-weight:800;color:var(--gr);">'+fmt(p.net)+'</td>';
+    h+='<td class="tn" style="color:var(--sk);">'+fmt(p.cost)+'</td>';
+    h+='<td style="font-size:10.5px;color:var(--g4);">'+(p.preparedBy||"—")+'</td>';
+    h+='<td><button class="btn btn-sm btn-sky" onclick="viewPayEntry(\''+p.entryId+'\')" style="font-size:9.5px;">📋</button></td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="exportPayHistory()" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  om("📋 سجل مسير المرتبات",h);
+}
+
+function viewPayEntry(entryId){
+  var e=(DB.entries||[]).find(function(x){return x.id===entryId;});
+  if(!e){toast("القيد غير موجود");return;}
+  viewE(entryId);
+}
+
+function exportPayHistory(){
+  var hist=DB.payrollHistory||[];
+  var rows=[["الشهر","تاريخ الدفع","النطاق","عدد الموظفين","الإجمالي","الصافي","تكلفة الجمعية","المُعد"]];
+  hist.forEach(function(p){
+    rows.push([p.monthName,p.date,p.scope,p.empCount,p.gross,p.net,p.cost,p.preparedBy||""]);
+  });
+  dlCSV(rows,"payroll-history-"+new Date().toISOString().split("T")[0]+".csv");
+  toast("✅ تم التصدير");
+}
+
+// ============================================================
+// PAYROLL REPORT
+// ============================================================
+function rptPayrollReport(){
+  initPayroll();
+  var active=DB.employees.filter(function(e){return e.status==="active";});
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">💳 تقرير الرواتب التفصيلي</div>';
+
+  var csvRows=[["كود الموظف","الاسم","المسمى","القسم","الأجر الأساسي","العلاوات","طبيعة عمل","انتقال","إضافي","الإجمالي","تأمين موظف 11%","تأمين جمعية 18.75%","ضريبة","صندوق شهداء","خصومات","الصافي","تكلفة الجمعية"]];
+  h+='<div style="overflow-x:auto;"><table><thead><tr>';
+  h+='<th>الموظف</th><th>القسم</th><th>الأساسي</th><th>الإجمالي</th><th>تأمين 11%</th><th>تأمين ج. 18.75%</th><th>ضريبة</th><th>صافي</th><th>تكلفة</th>';
+  h+='</tr></thead><tbody>';
+  var tot={sal:0,gross:0,empI:0,emplI:0,tax:0,mar:0,ded:0,net:0,cost:0};
+  active.forEach(function(e){
+    var r=calc(e);
+    tot.sal+=e.sal||0;tot.gross+=r.gross;tot.empI+=r.empI;tot.emplI+=r.emplI;
+    tot.tax+=r.tax;tot.mar+=r.mar;tot.ded+=e.deduct||0;tot.net+=r.net;tot.cost+=r.cost;
+    csvRows.push([e.id,e.name,e.pos,e.dept||"",e.sal||0,e.allow||0,e.natWork||0,e.transport||0,e.overtime||0,r.gross,r.empI,r.emplI,r.tax,r.mar,e.deduct||0,r.net,r.cost]);
+    h+='<tr>';
+    h+='<td><div style="font-weight:700;font-size:12px;">'+e.name+'</div><div style="font-size:10px;color:var(--g4);">'+e.pos+'</div></td>';
+    h+='<td style="font-size:11px;">'+(e.dept||"—")+'</td>';
+    h+='<td class="tn">'+fmt(e.sal||0)+'</td>';
+    h+='<td class="tn" style="font-weight:700;">'+fmt(r.gross)+'</td>';
+    h+='<td class="tn" style="color:var(--rd);">'+fmt(r.empI)+'</td>';
+    h+='<td class="tn" style="color:var(--am);">'+fmt(r.emplI)+'</td>';
+    h+='<td class="tn" style="color:var(--am);">'+fmt(r.tax)+'</td>';
+    h+='<td class="tn" style="font-weight:800;color:var(--gr);">'+fmt(r.net)+'</td>';
+    h+='<td class="tn" style="font-weight:700;color:var(--n);">'+fmt(r.cost)+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody><tfoot><tr style="background:var(--n);">';
+  h+='<td colspan="2" style="color:white;font-weight:900;padding:9px;">الإجمالي ('+active.length+')</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tot.sal)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tot.gross)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tot.empI)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tot.emplI)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tot.tax)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tot.net)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tot.cost)+'</td>';
+  h+='</tr></tfoot></table></div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="dlCSV('+JSON.stringify(csvRows)+',\'payroll-detail.csv\')" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  om("💳 تقرير الرواتب التفصيلي",h);
+}
+
+
 
 // SUB PAGES
 function rAccPage(){
@@ -2932,7 +2616,8 @@ function rSetPage(){
   if(isAdmin){
     h+='<div class="sd">البيانات والنسخ الاحتياطي</div>';
     h+='<button class="btn btn-gr" style="width:100%;margin-bottom:8px;" onclick="sub(\'importexport\')">📁 استيراد وتصدير البيانات</button>';
-    h+='<button class="btn btn-rd" style="width:100%;" onclick="if(confirm(\'هل أنت متأكد من مسح جميع البيانات؟\'))resetDB()">🗑️ مسح جميع البيانات</button>';
+    h+='<button class="btn btn-rd" style="width:100%;margin-bottom:8px;" onclick="if(confirm(\'هل أنت متأكد من مسح جميع البيانات؟\'))resetDB()">🗑️ مسح جميع البيانات</button>';
+    h+='<button class="btn btn-sm btn-gy" onclick="loadSeedData()" style="width:100%;">🌱 تحميل بيانات تجريبية</button>';
   }
 
   h+='<div style="margin-top:14px;background:var(--g1);border-radius:8px;padding:10px;font-size:10.5px;color:var(--g4);text-align:center;">أثر للحلول المالية — النسخة 2.0<br>تطوير تنمويين مصر</div>';
@@ -5395,6 +5080,1069 @@ function initSupplierMDPatches(){
   patchOpenMDSection();
   patchOpenMDEdit();
   // Add suppliers to rMasterData grid
+}
+
+
+// ============================================================
+// SEED DATA — 100+ operations across all modules
+// ============================================================
+
+function loadSeedData(){
+  if(DB.entries && DB.entries.length > 5) {
+    toast("⚠️ البيانات موجودة بالفعل — استخدم مسح البيانات أولاً");
+    return;
+  }
+
+  // ---- ORG ----
+  DB.org = {name:"جمعية تنمية المجتمع", reg:"4521/2010", gov:"القاهرة", fy:"jan", currency:"ج.م"};
+
+  // ---- MASTER DATA ----
+  DB.masterData = {
+    costCenters:[
+      {code:"CC01",name:"إدارة البرامج",active:true},
+      {code:"CC02",name:"الإدارة والمالية",active:true},
+      {code:"CC03",name:"الموارد البشرية",active:true},
+      {code:"CC04",name:"التسويق والاتصال",active:true}
+    ],
+    locations:[
+      {code:"LOC01",name:"المقر الرئيسي — القاهرة",type:"مقر رئيسي",governorate:"القاهرة",address:"12 شارع التحرير، الدقي",phone:"0223456789",active:true},
+      {code:"LOC02",name:"فرع الإسكندرية",type:"فرع",governorate:"الإسكندرية",address:"45 شارع النصر",phone:"0345678901",active:true},
+      {code:"LOC03",name:"مكتب أسوان الميداني",type:"مكتب ميداني",governorate:"أسوان",active:true},
+      {code:"LOC04",name:"مخزن الجيزة",type:"مخزن",governorate:"الجيزة",active:true}
+    ],
+    activities:[
+      {code:"A01",name:"التدريب المهني",sector:"تنمية اقتصادية",active:true},
+      {code:"A02",name:"الرعاية الصحية الأولية",sector:"صحة",active:true},
+      {code:"A03",name:"محو الأمية",sector:"تعليم",active:true},
+      {code:"A04",name:"توزيع مواد إغاثية",sector:"إغاثة",active:true},
+      {code:"A05",name:"التمكين الاقتصادي للمرأة",sector:"تنمية اقتصادية",active:true}
+    ],
+    thematics:[
+      {code:"TH01",nameAr:"التعليم وبناء القدرات",nameEn:"Education & Capacity Building",sdgGoals:"4",color:"#0e7490",active:true},
+      {code:"TH02",nameAr:"الصحة والرعاية",nameEn:"Health & Care",sdgGoals:"3",color:"#059669",active:true},
+      {code:"TH03",nameAr:"التنمية الاقتصادية",nameEn:"Economic Development",sdgGoals:"8,10",color:"#7c3aed",active:true}
+    ],
+    bankAccounts:[
+      {code:"BNK01",bankName:"بنك مصر",branch:"فرع الدقي",accountNo:"0023456789012",iban:"EG800002300459010310140",swift:"NBEGEGCX",currency:"EGP",accCode:"1112",type:"جاري",active:true},
+      {code:"BNK02",bankName:"البنك الأهلي المصري",branch:"فرع المهندسين",accountNo:"1100987654321",swift:"NBEGEGCX01",currency:"EGP",accCode:"1113",type:"جاري",active:true}
+    ],
+    supplierCategories:[
+      {code:"SCAT01",name:"موردو المستلزمات المكتبية",paymentTerms:"فوري",active:true},
+      {code:"SCAT02",name:"موردو المواد الطبية والصحية",paymentTerms:"30 يوم",active:true},
+      {code:"SCAT03",name:"موردو التقنية والأجهزة",paymentTerms:"15 يوم",active:true},
+      {code:"SCAT04",name:"شركات النقل والخدمات",paymentTerms:"فوري",active:true}
+    ],
+    currencies:[{code:"EGP",name:"الجنيه المصري",symbol:"ج.م",rate:1,isDefault:true},{code:"USD",name:"الدولار",symbol:"$",rate:50.5,isDefault:false}],
+    docTypes:[
+      {code:"PV",name:"سند صرف",prefix:"PV-"},{code:"RV",name:"سند قبض",prefix:"RV-"},
+      {code:"JV",name:"قيد يومية",prefix:"JV-"},{code:"INV",name:"فاتورة مورد",prefix:"INV-"}
+    ],
+    paymentMethods:[
+      {code:"CASH",name:"نقداً",active:true},{code:"BANK",name:"تحويل بنكي",active:true},{code:"CHECK",name:"شيك",active:true}
+    ]
+  };
+
+  // ---- SUPPLIERS ----
+  DB.suppliers = [
+    {id:"SUP001",name:"شركة النيل للمستلزمات",type:"شركة",category:"SCAT01",reg:"45231",tax:"123456789",mobile:"01012345678",email:"nile@co.com",address:"القاهرة",contact:"محمد عبدالله",bankName:"بنك مصر",bankAccount:"456789",paymentTerms:"فوري",active:true},
+    {id:"SUP002",name:"مؤسسة الشروق الطبية",type:"شركة",category:"SCAT02",mobile:"01123456789",contact:"أحمد سامي",paymentTerms:"30 يوم",active:true},
+    {id:"SUP003",name:"تقنيات المستقبل",type:"شركة",category:"SCAT03",mobile:"01234567890",contact:"سارة علي",paymentTerms:"15 يوم",active:true},
+    {id:"SUP004",name:"شركة النقل السريع",type:"شركة",category:"SCAT04",mobile:"01034567891",contact:"كريم مصطفى",paymentTerms:"فوري",active:true},
+    {id:"SUP005",name:"مطبعة الوطن",type:"شركة",category:"SCAT01",mobile:"01145678902",paymentTerms:"فوري",active:true}
+  ];
+
+  // ---- EMPLOYEES ----
+  DB.employees = [
+    {id:"E001",name:"أحمد محمد السيد",nameAr:"أحمد محمد السيد",nameEn:"Ahmed Mohamed",pos:"مدير تنفيذي",dept:"الإدارة",grade:"Grade 1",branch:"LOC01",hireDate:"2018-01-01",contractType:"indefinite",empType:"full-time",sal:25000,allow:3000,natWork:1000,transport:500,ins:"full",status:"active",gender:"male",marital:"married",mobile:"01001234567"},
+    {id:"E002",name:"سارة علي حسن",nameAr:"سارة علي حسن",nameEn:"Sara Ali",pos:"مدير مالي",dept:"المالية",grade:"Grade 2",branch:"LOC01",hireDate:"2019-03-15",contractType:"indefinite",empType:"full-time",sal:20000,allow:2500,natWork:800,transport:400,ins:"full",status:"active",gender:"female",marital:"single",mobile:"01112345678"},
+    {id:"E003",name:"خالد إبراهيم",nameAr:"خالد إبراهيم",nameEn:"Khaled Ibrahim",pos:"مدير البرامج",dept:"البرامج",grade:"Grade 2",branch:"LOC01",hireDate:"2019-06-01",contractType:"indefinite",empType:"full-time",sal:18000,allow:2000,natWork:700,transport:350,ins:"full",status:"active",gender:"male",marital:"married",mobile:"01223456789"},
+    {id:"E004",name:"منى حسين",nameAr:"منى حسين",nameEn:"Mona Hussein",pos:"محاسبة",dept:"المالية",grade:"Grade 3",branch:"LOC01",hireDate:"2020-09-01",contractType:"indefinite",empType:"full-time",sal:12000,allow:1200,natWork:400,transport:200,ins:"full",status:"active",gender:"female",marital:"single",mobile:"01334567890"},
+    {id:"E005",name:"محمد فاروق",nameAr:"محمد فاروق",nameEn:"Mohamed Farouk",pos:"منسق برامج",dept:"البرامج",grade:"Grade 3",branch:"LOC02",hireDate:"2021-01-15",contractType:"fixed",empType:"full-time",sal:10000,allow:1000,natWork:350,transport:300,ins:"full",status:"active",gender:"male",marital:"married",mobile:"01445678901"},
+    {id:"E006",name:"نهى سامي",nameAr:"نهى سامي",nameEn:"Noha Samy",pos:"أخصائية اجتماعية",dept:"البرامج",grade:"Grade 3",branch:"LOC03",hireDate:"2021-06-01",contractType:"fixed",empType:"full-time",sal:9000,allow:900,transport:400,ins:"partial",status:"active",gender:"female",marital:"single",mobile:"01556789012"},
+    {id:"E007",name:"عمر طارق",nameAr:"عمر طارق",nameEn:"Omar Tarek",pos:"مسؤول لوجستي",dept:"اللوجستيات",grade:"Grade 4",branch:"LOC01",hireDate:"2022-03-01",contractType:"indefinite",empType:"full-time",sal:8000,allow:800,transport:300,ins:"full",status:"active",gender:"male",marital:"single",mobile:"01667890123"},
+    {id:"E008",name:"ريم عادل",nameAr:"ريم عادل",nameEn:"Reem Adel",pos:"مسؤولة الاتصال",dept:"التسويق",grade:"Grade 4",branch:"LOC01",hireDate:"2022-07-01",contractType:"project",empType:"full-time",sal:9500,allow:950,transport:250,ins:"full",status:"active",gender:"female",marital:"married",mobile:"01778901234"}
+  ];
+
+  // ---- WAREHOUSES ----
+  DB.warehouses = [
+    {code:"WH01",name:"المخزن الرئيسي",location:"المقر الرئيسي — القاهرة",manager:"E007"},
+    {code:"WH02",name:"مخزن الإسكندرية",location:"فرع الإسكندرية",manager:"E005"},
+    {code:"WH03",name:"مخزن الإغاثة",location:"مخزن الجيزة",manager:"E007"}
+  ];
+  DB.itemCategories = ["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد إغاثية","أخرى"];
+
+  // ---- INVENTORY ITEMS ----
+  DB.inventory = [
+    {code:"ITM001",name:"لاب توب Dell",nameEn:"Dell Laptop",category:"أجهزة وتقنية",unit:"جهاز",cost:18000,minQty:2,location:"رف A1"},
+    {code:"ITM002",name:"طابعة HP LaserJet",category:"أجهزة وتقنية",unit:"جهاز",cost:4500,minQty:1,location:"رف A2"},
+    {code:"ITM003",name:"أقلام حبر",category:"مستلزمات مكتبية",unit:"علبة",cost:35,minQty:20,location:"رف B1"},
+    {code:"ITM004",name:"ورق A4",category:"مستلزمات مكتبية",unit:"رزمة",cost:85,minQty:30,location:"رف B2"},
+    {code:"ITM005",name:"كتيبات تدريب",category:"مستلزمات تدريب",unit:"كتيب",cost:45,minQty:50,location:"رف C1"},
+    {code:"ITM006",name:"بطانيات إغاثة",category:"مواد إغاثية",unit:"قطعة",cost:120,minQty:100,location:"رف D1"},
+    {code:"ITM007",name:"مواد طبية أساسية (كيت)",category:"مواد طبية",unit:"كيت",cost:850,minQty:30,location:"رف E1"},
+    {code:"ITM008",name:"كراسي اجتماعات",category:"أثاث وتجهيزات",unit:"كرسي",cost:650,minQty:5,location:"رف F1"},
+    {code:"ITM009",name:"شاشة عرض بروجكتور",category:"أجهزة وتقنية",unit:"جهاز",cost:8500,minQty:1,location:"رف A3"},
+    {code:"ITM010",name:"مياه معبأة",category:"مواد إغاثية",unit:"كرتون",cost:65,minQty:50,location:"رف D2"}
+  ];
+
+  // ---- THIRD PARTIES ----
+  DB.thirdParties = [
+    {id:"EMP-E001",name:"أحمد محمد السيد",type:"employee",ref:"E001",active:true},
+    {id:"EMP-E002",name:"سارة علي حسن",type:"employee",ref:"E002",active:true},
+    {id:"EMP-E003",name:"خالد إبراهيم",type:"employee",ref:"E003",active:true},
+    {id:"EMP-E004",name:"منى حسين",type:"employee",ref:"E004",active:true},
+    {id:"EMP-E005",name:"محمد فاروق",type:"employee",ref:"E005",active:true},
+    {id:"EMP-E006",name:"نهى سامي",type:"employee",ref:"E006",active:true},
+    {id:"SUP-SUP001",name:"شركة النيل للمستلزمات",type:"supplier",ref:"SUP001",active:true},
+    {id:"SUP-SUP002",name:"مؤسسة الشروق الطبية",type:"supplier",ref:"SUP002",active:true},
+    {id:"SUP-SUP003",name:"تقنيات المستقبل",type:"supplier",ref:"SUP003",active:true},
+    {id:"SUP-SUP004",name:"شركة النقل السريع",type:"supplier",ref:"SUP004",active:true},
+    {id:"SUP-SUP005",name:"مطبعة الوطن",type:"supplier",ref:"SUP005",active:true}
+  ];
+
+  // ---- PROJECTS WITH WBS ----
+  DB.projects = [
+    {
+      code:"P001",name:"مشروع التمكين الاقتصادي للمرأة",donor:"USAID",budget:1500000,spent:0,
+      status:"active",start:"2025-01-01",end:"2025-12-31",
+      thematic:"TH03",activity:"A05",location:"LOC01",
+      wbs:[
+        {code:"1",name:"المرتبات والأجور",budget:0},
+        {code:"1.1",name:"مرتبات الفريق",budget:0},
+        {code:"1.1.1",name:"مرتب مدير المشروع",accCode:"5211",budget:180000,unit:"شهر"},
+        {code:"1.1.2",name:"مرتب منسق البرامج",accCode:"5211",budget:120000,unit:"شهر"},
+        {code:"1.1.3",name:"مرتب أخصائية اجتماعية",accCode:"5211",budget:108000,unit:"شهر"},
+        {code:"1.2",name:"اشتراكات التأمينات",budget:0},
+        {code:"1.2.1",name:"حصة صاحب العمل — تأمينات",accCode:"5213",budget:65000,unit:"سنة"},
+        {code:"2",name:"مصروفات التشغيل",budget:0},
+        {code:"2.1",name:"الإيجار والمرافق",budget:0},
+        {code:"2.1.1",name:"إيجار مكتب المشروع",accCode:"5221",budget:120000,unit:"سنة"},
+        {code:"2.1.2",name:"كهرباء وإنترنت",accCode:"5222",budget:24000,unit:"سنة"},
+        {code:"2.2",name:"مستلزمات التشغيل",budget:0},
+        {code:"2.2.1",name:"قرطاسية ولوازم مكتبية",accCode:"5231",budget:18000,unit:"سنة"},
+        {code:"2.2.2",name:"وقود ومواصلات",accCode:"5233",budget:36000,unit:"سنة"},
+        {code:"3",name:"أنشطة المشروع",budget:0},
+        {code:"3.1",name:"دورات تدريبية",budget:0},
+        {code:"3.1.1",name:"مواد وأدوات تدريب",accCode:"5123",budget:85000,unit:"دورة"},
+        {code:"3.1.2",name:"مكافآت المدربين",accCode:"5122",budget:120000,unit:"دورة"},
+        {code:"3.2",name:"دعم المستفيدين",budget:0},
+        {code:"3.2.1",name:"منح صغيرة للمستفيدين",accCode:"5112",budget:300000,unit:"مستفيد"},
+        {code:"3.2.2",name:"مستلزمات المشروعات الصغيرة",accCode:"5121",budget:200000,unit:"مستفيد"},
+        {code:"4",name:"الإدارة والتقييم",budget:0},
+        {code:"4.1.1",name:"المتابعة والتقييم",accCode:"5122",budget:60000,unit:"تقرير"},
+        {code:"4.1.2",name:"مراجعة حسابات",accCode:"5251",budget:35000,unit:"سنة"},
+        {code:"4.1.3",name:"مصروفات متفرقة",accCode:"5263",budget:29000,unit:"سنة"}
+      ]
+    },
+    {
+      code:"P002",name:"برنامج الصحة الأولية",donor:"الاتحاد الأوروبي",budget:800000,spent:0,
+      status:"active",start:"2025-03-01",end:"2026-02-28",
+      thematic:"TH02",activity:"A02",location:"LOC03",
+      wbs:[
+        {code:"1",name:"فريق العمل",budget:0},
+        {code:"1.1.1",name:"مرتب طبيب",accCode:"5211",budget:144000,unit:"شهر"},
+        {code:"1.1.2",name:"مرتب ممرضة",accCode:"5211",budget:96000,unit:"شهر"},
+        {code:"2",name:"المستلزمات الطبية",budget:0},
+        {code:"2.1.1",name:"شراء أدوية",accCode:"5121",budget:200000,unit:"كيت"},
+        {code:"2.1.2",name:"معدات طبية",accCode:"5121",budget:150000,unit:"جهاز"},
+        {code:"3",name:"تشغيل العيادة",budget:0},
+        {code:"3.1.1",name:"إيجار العيادة",accCode:"5221",budget:72000,unit:"شهر"},
+        {code:"3.1.2",name:"مواصلات ميدانية",accCode:"5233",budget:48000,unit:"شهر"},
+        {code:"4.1.1",name:"إدارة ومتابعة",accCode:"5122",budget:90000,unit:"سنة"}
+      ]
+    },
+    {
+      code:"P003",name:"مشروع محو الأمية الرقمية",donor:"UNICEF",budget:450000,spent:0,
+      status:"active",start:"2025-06-01",end:"2026-05-31",
+      thematic:"TH01",activity:"A03",location:"LOC02",
+      wbs:[
+        {code:"1.1.1",name:"مرتب مدرب تقني",accCode:"5211",budget:96000},
+        {code:"1.1.2",name:"مرتب منسق",accCode:"5211",budget:72000},
+        {code:"2.1.1",name:"أجهزة تابلت وكمبيوتر",accCode:"5121",budget:120000},
+        {code:"2.1.2",name:"مواد تعليمية",accCode:"5123",budget:48000},
+        {code:"3.1.1",name:"إيجار مركز تدريب",accCode:"5221",budget:60000},
+        {code:"3.1.2",name:"متابعة وتقييم",accCode:"5122",budget:54000}
+      ]
+    }
+  ];
+
+  // ---- INVENTORY MOVEMENTS (seed opening balances) ----
+  var invMvs = [
+    {id:"MOV001",date:"2025-01-05",itemCode:"ITM001",itemName:"لاب توب Dell",unit:"جهاز",warehouse:"WH01",type:"in",qty:10,balAfter:10,ref:"PO-001",reason:"شراء افتتاحي",supplierId:"SUP-SUP003",supplierName:"تقنيات المستقبل"},
+    {id:"MOV002",date:"2025-01-05",itemCode:"ITM002",itemName:"طابعة HP LaserJet",unit:"جهاز",warehouse:"WH01",type:"in",qty:4,balAfter:4,ref:"PO-001",reason:"شراء افتتاحي",supplierId:"SUP-SUP003",supplierName:"تقنيات المستقبل"},
+    {id:"MOV003",date:"2025-01-10",itemCode:"ITM003",itemName:"أقلام حبر",unit:"علبة",warehouse:"WH01",type:"in",qty:100,balAfter:100,ref:"PO-002",reason:"",supplierId:"SUP-SUP001",supplierName:"شركة النيل للمستلزمات"},
+    {id:"MOV004",date:"2025-01-10",itemCode:"ITM004",itemName:"ورق A4",unit:"رزمة",warehouse:"WH01",type:"in",qty:200,balAfter:200,ref:"PO-002",reason:"",supplierId:"SUP-SUP001",supplierName:"شركة النيل للمستلزمات"},
+    {id:"MOV005",date:"2025-01-15",itemCode:"ITM005",itemName:"كتيبات تدريب",unit:"كتيب",warehouse:"WH01",type:"in",qty:500,balAfter:500,ref:"PO-003",reason:"",supplierId:"SUP-SUP005",supplierName:"مطبعة الوطن"},
+    {id:"MOV006",date:"2025-01-20",itemCode:"ITM006",itemName:"بطانيات إغاثة",unit:"قطعة",warehouse:"WH03",type:"in",qty:500,balAfter:500,ref:"PO-004",reason:"توريد إغاثي",supplierId:"SUP-SUP001",supplierName:"شركة النيل للمستلزمات"},
+    {id:"MOV007",date:"2025-01-20",itemCode:"ITM007",itemName:"مواد طبية أساسية (كيت)",unit:"كيت",warehouse:"WH01",type:"in",qty:100,balAfter:100,ref:"PO-005",reason:"",supplierId:"SUP-SUP002",supplierName:"مؤسسة الشروق الطبية"},
+    {id:"MOV008",date:"2025-02-01",itemCode:"ITM008",itemName:"كراسي اجتماعات",unit:"كرسي",warehouse:"WH01",type:"in",qty:30,balAfter:30,ref:"PO-006",supplierId:"SUP-SUP001",supplierName:"شركة النيل للمستلزمات"},
+    {id:"MOV009",date:"2025-02-05",itemCode:"ITM009",itemName:"شاشة عرض بروجكتور",unit:"جهاز",warehouse:"WH01",type:"in",qty:5,balAfter:5,ref:"PO-007",supplierId:"SUP-SUP003",supplierName:"تقنيات المستقبل"},
+    {id:"MOV010",date:"2025-02-10",itemCode:"ITM010",itemName:"مياه معبأة",unit:"كرتون",warehouse:"WH03",type:"in",qty:300,balAfter:300,ref:"PO-008",supplierId:"SUP-SUP001",supplierName:"شركة النيل للمستلزمات"},
+    // Outgoing
+    {id:"MOV011",date:"2025-02-15",itemCode:"ITM001",itemName:"لاب توب Dell",unit:"جهاز",warehouse:"WH01",type:"out",qty:3,balAfter:7,ref:"SRV-001",reason:"فريق البرامج",employeeId:"EMP-E003",employeeName:"خالد إبراهيم",projectId:"P001"},
+    {id:"MOV012",date:"2025-02-20",itemCode:"ITM005",itemName:"كتيبات تدريب",unit:"كتيب",warehouse:"WH01",type:"out",qty:150,balAfter:350,ref:"SRV-002",reason:"دورة تدريبية يناير",employeeId:"EMP-E003",employeeName:"خالد إبراهيم",projectId:"P001"},
+    {id:"MOV013",date:"2025-03-01",itemCode:"ITM007",itemName:"مواد طبية أساسية (كيت)",unit:"كيت",warehouse:"WH01",type:"out",qty:25,balAfter:75,ref:"SRV-003",reason:"توزيع محافظة أسوان",employeeId:"EMP-E006",employeeName:"نهى سامي",projectId:"P002"},
+    {id:"MOV014",date:"2025-03-05",itemCode:"ITM004",itemName:"ورق A4",unit:"رزمة",warehouse:"WH01",type:"out",qty:50,balAfter:150,ref:"SRV-004",reason:"استهلاك مكتبي",employeeId:"EMP-E004",employeeName:"منى حسين"},
+    {id:"MOV015",date:"2025-03-10",itemCode:"ITM006",itemName:"بطانيات إغاثة",unit:"قطعة",warehouse:"WH03",type:"out",qty:200,balAfter:300,ref:"SRV-005",reason:"توزيع إغاثي — الجيزة",employeeId:"EMP-E007",employeeName:"عمر طارق",projectId:"P001"},
+    // Transfer
+    {id:"MOV016",date:"2025-03-15",itemCode:"ITM001",itemName:"لاب توب Dell",unit:"جهاز",warehouse:"WH01",type:"transfer-out",qty:2,balAfter:5,ref:"TRF-001",reason:"تحويل إلى مخزن الإسكندرية"},
+    {id:"MOV017",date:"2025-03-15",itemCode:"ITM001",itemName:"لاب توب Dell",unit:"جهاز",warehouse:"WH02",type:"transfer-in",qty:2,balAfter:2,ref:"TRF-001",reason:"تحويل من المخزن الرئيسي"},
+    {id:"MOV018",date:"2025-04-01",itemCode:"ITM003",itemName:"أقلام حبر",unit:"علبة",warehouse:"WH01",type:"in",qty:50,balAfter:146,ref:"PO-009",supplierId:"SUP-SUP001",supplierName:"شركة النيل للمستلزمات"},
+    {id:"MOV019",date:"2025-04-10",itemCode:"ITM002",itemName:"طابعة HP LaserJet",unit:"جهاز",warehouse:"WH01",type:"scrap",qty:1,balAfter:3,ref:"SCR-001",reason:"تلف — انتهاء العمر الافتراضي",employeeId:"EMP-E007",employeeName:"عمر طارق"},
+    {id:"MOV020",date:"2025-04-15",itemCode:"ITM010",itemName:"مياه معبأة",unit:"كرتون",warehouse:"WH03",type:"out",qty:100,balAfter:200,ref:"SRV-006",reason:"توزيع إغاثي — رمضان",projectId:"P001"}
+  ];
+  DB.invMovements = invMvs;
+
+  // ---- JOURNAL ENTRIES (100 entries) ----
+  var entries = [];
+  function mkEntry(id,date,ref,desc,proj,lines,cc,loc,act,dt,pm,wbs){
+    return {id:id,date:date,ref:ref,desc:desc,proj:proj||"",
+      costCenter:cc||"",location:loc||"",activity:act||"",docType:dt||"JV",payMethod:pm||"",
+      lines:lines,status:"posted",wbsCode:wbs||""};
+  }
+  function ln(acc,an,dr,cr,tp,tpn,wbs){
+    return {acc:acc,an:an,dr:dr||0,cr:cr||0,tpId:tp||"",tpName:tpn||"",wbsCode:wbs||""};
+  }
+
+  // ====== JANUARY 2025 ======
+  entries.push(mkEntry("J2025-001","2025-01-01","RV-001","رصيد افتتاحي — رأس المال","",
+    [ln("1112","ح/ البنك الجاري",2000000,0),ln("3111","الرصيد الافتتاحي",0,2000000)],"CC02","LOC01","","RV","BANK"));
+
+  entries.push(mkEntry("J2025-002","2025-01-05","RV-002","استلام منحة USAID — دفعة أولى","P001",
+    [ln("1112","ح/ البنك الجاري",750000,0,"SUP-SUP001","شركة النيل للمستلزمات"),ln("4121","منح من منظمات دولية",0,750000)],"CC01","LOC01","A05","RV","BANK","1"));
+
+  entries.push(mkEntry("J2025-003","2025-01-10","PV-001","شراء أجهزة وتقنية — لاب توب ×10","P001",
+    [ln("5121","مستلزمات وتوريدات البرامج",180000,0,"SUP-SUP003","تقنيات المستقبل","3.2.2"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","3.2.2"));
+
+  entries.push(mkEntry("J2025-004","2025-01-15","PV-002","رواتب يناير 2025 — فريق المشروع","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,153000),ln("2113","مستحقات تأمينات اجتماعية",0,27000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+
+  entries.push(mkEntry("J2025-005","2025-01-15","PV-003","رواتب يناير 2025 — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,80750),ln("2113","مستحقات تأمينات اجتماعية",0,14250)],"CC02","LOC01","","PV","BANK"));
+
+  entries.push(mkEntry("J2025-006","2025-01-20","PV-004","دفع تأمينات اجتماعية يناير","",
+    [ln("2113","مستحقات تأمينات اجتماعية",41250,0),ln("5213","اشتراكات التأمينات الاجتماعية",21000,0),ln("1112","ح/ البنك الجاري",0,62250)],"CC02","LOC01","","PV","BANK"));
+
+  entries.push(mkEntry("J2025-007","2025-01-22","INV-001","فاتورة مستلزمات مكتبية","",
+    [ln("5231","قرطاسية ولوازم مكتبية",8500,0,"SUP-SUP001","شركة النيل للمستلزمات"),ln("1112","ح/ البنك الجاري",0,8500)],"CC02","LOC01","","INV","CASH"));
+
+  entries.push(mkEntry("J2025-008","2025-01-25","PV-005","إيجار مكاتب يناير","P001",
+    [ln("5221","إيجار المقرات والمكاتب",12000,0,"","","2.1.1"),ln("1112","ح/ البنك الجاري",0,12000)],"CC01","LOC01","A05","PV","CHECK","2.1.1"));
+
+  entries.push(mkEntry("J2025-009","2025-01-28","PV-006","كهرباء وإنترنت يناير","P001",
+    [ln("5222","كهرباء وماء وغاز",2500,0,"","","2.1.2"),ln("1112","ح/ البنك الجاري",0,2500)],"CC01","LOC01","","PV","BANK","2.1.2"));
+
+  entries.push(mkEntry("J2025-010","2025-01-31","JV-001","إهلاك أجهزة — يناير","",
+    [ln("5313","إهلاك أجهزة تكنولوجيا المعلومات",3000,0),ln("1223","مجمع إهلاك أجهزة تكنولوجيا المعلومات",0,3000)],"CC02","LOC01","","JV",""));
+
+  // ====== FEBRUARY 2025 ======
+  entries.push(mkEntry("J2025-011","2025-02-01","RV-003","استلام منحة EU — برنامج الصحة","P002",
+    [ln("1112","ح/ البنك الجاري",400000,0),ln("4121","منح من منظمات دولية",0,400000)],"CC01","LOC03","A02","RV","BANK"));
+
+  entries.push(mkEntry("J2025-012","2025-02-05","INV-002","شراء مواد طبية أساسية","P002",
+    [ln("5121","مستلزمات وتوريدات البرامج",85000,0,"SUP-SUP002","مؤسسة الشروق الطبية","2.1.1"),ln("1112","ح/ البنك الجاري",0,85000)],"CC01","LOC03","A02","INV","BANK","2.1.1"));
+
+  entries.push(mkEntry("J2025-013","2025-02-10","PV-007","مواصلات ميدانية — فبراير","P002",
+    [ln("5233","وقود ومواصلات",8000,0,"SUP-SUP004","شركة النقل السريع","3.1.2"),ln("1112","ح/ البنك الجاري",0,8000)],"CC01","LOC03","A02","PV","CASH","3.1.2"));
+
+  entries.push(mkEntry("J2025-014","2025-02-15","PV-008","رواتب فبراير 2025 — المشروع","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+
+  entries.push(mkEntry("J2025-015","2025-02-15","PV-009","رواتب فبراير — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+
+  entries.push(mkEntry("J2025-016","2025-02-18","INV-003","طباعة كتيبات تدريب","P001",
+    [ln("5123","مصروفات التدريب وبناء القدرات",22500,0,"SUP-SUP005","مطبعة الوطن","3.1.1"),ln("1112","ح/ البنك الجاري",0,22500)],"CC01","LOC01","A05","INV","BANK","3.1.1"));
+
+  entries.push(mkEntry("J2025-017","2025-02-20","PV-010","سلفة عهدة — عمر طارق","",
+    [ln("1114","السلفة المستديمة (عهدة)",5000,0,"EMP-E007","عمر طارق"),ln("1112","ح/ البنك الجاري",0,5000)],"CC02","LOC01","","PV","CASH"));
+
+  entries.push(mkEntry("J2025-018","2025-02-22","PV-011","وقود ومواصلات فبراير","P001",
+    [ln("5233","وقود ومواصلات",6500,0,"SUP-SUP004","شركة النقل السريع","2.2.2"),ln("1112","ح/ البنك الجاري",0,6500)],"CC01","LOC01","A05","PV","CASH","2.2.2"));
+
+  entries.push(mkEntry("J2025-019","2025-02-25","PV-012","إيجار مكاتب فبراير","P001",
+    [ln("5221","إيجار المقرات والمكاتب",12000,0,"","","2.1.1"),ln("1112","ح/ البنك الجاري",0,12000)],"CC01","LOC01","A05","PV","CHECK","2.1.1"));
+
+  entries.push(mkEntry("J2025-020","2025-02-28","JV-002","إهلاك أجهزة — فبراير","",
+    [ln("5313","إهلاك أجهزة تكنولوجيا المعلومات",3000,0),ln("1223","مجمع إهلاك أجهزة تكنولوجيا المعلومات",0,3000)],"CC02","LOC01","","JV",""));
+
+  // ====== MARCH 2025 ======
+  entries.push(mkEntry("J2025-021","2025-03-01","RV-004","استلام منحة USAID — دفعة ثانية","P001",
+    [ln("1112","ح/ البنك الجاري",500000,0),ln("4121","منح من منظمات دولية",0,500000)],"CC01","LOC01","A05","RV","BANK"));
+
+  entries.push(mkEntry("J2025-022","2025-03-05","PV-013","مكافآت مدربين — دورة مارس","P001",
+    [ln("5122","أتعاب وعقود خدمات برامجية",45000,0,"","","3.1.2"),ln("1112","ح/ البنك الجاري",0,45000)],"CC01","LOC01","A05","PV","BANK","3.1.2"));
+
+  entries.push(mkEntry("J2025-023","2025-03-08","INV-004","شراء معدات طبية","P002",
+    [ln("5121","مستلزمات وتوريدات البرامج",65000,0,"SUP-SUP002","مؤسسة الشروق الطبية","2.1.2"),ln("1112","ح/ البنك الجاري",0,65000)],"CC01","LOC03","A02","INV","BANK","2.1.2"));
+
+  entries.push(mkEntry("J2025-024","2025-03-10","PV-014","منح نقدية للمستفيدين — دفعة 1","P001",
+    [ln("5112","إعانات ومساعدات للأفراد",75000,0,"","","3.2.1"),ln("1112","ح/ البنك الجاري",0,75000)],"CC01","LOC01","A05","PV","BANK","3.2.1"));
+
+  entries.push(mkEntry("J2025-025","2025-03-15","PV-015","رواتب مارس 2025 — المشروع","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+
+  entries.push(mkEntry("J2025-026","2025-03-15","PV-016","رواتب مارس — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+
+  entries.push(mkEntry("J2025-027","2025-03-18","PV-017","مستلزمات مشروعات صغيرة","P001",
+    [ln("5121","مستلزمات وتوريدات البرامج",80000,0,"SUP-SUP001","شركة النيل للمستلزمات","3.2.2"),ln("1112","ح/ البنك الجاري",0,80000)],"CC01","LOC01","A05","PV","BANK","3.2.2"));
+
+  entries.push(mkEntry("J2025-028","2025-03-20","INV-005","فاتورة مواصلات مارس","P002",
+    [ln("5233","وقود ومواصلات",9500,0,"SUP-SUP004","شركة النقل السريع","3.1.2"),ln("1112","ح/ البنك الجاري",0,9500)],"CC01","LOC03","A02","INV","CASH","3.1.2"));
+
+  entries.push(mkEntry("J2025-029","2025-03-22","PV-018","إيجار مكاتب مارس","P001",
+    [ln("5221","إيجار المقرات والمكاتب",12000,0,"","","2.1.1"),ln("1112","ح/ البنك الجاري",0,12000)],"CC01","LOC01","A05","PV","CHECK","2.1.1"));
+
+  entries.push(mkEntry("J2025-030","2025-03-25","PV-019","متابعة وتقييم — Q1","P001",
+    [ln("5122","أتعاب وعقود خدمات برامجية",15000,0,"","","4.1.1"),ln("1112","ح/ البنك الجاري",0,15000)],"CC01","LOC01","A05","PV","BANK","4.1.1"));
+
+  // ====== APRIL 2025 ======
+  entries.push(mkEntry("J2025-031","2025-04-01","RV-005","تبرعات أفراد — أبريل","",
+    [ln("1111","الخزينة — نقدية بالصندوق",45000,0),ln("4131","تبرعات نقدية من أفراد",0,45000)],"CC02","LOC01","","RV","CASH"));
+
+  entries.push(mkEntry("J2025-032","2025-04-05","INV-006","شراء تابلت وكمبيوتر للمشروع 3","P003",
+    [ln("5121","مستلزمات وتوريدات البرامج",120000,0,"SUP-SUP003","تقنيات المستقبل","2.1.1"),ln("1112","ح/ البنك الجاري",0,120000)],"CC01","LOC02","A03","INV","BANK","2.1.1"));
+
+  entries.push(mkEntry("J2025-033","2025-04-08","PV-020","منح للمستفيدين دفعة 2","P001",
+    [ln("5112","إعانات ومساعدات للأفراد",75000,0,"","","3.2.1"),ln("1112","ح/ البنك الجاري",0,75000)],"CC01","LOC01","A05","PV","BANK","3.2.1"));
+
+  entries.push(mkEntry("J2025-034","2025-04-10","PV-021","مكافآت مدربين — دورة أبريل","P001",
+    [ln("5122","أتعاب وعقود خدمات برامجية",45000,0,"","","3.1.2"),ln("1112","ح/ البنك الجاري",0,45000)],"CC01","LOC01","A05","PV","BANK","3.1.2"));
+
+  entries.push(mkEntry("J2025-035","2025-04-15","PV-022","رواتب أبريل 2025 — المشروع","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+
+  entries.push(mkEntry("J2025-036","2025-04-15","PV-023","رواتب أبريل — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+
+  entries.push(mkEntry("J2025-037","2025-04-18","INV-007","مواد طبية — دفعة 2","P002",
+    [ln("5121","مستلزمات وتوريدات البرامج",55000,0,"SUP-SUP002","مؤسسة الشروق الطبية","2.1.1"),ln("1112","ح/ البنك الجاري",0,55000)],"CC01","LOC03","A02","INV","BANK","2.1.1"));
+
+  entries.push(mkEntry("J2025-038","2025-04-20","INV-008","مواد تعليمية مشروع 3","P003",
+    [ln("5123","مصروفات التدريب وبناء القدرات",48000,0,"SUP-SUP005","مطبعة الوطن","2.1.2"),ln("1112","ح/ البنك الجاري",0,48000)],"CC01","LOC02","A03","INV","BANK","2.1.2"));
+
+  entries.push(mkEntry("J2025-039","2025-04-22","PV-024","إيجار مكاتب أبريل","P001",
+    [ln("5221","إيجار المقرات والمكاتب",12000,0,"","","2.1.1"),ln("1112","ح/ البنك الجاري",0,12000)],"CC01","LOC01","A05","PV","CHECK","2.1.1"));
+
+  entries.push(mkEntry("J2025-040","2025-04-25","PV-025","سلفة موظف — خالد إبراهيم","",
+    [ln("1123","سلف الموظفين",8000,0,"EMP-E003","خالد إبراهيم"),ln("1112","ح/ البنك الجاري",0,8000)],"CC02","LOC01","","PV","BANK"));
+
+  // ====== MAY 2025 ======
+  entries.push(mkEntry("J2025-041","2025-05-01","RV-006","استلام منحة UNICEF","P003",
+    [ln("1112","ح/ البنك الجاري",225000,0),ln("4121","منح من منظمات دولية",0,225000)],"CC01","LOC02","A03","RV","BANK"));
+
+  entries.push(mkEntry("J2025-042","2025-05-05","PV-026","منح مستفيدين دفعة 3","P001",
+    [ln("5112","إعانات ومساعدات للأفراد",75000,0,"","","3.2.1"),ln("1112","ح/ البنك الجاري",0,75000)],"CC01","LOC01","A05","PV","BANK","3.2.1"));
+
+  entries.push(mkEntry("J2025-043","2025-05-08","INV-009","إيجار مركز التدريب — مشروع 3","P003",
+    [ln("5221","إيجار المقرات والمكاتب",15000,0,"","","3.1.1"),ln("1112","ح/ البنك الجاري",0,15000)],"CC01","LOC02","A03","INV","CHECK","3.1.1"));
+
+  entries.push(mkEntry("J2025-044","2025-05-10","PV-027","مكافآت مدربين — مايو","P001",
+    [ln("5122","أتعاب وعقود خدمات برامجية",45000,0,"","","3.1.2"),ln("1112","ح/ البنك الجاري",0,45000)],"CC01","LOC01","A05","PV","BANK","3.1.2"));
+
+  entries.push(mkEntry("J2025-045","2025-05-12","INV-010","خدمات متابعة وتقييم","P002",
+    [ln("5122","أتعاب وعقود خدمات برامجية",22000,0,"","","4.1.1"),ln("1112","ح/ البنك الجاري",0,22000)],"CC01","LOC03","A02","INV","BANK","4.1.1"));
+
+  entries.push(mkEntry("J2025-046","2025-05-15","PV-028","رواتب مايو 2025","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+
+  entries.push(mkEntry("J2025-047","2025-05-15","PV-029","رواتب مايو — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+
+  entries.push(mkEntry("J2025-048","2025-05-18","PV-030","وقود ومواصلات مايو","P001",
+    [ln("5233","وقود ومواصلات",7000,0,"SUP-SUP004","شركة النقل السريع","2.2.2"),ln("1112","ح/ البنك الجاري",0,7000)],"CC01","LOC01","A05","PV","CASH","2.2.2"));
+
+  entries.push(mkEntry("J2025-049","2025-05-20","PV-031","تسوية سلفة — عمر طارق","",
+    [ln("5261","مصروفات السفر والانتقالات",4200,0,"EMP-E007","عمر طارق"),ln("1111","الخزينة — نقدية بالصندوق",800,0),ln("1114","السلفة المستديمة (عهدة)",0,5000)],"CC02","LOC01","","JV","CASH"));
+
+  entries.push(mkEntry("J2025-050","2025-05-25","INV-011","صيانة سيارة المشروع","P001",
+    [ln("5243","صيانة وسائل النقل",6800,0,"SUP-SUP004","شركة النقل السريع"),ln("1112","ح/ البنك الجاري",0,6800)],"CC01","LOC01","A05","INV","CASH"));
+
+  // ====== JUNE 2025 ======
+  entries.push(mkEntry("J2025-051","2025-06-01","RV-007","رسوم تدريب — دورة يونيو","",
+    [ln("1111","الخزينة — نقدية بالصندوق",35000,0),ln("4143","رسوم التدريب والمؤتمرات",0,35000)],"CC01","LOC01","A01","RV","CASH"));
+
+  entries.push(mkEntry("J2025-052","2025-06-05","PV-032","مستلزمات مشروعات صغيرة دفعة 2","P001",
+    [ln("5121","مستلزمات وتوريدات البرامج",90000,0,"SUP-SUP001","شركة النيل للمستلزمات","3.2.2"),ln("1112","ح/ البنك الجاري",0,90000)],"CC01","LOC01","A05","PV","BANK","3.2.2"));
+
+  entries.push(mkEntry("J2025-053","2025-06-08","PV-033","مواصلات ميدانية — يونيو","P002",
+    [ln("5233","وقود ومواصلات",8500,0,"SUP-SUP004","شركة النقل السريع","3.1.2"),ln("1112","ح/ البنك الجاري",0,8500)],"CC01","LOC03","A02","PV","CASH","3.1.2"));
+
+  entries.push(mkEntry("J2025-054","2025-06-10","PV-034","منح مستفيدين دفعة 4","P001",
+    [ln("5112","إعانات ومساعدات للأفراد",75000,0,"","","3.2.1"),ln("1112","ح/ البنك الجاري",0,75000)],"CC01","LOC01","A05","PV","BANK","3.2.1"));
+
+  entries.push(mkEntry("J2025-055","2025-06-12","INV-012","معدات طبية — دفعة 3","P002",
+    [ln("5121","مستلزمات وتوريدات البرامج",45000,0,"SUP-SUP002","مؤسسة الشروق الطبية","2.1.2"),ln("1112","ح/ البنك الجاري",0,45000)],"CC01","LOC03","A02","INV","BANK","2.1.2"));
+
+  entries.push(mkEntry("J2025-056","2025-06-15","PV-035","رواتب يونيو 2025","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+
+  entries.push(mkEntry("J2025-057","2025-06-15","PV-036","رواتب يونيو — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+
+  entries.push(mkEntry("J2025-058","2025-06-18","PV-037","مكافآت مدربين يونيو","P001",
+    [ln("5122","أتعاب وعقود خدمات برامجية",45000,0,"","","3.1.2"),ln("1112","ح/ البنك الجاري",0,45000)],"CC01","LOC01","A05","PV","BANK","3.1.2"));
+
+  entries.push(mkEntry("J2025-059","2025-06-20","INV-013","إيجار مركز تدريب يونيو","P003",
+    [ln("5221","إيجار المقرات والمكاتب",15000,0,"","","3.1.1"),ln("1112","ح/ البنك الجاري",0,15000)],"CC01","LOC02","A03","INV","CHECK","3.1.1"));
+
+  entries.push(mkEntry("J2025-060","2025-06-25","PV-038","إيجار مكاتب يونيو","P001",
+    [ln("5221","إيجار المقرات والمكاتب",12000,0,"","","2.1.1"),ln("1112","ح/ البنك الجاري",0,12000)],"CC01","LOC01","A05","PV","CHECK","2.1.1"));
+
+  // ====== JULY - SEPTEMBER (Q3) ======
+  entries.push(mkEntry("J2025-061","2025-07-01","RV-008","استلام منحة USAID — دفعة ثالثة","P001",
+    [ln("1112","ح/ البنك الجاري",250000,0),ln("4121","منح من منظمات دولية",0,250000)],"CC01","LOC01","A05","RV","BANK"));
+  entries.push(mkEntry("J2025-062","2025-07-15","PV-039","رواتب يوليو","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+  entries.push(mkEntry("J2025-063","2025-07-15","PV-040","رواتب يوليو — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+  entries.push(mkEntry("J2025-064","2025-07-20","INV-014","شراء أدوية — P002","P002",
+    [ln("5121","مستلزمات وتوريدات البرامج",40000,0,"SUP-SUP002","مؤسسة الشروق الطبية","2.1.1"),ln("1112","ح/ البنك الجاري",0,40000)],"CC01","LOC03","A02","INV","BANK","2.1.1"));
+  entries.push(mkEntry("J2025-065","2025-07-25","PV-041","منح مستفيدين Q3","P001",
+    [ln("5112","إعانات ومساعدات للأفراد",75000,0,"","","3.2.1"),ln("1112","ح/ البنك الجاري",0,75000)],"CC01","LOC01","A05","PV","BANK","3.2.1"));
+  entries.push(mkEntry("J2025-066","2025-07-28","PV-042","مكافآت مدربين يوليو","P001",
+    [ln("5122","أتعاب وعقود خدمات برامجية",45000,0,"","","3.1.2"),ln("1112","ح/ البنك الجاري",0,45000)],"CC01","LOC01","A05","PV","BANK","3.1.2"));
+  entries.push(mkEntry("J2025-067","2025-08-01","RV-009","تبرعات رمضان","",
+    [ln("1111","الخزينة — نقدية بالصندوق",120000,0),ln("4131","تبرعات نقدية من أفراد",0,120000)],"CC02","LOC01","","RV","CASH"));
+  entries.push(mkEntry("J2025-068","2025-08-05","PV-043","توزيع إغاثة رمضان","",
+    [ln("5124","مصروفات الإغاثة والمساعدات العينية",95000,0),ln("1111","الخزينة — نقدية بالصندوق",0,95000)],"CC01","LOC01","A04","PV","CASH"));
+  entries.push(mkEntry("J2025-069","2025-08-15","PV-044","رواتب أغسطس","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+  entries.push(mkEntry("J2025-070","2025-08-15","PV-045","رواتب أغسطس — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+  entries.push(mkEntry("J2025-071","2025-08-20","INV-015","مواد تعليمية — مشروع 3","P003",
+    [ln("5123","مصروفات التدريب وبناء القدرات",28000,0,"SUP-SUP005","مطبعة الوطن","2.1.2"),ln("1112","ح/ البنك الجاري",0,28000)],"CC01","LOC02","A03","INV","BANK","2.1.2"));
+  entries.push(mkEntry("J2025-072","2025-08-22","PV-046","رسوم مراجعة سنوية","",
+    [ln("5251","أتعاب المراجعة والتدقيق الخارجي",35000,0),ln("1112","ح/ البنك الجاري",0,35000)],"CC02","LOC01","","PV","BANK"));
+  entries.push(mkEntry("J2025-073","2025-09-01","RV-010","استلام منحة EU — دفعة ثانية","P002",
+    [ln("1112","ح/ البنك الجاري",200000,0),ln("4121","منح من منظمات دولية",0,200000)],"CC01","LOC03","A02","RV","BANK"));
+  entries.push(mkEntry("J2025-074","2025-09-05","INV-016","معدات طبية — دفعة أخيرة","P002",
+    [ln("5121","مستلزمات وتوريدات البرامج",40000,0,"SUP-SUP002","مؤسسة الشروق الطبية","2.1.2"),ln("1112","ح/ البنك الجاري",0,40000)],"CC01","LOC03","A02","INV","BANK","2.1.2"));
+  entries.push(mkEntry("J2025-075","2025-09-10","PV-047","مستلزمات مشروعات — دفعة 3","P001",
+    [ln("5121","مستلزمات وتوريدات البرامج",30000,0,"SUP-SUP001","شركة النيل للمستلزمات","3.2.2"),ln("1112","ح/ البنك الجاري",0,30000)],"CC01","LOC01","A05","PV","BANK","3.2.2"));
+  entries.push(mkEntry("J2025-076","2025-09-15","PV-048","رواتب سبتمبر","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+  entries.push(mkEntry("J2025-077","2025-09-15","PV-049","رواتب سبتمبر — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+  entries.push(mkEntry("J2025-078","2025-09-20","INV-017","اتصالات وإنترنت — Q3","",
+    [ln("5223","اتصالات وإنترنت",9000,0),ln("1112","ح/ البنك الجاري",0,9000)],"CC02","LOC01","","INV","BANK"));
+  entries.push(mkEntry("J2025-079","2025-09-22","PV-050","وقود Q3","P001",
+    [ln("5233","وقود ومواصلات",19500,0,"SUP-SUP004","شركة النقل السريع","2.2.2"),ln("1112","ح/ البنك الجاري",0,19500)],"CC01","LOC01","A05","PV","CASH","2.2.2"));
+  entries.push(mkEntry("J2025-080","2025-09-30","JV-003","إهلاك أجهزة — Q3","",
+    [ln("5313","إهلاك أجهزة تكنولوجيا المعلومات",9000,0),ln("1223","مجمع إهلاك أجهزة تكنولوجيا المعلومات",0,9000)],"CC02","LOC01","","JV",""));
+
+  // ====== OCTOBER - DECEMBER (Q4) ======
+  entries.push(mkEntry("J2025-081","2025-10-01","RV-011","استلام منحة USAID — دفعة رابعة","P001",
+    [ln("1112","ح/ البنك الجاري",0,0),ln("4121","منح من منظمات دولية",0,0)],"CC01","LOC01","A05","RV","BANK"));
+  // Fix: give actual values
+  entries[entries.length-1].lines=[ln("1112","ح/ البنك الجاري",250000,0),ln("4121","منح من منظمات دولية",0,250000)];
+
+  entries.push(mkEntry("J2025-082","2025-10-05","INV-018","مواصلات أكتوبر","P002",
+    [ln("5233","وقود ومواصلات",8000,0,"SUP-SUP004","شركة النقل السريع"),ln("1112","ح/ البنك الجاري",0,8000)],"CC01","LOC03","A02","INV","CASH"));
+  entries.push(mkEntry("J2025-083","2025-10-10","PV-051","منح مستفيدين Q4","P001",
+    [ln("5112","إعانات ومساعدات للأفراد",75000,0,"","","3.2.1"),ln("1112","ح/ البنك الجاري",0,75000)],"CC01","LOC01","A05","PV","BANK","3.2.1"));
+  entries.push(mkEntry("J2025-084","2025-10-15","PV-052","رواتب أكتوبر","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+  entries.push(mkEntry("J2025-085","2025-10-15","PV-053","رواتب أكتوبر — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+  entries.push(mkEntry("J2025-086","2025-10-20","PV-054","مكافآت مدربين Q4","P001",
+    [ln("5122","أتعاب وعقود خدمات برامجية",45000,0,"","","3.1.2"),ln("1112","ح/ البنك الجاري",0,45000)],"CC01","LOC01","A05","PV","BANK","3.1.2"));
+  entries.push(mkEntry("J2025-087","2025-10-25","INV-019","مواد طبية أكتوبر","P002",
+    [ln("5121","مستلزمات وتوريدات البرامج",35000,0,"SUP-SUP002","مؤسسة الشروق الطبية","2.1.1"),ln("1112","ح/ البنك الجاري",0,35000)],"CC01","LOC03","A02","INV","BANK","2.1.1"));
+  entries.push(mkEntry("J2025-088","2025-11-01","RV-012","استلام منحة UNICEF — دفعة 2","P003",
+    [ln("1112","ح/ البنك الجاري",225000,0),ln("4121","منح من منظمات دولية",0,225000)],"CC01","LOC02","A03","RV","BANK"));
+  entries.push(mkEntry("J2025-089","2025-11-05","PV-055","رواتب مرتبات المشروع 3","P003",
+    [ln("5211","رواتب وأجور العاملين",168000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,168000)],"CC01","LOC02","A03","PV","BANK","1.1"));
+  entries.push(mkEntry("J2025-090","2025-11-10","INV-020","متابعة وتقييم نهائي","P001",
+    [ln("5122","أتعاب وعقود خدمات برامجية",15000,0,"","","4.1.1"),ln("1112","ح/ البنك الجاري",0,15000)],"CC01","LOC01","A05","PV","BANK","4.1.1"));
+  entries.push(mkEntry("J2025-091","2025-11-15","PV-056","رواتب نوفمبر","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+  entries.push(mkEntry("J2025-092","2025-11-15","PV-057","رواتب نوفمبر — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+  entries.push(mkEntry("J2025-093","2025-11-20","INV-021","اتصالات وإنترنت Q4","",
+    [ln("5223","اتصالات وإنترنت",9000,0),ln("1112","ح/ البنك الجاري",0,9000)],"CC02","LOC01","","INV","BANK"));
+  entries.push(mkEntry("J2025-094","2025-11-25","PV-058","مصروفات متفرقة P001","P001",
+    [ln("5263","مصروفات متنوعة",12000,0,"","","4.1.3"),ln("1112","ح/ البنك الجاري",0,12000)],"CC01","LOC01","A05","PV","CASH","4.1.3"));
+  entries.push(mkEntry("J2025-095","2025-12-01","RV-013","تبرعات نهاية السنة","",
+    [ln("1111","الخزينة — نقدية بالصندوق",80000,0),ln("4131","تبرعات نقدية من أفراد",0,80000)],"CC02","LOC01","","RV","CASH"));
+  entries.push(mkEntry("J2025-096","2025-12-05","PV-059","منح مستفيدين — دفعة أخيرة","P001",
+    [ln("5112","إعانات ومساعدات للأفراد",75000,0,"","","3.2.1"),ln("1112","ح/ البنك الجاري",0,75000)],"CC01","LOC01","A05","PV","BANK","3.2.1"));
+  entries.push(mkEntry("J2025-097","2025-12-10","INV-022","وقود Q4","P001",
+    [ln("5233","وقود ومواصلات",18000,0,"SUP-SUP004","شركة النقل السريع","2.2.2"),ln("1112","ح/ البنك الجاري",0,18000)],"CC01","LOC01","A05","PV","CASH","2.2.2"));
+  entries.push(mkEntry("J2025-098","2025-12-15","PV-060","رواتب ديسمبر","P001",
+    [ln("5211","رواتب وأجور العاملين",180000,0,"","","1.1"),ln("1112","ح/ البنك الجاري",0,180000)],"CC01","LOC01","A05","PV","BANK","1.1"));
+  entries.push(mkEntry("J2025-099","2025-12-15","PV-061","رواتب ديسمبر — الإدارة","",
+    [ln("5211","رواتب وأجور العاملين",95000,0),ln("1112","ح/ البنك الجاري",0,95000)],"CC02","LOC01","","PV","BANK"));
+  entries.push(mkEntry("J2025-100","2025-12-20","PV-062","مكافآت نهاية العام","",
+    [ln("5212","حوافز ومكافآت",120000,0),ln("1112","ح/ البنك الجاري",0,120000)],"CC02","LOC01","","PV","BANK"));
+
+  DB.entries = entries;
+
+  // ---- BANK RECON ----
+  DB.bankRecons = [{
+    id:"RC001",accCode:"1112",accName:"ح/ البنك الجاري",
+    date:"2025-03-31",bookBal:0,bankBal:1245000,diff:0,
+    notes:"تسوية Q1 2025",createdAt:"2025-04-05",createdBy:"سارة علي حسن"
+  },{
+    id:"RC002",accCode:"1112",accName:"ح/ البنك الجاري",
+    date:"2025-06-30",bookBal:0,bankBal:980000,diff:0,
+    notes:"تسوية نصف العام",createdAt:"2025-07-03",createdBy:"سارة علي حسن"
+  }];
+
+  // Update project budgets from WBS
+  DB.projects.forEach(function(p){
+    if(p.wbs&&p.wbs.length){
+      var leafs=p.wbs.filter(function(x){
+        return !p.wbs.some(function(y){return y.code!==x.code&&y.code.startsWith(x.code+'.');});
+      });
+      var total=leafs.reduce(function(s,x){return s+(x.budget||0);},0);
+      if(total>0)p.budget=total;
+    }
+  });
+
+  save();
+  toast("✅ تم تحميل "+entries.length+" قيد و"+DB.invMovements.length+" حركة مخزون وبيانات كاملة");
+  nav("dash",document.querySelector('[data-nav="dash"]'));
+  rDash();
+}
+
+
+// ============================================================
+// UNIFIED REPORTS SYSTEM — نظام التقارير المتكامل
+// ============================================================
+
+function rReportsPage(){
+  var h='<div class="ph-t" style="margin-bottom:14px;">📊 التقارير</div>';
+  var sections=[
+    {title:"📒 تقارير المحاسبة",reports:[
+      {icon:"⚖️",label:"ميزان المراجعة",fn:"rptTrialBal()"},
+      {icon:"📈",label:"قائمة الدخل",fn:"rptIncomeStmt()"},
+      {icon:"🏦",label:"الميزانية العمومية",fn:"rptBalanceSheet()"},
+      {icon:"📋",label:"دفتر اليومية التفصيلي",fn:"rptDetailedJournal()"},
+      {icon:"🌳",label:"أستاذ عام — حساب محدد",fn:"rptGeneralLedger()"},
+      {icon:"👥",label:"أرصدة الأطراف الثالثة",fn:"rptTPBalances()"},
+      {icon:"💳",label:"تقرير طرق الدفع",fn:"rptByPayMethod()"},
+      {icon:"📄",label:"تقرير أنواع المستندات",fn:"rptByDocType()"}
+    ]},
+    {title:"🎯 تقارير المشروعات",reports:[
+      {icon:"📉",label:"BVA — كل المشروعات",fn:"rptBVAAll()"},
+      {icon:"📋",label:"ملخص إنجاز المشروعات",fn:"rptProjectsSummary()"},
+      {icon:"💰",label:"المصروفات لكل مشروع",fn:"rptExpByProject()"},
+      {icon:"🌍",label:"تقرير المحاور الموضوعية",fn:"rptByThematic()"},
+      {icon:"🎯",label:"تقرير الأنشطة",fn:"rptByActivity()"}
+    ]},
+    {title:"🏢 تقارير مراكز التكلفة",reports:[
+      {icon:"🏢",label:"المصروفات لكل مركز",fn:"rptByCostCenter()"},
+      {icon:"📍",label:"المصروفات لكل موقع",fn:"rptByLocation()"},
+      {icon:"📊",label:"مقارنة مراكز التكلفة",fn:"rptCostCenterCompare()"}
+    ]},
+    {title:"🏭 تقارير الموردين",reports:[
+      {icon:"🏭",label:"ملخص مشتريات الموردين",fn:"rptSupplierSummary()"},
+      {icon:"📋",label:"حركات مورد تفصيلية",fn:"rptSupplierDetail()"},
+      {icon:"📅",label:"تقرير الدفعات للموردين",fn:"rptSupplierPayments()"}
+    ]},
+    {title:"📦 تقارير المخازن",reports:[
+      {icon:"📦",label:"كشف الأصناف والأرصدة",fn:"rptStock()"},
+      {icon:"📋",label:"بيان الحركات التفصيلي",fn:"rptMovements()"},
+      {icon:"🏪",label:"تقرير المخازن",fn:"rptWarehouses()"},
+      {icon:"⚠️",label:"الأصناف الحرجة",fn:"rptLowStock()"},
+      {icon:"🗑️",label:"تقرير الإعدامات",fn:"rptScrap()"}
+    ]},
+    {title:"👥 تقارير الموارد البشرية",reports:[
+      {icon:"💰",label:"تقرير الرواتب والتكاليف",fn:"hrRptSalaries()"},
+      {icon:"🏢",label:"توزيع الأقسام",fn:"hrRptByDept()"},
+      {icon:"⏰",label:"العقود القاربة على الانتهاء",fn:"hrRptExpiring()"},
+      {icon:"🏦",label:"التأمينات والضرائب",fn:"hrRptInsurance()"},
+      {icon:"👤",label:"التوزيع الديموغرافي",fn:"hrRptDemo()"},
+      {icon:"💳",label:"تقرير الرواتب التفصيلي",fn:"rptPayrollReport()"},
+      {icon:"📋",label:"سجل مسير المرتبات",fn:"viewPayHistory()"}
+    ]}
+  ];
+
+  sections.forEach(function(sec){
+    h+='<div class="sd">'+sec.title+'</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:6px;">';
+    sec.reports.forEach(function(r){
+      h+='<button class="btn btn-gy" onclick="'+r.fn+'" style="display:flex;align-items:center;gap:8px;padding:10px 12px;text-align:right;font-size:12px;font-weight:600;">';
+      h+='<span style="font-size:16px;">'+r.icon+'</span><span>'+r.label+'</span></button>';
+    });
+    h+='</div>';
+  });
+  return h;
+}
+
+// ============================================================
+// ACCOUNTING REPORTS
+// ============================================================
+
+function rptTrialBal(){
+  var B=bals();
+  var rows=[["كود الحساب","اسم الحساب","الطبيعة","إجمالي مدين","إجمالي دائن","الرصيد"]];
+  var tD=0,tC=0;
+  var h='<div style="overflow-x:auto;"><table><thead><tr><th>الكود</th><th>الحساب</th><th>الطبيعة</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead><tbody>';
+  DB.accounts.forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    if(!b.dr&&!b.cr)return;
+    var net=a.nat==="dr"?b.dr-b.cr:b.cr-b.dr;
+    tD+=b.dr;tC+=b.cr;
+    rows.push([a.c,a.n,a.nat==="dr"?"مدين":"دائن",b.dr,b.cr,net]);
+    h+='<tr><td><code style="font-size:10.5px;">'+a.c+'</code></td><td style="font-size:12px;">'+a.n+'</td>';
+    h+='<td><span class="badge '+(a.nat==="dr"?"bb":"bg")+'" style="font-size:9.5px;">'+(a.nat==="dr"?"مدين":"دائن")+'</span></td>';
+    h+='<td class="tn">'+(b.dr>0?fmt(b.dr):"-")+'</td><td class="tn" style="color:var(--gr);">'+(b.cr>0?fmt(b.cr):"-")+'</td>';
+    h+='<td class="tn" style="font-weight:800;color:'+(net>=0?"var(--n)":"var(--rd)")+';">'+fmt(Math.abs(net))+'</td></tr>';
+  });
+  var totBal=tD-tC;
+  h+='</tbody><tfoot><tr style="background:var(--n);">';
+  h+='<td colspan="3" style="color:white;font-weight:900;padding:9px;">الإجمالي</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tD)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tC)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(Math.abs(totBal))+(totBal===0?" ✅ متوازن":"")+'</td>';
+  h+='</tr></tfoot></table></div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="exportTrialBalance()" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  om("⚖️ ميزان المراجعة",h);
+}
+
+function rptDetailedJournal(){
+  initMD();
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📋 دفتر اليومية التفصيلي</div>';
+  h+='<div class="fr" style="margin-bottom:10px;">';
+  h+='<div class="fg"><label>من تاريخ</label><input type="date" id="dj-from" onchange="refreshDJ()"></div>';
+  h+='<div class="fg"><label>إلى تاريخ</label><input type="date" id="dj-to" onchange="refreshDJ()"></div>';
+  h+='</div>';
+  h+='<div class="fg" style="margin-bottom:10px;">';
+  h+='<select id="dj-proj" onchange="refreshDJ()" style="width:100%;">';
+  h+='<option value="">كل المشروعات</option>';
+  DB.projects.forEach(function(p){h+='<option value="'+p.code+'">'+p.name+'</option>';});
+  h+='</select></div>';
+  h+='<div id="dj-body">'+buildDetailedJournal("","","")+'</div>';
+  om("📋 دفتر اليومية التفصيلي",h);
+}
+function refreshDJ(){
+  var f=sv("dj-from"),t=sv("dj-to"),p=sv("dj-proj");
+  var el2=document.getElementById("dj-body");
+  if(el2)el2.innerHTML=buildDetailedJournal(f,t,p);
+}
+function buildDetailedJournal(fromD,toD,projF){
+  var rows=(DB.entries||[]).filter(function(e){
+    return e.status==="posted"
+      &&(!fromD||e.date>=fromD)
+      &&(!toD||e.date<=toD)
+      &&(!projF||e.proj===projF);
+  }).sort(function(a,b){return a.date<b.date?-1:1;});
+  if(!rows.length) return '<div style="text-align:center;color:var(--g4);padding:20px;">لا توجد قيود مطابقة</div>';
+
+  var csvRows=[["رقم القيد","التاريخ","المرجع","البيان","المشروع","مركز التكلفة","الموقع","الحساب","كود WBS","الطرف الثالث","مدين","دائن"]];
+  var h='<div style="font-size:11px;color:var(--g5);margin-bottom:8px;">'+rows.length+' قيد</div>';
+  h+='<div style="overflow-x:auto;"><table><thead><tr>';
+  h+='<th>التاريخ</th><th>المرجع</th><th>البيان</th><th>م.التكلفة</th><th>الحساب</th><th>WBS</th><th>الطرف الثالث</th><th>مدين</th><th>دائن</th>';
+  h+='</tr></thead><tbody>';
+  var tDr=0,tCr=0;
+  rows.forEach(function(e){
+    var proj=DB.projects.find(function(p){return p.code===e.proj;})||{};
+    var cc=(DB.masterData&&DB.masterData.costCenters||[]).find(function(x){return x.code===e.costCenter;})||{};
+    var firstLine=true;
+    (e.lines||[]).forEach(function(l){
+      csvRows.push([e.id,e.date,e.ref,e.desc,proj.name||"",cc.name||"",e.location||"",l.acc+"—"+l.an,l.wbsCode||"",l.tpName||"",l.dr||0,l.cr||0]);
+      tDr+=l.dr||0;tCr+=l.cr||0;
+      h+='<tr style="'+(firstLine?'background:var(--g1);':'')+'">';
+      if(firstLine){
+        h+='<td style="font-size:11px;white-space:nowrap;">'+e.date+'</td>';
+        h+='<td style="font-size:11px;color:var(--sk);">'+e.ref+'</td>';
+        h+='<td style="font-size:11.5px;font-weight:600;">'+e.desc+(proj.name?'<br><span style="color:var(--g4);font-size:9.5px;">'+proj.name+'</span>':'')+'</td>';
+        h+='<td style="font-size:10.5px;color:var(--g4);">'+(cc.name||"—")+'</td>';
+      } else {
+        h+='<td colspan="4"></td>';
+      }
+      h+='<td><code style="font-size:10.5px;">'+l.acc+'</code><div style="font-size:10px;color:var(--g4);">'+l.an+'</div></td>';
+      h+='<td style="font-size:10px;color:var(--sk);">'+(l.wbsCode||"—")+'</td>';
+      h+='<td style="font-size:10.5px;">'+(l.tpName?'<span class="badge bgy" style="font-size:9px;">'+l.tpName+'</span>':"—")+'</td>';
+      h+='<td class="tn" style="color:var(--n);font-weight:700;">'+(l.dr>0?fmt(l.dr):"")+'</td>';
+      h+='<td class="tn" style="color:var(--gr);font-weight:700;">'+(l.cr>0?fmt(l.cr):"")+'</td>';
+      h+='</tr>';
+      firstLine=false;
+    });
+  });
+  h+='</tbody><tfoot><tr style="background:var(--n);">';
+  h+='<td colspan="7" style="color:white;font-weight:900;padding:9px;">الإجمالي ('+rows.length+' قيد)</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tDr)+'</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tCr)+'</td>';
+  h+='</tr></tfoot></table></div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="dlCSV('+JSON.stringify(csvRows).replace(/</g,'\\x3c')+',\'journal-detail.csv\')" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  return h;
+}
+
+function rptGeneralLedger(){
+  var accO='<option value="">— اختر الحساب —</option>';
+  var groups={1:"الأصول",2:"الخصوم",3:"حقوق الملكية",4:"الإيرادات",5:"المصروفات"};
+  var grouped={};
+  DB.accounts.forEach(function(a){var g=a.c[0];if(!grouped[g])grouped[g]=[];grouped[g].push(a);});
+  Object.keys(grouped).sort().forEach(function(g){
+    accO+='<optgroup label="'+groups[g]+'">';
+    grouped[g].forEach(function(a){accO+='<option value="'+a.c+'">'+a.c+' — '+a.n+'</option>';});
+    accO+='</optgroup>';
+  });
+  var h='<div class="fg"><label>الحساب</label><select id="gl-acc" onchange="loadGL()">'+accO+'</select></div>';
+  h+='<div class="fr"><div class="fg"><label>من</label><input type="date" id="gl-from" onchange="loadGL()"></div>';
+  h+='<div class="fg"><label>إلى</label><input type="date" id="gl-to" onchange="loadGL()"></div></div>';
+  h+='<div id="gl-body"><div style="text-align:center;color:var(--g4);padding:20px;">اختر حساباً لعرض الحركات</div></div>';
+  om("🌳 دفتر الأستاذ العام",h);
+}
+function loadGL(){
+  var acc=sv("gl-acc"),from=sv("gl-from"),to=sv("gl-to");
+  var el2=document.getElementById("gl-body");
+  if(!el2||!acc)return;
+  var accObj=DB.accounts.find(function(a){return a.c===acc;})||{n:acc};
+  el2.innerHTML='<div style="font-weight:800;font-size:13px;margin-bottom:8px;">'+acc+' — '+accObj.n+'</div>'+buildAccLedgerTable(acc,from,to);
+}
+
+function rptByPayMethod(){
+  var pmMap={};
+  (DB.entries||[]).filter(function(e){return e.status==="posted";}).forEach(function(e){
+    var pm=e.payMethod||"غير محدد";
+    if(!pmMap[pm])pmMap[pm]={count:0,tDr:0,tCr:0};
+    pmMap[pm].count++;
+    (e.lines||[]).forEach(function(l){pmMap[pm].tDr+=l.dr||0;pmMap[pm].tCr+=l.cr||0;});
+  });
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">💳 تقرير طرق الدفع</div>';
+  h+='<table><thead><tr><th>طريقة الدفع</th><th>عدد العمليات</th><th>إجمالي مدين</th><th>إجمالي دائن</th></tr></thead><tbody>';
+  Object.keys(pmMap).sort().forEach(function(pm){
+    var m=pmMap[pm];
+    h+='<tr><td style="font-weight:700;">'+pm+'</td><td class="tn">'+m.count+'</td>';
+    h+='<td class="tn">'+fmt(m.tDr)+'</td><td class="tn" style="color:var(--gr);">'+fmt(m.tCr)+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  om("💳 تقرير طرق الدفع",h);
+}
+
+function rptByDocType(){
+  var dtMap={};
+  (DB.entries||[]).filter(function(e){return e.status==="posted";}).forEach(function(e){
+    var dt=e.docType||"JV";
+    if(!dtMap[dt])dtMap[dt]={count:0,tDr:0};
+    dtMap[dt].count++;
+    (e.lines||[]).forEach(function(l){dtMap[dt].tDr+=l.dr||0;});
+  });
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📄 تقرير أنواع المستندات</div>';
+  h+='<table><thead><tr><th>نوع المستند</th><th>عدد العمليات</th><th>إجمالي القيمة</th></tr></thead><tbody>';
+  Object.keys(dtMap).sort().forEach(function(dt){
+    var m=dtMap[dt];
+    h+='<tr><td style="font-weight:700;">'+dt+'</td><td class="tn">'+m.count+'</td><td class="tn">'+fmt(m.tDr)+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  om("📄 تقرير أنواع المستندات",h);
+}
+
+// ============================================================
+// PROJECT REPORTS
+// ============================================================
+
+function rptBVAAll(){
+  initWBS();
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📉 BVA — كل المشروعات</div>';
+  h+='<div style="overflow-x:auto;"><table><thead><tr><th>المشروع</th><th>المانح</th><th>الموازنة</th><th>الصرف الفعلي</th><th>المتبقي</th><th>%</th><th>الحالة</th></tr></thead><tbody>';
+  var csvRows=[["المشروع","المانح","الموازنة","الصرف","المتبقي","%","الحالة"]];
+  DB.projects.forEach(function(p){
+    var spent=getProjectSpent(p.code);
+    var budget=p.budget||0;
+    var rem=budget-spent;
+    var pct=budget>0?Math.round(spent/budget*100):0;
+    var st=pct>100?{l:"تجاوز",c:"br"}:pct>85?{l:"تحذير",c:"ba"}:pct>30?{l:"طبيعي",c:"bb"}:{l:"منخفض",c:"bg"};
+    csvRows.push([p.name,p.donor||"",budget,spent,rem,pct+"%",st.l]);
+    h+='<tr>';
+    h+='<td><div style="font-weight:700;font-size:12px;">'+p.name+'</div><code style="font-size:9.5px;color:var(--g4);">'+p.code+'</code></td>';
+    h+='<td style="font-size:11px;">'+(p.donor||"—")+'</td>';
+    h+='<td class="tn" style="font-weight:700;">'+fmt(budget)+'</td>';
+    h+='<td class="tn" style="color:var(--rd);font-weight:700;">'+fmt(spent)+'</td>';
+    var remClr=rem<0?"var(--rd)":"var(--gr)";
+    h+='<td class="tn" style="color:'+remClr+';font-weight:700;">'+fmt(rem)+'</td>';
+    h+='<td style="font-weight:800;color:'+(pct>100?"var(--rd)":pct>85?"var(--am)":"var(--gr)")+';">'+pct+'%</td>';
+    h+='<td><span class="badge '+st.c+'" style="font-size:9.5px;">'+st.l+'</span></td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="dlCSV('+JSON.stringify(csvRows)+',\'bva-all.csv\')" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  om("📉 BVA — كل المشروعات",h);
+}
+
+function rptExpByProject(){
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">💰 المصروفات لكل مشروع</div>';
+  h+='<div style="overflow-x:auto;"><table><thead><tr><th>المشروع</th><th>الحساب</th><th>WBS</th><th>الطرف الثالث</th><th>التاريخ</th><th>المرجع</th><th>البيان</th><th>المبلغ</th></tr></thead><tbody>';
+  var csvRows=[["المشروع","الحساب","WBS","الطرف الثالث","التاريخ","المرجع","البيان","المبلغ"]];
+  var projTotals={};
+  (DB.entries||[]).filter(function(e){return e.status==="posted"&&e.proj;}).forEach(function(e){
+    var proj=DB.projects.find(function(p){return p.code===e.proj;})||{name:e.proj};
+    (e.lines||[]).forEach(function(l){
+      if((l.dr||0)>0&&isExpenseAcc(l.acc)){
+        if(!projTotals[e.proj])projTotals[e.proj]={name:proj.name,total:0,rows:[]};
+        projTotals[e.proj].total+=l.dr;
+        projTotals[e.proj].rows.push({date:e.date,ref:e.ref,desc:e.desc,acc:l.acc,an:l.an,wbs:l.wbsCode||"",tp:l.tpName||"",amt:l.dr});
+        csvRows.push([proj.name,l.acc+"—"+l.an,l.wbsCode||"",l.tpName||"",e.date,e.ref,e.desc,l.dr]);
+      }
+    });
+  });
+  Object.keys(projTotals).forEach(function(pcode){
+    var p=projTotals[pcode];
+    h+='<tr style="background:var(--n);">';
+    h+='<td colspan="7" style="color:white;font-weight:900;padding:9px;font-size:12px;">'+p.name+' — إجمالي: '+fmt(p.total)+'</td>';
+    h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(p.total)+'</td></tr>';
+    p.rows.forEach(function(r){
+      h+='<tr>';
+      h+='<td></td>';
+      h+='<td><code style="font-size:10.5px;">'+r.acc+'</code><div style="font-size:10px;color:var(--g4);">'+r.an+'</div></td>';
+      h+='<td style="font-size:10px;color:var(--sk);">'+(r.wbs||"—")+'</td>';
+      h+='<td style="font-size:10.5px;">'+(r.tp||"—")+'</td>';
+      h+='<td style="font-size:11px;white-space:nowrap;">'+r.date+'</td>';
+      h+='<td style="font-size:11px;color:var(--sk);">'+r.ref+'</td>';
+      h+='<td style="font-size:11px;">'+r.desc+'</td>';
+      h+='<td class="tn" style="font-weight:700;">'+fmt(r.amt)+'</td>';
+      h+='</tr>';
+    });
+  });
+  h+='</tbody></table></div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="dlCSV('+JSON.stringify(csvRows)+',\'exp-by-project.csv\')" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  om("💰 المصروفات لكل مشروع",h);
+}
+
+function rptByThematic(){
+  initMD();
+  var thMap={};
+  (DB.entries||[]).filter(function(e){return e.status==="posted"&&e.proj;}).forEach(function(e){
+    var proj=DB.projects.find(function(p){return p.code===e.proj;});
+    if(!proj)return;
+    var th=proj.thematic||"غير محدد";
+    var thObj=(DB.masterData&&DB.masterData.thematics||[]).find(function(x){return x.code===th;})||{nameAr:th};
+    var label=thObj.nameAr||th;
+    if(!thMap[label])thMap[label]={count:0,total:0};
+    thMap[label].count++;
+    (e.lines||[]).forEach(function(l){if(isExpenseAcc(l.acc))thMap[label].total+=l.dr||0;});
+  });
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">🌍 تقرير المحاور الموضوعية</div>';
+  h+='<table><thead><tr><th>المحور الموضوعي</th><th>عدد القيود</th><th>إجمالي المصروفات</th></tr></thead><tbody>';
+  Object.keys(thMap).forEach(function(k){
+    h+='<tr><td style="font-weight:700;">'+k+'</td><td class="tn">'+thMap[k].count+'</td><td class="tn" style="font-weight:800;">'+fmt(thMap[k].total)+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  om("🌍 تقرير المحاور الموضوعية",h);
+}
+
+function rptByActivity(){
+  initMD();
+  var actMap={};
+  (DB.entries||[]).filter(function(e){return e.status==="posted"&&e.activity;}).forEach(function(e){
+    var actObj=(DB.masterData&&DB.masterData.activities||[]).find(function(x){return x.code===e.activity;})||{name:e.activity};
+    var label=actObj.name||e.activity;
+    if(!actMap[label])actMap[label]={count:0,total:0};
+    actMap[label].count++;
+    (e.lines||[]).forEach(function(l){if(isExpenseAcc(l.acc))actMap[label].total+=l.dr||0;});
+  });
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">🎯 تقرير الأنشطة</div>';
+  h+='<table><thead><tr><th>النشاط</th><th>عدد القيود</th><th>إجمالي المصروفات</th></tr></thead><tbody>';
+  Object.keys(actMap).forEach(function(k){
+    h+='<tr><td style="font-weight:700;">'+k+'</td><td class="tn">'+actMap[k].count+'</td><td class="tn" style="font-weight:800;">'+fmt(actMap[k].total)+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  om("🎯 تقرير الأنشطة",h);
+}
+
+// ============================================================
+// COST CENTER REPORTS
+// ============================================================
+
+function rptByCostCenter(){
+  initMD();
+  var ccMap={};
+  (DB.entries||[]).filter(function(e){return e.status==="posted";}).forEach(function(e){
+    var cc=e.costCenter||"غير محدد";
+    var ccObj=(DB.masterData&&DB.masterData.costCenters||[]).find(function(x){return x.code===cc;})||{name:cc};
+    var label=ccObj.name||cc;
+    if(!ccMap[label])ccMap[label]={count:0,tExp:0,tRev:0,rows:[]};
+    ccMap[label].count++;
+    (e.lines||[]).forEach(function(l){
+      if(isExpenseAcc(l.acc))ccMap[label].tExp+=l.dr||0;
+      if(l.acc&&l.acc.startsWith("4"))ccMap[label].tRev+=l.cr||0;
+      ccMap[label].rows.push({date:e.date,ref:e.ref,desc:e.desc,acc:l.acc,an:l.an,dr:l.dr||0,cr:l.cr||0});
+    });
+  });
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">🏢 المصروفات لكل مركز تكلفة</div>';
+  h+='<table><thead><tr><th>مركز التكلفة</th><th>عدد القيود</th><th>إجمالي المصروفات</th><th>إجمالي الإيرادات</th><th>الصافي</th></tr></thead><tbody>';
+  var csvRows=[["مركز التكلفة","عدد القيود","إجمالي المصروفات","إجمالي الإيرادات","الصافي"]];
+  Object.keys(ccMap).forEach(function(cc){
+    var m=ccMap[cc];
+    var net=m.tRev-m.tExp;
+    csvRows.push([cc,m.count,m.tExp,m.tRev,net]);
+    h+='<tr><td style="font-weight:700;">'+cc+'</td><td class="tn">'+m.count+'</td>';
+    h+='<td class="tn" style="color:var(--rd);">'+fmt(m.tExp)+'</td>';
+    h+='<td class="tn" style="color:var(--gr);">'+fmt(m.tRev)+'</td>';
+    var netClr=net>=0?"var(--gr)":"var(--rd)";
+    h+='<td class="tn" style="font-weight:800;color:'+netClr+';">'+fmt(net)+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  h+='<button class="btn btn-sm btn-gy" onclick="dlCSV('+JSON.stringify(csvRows)+',\'cost-centers.csv\')" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  om("🏢 تقرير مراكز التكلفة",h);
+}
+
+function rptByLocation(){
+  initMD();
+  var locMap={};
+  (DB.entries||[]).filter(function(e){return e.status==="posted";}).forEach(function(e){
+    var loc=e.location||"غير محدد";
+    var locObj=(DB.masterData&&DB.masterData.locations||[]).find(function(x){return x.code===loc;})||{name:loc};
+    var label=locObj.name||loc;
+    if(!locMap[label])locMap[label]={count:0,tExp:0};
+    locMap[label].count++;
+    (e.lines||[]).forEach(function(l){if(isExpenseAcc(l.acc))locMap[label].tExp+=l.dr||0;});
+  });
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📍 المصروفات لكل موقع</div>';
+  h+='<table><thead><tr><th>الموقع</th><th>عدد القيود</th><th>إجمالي المصروفات</th></tr></thead><tbody>';
+  Object.keys(locMap).forEach(function(loc){
+    h+='<tr><td style="font-weight:700;">'+loc+'</td><td class="tn">'+locMap[loc].count+'</td><td class="tn">'+fmt(locMap[loc].tExp)+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  om("📍 تقرير المواقع",h);
+}
+
+function rptCostCenterCompare(){
+  initMD();
+  var ccs=(DB.masterData&&DB.masterData.costCenters)||[];
+  if(!ccs.length){om("📊 مقارنة مراكز التكلفة","<div style='text-align:center;color:var(--g4);padding:20px;'>أضف مراكز تكلفة أولاً</div>");return;}
+  var months=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  var data={};
+  ccs.forEach(function(cc){data[cc.code]=[0,0,0,0,0,0,0,0,0,0,0,0];});
+  (DB.entries||[]).filter(function(e){return e.status==="posted"&&e.costCenter;}).forEach(function(e){
+    if(!data[e.costCenter])return;
+    var mo=parseInt(e.date.split("-")[1])-1;
+    (e.lines||[]).forEach(function(l){if(isExpenseAcc(l.acc))data[e.costCenter][mo]+=l.dr||0;});
+  });
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📊 مقارنة مراكز التكلفة الشهرية</div>';
+  h+='<div style="overflow-x:auto;"><table><thead><tr><th>مركز التكلفة</th>';
+  months.forEach(function(m){h+='<th style="font-size:10px;white-space:nowrap;">'+m+'</th>';});
+  h+='<th>الإجمالي</th></tr></thead><tbody>';
+  ccs.forEach(function(cc){
+    var total=data[cc.code].reduce(function(s,v){return s+v;},0);
+    h+='<tr><td style="font-weight:700;white-space:nowrap;">'+cc.name+'</td>';
+    data[cc.code].forEach(function(v){h+='<td class="tn" style="font-size:11px;">'+(v>0?fmt(v):"—")+'</td>';});
+    h+='<td class="tn" style="font-weight:800;color:var(--n);">'+fmt(total)+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  om("📊 مقارنة مراكز التكلفة",h);
+}
+
+// ============================================================
+// SUPPLIER REPORTS
+// ============================================================
+
+function rptSupplierSummary(){
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">🏭 ملخص مشتريات الموردين</div>';
+  var supMap={};
+  (DB.entries||[]).filter(function(e){return e.status==="posted";}).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(l.tpId&&l.tpId.startsWith("SUP-")&&(l.dr||0)>0&&isExpenseAcc(l.acc)){
+        if(!supMap[l.tpId])supMap[l.tpId]={name:l.tpName||l.tpId,count:0,total:0,items:{}};
+        supMap[l.tpId].count++;
+        supMap[l.tpId].total+=l.dr;
+        supMap[l.tpId].items[l.acc]=(supMap[l.tpId].items[l.acc]||0)+l.dr;
+      }
+    });
+  });
+  // Also from invMovements
+  (DB.invMovements||[]).filter(function(m){return m.type==="in"&&m.supplierId;}).forEach(function(m){
+    var id=m.supplierId;
+    if(!supMap[id])supMap[id]={name:m.supplierName||id,count:0,total:0,items:{}};
+    supMap[id].count++;
+    supMap[id].total+=m.qty*(DB.inventory.find(function(x){return x.code===m.itemCode;})||{cost:0}).cost;
+  });
+  var csvRows=[["المورد","عدد العمليات","إجمالي المشتريات (ج.م)"]];
+  h+='<table><thead><tr><th>المورد</th><th>عدد العمليات</th><th>إجمالي المشتريات</th></tr></thead><tbody>';
+  Object.values(supMap).sort(function(a,b){return b.total-a.total;}).forEach(function(s){
+    csvRows.push([s.name,s.count,s.total]);
+    h+='<tr><td style="font-weight:700;">'+s.name+'</td><td class="tn">'+s.count+'</td>';
+    h+='<td class="tn" style="font-weight:800;">'+fmt(s.total)+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  h+='<button class="btn btn-sm btn-gy" onclick="dlCSV('+JSON.stringify(csvRows)+',\'suppliers-summary.csv\')" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  om("🏭 ملخص مشتريات الموردين",h);
+}
+
+function rptSupplierDetail(){
+  var supO='<option value="">— اختر المورد —</option>';
+  (DB.suppliers||[]).forEach(function(s){supO+='<option value="SUP-'+s.id+'">'+s.name+'</option>';});
+  var h='<div class="fg"><label>المورد</label><select id="rsd-sup" onchange="loadSupDetail()">'+supO+'</select></div>';
+  h+='<div class="fr"><div class="fg"><label>من</label><input type="date" id="rsd-from" onchange="loadSupDetail()"></div>';
+  h+='<div class="fg"><label>إلى</label><input type="date" id="rsd-to" onchange="loadSupDetail()"></div></div>';
+  h+='<div id="rsd-body"><div style="text-align:center;color:var(--g4);padding:20px;">اختر مورداً</div></div>';
+  om("📋 حركات مورد تفصيلية",h);
+}
+function loadSupDetail(){
+  var tpId=sv("rsd-sup"),from=sv("rsd-from"),to=sv("rsd-to");
+  var el2=document.getElementById("rsd-body");
+  if(!el2||!tpId)return;
+  el2.innerHTML=buildTPLedgerTable(tpId,from,to);
+}
+
+function rptSupplierPayments(){
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📅 دفعات الموردين</div>';
+  var rows=[];
+  (DB.entries||[]).filter(function(e){return e.status==="posted";}).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(l.tpId&&l.tpId.startsWith("SUP-")&&(l.dr||0)>0){
+        rows.push({date:e.date,ref:e.ref,desc:e.desc,sup:l.tpName||l.tpId,acc:l.acc,an:l.an,amt:l.dr,pm:e.payMethod||"—"});
+      }
+    });
+  });
+  rows.sort(function(a,b){return a.date<b.date?-1:1;});
+  var csvRows=[["التاريخ","المرجع","البيان","المورد","الحساب","المبلغ","طريقة الدفع"]];
+  h+='<div style="overflow-x:auto;"><table><thead><tr><th>التاريخ</th><th>المرجع</th><th>المورد</th><th>الحساب</th><th>المبلغ</th><th>طريقة الدفع</th></tr></thead><tbody>';
+  var total=0;
+  rows.forEach(function(r){
+    total+=r.amt;
+    csvRows.push([r.date,r.ref,r.desc,r.sup,r.acc+"—"+r.an,r.amt,r.pm]);
+    h+='<tr><td style="font-size:11px;white-space:nowrap;">'+r.date+'</td>';
+    h+='<td style="font-size:11px;color:var(--sk);">'+r.ref+'</td>';
+    h+='<td style="font-size:12px;font-weight:700;">'+r.sup+'</td>';
+    h+='<td style="font-size:10.5px;"><code>'+r.acc+'</code></td>';
+    h+='<td class="tn" style="font-weight:700;">'+fmt(r.amt)+'</td>';
+    h+='<td style="font-size:11px;">'+r.pm+'</td></tr>';
+  });
+  h+='</tbody><tfoot><tr style="background:var(--n);"><td colspan="4" style="color:white;font-weight:900;padding:9px;">الإجمالي</td>';
+  h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(total)+'</td><td></td></tr></tfoot></table></div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="dlCSV('+JSON.stringify(csvRows)+',\'supplier-payments.csv\')" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  om("📅 دفعات الموردين",h);
+}
+
+function rptProjectsSummary(){
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📋 ملخص إنجاز المشروعات</div>';
+  DB.projects.forEach(function(p){
+    var spent=getProjectSpent(p.code);
+    var budget=p.budget||0;
+    var pct=budget>0?Math.round(spent/budget*100):0;
+    var col=pct>90?"var(--rd)":pct>70?"var(--am)":"var(--gr)";
+    var entCount=(DB.entries||[]).filter(function(e){return e.proj===p.code&&e.status==="posted";}).length;
+    h+='<div class="card" style="margin-bottom:10px;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+    h+='<div><span class="badge bb" style="font-size:9.5px;">'+p.code+'</span>';
+    h+='<div style="font-weight:800;font-size:14px;margin-top:3px;">'+p.name+'</div>';
+    h+='<div style="font-size:11px;color:var(--g4);">'+(p.donor||"—")+' · '+(p.start||"")+(p.end?" → "+p.end:"")+'</div>';
+    if(p.thematic){
+      var thObj=(DB.masterData&&DB.masterData.thematics||[]).find(function(x){return x.code===p.thematic;});
+      if(thObj)h+='<span class="badge bb" style="font-size:9px;">'+thObj.nameAr+'</span>';
+    }
+    h+='</div>';
+    h+='<div style="text-align:left;"><div style="font-size:9px;color:var(--g4);">صُرف</div><div style="font-weight:900;font-size:18px;color:'+col+';">'+pct+'%</div></div></div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;font-size:11px;text-align:center;margin-bottom:8px;">';
+    h+='<div style="background:var(--g1);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:9.5px;">الموازنة</div><div style="font-weight:800;">'+fmt(budget)+'</div></div>';
+    h+='<div style="background:var(--rbg);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:9.5px;">الصرف</div><div style="font-weight:800;color:var(--rd);">'+fmt(spent)+'</div></div>';
+    var remClr=(budget-spent)>=0?"var(--gr)":"var(--rd)";
+    h+='<div style="background:var(--gbg);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:9.5px;">المتبقي</div><div style="font-weight:800;color:'+remClr+';">'+fmt(budget-spent)+'</div></div>';
+    h+='<div style="background:var(--skp);border-radius:7px;padding:7px;"><div style="color:var(--g4);font-size:9.5px;">القيود</div><div style="font-weight:800;color:var(--n);">'+entCount+'</div></div>';
+    h+='</div>';
+    h+='<div class="pw"><div class="pb" style="width:'+Math.min(pct,100)+'%;background:'+col+';"></div></div>';
+    h+='<div style="display:flex;gap:6px;margin-top:8px;">';
+    h+='<button class="btn btn-sm" style="background:var(--n);flex:1;font-size:10.5px;" onclick="viewProject(\''+p.code+'\')">📉 BVA التفصيلي</button>';
+    h+='<button class="btn btn-sm btn-gy" onclick="exportBVA(\''+p.code+'\')" style="font-size:10.5px;">📥 CSV</button>';
+    h+='</div></div>';
+  });
+  om("📋 ملخص المشروعات",h);
 }
 
 
