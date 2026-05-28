@@ -1227,7 +1227,7 @@ function newEntry(){
   var h='<div class="fr"><div class="fg"><label>التاريخ *</label><input type="date" id="e-d" value="'+new Date().toISOString().split("T")[0]+'"></div>';
   h+='<div class="fg"><label>المرجع</label><input id="e-r" placeholder="PV-001"></div></div>';
   h+='<div class="fg"><label>البيان *</label><input id="e-ds" placeholder="وصف العملية المالية"></div>';
-  h+='<div class="fg"><label>المشروع</label><select id="e-p" onchange="onProjChange()"><option value="">—</option>'+pO+'</select></div>';
+  // Project is now per line - no header project selector
   var ccO=getMDOptions('costCenters','code','name');
   var locO=getMDOptions('locations','code','name');
   var actO=getMDOptions('activities','code','name');
@@ -1284,9 +1284,11 @@ function saveE(){
   if(Math.abs(tD-tC)>0.01){toast("⚠️ القيد غير متوازن — فرق: "+fmt(Math.abs(tD-tC)));return;}
   var desc=sv("e-ds");if(!desc){toast("⚠️ البيان مطلوب");return;}
   var id="J"+new Date().getFullYear()+"-"+String(Date.now()).slice(-6);
+  // Determine primary project from lines
+  var primaryProj=(lines.find(function(l){return l.proj;})||{}).proj||"";
   DB.entries.push({
-    id:id,date:dt,ref:sv("e-r")||id,desc:desc,
-    proj:sv("e-p"),costCenter:sv("e-cc"),location:sv("e-loc"),
+    id:id,date:dt,ref:sv("e-r")||id,desc:sv("e-ds")||"قيد محاسبي",
+    proj:primaryProj,costCenter:sv("e-cc"),location:sv("e-loc"),
     activity:sv("e-act"),docType:sv("e-dt"),payMethod:sv("e-pm"),
     lines:lines,status:"posted"
   });
@@ -1355,6 +1357,9 @@ function editEntry(id){
     h+='</div>';
     h+='<div class="fr" style="margin-bottom:5px;"><input type="number" id="edr-'+i+'" value="'+(l.dr||'')+'" placeholder="مدين" oninput="updET()"><input type="number" id="ecr-'+i+'" value="'+(l.cr||'')+'" placeholder="دائن" oninput="updET()"></div>';
     h+='<input type="hidden" id="ewbs-'+i+'" value="'+(l.wbsCode||'')+'">';
+    var eProjO='<option value="">— بدون مشروع —</option>';
+    DB.projects.forEach(function(p){eProjO+='<option value="'+p.code+'"'+(p.code===(l.proj||'')?' selected':'')+'>'+p.name+'</option>';});
+    h+='<select id="eproj-'+i+'" onchange="onLineProjChange('+i+')" style="width:100%;font-size:11px;color:var(--g4);margin-bottom:5px;">'+eProjO+'</select>';
     h+='<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpOe+'</select>';
     h+='</div>';
   });
@@ -5413,13 +5418,11 @@ function isWBSParent(code, items){
 }
 
 function getWBSSpent(projCode, wbsCode){
-  // Sum all entries for this project where wbsCode matches
   var total=0;
-  (DB.entries||[]).filter(function(e){
-    return e.status==='posted' && e.proj===projCode;
-  }).forEach(function(e){
+  (DB.entries||[]).filter(function(e){return e.status==='posted';}).forEach(function(e){
     (e.lines||[]).forEach(function(l){
-      if(l.wbsCode===wbsCode && (l.dr||0)>0 && isExpenseAcc(l.acc)){
+      var lp=l.proj||e.proj||'';
+      if(lp===projCode&&l.wbsCode===wbsCode&&(l.dr||0)>0&&isExpenseAcc(l.acc)){
         total+=l.dr||0;
       }
     });
@@ -5639,9 +5642,11 @@ function buildProjEntriesTab(projCode){
 // ---- GET PROJECT SPENT (from entries) ----
 function getProjectSpent(projCode){
   var total=0;
-  (DB.entries||[]).filter(function(e){return e.status==='posted'&&e.proj===projCode;}).forEach(function(e){
+  (DB.entries||[]).filter(function(e){return e.status==='posted';}).forEach(function(e){
     (e.lines||[]).forEach(function(l){
-      if(isExpenseAcc(l.acc)) total+=l.dr||0;
+      // Check line-level proj first, fallback to entry-level proj
+      var lp=l.proj||e.proj||'';
+      if(lp===projCode&&isExpenseAcc(l.acc)) total+=l.dr||0;
     });
   });
   return total;
@@ -5893,10 +5898,11 @@ function collectTP(prefix,lineCount){
     var tpId=tpEl?tpEl.value:'';
     var tp=tpId?(DB.thirdParties||[]).find(function(t){return t.id===tpId;}):null;
     var wbsCode=(el('ewbs-'+i)||{}).value||'';
+    var lineProj=(el('eproj-'+i)||{}).value||'';
     lines.push({
       acc:acc, an:a?a.n:'', dr:dr, cr:cr,
       tpId:tp?tp.id:'', tpName:tp?tp.name:'', tpType:tp?tp.type:'',
-      wbsCode:wbsCode
+      wbsCode:wbsCode, proj:lineProj
     });
   }
   return lines;
@@ -5904,56 +5910,73 @@ function collectTP(prefix,lineCount){
 
 // onProjChange - rebuild entry lines when project changes
 function onProjChange(){
-  var projCode=(el('e-p')||{}).value||'';
-  var container=el('els');if(!container)return;
-  var oldCount=_eL;
-  container.innerHTML='';
-  for(var i=0;i<oldCount;i++){
-    var d=document.createElement('div');
-    d.innerHTML=eLnTPwbs(i,projCode);
-    container.appendChild(d.firstChild);
-  }
+  // Header project removed - project is now per line
   updET();
+}
+function onLineProjChange(i){
+  var lProjCode=(el('eproj-'+i)||{}).value||'';
+  var wbsItems=lProjCode?getWBSForProject(lProjCode):[];
+  var drop=el('ewbs-drop-'+i);
+  var search=el('ewbs-search-'+i);
+  var hidden=el('ewbs-'+i);
+  if(hidden){hidden.value='';}
+  if(search){search.value='';}
+  if(wbsItems.length){
+    if(!search){
+      // Need to rebuild the line with new project
+      var lineEl=el('el-'+i);
+      if(lineEl){
+        var accV=(el('ea-'+i)||{}).value||'';
+        var drV=(el('edr-'+i)||{}).value||'';
+        var crV=(el('ecr-'+i)||{}).value||'';
+        var tpV=(el('etp-'+i)||{}).value||'';
+        var d=document.createElement('div');
+        d.innerHTML=eLnTPwbs(i,lProjCode,{acc:accV,dr:drV,cr:crV,tpId:tpV,proj:lProjCode});
+        lineEl.parentNode.replaceChild(d.firstChild,lineEl);
+      }
+    } else {
+      if(drop) drop.innerHTML=buildWBSDropHtml(i,wbsItems,'');
+    }
+  } else {
+    if(drop) drop.innerHTML='';
+    if(search) search.style.display='none';
+  }
 }
 
 
-function eLnTPwbs(i, projCode){
+function eLnTPwbs(i, projCode, values){
   initTP();
-  var tpOpts=buildTPOptions('');
-  // WBS dropdown for selected project
-  var wbsItems=projCode?getWBSForProject(projCode):[];
-  var wbsO='<option value="">— بدون كود نشاط —</option>';
-  wbsItems.forEach(function(w){
-    var isLeaf=!isWBSParent(w.code,wbsItems);
-    wbsO+='<option value="'+w.code+'">'+(isLeaf?'':'▶ ')+w.code+' — '+w.name+'</option>';
+  values=values||{};
+  var lineProjCode=values.proj||projCode||'';
+  // Project selector options
+  var projO='<option value="">— بدون مشروع —</option>';
+  DB.projects.forEach(function(p){
+    projO+='<option value="'+p.code+'"'+(p.code===lineProjCode?' selected':'')+'>'+p.name+'</option>';
   });
+  // WBS for line project
+  var wbsItems=lineProjCode?getWBSForProject(lineProjCode):[];
   var hasWBS=wbsItems.length>0;
-
+  var tpOpts=buildTPOptions(values.tpId||'');
+  var accDisplay=values.acc?values.acc+' — '+((DB.accounts.find(function(a){return a.c===values.acc;})||{}).n||''):'';
+  var wbsDrop=hasWBS
+    ?('<div style="position:relative;margin-bottom:5px;">'
+      +'<input id="ewbs-search-'+i+'" placeholder="🔍 كود WBS..." style="width:100%;padding:7px 10px;border:1.5px solid var(--sk);border-radius:7px;font-size:11.5px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterWBS('+i+')" onfocus="showWBSDrop('+i+')" onblur="setTimeout(function(){hideWBSDrop('+i+')},200)">'
+      +'<div id="ewbs-drop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--sk);border-radius:8px;max-height:180px;overflow-y:auto;z-index:998;box-shadow:0 4px 16px rgba(0,0,0,.15);">'+buildWBSDropHtml(i,wbsItems,'')+'</div>'
+      +'<input type="hidden" id="ewbs-'+i+'" value="'+(values.wbsCode||'')+'">'
+      +'</div>')
+    :('<input type="hidden" id="ewbs-'+i+'" value="'+(values.wbsCode||'')+'">');
   return '<div class="tp-line" id="el-'+i+'" style="background:var(--g1);border-radius:9px;padding:8px;margin-bottom:7px;">'
     +'<div style="position:relative;margin-bottom:5px;">'
-    +'<input id="eaSearch-'+i+'" placeholder="🔍 ابحث عن حساب مصروف..." style="width:100%;padding:8px 12px;border:1.5px solid var(--g2);border-radius:8px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterAccSel('+i+')" onfocus="showAccDrop('+i+')" onblur="setTimeout(function(){hideAccDrop('+i+')},200)">'
-    +'<div id="eaDrop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--n);border-radius:8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.15);">'
-    +buildAccDropHtml(i,'')
-    +'</div>'
-    +'<input type="hidden" id="ea-'+i+'" onchange="updET()">'
+    +'<input id="eaSearch-'+i+'" value="'+accDisplay+'" placeholder="🔍 ابحث عن حساب..." style="width:100%;padding:8px 12px;border:1.5px solid var(--g2);border-radius:8px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterAccSel('+i+')" onfocus="showAccDrop('+i+')" onblur="setTimeout(function(){hideAccDrop('+i+')},200)">'
+    +'<div id="eaDrop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--n);border-radius:8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.15);">'+buildAccDropHtml(i,'')+'</div>'
+    +'<input type="hidden" id="ea-'+i+'" value="'+(values.acc||'')+'" onchange="updET()">'
     +'</div>'
     +'<div class="fr" style="margin-bottom:5px;">'
-    +'<input type="number" id="edr-'+i+'" placeholder="مدين" oninput="updET()">'
-    +'<input type="number" id="ecr-'+i+'" placeholder="دائن" oninput="updET()">'
+    +'<input type="number" id="edr-'+i+'" value="'+(values.dr||'')+'" placeholder="مدين" oninput="updET()">'
+    +'<input type="number" id="ecr-'+i+'" value="'+(values.cr||'')+'" placeholder="دائن" oninput="updET()">'
     +'</div>'
-    +(hasWBS
-      ? '<div style="display:flex;gap:6px;margin-bottom:5px;align-items:center;">'
-        +'<div style="flex:1;position:relative;">'
-        +'<input id="ewbs-search-'+i+'" placeholder="🔍 كود النشاط (WBS)..." style="width:100%;padding:7px 10px;border:1.5px solid var(--sk);border-radius:7px;font-size:11.5px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterWBS('+i+')" onfocus="showWBSDrop('+i+')" onblur="setTimeout(function(){hideWBSDrop('+i+')},200)">'
-        +'<div id="ewbs-drop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--sk);border-radius:8px;max-height:180px;overflow-y:auto;z-index:998;box-shadow:0 4px 16px rgba(0,0,0,.15);">'
-        +buildWBSDropHtml(i, wbsItems, '')
-        +'</div>'
-        +'<input type="hidden" id="ewbs-'+i+'">'
-        +'</div>'
-        +'<div id="ewbs-name-'+i+'" style="font-size:10px;color:var(--sk);min-width:60px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>'
-        +'</div>'
-      : '<input type="hidden" id="ewbs-'+i+'">'
-    )
+    +'<select id="eproj-'+i+'" onchange="onLineProjChange('+i+')" style="width:100%;font-size:11px;color:var(--g4);margin-bottom:5px;">'+projO+'</select>'
+    +wbsDrop
     +'<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpOpts+'</select>'
     +'</div>';
 }
