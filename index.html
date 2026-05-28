@@ -109,7 +109,7 @@ tbody tr:hover td{background:var(--skp);}
   <div class="bn" data-nav="pay"><div class="bn-i">💳</div>المرتبات</div>
   <div class="bn" data-nav="more"><div class="bn-i">☰</div>المزيد</div>
 </nav>
-<div class="mo" id="mo"><div class="mb"><div class="mh"><span class="mt" id="mo-t">–</span><button class="mx" onclick="cm()">✕</button></div><div class="mbdy" id="mo-b"></div></div></div>
+<div class="mo" id="mo"><div class="mb"><div class="mh"><span class="mt" id="mo-t">–</span><div style="display:flex;gap:5px;"><button onclick="printModal()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:4px 10px;font-size:11px;font-family:Cairo,sans-serif;cursor:pointer;">🖨️</button><button class="mx" onclick="cm()">✕</button></div></div><div class="mbdy" id="mo-b"></div></div></div>
 <div class="toast" id="toast"></div>
 <script>
 var DB={
@@ -1321,6 +1321,7 @@ function viewE(id){
   if(can("canEditEntries")){var b1=document.createElement("button");b1.className="btn btn-sky btn-sm";b1.style.flex="1";b1.textContent="✏️ تعديل";b1.onclick=function(){editEntry(id);};btns.appendChild(b1);}
   if(can("canDeleteEntries")){var b2=document.createElement("button");b2.className="btn btn-rd btn-sm";b2.style.flex="1";b2.textContent="🗑️ حذف";b2.onclick=function(){delEntry(id);};btns.appendChild(b2);}
   var b3=document.createElement("button");b3.className="btn btn-gy btn-sm";b3.style.flex="1";b3.textContent="إغلاق";b3.onclick=function(){cm();};btns.appendChild(b3);
+  var b4=document.createElement("button");b4.className="btn btn-sm";b4.style.cssText="background:var(--sk);flex:1;";b4.textContent="🖨️ طباعة";b4.onclick=function(){printEntry(id);};btns.appendChild(b4);
   om("📋 تفاصيل القيد",h,btns);
 }
 
@@ -2257,7 +2258,7 @@ function rBalPage(){
   var B=bals();
   var gs=function(p){return DB.accounts.filter(function(a){return(a.c||"")[0]===p;}).reduce(function(s,a){var b=B[a.c]||{dr:0,cr:0};return s+(a.nat==="dr"?b.dr-b.cr:b.cr-b.dr);},0);};
   var sur=gs("4")-gs("5");
-  return '<div class="ph-t" style="margin-bottom:12px;">📈 الميزانية العمومية</div>'
+  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><div class="ph-t">📈 الميزانية العمومية</div><button class="btn btn-sm btn-gy" onclick="printBalanceSheet()" style="font-size:11px;">🖨️ طباعة</button></div>'
     +'<div class="card" style="margin-bottom:8px;"><strong>الأصول المتداولة:</strong> <span style="float:left;font-weight:900;">'+fmt(gs("1"))+'</span></div>'
     +'<div class="card" style="margin-bottom:8px;"><strong>إجمالي الخصوم:</strong> <span style="float:left;font-weight:900;">'+fmt(gs("2"))+'</span></div>'
     +'<div class="card" style="background:'+(sur>=0?"var(--gbg)":"var(--rbg)")+';"><strong>'+(sur>=0?"✅ الفائض":"⚠️ العجز")+':</strong> <span style="float:left;font-weight:900;color:'+(sur>=0?"var(--gr)":"var(--rd)")+';">'+fmt(Math.abs(sur))+' ج.م</span></div>';
@@ -5613,7 +5614,8 @@ function buildProjBVATab(projCode){
   h+='</tbody></table></div>';
 
   // Export button
-  h+='<button class="btn btn-sm btn-gy" onclick="exportBVA(\''+projCode+'\')" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير BVA</button>';
+  h+='<div style="display:flex;gap:6px;"><button class="btn btn-sm btn-gy" onclick="exportBVA(\''+projCode+'\')" style="flex:1;font-size:11px;">📥 CSV</button>';
+  h+='<button class="btn btn-sm" onclick="printProjectBVA(\''+projCode+'\')" style="flex:1;font-size:11px;background:var(--sk);">🖨️ طباعة</button></div>';
   return h;
 }
 
@@ -6817,8 +6819,10 @@ function loadSeedData(){
 
   save();
   toast("✅ تم تحميل "+entries.length+" قيد و"+DB.invMovements.length+" حركة مخزون وبيانات كاملة");
-  nav("dash",document.querySelector('[data-nav="dash"]'));
-  rDash();
+  setTimeout(function(){
+    nav("dash",document.querySelector('[data-nav="dash"]'));
+    rDash();
+  },50);
 }
 
 
@@ -6932,7 +6936,7 @@ function rptTrialBal(){
   h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(tC)+'</td>';
   h+='<td class="tn" style="color:white;font-weight:900;padding:9px;">'+fmt(Math.abs(totBal))+(totBal===0?" ✅ متوازن":"")+'</td>';
   h+='</tr></tfoot></table></div>';
-  h+='<button class="btn btn-sm btn-gy" onclick="exportTrialBalance()" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+    h+='<div style="display:flex;gap:6px;"><button class="btn btn-sm btn-gy" onclick="exportTrialBalance()" style="flex:1;font-size:11px;">📥 CSV</button><button class="btn btn-sm" onclick="printModal()" style="flex:1;font-size:11px;background:var(--sk);">🖨️ طباعة</button></div>';
   om("⚖️ ميزان المراجعة",h);
 }
 
@@ -7425,6 +7429,199 @@ function rptProjectsSummary(){
     h+='</div></div>';
   });
   om("📋 ملخص المشروعات",h);
+}
+
+
+// ============================================================
+// PRINT / PDF SYSTEM — طباعة وتصدير PDF
+// ============================================================
+
+function printContent(title, htmlContent, landscape){
+  var css=`
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Cairo',sans-serif;direction:rtl;font-size:12px;color:#111;background:white;padding:20px;}
+    h1{font-size:18px;font-weight:900;color:#0e3a5f;margin-bottom:4px;}
+    .subtitle{font-size:11px;color:#6b7280;margin-bottom:16px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px;}
+    th{background:#0e3a5f;color:white;padding:7px 10px;text-align:right;font-weight:700;}
+    td{padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;}
+    tr:nth-child(even) td{background:#f9fafb;}
+    .tn{text-align:left;font-variant-numeric:tabular-nums;}
+    tfoot td{background:#f3f4f6;font-weight:900;border-top:2px solid #0e3a5f;}
+    .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-bottom:12px;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;}
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+    .kpi{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px;text-align:center;}
+    .kpi-val{font-size:16px;font-weight:900;color:#0e3a5f;}
+    .kpi-lbl{font-size:10px;color:#6b7280;}
+    .section-hdr{background:#0e3a5f;color:white;padding:6px 10px;font-weight:800;font-size:12px;margin-bottom:6px;border-radius:4px;}
+    .surplus{background:#dcfce7;border:2px solid #16a34a;border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+    .deficit{background:#fee2e2;border:2px solid #dc2626;border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+    @page{margin:15mm;${landscape?'size:landscape;':''}}
+    @media print{body{padding:0;}}
+  `;
+
+  var org=(DB.org&&DB.org.name)?DB.org.name:'';
+  var now=new Date().toLocaleDateString('ar-EG');
+  var win=window.open('','_blank');
+  if(!win){toast("⚠️ السماح بالنوافذ المنبثقة للطباعة");return;}
+  win.document.write('<html dir="rtl"><head><meta charset="UTF-8"><title>'+title+'</title><style>'+css+'</style></head><body>');
+  win.document.write('<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0e3a5f;padding-bottom:10px;margin-bottom:16px;">');
+  win.document.write('<div><h1>'+title+'</h1><div class="subtitle">'+(org?org+' · ':'')+now+'</div></div>');
+  win.document.write('<div style="font-size:10px;color:#9ca3af;text-align:left;">أثر للحلول المالية</div></div>');
+  win.document.write(htmlContent);
+  win.document.write('<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};}<\/script>');
+  win.document.write('</body></html>');
+  win.document.close();
+}
+
+// Print current modal content
+function printModal(){
+  var title=document.getElementById('mo-t').textContent||'تقرير';
+  var body=document.getElementById('mo-b').innerHTML||'';
+  printContent(title, body);
+}
+
+// Print journal entry
+function printEntry(id){
+  var e=(DB.entries||[]).find(function(x){return x.id===id;});
+  if(!e){toast("القيد غير موجود");return;}
+  var proj=DB.projects.find(function(p){return p.code===e.proj;})||{};
+  var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
+  var h='<div class="card">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h+='<div><div style="font-size:10px;color:#6b7280;">رقم القيد</div><strong>'+e.id+'</strong></div>';
+  h+='<div><div style="font-size:10px;color:#6b7280;">التاريخ</div><strong>'+e.date+'</strong></div>';
+  h+='<div><div style="font-size:10px;color:#6b7280;">المرجع</div><strong>'+e.ref+'</strong></div>';
+  h+='</div>';
+  h+='<div style="margin-bottom:8px;"><div style="font-size:10px;color:#6b7280;">البيان</div><strong style="font-size:13px;">'+e.desc+'</strong></div>';
+  if(proj.name)h+='<div><div style="font-size:10px;color:#6b7280;">المشروع</div><strong>'+proj.name+'</strong></div>';
+  h+='</div>';
+  h+='<table><thead><tr><th>الحساب</th><th>الاسم</th><th>الطرف الثالث</th><th>كود WBS</th><th class="tn">مدين</th><th class="tn">دائن</th></tr></thead><tbody>';
+  (e.lines||[]).forEach(function(l){
+    var tp=l.tpId?(DB.thirdParties||[]).find(function(t){return t.id===l.tpId;}):null;
+    var lineProjCode=l.proj||e.proj||'';
+    var wbsName='';
+    if(l.wbsCode&&lineProjCode){
+      var lp=DB.projects.find(function(p){return p.code===lineProjCode;});
+      if(lp&&lp.wbs){var wb=lp.wbs.find(function(w){return w.code===l.wbsCode;});if(wb)wbsName=wb.name;}
+    }
+    h+='<tr><td><code>'+l.acc+'</code></td><td>'+l.an+'</td>';
+    h+='<td>'+(tp?tp.name:'—')+'</td>';
+    h+='<td>'+(l.wbsCode?l.wbsCode+(wbsName?' — '+wbsName:''):'—')+'</td>';
+    h+='<td class="tn">'+(l.dr>0?fmt(l.dr):'-')+'</td>';
+    h+='<td class="tn">'+(l.cr>0?fmt(l.cr):'-')+'</td></tr>';
+  });
+  h+='</tbody><tfoot><tr><td colspan="4" style="font-weight:900;">الإجمالي</td>';
+  h+='<td class="tn">'+fmt(tD)+'</td><td class="tn">'+fmt(tD)+'</td></tr></tfoot></table>';
+  printContent('سند قيد يومية — '+e.id, h);
+}
+
+// Print balance sheet
+function printBalanceSheet(){
+  var B=bals();
+  var gs=function(p){return DB.accounts.filter(function(a){return (a.c||'')[0]===p;}).reduce(function(s,a){var b=B[a.c]||{dr:0,cr:0};return s+(a.nat==='dr'?b.dr-b.cr:b.cr-b.dr);},0);};
+  var totalAssets=gs('1'), totalLiab=gs('2'), totalEq=gs('3');
+  var h='<div class="kpi-grid">';
+  h+='<div class="kpi"><div class="kpi-val">'+fmt(totalAssets)+'</div><div class="kpi-lbl">إجمالي الأصول</div></div>';
+  h+='<div class="kpi"><div class="kpi-val">'+fmt(totalLiab)+'</div><div class="kpi-lbl">إجمالي الخصوم</div></div>';
+  h+='<div class="kpi"><div class="kpi-val">'+fmt(totalEq)+'</div><div class="kpi-lbl">حقوق الملكية</div></div>';
+  h+='<div class="kpi"><div class="kpi-val" style="color:'+(Math.abs(totalAssets-(totalLiab+totalEq))<1?'#16a34a':'#dc2626')+';">'+(Math.abs(totalAssets-(totalLiab+totalEq))<1?'✅ متوازن':'⚠️ '+fmt(Math.abs(totalAssets-totalLiab-totalEq)))+'</div><div class="kpi-lbl">حالة الميزانية</div></div>';
+  h+='</div>';
+  var sections=[{code:'1',title:'الأصول'},{code:'2',title:'الخصوم'},{code:'3',title:'حقوق الملكية'}];
+  sections.forEach(function(sec){
+    h+='<div class="section-hdr">'+sec.title+' — إجمالي: '+fmt(gs(sec.code))+' ج.م</div>';
+    h+='<table><thead><tr><th>كود</th><th>الحساب</th><th class="tn">مدين</th><th class="tn">دائن</th><th class="tn">الرصيد</th></tr></thead><tbody>';
+    DB.accounts.filter(function(a){return (a.c||'')[0]===sec.code;}).forEach(function(a){
+      var b=B[a.c]||{dr:0,cr:0};
+      if(!b.dr&&!b.cr) return;
+      var net=a.nat==='dr'?b.dr-b.cr:b.cr-b.dr;
+      h+='<tr><td><code>'+a.c+'</code></td><td>'+a.n+'</td>';
+      h+='<td class="tn">'+(b.dr>0?fmt(b.dr):'-')+'</td>';
+      h+='<td class="tn">'+(b.cr>0?fmt(b.cr):'-')+'</td>';
+      h+='<td class="tn" style="font-weight:700;">'+fmt(net)+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  });
+  printContent('الميزانية العمومية', h);
+}
+
+// Print income statement
+function printIncomeStatement(){
+  var B=bals();
+  var tR=0,tX=0;
+  var revRows=[],expRows=[];
+  DB.accounts.forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    if(a.c[0]==='4'){var v=b.cr-b.dr;if(v!==0){tR+=v;revRows.push({c:a.c,n:a.n,v:v});}}
+    if(a.c[0]==='5'){var v2=b.dr-b.cr;if(v2!==0){tX+=v2;expRows.push({c:a.c,n:a.n,v:v2});}}
+  });
+  var sur=tR-tX;
+  var h='<div class="kpi-grid">';
+  h+='<div class="kpi"><div class="kpi-val" style="color:#16a34a;">'+fmt(tR)+'</div><div class="kpi-lbl">إجمالي الإيرادات</div></div>';
+  h+='<div class="kpi"><div class="kpi-val" style="color:#dc2626;">'+fmt(tX)+'</div><div class="kpi-lbl">إجمالي المصروفات</div></div>';
+  h+='<div class="kpi"><div class="kpi-val" style="color:'+(sur>=0?'#16a34a':'#dc2626')+';">'+fmt(Math.abs(sur))+'</div><div class="kpi-lbl">'+(sur>=0?'الفائض':'العجز')+'</div></div>';
+  h+='<div class="kpi"><div class="kpi-val">'+(tR>0?Math.round(tX/tR*100):0)+'%</div><div class="kpi-lbl">نسبة الإنفاق</div></div>';
+  h+='</div>';
+  h+='<div class="'+( sur>=0?'surplus':'deficit')+'">';
+  h+='<div style="font-weight:800;font-size:14px;">'+(sur>=0?'✅ صافي الفائض':'⚠️ صافي العجز')+'</div>';
+  h+='<div style="font-weight:900;font-size:20px;">'+fmt(Math.abs(sur))+' ج.م</div></div>';
+  h+='<div class="section-hdr">الإيرادات</div>';
+  h+='<table><thead><tr><th>كود</th><th>البند</th><th class="tn">المبلغ</th></tr></thead><tbody>';
+  revRows.sort(function(a,b){return b.v-a.v;}).forEach(function(r){
+    h+='<tr><td><code>'+r.c+'</code></td><td>'+r.n+'</td><td class="tn" style="color:#16a34a;font-weight:700;">'+fmt(r.v)+'</td></tr>';
+  });
+  h+='</tbody><tfoot><tr><td colspan="2" style="font-weight:900;">إجمالي الإيرادات</td><td class="tn" style="color:#16a34a;font-weight:900;">'+fmt(tR)+'</td></tr></tfoot></table>';
+  h+='<div class="section-hdr">المصروفات</div>';
+  h+='<table><thead><tr><th>كود</th><th>البند</th><th class="tn">المبلغ</th></tr></thead><tbody>';
+  expRows.sort(function(a,b){return b.v-a.v;}).forEach(function(r){
+    h+='<tr><td><code>'+r.c+'</code></td><td>'+r.n+'</td><td class="tn" style="color:#dc2626;font-weight:700;">'+fmt(r.v)+'</td></tr>';
+  });
+  h+='</tbody><tfoot><tr><td colspan="2" style="font-weight:900;">إجمالي المصروفات</td><td class="tn" style="color:#dc2626;font-weight:900;">'+fmt(tX)+'</td></tr></tfoot></table>';
+  printContent('قائمة الدخل والمصروفات', h);
+}
+
+// Generic print for any report table
+function printReport(title, tableHTML, kpiHTML){
+  var h=(kpiHTML||'')+tableHTML;
+  printContent(title, h, true);
+}
+
+// Print BVA for a project
+function printProjectBVA(projCode){
+  var p=DB.projects.find(function(x){return x.code===projCode;});
+  if(!p) return;
+  var wbs=(p.wbs||[]).slice().sort(function(a,b){return a.code<b.code?-1:1;});
+  var spent=getProjectSpent(projCode);
+  var budget=p.budget||0;
+  var h='<div class="kpi-grid">';
+  h+='<div class="kpi"><div class="kpi-val">'+fmt(budget)+'</div><div class="kpi-lbl">الموازنة الإجمالية</div></div>';
+  h+='<div class="kpi"><div class="kpi-val" style="color:#dc2626;">'+fmt(spent)+'</div><div class="kpi-lbl">الصرف الفعلي</div></div>';
+  h+='<div class="kpi"><div class="kpi-val" style="color:'+(budget-spent>=0?'#16a34a':'#dc2626')+';">'+fmt(budget-spent)+'</div><div class="kpi-lbl">المتبقي</div></div>';
+  h+='<div class="kpi"><div class="kpi-val">'+(budget>0?Math.round(spent/budget*100):0)+'%</div><div class="kpi-lbl">نسبة الصرف</div></div>';
+  h+='</div>';
+  h+='<div style="margin-bottom:8px;"><strong>المانح:</strong> '+(p.donor||'—')+'</div>';
+  if(wbs.length){
+    h+='<table><thead><tr><th>كود WBS</th><th>البند</th><th class="tn">الموازنة</th><th class="tn">الصرف</th><th class="tn">المتبقي</th><th class="tn">%</th></tr></thead><tbody>';
+    wbs.forEach(function(item){
+      var isParent=isWBSParent(item.code,wbs);
+      var bdg=isParent?getWBSBudget(p,item.code,wbs):item.budget||0;
+      var sp=getWBSSpentWithChildren(projCode,item.code,wbs);
+      var pct=bdg>0?Math.round(sp/bdg*100):0;
+      var depth=item.code.split('.').length-1;
+      h+='<tr style="'+(isParent?'background:#f0f9ff;font-weight:800;':'')+'">';
+      h+='<td><code>'+item.code+'</code></td>';
+      h+='<td style="padding-right:'+(depth*12+8)+'px;">'+item.name+'</td>';
+      h+='<td class="tn">'+(bdg>0?fmt(bdg):'—')+'</td>';
+      h+='<td class="tn" style="color:#dc2626;">'+(sp>0?fmt(sp):'—')+'</td>';
+      h+='<td class="tn" style="color:'+(bdg-sp<0?'#dc2626':'#16a34a')+';">'+(bdg>0?fmt(bdg-sp):'—')+'</td>';
+      h+='<td class="tn" style="color:'+(pct>100?'#dc2626':pct>85?'#d97706':'#16a34a')+';">'+(bdg>0?pct+'%':'—')+'</td>';
+      h+='</tr>';
+    });
+    h+='</tbody></table>';
+  }
+  printContent('تقرير BVA — '+p.name, h, true);
 }
 
 
