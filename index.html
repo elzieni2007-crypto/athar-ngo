@@ -235,7 +235,8 @@ var DB={
   itemCategories:["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"],
   suppliers:[],
   thirdParties:[],
-  bankRecons:[]
+  bankRecons:[],
+  masterData:null
 };
 
 try{
@@ -249,6 +250,7 @@ try{
     // Ensure new DB fields exist
     if(!DB.thirdParties)DB.thirdParties=[];
     if(!DB.bankRecons)DB.bankRecons=[];
+    if(!DB.masterData)DB.masterData=null;
     if(!DB.warehouses)DB.warehouses=DB.warehouses||[];
     if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
     if(!DB.suppliers)DB.suppliers=[];
@@ -326,7 +328,8 @@ function sub(n){
     hrreports:rHRReports,
     tpledger:rTPLedger,
     importexport:rImportExport,
-    reconhist:function(){rReconHistory('');}
+    reconhist:function(){rReconHistory('');},
+    masterdata:rMasterData
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -338,7 +341,8 @@ function sub(n){
     hrreports:"📊 تقارير الموارد البشرية",
     tpledger:"📒 الأستاذ المساعد",
     importexport:"📁 استيراد وتصدير",
-    reconhist:"📊 سجل التسويات"
+    reconhist:"📊 سجل التسويات",
+    masterdata:"⚙️ البيانات الرئيسية"
   };
   if(f[n]){try{om(titles[n]||n, f[n]());}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
 }
@@ -557,7 +561,8 @@ function rMore(){
     {i:"⚙️",t:"الإعدادات",n:"settings"},
     {i:"📒",t:"الأستاذ المساعد",n:"tpledger"},
     {i:"📁",t:"استيراد وتصدير",n:"importexport"},
-    {i:"🔄",t:"سجل التسويات",n:"reconhist"}
+    {i:"🔄",t:"سجل التسويات",n:"reconhist"},
+    {i:"🗂️",t:"البيانات الرئيسية",n:"masterdata"}
   ];
   var h='<div class="ph-t" style="margin-bottom:14px;">القائمة الكاملة</div><div class="mg">';
   items.forEach(function(item){
@@ -1007,6 +1012,21 @@ function newEntry(){
   h+='<div class="fg"><label>المرجع</label><input id="e-r" placeholder="PV-001"></div></div>';
   h+='<div class="fg"><label>البيان *</label><input id="e-ds" placeholder="وصف العملية المالية"></div>';
   h+='<div class="fg"><label>المشروع</label><select id="e-p"><option value="">—</option>'+pO+'</select></div>';
+  // Master Data fields
+  var ccO=getMDOptions('costCenters','code','name');
+  var locO=getMDOptions('locations','code','name');
+  var actO=getMDOptions('activities','code','name');
+  var dtO=getMDOptions('docTypes','code','name');
+  var pmO=getMDOptions('paymentMethods','code','name');
+  if(ccO||locO||actO){
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">';
+    if(ccO)h+='<div class="fg"><label>مركز التكلفة</label><select id="e-cc"><option value="">—</option>'+ccO+'</select></div>';
+    if(locO)h+='<div class="fg"><label>الموقع / الفرع</label><select id="e-loc"><option value="">—</option>'+locO+'</select></div>';
+    if(actO)h+='<div class="fg"><label>النشاط</label><select id="e-act"><option value="">—</option>'+actO+'</select></div>';
+    if(dtO)h+='<div class="fg"><label>نوع المستند</label><select id="e-dt"><option value="">—</option>'+dtO+'</select></div>';
+    if(pmO)h+='<div class="fg"><label>طريقة الدفع</label><select id="e-pm"><option value="">—</option>'+pmO+'</select></div>';
+    h+='</div>';
+  }
   h+='<div class="sd" style="font-size:11px;">سطور القيد — <span style="color:var(--g4);">يمكن ربط كل سطر بطرف ثالث (مورد/موظف/عميل)</span></div>';
   h+='<div id="els">'+eLnTP(0,'')+eLnTP(1,'')+'</div>';
   h+='<button class="btn btn-sm btn-gy" onclick="addEL()" style="width:100%;margin-bottom:10px;">+ سطر</button>';
@@ -1044,7 +1064,7 @@ function saveE(){
     return;
   }
   var id="J"+new Date().getFullYear()+"-"+(DB.entries.length+1).toString().padStart(3,"0");
-  DB.entries.push({id:id,date:sv("e-d"),ref:sv("e-r")||"REF",desc:sv("e-ds")||"قيد محاسبي",proj:sv("e-p"),lines:lines,status:"posted"});
+  DB.entries.push({id:id,date:sv("e-d"),ref:sv("e-r")||"REF",desc:sv("e-ds")||"قيد محاسبي",proj:sv("e-p"),costCenter:sv("e-cc"),location:sv("e-loc"),activity:sv("e-act"),docType:sv("e-dt"),payMethod:sv("e-pm"),lines:lines,status:"posted"});
   save();cm();rJour();rDash();toast("✅ تم حفظ القيد");
 }
 function viewE(id){
@@ -1164,9 +1184,15 @@ function saveEditEntry(id){
 
 // PROJECT MODAL
 function newProj(){
+  var thO=getMDOptions('thematics','code','nameAr');
+  var actO2=getMDOptions('activities','code','name');
+  var locO2=getMDOptions('locations','code','name');
   var h='<div class="fr"><div class="fg"><label>كود المشروع *</label><input id="pp-c" placeholder="P003"></div>';
   h+='<div class="fg"><label>اسم المشروع *</label><input id="pp-n"></div></div>';
   h+='<div class="fg"><label>المانح</label><input id="pp-d" placeholder="USAID / EU ..."></div>';
+  if(thO) h+='<div class="fg"><label>المحور الموضوعي</label><select id="pp-th"><option value="">—</option>'+thO+'</select></div>';
+  if(actO2) h+='<div class="fg"><label>النشاط الرئيسي</label><select id="pp-act"><option value="">—</option>'+actO2+'</select></div>';
+  if(locO2) h+='<div class="fg"><label>الموقع / المحافظة</label><select id="pp-loc"><option value="">—</option>'+locO2+'</select></div>';
   h+='<div class="fg"><label>الموازنة الإجمالية (ج.م)</label><input type="number" id="pp-b"></div>';
   h+='<div class="fr"><div class="fg"><label>تاريخ البداية</label><input type="date" id="pp-s"></div>';
   h+='<div class="fg"><label>تاريخ النهاية</label><input type="date" id="pp-e"></div></div>';
@@ -1176,7 +1202,7 @@ function newProj(){
 function saveP(){
   var c=sv("pp-c"),n=sv("pp-n");
   if(!c||!n){alert("الكود والاسم مطلوبان");return;}
-  DB.projects.push({code:c,name:n,donor:sv("pp-d"),budget:fv("pp-b"),spent:0,status:"active",start:sv("pp-s"),end:sv("pp-e")});
+  DB.projects.push({code:c,name:n,donor:sv("pp-d"),thematic:sv("pp-th"),activity:sv("pp-act"),location:sv("pp-loc"),budget:fv("pp-b"),spent:0,status:"active",start:sv("pp-s"),end:sv("pp-e")});
   save();cm();rProj();rDash();toast("✅ تم إضافة المشروع");
 }
 
@@ -2452,7 +2478,12 @@ function newEmp(){
   h+='<div class="fg"><label>القسم</label><select id="en-dept">'+dO+'</select></div></div>';
   h+='<div class="fr"><div class="fg"><label>الدرجة الوظيفية</label><input id="en-grade" placeholder="Grade 3"></div>';
   h+='<div class="fg"><label>المدير المباشر</label><select id="en-mgr">'+mgO+'</select></div></div>';
-  h+='<div class="fr"><div class="fg"><label>الفرع / الموقع</label><input id="en-branch" value="القاهرة"></div>';
+  var locO4=getMDOptions('locations','code','name');
+  if(locO4){
+    h+='<div class="fr"><div class="fg"><label>الفرع / الموقع</label><select id="en-branch"><option value="">القاهرة</option>'+locO4+'</select></div>';
+  } else {
+    h+='<div class="fr"><div class="fg"><label>الفرع / الموقع</label><input id="en-branch" value="القاهرة"></div>';
+  }
   h+='<div class="fg"><label>القطاع</label><select id="en-sector"><option value="commercial">تجاري</option><option value="industrial">صناعي</option></select></div></div>';
   h+='<div class="fr"><div class="fg"><label>نوع التوظيف</label><select id="en-etype"><option value="full-time">دوام كامل</option><option value="part-time">دوام جزئي</option><option value="consultant">استشاري</option><option value="volunteer">متطوع</option></select></div>';
   h+='<div class="fg"><label>نوع العقد</label><select id="en-ctype"><option value="indefinite">غير محدد المدة</option><option value="fixed">محدد المدة</option><option value="project">مشروع</option></select></div></div>';
@@ -2785,7 +2816,13 @@ function rSetPage(){
 
   // Org settings (admin only)
   if(isAdmin){
-    h+='<div class="sd">بيانات الجمعية</div>';
+    // Master data quick access
+  h+='<div style="background:var(--n);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" data-sub="masterdata">';
+  h+='<div><div style="font-weight:800;color:white;font-size:14px;">🗂️ البيانات الرئيسية</div>';
+  h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">مراكز التكلفة · المواقع · الأنشطة · المحاور · البنوك</div></div>';
+  h+='<div style="color:white;font-size:20px;">›</div>';
+  h+='</div>';
+  h+='<div class="sd">بيانات الجمعية</div>';
     h+='<div class="fg"><label>اسم الجمعية</label><input id="set-org" value="'+(org.name||'')+'" placeholder="اسم الجمعية"></div>';
     h+='<div class="fr"><div class="fg"><label>رقم السجل</label><input id="set-reg" value="'+(org.reg||'')+'"></div>';
     h+='<div class="fg"><label>المحافظة</label><input id="set-gov" value="'+(org.gov||'')+'" placeholder="القاهرة"></div></div>';
@@ -2856,6 +2893,12 @@ function rSetPage(){
       h+='</div></div></div>';
     });
   } else {
+    // Non-admin can still access master data for viewing
+    h+='<div style="background:var(--n);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" data-sub="masterdata">';
+    h+='<div><div style="font-weight:800;color:white;font-size:14px;">🗂️ البيانات الرئيسية</div>';
+    h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">مراكز التكلفة · المواقع · الأنشطة · المحاور</div></div>';
+    h+='<div style="color:white;font-size:20px;">›</div>';
+    h+='</div>';
     // Change own password
     h+='<div class="sd">🔑 تغيير كلمة المرور</div>';
     h+='<div class="fg"><label>كلمة المرور الحالية</label><input type="password" id="cp-old"></div>';
@@ -3460,9 +3503,13 @@ function nextSupId(){
 function newSupplier(){
   if(!DB.suppliers)DB.suppliers=[];
   var id=nextSupId();
+  var scO=getMDOptions('supplierCategories','code','name');
+  var locO3=getMDOptions('locations','code','name');
   var h='<div style="font-size:11px;color:var(--sk);font-weight:700;margin-bottom:10px;">كود المورد: <strong style="color:var(--n);">'+id+'</strong></div>';
   h+='<div class="fr"><div class="fg"><label>اسم المورد *</label><input id="sp-n" placeholder="شركة المستلزمات"></div>';
   h+='<div class="fg"><label>نوع المورد</label><select id="sp-type"><option value="company">شركة</option><option value="individual">فرد</option><option value="government">جهة حكومية</option></select></div></div>';
+  if(scO) h+='<div class="fg"><label>التصنيف</label><select id="sp-cat"><option value="">—</option>'+scO+'</select></div>';
+  if(locO3) h+='<div class="fg"><label>الموقع الجغرافي</label><select id="sp-loc"><option value="">—</option>'+locO3+'</select></div>';
   h+='<div class="fr"><div class="fg"><label>السجل التجاري</label><input id="sp-reg"></div>';
   h+='<div class="fg"><label>الرقم الضريبي</label><input id="sp-tax"></div></div>';
   h+='<div class="fr"><div class="fg"><label>الموبايل</label><input id="sp-mob" placeholder="01xxxxxxxxx"></div>';
@@ -3479,7 +3526,7 @@ function saveSupplier(id){
   var n=sv("sp-n");
   if(!n){alert("اسم المورد مطلوب");return;}
   if(!DB.suppliers)DB.suppliers=[];
-  DB.suppliers.push({id:id,name:n,type:sv("sp-type"),reg:sv("sp-reg"),tax:sv("sp-tax"),
+  DB.suppliers.push({id:id,name:n,type:sv("sp-type"),category:sv("sp-cat"),locationCode:sv("sp-loc"),reg:sv("sp-reg"),tax:sv("sp-tax"),
     mobile:sv("sp-mob"),email:sv("sp-email"),address:sv("sp-addr"),
     contact:sv("sp-contact"),notes:sv("sp-notes")});
   save();cm();toast("✅ تم إضافة المورد "+id);
@@ -4170,6 +4217,406 @@ function rImportExport(){
   h+='• استيراد القيود CSV يضيف فقط — لا يحذف القيود الموجودة';
   h+='</div></div>';
   return h;
+}
+
+
+// ============================================================
+// MASTER DATA SYSTEM — البيانات الرئيسية
+// ============================================================
+
+function initMD(){
+  if(!DB.masterData)DB.masterData={
+    costCenters:[],
+    locations:[],
+    activities:[],
+    thematics:[],
+    bankAccounts:[],
+    supplierCategories:[],
+    currencies:[{code:"EGP",name:"الجنيه المصري",symbol:"ج.م",isDefault:true}],
+    docTypes:[
+      {code:"PV",name:"سند صرف (Payment Voucher)"},
+      {code:"RV",name:"سند قبض (Receipt Voucher)"},
+      {code:"JV",name:"قيد يومية (Journal Voucher)"},
+      {code:"INV",name:"فاتورة مورد"},
+      {code:"PR",name:"طلب شراء"},
+      {code:"CE",name:"مطالبة مصروف"}
+    ],
+    paymentMethods:[
+      {code:"CASH",name:"نقداً"},
+      {code:"BANK",name:"تحويل بنكي"},
+      {code:"CHECK",name:"شيك"},
+      {code:"MOBILE",name:"محفظة إلكترونية"}
+    ]
+  };
+}
+
+// ---- MASTER DATA MAIN PAGE ----
+function rMasterData(){
+  initMD();
+  var h='<div class="ph-t" style="margin-bottom:14px;">⚙️ البيانات الرئيسية</div>';
+
+  var sections=[
+    {icon:"🏢",key:"costCenters",    label:"مراكز التكلفة",     sub:"ربط المصروفات بمراكز محددة"},
+    {icon:"📍",key:"locations",      label:"المواقع والفروع",    sub:"مكاتب وفروع الجمعية"},
+    {icon:"🎯",key:"activities",     label:"أكواد الأنشطة",     sub:"تصنيف الأنشطة البرامجية"},
+    {icon:"🌍",key:"thematics",      label:"المحاور الموضوعية",  sub:"Thematic Areas للمشروعات"},
+    {icon:"🏦",key:"bankAccounts",   label:"الحسابات البنكية",   sub:"بيانات البنوك والحسابات"},
+    {icon:"🏭",key:"supplierCategories",label:"تصنيفات الموردين",sub:"تجميع الموردين حسب النوع"},
+    {icon:"💱",key:"currencies",     label:"العملات",            sub:"العملات المستخدمة في العمليات"},
+    {icon:"📄",key:"docTypes",       label:"أنواع المستندات",    sub:"تصنيفات المستندات المحاسبية"},
+    {icon:"💳",key:"paymentMethods", label:"طرق الدفع",         sub:"وسائل الدفع والتحصيل"}
+  ];
+
+  h+='<div class="mg">';
+  sections.forEach(function(s){
+    var count=(DB.masterData[s.key]||[]).length;
+    h+='<div class="mi" onclick="openMDSection(\''+s.key+'\')" style="padding:13px;">';
+    h+='<div class="mi-i">'+s.icon+'</div>';
+    h+='<div class="mi-t" style="font-size:12px;">'+s.label+'</div>';
+    h+='<div style="font-size:10px;color:var(--g4);margin-top:2px;">'+s.sub+'</div>';
+    h+='<div style="margin-top:6px;"><span class="badge '+(count>0?'bb':'bgy')+'" style="font-size:9.5px;">'+count+' '+(count===1?'عنصر':'عناصر')+'</span></div>';
+    h+='</div>';
+  });
+  h+='</div>';
+
+  // Quick summary of integration status
+  h+='<div style="background:var(--g1);border-radius:10px;padding:12px;margin-top:4px;">';
+  h+='<div style="font-weight:800;font-size:12px;margin-bottom:8px;">🔗 حالة الربط التلقائي</div>';
+  var integrations=[
+    {label:"مراكز التكلفة في القيود",ok:(DB.masterData.costCenters||[]).length>0},
+    {label:"المواقع في الموظفين والمخازن",ok:(DB.masterData.locations||[]).length>0},
+    {label:"الأنشطة في المشروعات",ok:(DB.masterData.activities||[]).length>0},
+    {label:"المحاور الموضوعية في المشروعات",ok:(DB.masterData.thematics||[]).length>0},
+    {label:"الحسابات البنكية في التسوية",ok:(DB.masterData.bankAccounts||[]).length>0},
+    {label:"تصنيفات الموردين في المخازن",ok:(DB.masterData.supplierCategories||[]).length>0}
+  ];
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">';
+  integrations.forEach(function(it){
+    h+='<div style="font-size:11px;color:'+(it.ok?'var(--gr)':'var(--g4)')+';">'+(it.ok?'✅':'⭕')+' '+it.label+'</div>';
+  });
+  h+='</div></div>';
+  return h;
+}
+
+// ---- SECTION CONFIG ----
+var MD_CONFIG={
+  costCenters:{
+    label:"مراكز التكلفة", icon:"🏢",
+    fields:[
+      {id:"code",label:"الكود *",ph:"CC001"},
+      {id:"name",label:"الاسم *",ph:"إدارة البرامج"},
+      {id:"parent",label:"تابع لـ",ph:"CC000",type:"select-self"},
+      {id:"accCode",label:"حساب المحاسبة",ph:"52",type:"acc"},
+      {id:"manager",label:"المدير المسؤول",ph:"",type:"emp"},
+      {id:"active",label:"نشط",type:"bool"}
+    ],
+    idKey:"code", nameKey:"name"
+  },
+  locations:{
+    label:"المواقع والفروع", icon:"📍",
+    fields:[
+      {id:"code",label:"الكود *",ph:"LOC001"},
+      {id:"name",label:"الاسم *",ph:"المقر الرئيسي — القاهرة"},
+      {id:"type",label:"النوع",type:"select",opts:["مقر رئيسي","فرع","مكتب ميداني","مخزن","عيادة","مركز تدريب","أخرى"]},
+      {id:"governorate",label:"المحافظة",ph:"القاهرة",type:"select",opts:["القاهرة","الجيزة","الإسكندرية","الأقصر","أسوان","أسيوط","بني سويف","الفيوم","المنيا","سوهاج","قنا","الدقهلية","الغربية","المنوفية","القليوبية","الشرقية","الإسماعيلية","السويس","بورسعيد","كفر الشيخ","البحيرة","دمياط","شمال سيناء","جنوب سيناء","البحر الأحمر","مطروح","الوادي الجديد"]},
+      {id:"address",label:"العنوان",ph:"العنوان بالتفصيل"},
+      {id:"phone",label:"الهاتف",ph:"0222222222"},
+      {id:"active",label:"نشط",type:"bool"}
+    ],
+    idKey:"code", nameKey:"name"
+  },
+  activities:{
+    label:"أكواد الأنشطة", icon:"🎯",
+    fields:[
+      {id:"code",label:"الكود *",ph:"ACT001"},
+      {id:"name",label:"اسم النشاط *",ph:"توزيع مستلزمات تعليمية"},
+      {id:"thematic",label:"المحور الموضوعي",type:"select-thematic"},
+      {id:"sector",label:"القطاع",type:"select",opts:["تعليم","صحة","إغاثة","تنمية اقتصادية","حماية اجتماعية","بيئة","حوكمة","أخرى"]},
+      {id:"unit",label:"وحدة القياس",ph:"استفادة / جلسة / كيلو"},
+      {id:"targetBenef",label:"الفئة المستهدفة",ph:"أطفال / نساء / شباب ..."},
+      {id:"active",label:"نشط",type:"bool"}
+    ],
+    idKey:"code", nameKey:"name"
+  },
+  thematics:{
+    label:"المحاور الموضوعية", icon:"🌍",
+    fields:[
+      {id:"code",label:"الكود *",ph:"TH001"},
+      {id:"nameAr",label:"الاسم بالعربي *",ph:"التعليم وبناء القدرات"},
+      {id:"nameEn",label:"الاسم بالإنجليزي",ph:"Education & Capacity Building"},
+      {id:"sdgGoals",label:"أهداف SDG المرتبطة",ph:"4, 8, 10"},
+      {id:"color",label:"اللون التعريفي",type:"color"},
+      {id:"active",label:"نشط",type:"bool"}
+    ],
+    idKey:"code", nameKey:"nameAr"
+  },
+  bankAccounts:{
+    label:"الحسابات البنكية", icon:"🏦",
+    fields:[
+      {id:"code",label:"الكود *",ph:"BNK001"},
+      {id:"bankName",label:"اسم البنك *",ph:"بنك مصر"},
+      {id:"branch",label:"الفرع",ph:"فرع المعادي"},
+      {id:"accountNo",label:"رقم الحساب *",ph:"1234567890"},
+      {id:"iban",label:"IBAN",ph:"EG000000000000000000000000"},
+      {id:"swift",label:"SWIFT Code",ph:"NBEGEGCX"},
+      {id:"currency",label:"العملة",type:"select-currency"},
+      {id:"accCode",label:"الحساب في الدفاتر",ph:"1112",type:"bank-acc"},
+      {id:"type",label:"نوع الحساب",type:"select",opts:["جاري","ادخاري","وديعة","عملة أجنبية"]},
+      {id:"signatories",label:"أصحاب التوقيع",ph:"أحمد محمد / سارة علي"},
+      {id:"active",label:"نشط",type:"bool"}
+    ],
+    idKey:"code", nameKey:"bankName"
+  },
+  supplierCategories:{
+    label:"تصنيفات الموردين", icon:"🏭",
+    fields:[
+      {id:"code",label:"الكود *",ph:"SCAT01"},
+      {id:"name",label:"الاسم *",ph:"موردو المواد الغذائية"},
+      {id:"paymentTerms",label:"شروط الدفع الافتراضية",ph:"30 يوم"},
+      {id:"taxTreatment",label:"المعالجة الضريبية",type:"select",opts:["خاضع للضريبة","معفي","غير خاضع"]},
+      {id:"active",label:"نشط",type:"bool"}
+    ],
+    idKey:"code", nameKey:"name"
+  },
+  currencies:{
+    label:"العملات", icon:"💱",
+    fields:[
+      {id:"code",label:"الكود *",ph:"USD"},
+      {id:"name",label:"الاسم *",ph:"الدولار الأمريكي"},
+      {id:"symbol",label:"الرمز",ph:"$"},
+      {id:"rate",label:"سعر الصرف (مقابل EGP)",ph:"50.5",type:"number"},
+      {id:"isDefault",label:"العملة الافتراضية",type:"bool"}
+    ],
+    idKey:"code", nameKey:"name"
+  },
+  docTypes:{
+    label:"أنواع المستندات", icon:"📄",
+    fields:[
+      {id:"code",label:"الكود *",ph:"PV"},
+      {id:"name",label:"الاسم *",ph:"سند صرف"},
+      {id:"prefix",label:"البادئة للترقيم",ph:"PV-"},
+      {id:"requiresApproval",label:"يحتاج موافقة",type:"bool"}
+    ],
+    idKey:"code", nameKey:"name"
+  },
+  paymentMethods:{
+    label:"طرق الدفع", icon:"💳",
+    fields:[
+      {id:"code",label:"الكود *",ph:"BANK"},
+      {id:"name",label:"الاسم *",ph:"تحويل بنكي"},
+      {id:"requiresBankAcc",label:"يحتاج حساب بنكي",type:"bool"},
+      {id:"active",label:"نشط",type:"bool"}
+    ],
+    idKey:"code", nameKey:"name"
+  }
+};
+
+// ---- OPEN SECTION ----
+function openMDSection(key){
+  initMD();
+  var cfg=MD_CONFIG[key];
+  if(!cfg){toast("قسم غير موجود");return;}
+  var items=DB.masterData[key]||[];
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div style="font-weight:900;font-size:15px;">'+cfg.icon+' '+cfg.label+'</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+items.length+' عناصر</div></div>';
+  h+='<button class="btn btn-gr btn-sm" onclick="openMDAdd(\''+key+'\')">+ إضافة</button></div>';
+
+  if(!items.length){
+    h+='<div style="text-align:center;color:var(--g4);padding:20px;background:var(--g1);border-radius:10px;">لا توجد بيانات — اضغط إضافة للبدء</div>';
+    om(cfg.icon+' '+cfg.label, h); return;
+  }
+
+  h+='<div>';
+  items.forEach(function(item,i){
+    var isActive=item.active!==false;
+    h+='<div style="background:white;border:1.5px solid '+(isActive?'var(--g2)':'var(--g2)')+';border-radius:10px;padding:10px 12px;margin-bottom:7px;opacity:'+(isActive?'1':'0.6')+'">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
+    h+='<div>';
+    h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">';
+    h+='<code style="font-size:10.5px;background:var(--g1);padding:2px 7px;border-radius:5px;color:var(--n);">'+(item[cfg.idKey]||'—')+'</code>';
+    if(!isActive)h+='<span class="badge br" style="font-size:9px;">غير نشط</span>';
+    h+='</div>';
+    h+='<div style="font-weight:800;font-size:13.5px;">'+(item[cfg.nameKey]||item.name||'—')+'</div>';
+    // Extra info
+    var extras=[];
+    if(item.nameEn)extras.push(item.nameEn);
+    if(item.type)extras.push(item.type);
+    if(item.governorate)extras.push(item.governorate);
+    if(item.sector)extras.push(item.sector);
+    if(item.bankName&&key!=='bankAccounts')extras.push(item.bankName);
+    if(item.accountNo)extras.push('حساب: '+item.accountNo);
+    if(item.rate)extras.push('سعر: '+item.rate+' ج.م');
+    if(extras.length)h+='<div style="font-size:11px;color:var(--g4);">'+extras.join(' · ')+'</div>';
+    h+='</div>';
+    h+='<div style="display:flex;gap:5px;">';
+    h+='<button class="btn btn-sm btn-sky" onclick="openMDEdit(\''+key+'\','+i+')" style="font-size:10px;">✏️</button>';
+    h+='<button class="btn btn-sm btn-rd" onclick="deleteMDItem(\''+key+'\','+i+')" style="font-size:10px;">🗑️</button>';
+    h+='</div></div></div>';
+  });
+  h+='</div>';
+  om(cfg.icon+' '+cfg.label, h);
+}
+
+// ---- BUILD FORM ----
+function buildMDForm(key, item){
+  initMD();
+  var cfg=MD_CONFIG[key];
+  item=item||{};
+  var h='';
+  cfg.fields.forEach(function(f){
+    var val=item[f.id]!==undefined?item[f.id]:'';
+    h+='<div class="fg"><label>'+f.label+'</label>';
+    if(f.type==='bool'){
+      h+='<select id="mdf-'+f.id+'">';
+      h+='<option value="true"'+(val===true||val==='true'?' selected':'')+'>نعم</option>';
+      h+='<option value="false"'+(val===false||val==='false'?' selected':'')+'>لا</option>';
+      h+='</select>';
+    } else if(f.type==='select'&&f.opts){
+      h+='<select id="mdf-'+f.id+'">';
+      h+='<option value="">— اختر —</option>';
+      f.opts.forEach(function(o){h+='<option'+(o===val?' selected':'')+'>'+o+'</option>';});
+      h+='</select>';
+    } else if(f.type==='select-self'){
+      // parent selector from same list
+      var siblings=DB.masterData[key]||[];
+      h+='<select id="mdf-'+f.id+'"><option value="">— بدون مستوى أعلى —</option>';
+      siblings.forEach(function(s){h+='<option value="'+s[cfg.idKey]+'"'+(s[cfg.idKey]===val?' selected':'')+'>'+s[cfg.nameKey]+'</option>';});
+      h+='</select>';
+    } else if(f.type==='select-thematic'){
+      var ths=DB.masterData.thematics||[];
+      h+='<select id="mdf-'+f.id+'"><option value="">— بدون محور —</option>';
+      ths.forEach(function(t){h+='<option value="'+t.code+'"'+(t.code===val?' selected':'')+'>'+t.nameAr+'</option>';});
+      h+='</select>';
+    } else if(f.type==='select-currency'){
+      var curs=DB.masterData.currencies||[];
+      h+='<select id="mdf-'+f.id+'"><option value="EGP">EGP — الجنيه المصري</option>';
+      curs.forEach(function(c){if(c.code!=='EGP')h+='<option value="'+c.code+'"'+(c.code===val?' selected':'')+'>'+c.code+' — '+c.name+'</option>';});
+      h+='</select>';
+    } else if(f.type==='acc'){
+      // account picker (bank/cash range)
+      h+='<select id="mdf-'+f.id+'"><option value="">— بدون حساب —</option>';
+      DB.accounts.filter(function(a){return a.c.startsWith('5')||a.c.startsWith('4');}).forEach(function(a){
+        h+='<option value="'+a.c+'"'+(a.c===val?' selected':'')+'>'+a.c+' — '+a.n+'</option>';
+      });
+      h+='</select>';
+    } else if(f.type==='bank-acc'){
+      h+='<select id="mdf-'+f.id+'"><option value="">— اختر الحساب —</option>';
+      getBankAccounts().forEach(function(a){h+='<option value="'+a.c+'"'+(a.c===val?' selected':'')+'>'+a.c+' — '+a.n+'</option>';});
+      h+='</select>';
+    } else if(f.type==='emp'){
+      var emps=DB.employees.filter(function(e){return e.status==='active';});
+      h+='<select id="mdf-'+f.id+'"><option value="">— بدون —</option>';
+      emps.forEach(function(e){h+='<option value="'+e.id+'"'+(e.id===val?' selected':'')+'>'+e.name+'</option>';});
+      h+='</select>';
+    } else if(f.type==='color'){
+      h+='<input type="color" id="mdf-'+f.id+'" value="'+(val||'#0e7490')+'" style="height:40px;width:100%;border-radius:8px;">';
+    } else if(f.type==='number'){
+      h+='<input type="number" id="mdf-'+f.id+'" value="'+(val||'')+'" step="0.01" placeholder="'+(f.ph||'0')+'">';
+    } else {
+      h+='<input id="mdf-'+f.id+'" value="'+(val||'')+'" placeholder="'+(f.ph||'')+'">';
+    }
+    h+='</div>';
+  });
+  return h;
+}
+
+function openMDAdd(key){
+  var cfg=MD_CONFIG[key];
+  var h=buildMDForm(key,null);
+  h+='<div style="display:flex;gap:8px;margin-top:10px;">';
+  h+='<button class="btn btn-gr" onclick="saveMDItem(\''+key+'\',-1)" style="flex:1;">✅ إضافة</button>';
+  h+='<button class="btn btn-gy" onclick="openMDSection(\''+key+'\')">إلغاء</button></div>';
+  om(cfg.icon+' إضافة — '+cfg.label, h);
+}
+function openMDEdit(key,idx){
+  var cfg=MD_CONFIG[key];
+  var item=(DB.masterData[key]||[])[idx];
+  if(!item)return;
+  var h=buildMDForm(key,item);
+  h+='<div style="display:flex;gap:8px;margin-top:10px;">';
+  h+='<button class="btn" onclick="saveMDItem(\''+key+'\','+idx+')" style="flex:1;">💾 حفظ</button>';
+  h+='<button class="btn btn-gy" onclick="openMDSection(\''+key+'\')">إلغاء</button></div>';
+  om(cfg.icon+' تعديل — '+cfg.label, h);
+}
+
+function saveMDItem(key,idx){
+  initMD();
+  var cfg=MD_CONFIG[key];
+  var obj={};
+  cfg.fields.forEach(function(f){
+    var el2=document.getElementById('mdf-'+f.id);
+    if(!el2)return;
+    var v=el2.value.trim();
+    if(f.type==='bool') obj[f.id]=(v==='true');
+    else if(f.type==='number') obj[f.id]=parseFloat(v)||0;
+    else obj[f.id]=v;
+  });
+  // Validate required
+  var req=cfg.fields.filter(function(f){return f.label.endsWith('*');});
+  for(var i=0;i<req.length;i++){
+    if(!obj[req[i].id]){toast('⚠️ '+req[i].label.replace(' *','')+' مطلوب');return;}
+  }
+  if(!DB.masterData[key])DB.masterData[key]=[];
+  if(idx<0){
+    // Check duplicate ID
+    var idKey=cfg.idKey;
+    if(DB.masterData[key].find(function(x){return x[idKey]===obj[idKey];})){
+      toast('⚠️ الكود '+obj[idKey]+' موجود بالفعل'); return;
+    }
+    DB.masterData[key].push(obj);
+    toast('✅ تمت الإضافة');
+  } else {
+    DB.masterData[key][idx]=obj;
+    toast('✅ تم التعديل');
+  }
+  save();
+  // Auto-sync integrations
+  syncMDIntegrations(key);
+  openMDSection(key);
+}
+
+function deleteMDItem(key,idx){
+  if(!confirm('هل تريد حذف هذا العنصر؟'))return;
+  if(DB.masterData[key])DB.masterData[key].splice(idx,1);
+  save();
+  openMDSection(key);
+  toast('🗑️ تم الحذف');
+}
+
+// ---- AUTO-SYNC INTEGRATIONS ----
+function syncMDIntegrations(changedKey){
+  initMD();
+  // When bank accounts updated — sync to COA accounts list display
+  // When locations updated — available in employee branches and warehouse locations
+  // When cost centers updated — available in journal entry
+  // When supplier categories updated — available in supplier form
+  // When thematics/activities updated — available in project form
+  // These are all read dynamically from DB.masterData so no action needed
+  // But we update TP list if needed
+  if(changedKey==='bankAccounts'){
+    // Ensure each bank account has a matching TP entry
+    (DB.masterData.bankAccounts||[]).forEach(function(b){
+      if(!b.accountNo)return;
+      var tpId='BNK-'+b.code;
+      if(!DB.thirdParties)DB.thirdParties=[];
+      if(!DB.thirdParties.find(function(t){return t.id===tpId;})){
+        DB.thirdParties.push({id:tpId,name:b.bankName+(b.branch?' — '+b.branch:''),type:'other',notes:'حساب بنكي: '+b.accountNo,active:true});
+      }
+    });
+    save();
+  }
+}
+
+// ---- HELPER GETTERS (used by other modules) ----
+function getMDList(key){
+  initMD();
+  return (DB.masterData[key]||[]).filter(function(x){return x.active!==false;});
+}
+function getMDOptions(key, idField, nameField){
+  return getMDList(key).map(function(x){
+    return '<option value="'+(x[idField]||x.code||x.id||'')+'">'+(x[nameField]||x.name||x.nameAr||'')+'</option>';
+  }).join('');
 }
 
 
