@@ -1457,7 +1457,7 @@ function rProj(){
     h+='<span class="badge bg">'+(p.status==="active"?"نشط":"إغلاق")+'</span></div>';
     h+='<div class="sg" style="margin-bottom:10px;">';
     h+='<div class="st" style="padding:10px;"><div style="font-size:10.5px;color:var(--g4);">الموازنة</div><div style="font-weight:800;font-size:14px;">'+fmt(p.budget)+'</div></div>';
-    h+='<div class="st" style="padding:10px;"><div style="font-size:10.5px;color:var(--g4);">الصرف</div><div style="font-weight:800;font-size:14px;color:var(--rd);">'+fmt(p.spent)+'</div></div>';
+    h+='<div class="st" style="padding:10px;"><div style="font-size:10.5px;color:var(--g4);">الصرف</div><div style="font-weight:800;font-size:14px;color:var(--rd);">'+fmt(spent)+'</div></div>';
     h+='<div class="st" style="padding:10px;"><div style="font-size:10.5px;color:var(--g4);">المتبقي</div><div style="font-weight:800;font-size:14px;color:'+(rem>=0?"var(--gr)":"var(--rd)")+';">'+fmt(Math.abs(rem))+'</div></div>';
     h+='<div class="st" style="padding:10px;"><div style="font-size:10.5px;color:var(--g4);">نسبة الصرف</div><div style="font-weight:900;font-size:16px;color:'+col+';">'+pc.toFixed(1)+'%</div></div>';
     h+="</div>";
