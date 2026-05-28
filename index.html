@@ -5784,6 +5784,139 @@ function getWBSForProject(projCode){
 // ============================================================
 
 // Override eLnTP to add WBS code field (called when proj selected)
+// ============================================================
+// ACCOUNT SEARCH DROPDOWN + TP OPTIONS (required by eLnTPwbs)
+// ============================================================
+
+function buildTPOptions(selectedTpId){
+  initTP();
+  var h='<option value="">— بدون طرف ثالث —</option>';
+  var empG='<optgroup label="👤 الموظفين">';
+  var supG='<optgroup label="🏭 الموردون">';
+  var othG='<optgroup label="📋 أخرى">';
+  (DB.thirdParties||[]).filter(function(t){return t.active!==false;}).forEach(function(t){
+    var sel=(t.id===selectedTpId)?' selected':'';
+    var opt='<option value="'+t.id+'"'+sel+'>'+tpTypeIcon(t.type)+' '+t.name+'</option>';
+    if(t.type==="employee") empG+=opt;
+    else if(t.type==="supplier") supG+=opt;
+    else othG+=opt;
+  });
+  return h+empG+'</optgroup>'+supG+'</optgroup>'+othG+'</optgroup>';
+}
+
+function buildAccOptions(selectedCode){
+  var groups={1:"الأصول",2:"الخصوم",3:"حقوق الملكية",4:"الإيرادات",5:"المصروفات"};
+  var grouped={};
+  DB.accounts.forEach(function(a){
+    var g=a.c.charAt(0);
+    if(!grouped[g])grouped[g]=[];
+    grouped[g].push(a);
+  });
+  var h='<option value="">— اختر الحساب —</option>';
+  Object.keys(grouped).sort().forEach(function(g){
+    h+='<optgroup label="'+groups[g]+'">';
+    grouped[g].forEach(function(a){
+      var sel=(a.c===selectedCode)?' selected':'';
+      h+='<option value="'+a.c+'"'+sel+'>'+a.c+' — '+a.n+'</option>';
+    });
+    h+='</optgroup>';
+  });
+  return h;
+}
+
+function buildAccDropHtml(i,q){
+  var groups={1:"الأصول",2:"الخصوم",3:"حقوق الملكية",4:"الإيرادات",5:"المصروفات"};
+  var grouped={};
+  DB.accounts.forEach(function(a){
+    if(q&&!(a.c.includes(q)||a.n.includes(q))) return;
+    var g=a.c.charAt(0);
+    if(!grouped[g])grouped[g]=[];
+    grouped[g].push(a);
+  });
+  if(!Object.keys(grouped).length)
+    return '<div style="padding:10px;color:var(--g4);font-size:12px;text-align:center;">لا نتائج</div>';
+  var h='';
+  Object.keys(grouped).sort().forEach(function(g){
+    h+='<div style="padding:5px 10px 2px;font-size:10px;font-weight:800;color:var(--n);background:var(--g1);border-bottom:1px solid var(--g2);">'+groups[g]+'</div>';
+    grouped[g].forEach(function(a){
+      h+='<div class="acc-drop-item" data-acc-i="'+i+'" data-acc-c="'+a.c+'" onclick="selectAccFromDrop(this)">'
+        +'<code class="acc-drop-code">'+a.c+'</code>'
+        +'<span data-acc-n>'+a.n+'</span>'
+        +'</div>';
+    });
+  });
+  return h;
+}
+
+function showAccDrop(i){
+  var d=el('eaDrop-'+i);
+  if(d) d.style.display='block';
+}
+function hideAccDrop(i){
+  var d=el('eaDrop-'+i);
+  if(d) d.style.display='none';
+}
+function filterAccSel(i){
+  var q=(el('eaSearch-'+i)||{}).value||'';
+  var d=el('eaDrop-'+i);
+  if(d){d.style.display='block';d.innerHTML=buildAccDropHtml(i,q);}
+  var hidden=el('ea-'+i);
+  if(hidden) hidden.value='';
+  updET();
+}
+function selectAcc(i,code,name){
+  var hidden=el('ea-'+i);
+  if(hidden){hidden.value=code;hidden.dispatchEvent(new Event('change'));}
+  var inp=el('eaSearch-'+i);
+  if(inp) inp.value=code+' — '+name;
+  hideAccDrop(i);
+  updET();
+}
+function selectAccFromDrop(el2){
+  var i=el2.getAttribute('data-acc-i');
+  var code=el2.getAttribute('data-acc-c');
+  var nameEl=el2.querySelector('[data-acc-n]');
+  var name=nameEl?nameEl.textContent:'';
+  selectAcc(i,code,name);
+}
+
+// collectTP - reads lines from entry form
+function collectTP(prefix,lineCount){
+  var lines=[];
+  for(var i=0;i<lineCount;i++){
+    var acc=(el('ea-'+i)||{}).value||'';
+    var dr=parseFloat((el('edr-'+i)||{}).value)||0;
+    var cr=parseFloat((el('ecr-'+i)||{}).value)||0;
+    if(!acc||(dr===0&&cr===0)) continue;
+    var a=DB.accounts.find(function(x){return x.c===acc;});
+    var tpEl=el('etp-'+i);
+    var tpId=tpEl?tpEl.value:'';
+    var tp=tpId?(DB.thirdParties||[]).find(function(t){return t.id===tpId;}):null;
+    var wbsCode=(el('ewbs-'+i)||{}).value||'';
+    lines.push({
+      acc:acc, an:a?a.n:'', dr:dr, cr:cr,
+      tpId:tp?tp.id:'', tpName:tp?tp.name:'', tpType:tp?tp.type:'',
+      wbsCode:wbsCode
+    });
+  }
+  return lines;
+}
+
+// onProjChange - rebuild entry lines when project changes
+function onProjChange(){
+  var projCode=(el('e-p')||{}).value||'';
+  var container=el('els');if(!container)return;
+  var oldCount=_eL;
+  container.innerHTML='';
+  for(var i=0;i<oldCount;i++){
+    var d=document.createElement('div');
+    d.innerHTML=eLnTPwbs(i,projCode);
+    container.appendChild(d.firstChild);
+  }
+  updET();
+}
+
+
 function eLnTPwbs(i, projCode){
   initTP();
   var tpOpts=buildTPOptions('');
