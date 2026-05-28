@@ -85,6 +85,7 @@ tbody tr:hover td{background:var(--skp);}
 .mi-t{font-weight:700;font-size:13px;color:var(--n);}
 .sd{display:flex;align-items:center;gap:8px;margin:14px 0 10px;color:var(--g5);font-size:11px;font-weight:700;}
 .sd::before,.sd::after{content:"";flex:1;height:1px;background:var(--g2);}
+.acc-drop-item{padding:7px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--g1);display:flex;gap:8px;align-items:center;background:white;}.acc-drop-item:hover{background:var(--g1)!important;}.acc-drop-code{font-size:10.5px;color:var(--n);background:var(--g1);padding:2px 6px;border-radius:4px;font-family:monospace;white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -236,7 +237,23 @@ var DB={
   thirdParties:[]
 };
 
-try{var _s=localStorage.getItem("athar");if(_s)DB=JSON.parse(_s);}catch(e){}
+try{
+  var _s=localStorage.getItem("athar");
+  if(_s){
+    var _loaded=JSON.parse(_s);
+    // Always use new COA from source code — never from localStorage
+    var _newAccounts=DB.accounts.slice();
+    DB=_loaded;
+    DB.accounts=_newAccounts;
+    // Ensure new DB fields exist
+    if(!DB.thirdParties)DB.thirdParties=[];
+    if(!DB.warehouses)DB.warehouses=DB.warehouses||[];
+    if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
+    if(!DB.suppliers)DB.suppliers=[];
+    if(!DB.closedPeriods)DB.closedPeriods=[];
+    if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"المدير",username:"admin",password:"admin123",role:"admin",active:true}];
+  }
+}catch(e){}
 function save(){try{localStorage.setItem("athar",JSON.stringify(DB));}catch(e){}}
 function toast(m,d){var t=document.getElementById("toast");t.textContent=m;t.classList.add("on");setTimeout(function(){t.classList.remove("on");},d||2500);}
 function fmt(n){return(n||0).toLocaleString("ar-EG",{minimumFractionDigits:0,maximumFractionDigits:0});}
@@ -579,31 +596,121 @@ function tpTypeCls(type){
 }
 
 // ---- eLn with third-party dropdown (replaces the old eLn) ----
+// Build searchable account options (used in all entry forms)
+function buildAccOptions(selectedCode){
+  // Group by first digit
+  var groups={1:"الأصول",2:"الخصوم",3:"حقوق الملكية",4:"الإيرادات",5:"المصروفات"};
+  var grouped={};
+  DB.accounts.forEach(function(a){
+    var g=a.c.charAt(0);
+    if(!grouped[g])grouped[g]=[];
+    grouped[g].push(a);
+  });
+  var h='<option value="">— اختر الحساب —</option>';
+  Object.keys(grouped).sort().forEach(function(g){
+    h+='<optgroup label="'+groups[g]+'">';
+    grouped[g].forEach(function(a){
+      var sel=(a.c===selectedCode)?' selected':'';
+      h+='<option value="'+a.c+'"'+sel+'>'+a.c+' — '+a.n+'</option>';
+    });
+    h+='</optgroup>';
+  });
+  return h;
+}
+
+// Build TP options
+function buildTPOptions(selectedTpId){
+  initTP();
+  var h='<option value="">— بدون طرف ثالث —</option>';
+  var empG='<optgroup label="👤 الموظفين">';
+  var supG='<optgroup label="🏭 الموردون">';
+  var othG='<optgroup label="📋 أخرى">';
+  DB.thirdParties.filter(function(t){return t.active!==false;}).forEach(function(t){
+    var sel=(t.id===selectedTpId)?' selected':'';
+    var opt='<option value="'+t.id+'"'+sel+'>'+tpTypeIcon(t.type)+' '+t.name+'</option>';
+    if(t.type==="employee") empG+=opt;
+    else if(t.type==="supplier") supG+=opt;
+    else othG+=opt;
+  });
+  h+=empG+'</optgroup>'+supG+'</optgroup>'+othG+'</optgroup>';
+  return h;
+}
+
 function eLnTP(i,opts){
   initTP();
-  var tpO='<option value="">— بدون طرف ثالث —</option>';
-  var empGroup='<optgroup label="👤 الموظفين">';
-  var supGroup='<optgroup label="🏭 الموردون">';
-  var otherGroup='<optgroup label="📋 أخرى">';
-  DB.thirdParties.filter(function(t){return t.active!==false;}).forEach(function(t){
-    var opt='<option value="'+t.id+'">'+tpTypeIcon(t.type)+' '+t.name+'</option>';
-    if(t.type==="employee") empGroup+=opt;
-    else if(t.type==="supplier") supGroup+=opt;
-    else otherGroup+=opt;
-  });
-  empGroup+='</optgroup>';
-  supGroup+='</optgroup>';
-  otherGroup+='</optgroup>';
-  tpO+=empGroup+supGroup+otherGroup;
-
+  var accOpts=buildAccOptions('');
+  var tpOpts=buildTPOptions('');
   return '<div class="tp-line" id="el-'+i+'" style="background:var(--g1);border-radius:9px;padding:8px;margin-bottom:7px;">'
-    +'<select id="ea-'+i+'" onchange="updET()" style="margin-bottom:6px;"><option value="">اختر الحساب</option>'+opts+'</select>'
+    +'<div style="position:relative;margin-bottom:5px;">'
+    +'<input id="eaSearch-'+i+'" placeholder="🔍 ابحث عن حساب..." style="width:100%;padding:8px 12px;border:1.5px solid var(--g2);border-radius:8px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterAccSel('+i+')" onfocus="showAccDrop('+i+')" onblur="setTimeout(function(){hideAccDrop('+i+')},200)">'
+    +'<div id="eaDrop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--n);border-radius:8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.15);">'
+    +buildAccDropHtml(i,'')+''
+    +'</div>'
+    +'<input type="hidden" id="ea-'+i+'" onchange="updET()">'
+    +'</div>'
     +'<div class="fr" style="margin-bottom:5px;">'
     +'<input type="number" id="edr-'+i+'" placeholder="مدين" oninput="updET()">'
     +'<input type="number" id="ecr-'+i+'" placeholder="دائن" oninput="updET()">'
     +'</div>'
-    +'<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpO+'</select>'
+    +'<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpOpts+'</select>'
     +'</div>';
+}
+
+function buildAccDropHtml(i,q){
+  var groups={1:"الأصول",2:"الخصوم",3:"حقوق الملكية",4:"الإيرادات",5:"المصروفات"};
+  var grouped={};
+  DB.accounts.forEach(function(a){
+    if(q&&!(a.c.includes(q)||a.n.includes(q))) return;
+    var g=a.c.charAt(0);
+    if(!grouped[g])grouped[g]=[];
+    grouped[g].push(a);
+  });
+  if(!Object.keys(grouped).length)
+    return '<div style="padding:10px;color:var(--g4);font-size:12px;text-align:center;">لا نتائج</div>';
+  var h='';
+  Object.keys(grouped).sort().forEach(function(g){
+    h+='<div style="padding:5px 10px 2px;font-size:10px;font-weight:800;color:var(--n);background:var(--g1);border-bottom:1px solid var(--g2);">'+groups[g]+'</div>';
+    grouped[g].forEach(function(a){
+      h+='<div data-acc-i="'+i+'" data-acc-c="'+a.c+'" class="acc-drop-item" onclick="selectAccFromDrop(this)">'
+        +'<code class="acc-drop-code">'+a.c+'</code>'
+        +'<span data-acc-n>'+a.n+'</span>'
+        +'</div>';
+    });
+  });
+  return h;
+}
+
+function showAccDrop(i){
+  var d=el('eaDrop-'+i);
+  if(d){d.style.display='block';}
+}
+function hideAccDrop(i){
+  var d=el('eaDrop-'+i);
+  if(d){d.style.display='none';}
+}
+function filterAccSel(i){
+  var q=(el('eaSearch-'+i)||{}).value||'';
+  var d=el('eaDrop-'+i);
+  if(d){d.style.display='block';d.innerHTML=buildAccDropHtml(i,q);}
+  // clear selection if user is typing
+  var hidden=el('ea-'+i);
+  if(hidden){hidden.value='';}
+  updET();
+}
+function selectAcc(i,code,name){
+  var hidden=el('ea-'+i);
+  if(hidden){hidden.value=code;hidden.dispatchEvent(new Event('change'));}
+  var inp=el('eaSearch-'+i);
+  if(inp){inp.value=code+' — '+name;}
+  hideAccDrop(i);
+  updET();
+}
+function selectAccFromDrop(el2){
+  var i=el2.getAttribute('data-acc-i');
+  var code=el2.getAttribute('data-acc-c');
+  var nameEl=el2.querySelector('[data-acc-n]');
+  var name=nameEl?nameEl.textContent:'';
+  selectAcc(i,code,name);
 }
 
 // Override the old eLn for new entries
@@ -882,9 +989,8 @@ function rptTPBalances(){
 
 function newEntry(){
   syncTPFromHR();
-  var aO=DB.accounts.map(function(a){return'<option value="'+a.c+'">'+a.c+' — '+a.n+'</option>';}).join("");
   var pO=DB.projects.map(function(p){return'<option value="'+p.code+'">'+p.name+'</option>';}).join("");
-  _eL=2; _eAO=aO;
+  _eL=2; _eAO=''; // accounts now handled by searchable dropdown
   var h='<div class="fr"><div class="fg"><label>التاريخ *</label><input type="date" id="e-d" value="'+new Date().toISOString().split("T")[0]+'"></div>';
   h+='<div class="fg"><label>المرجع</label><input id="e-r" placeholder="PV-001"></div></div>';
   h+='<div class="fg"><label>البيان *</label><input id="e-ds" placeholder="وصف العملية المالية"></div>';
@@ -897,12 +1003,7 @@ function newEntry(){
   om("قيد يومية جديد",h);
   updET();
 }
-function eLn(i,opts){
-  return '<div class="fg" id="el-'+i+'"><select id="ea-'+i+'" onchange="updET()"><option value="">اختر الحساب</option>'+opts+'</select>'
-    +'<div class="fr" style="margin-top:5px;">'
-    +'<input type="number" id="edr-'+i+'" placeholder="مدين" oninput="updET()">'
-    +'<input type="number" id="ecr-'+i+'" placeholder="دائن" oninput="updET()"></div></div>';
-}
+// eLn — see eLnTP above
 function addEL(){var d=document.createElement("div");d.innerHTML=eLn(_eL++,_eAO);el("els").appendChild(d.firstChild);updET();}
 function addELEdit(){var d=document.createElement("div");d.innerHTML=eLn(_eL++,_eAO);el("ed-ls").appendChild(d.firstChild);updETE();}
 function updETE(){var tD=0,tC=0;for(var i=0;i<_eL;i++){tD+=parseFloat(el("edr-"+i)?el("edr-"+i).value:0)||0;tC+=parseFloat(el("ecr-"+i)?el("ecr-"+i).value:0)||0;}var ok=Math.abs(tD-tC)<0.01;var e=el("ed-etot");if(e)e.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;"><span>مدين: <strong>'+fmt(tD)+'</strong> | دائن: <strong>'+fmt(tC)+'</strong></span><span style="font-weight:700;color:'+(ok?'var(--gr)':'var(--rd)')+';">'+(ok?'✅ متوازن':'⚠️ غير متوازن')+'</span></div>';}
@@ -1003,24 +1104,17 @@ function editEntry(id){
   h+='<div id="ed-ls">';
   e.lines.forEach(function(l,i){
     // Build TP options
-    var tpOe='<option value="">— بدون طرف ثالث —</option>';
-    var empGe='<optgroup label="👤 الموظفين">';
-    var supGe='<optgroup label="🏭 الموردون">';
-    var othGe='<optgroup label="📋 أخرى">';
-    (DB.thirdParties||[]).forEach(function(t){
-      var sel=t.id===l.tpId?' selected':'';
-      var opt='<option value="'+t.id+'"'+sel+'>'+tpTypeIcon(t.type)+' '+t.name+'</option>';
-      if(t.type==="employee")empGe+=opt;
-      else if(t.type==="supplier")supGe+=opt;
-      else othGe+=opt;
-    });
-    tpOe+=empGe+'</optgroup>'+supGe+'</optgroup>'+othGe+'</optgroup>';
+    var tpOe=buildTPOptions(l.tpId||"");
     h+='<div class="tp-line" id="el-'+i+'" style="background:var(--g1);border-radius:9px;padding:8px;margin-bottom:7px;">';
-    h+='<select id="ea-'+i+'" onchange="updETE()" style="margin-bottom:6px;"><option value="">اختر الحساب</option>';
-    DB.accounts.forEach(function(a){
-      h+='<option value="'+a.c+'"'+(a.c===l.acc?' selected':'')+'>'+a.c+' — '+a.n+'</option>';
-    });
-    h+='</select>';
+    var aN=(DB.accounts.find(function(a){return a.c===l.acc;})||{}).n||'';
+    var dispVal=l.acc?(l.acc+' — '+aN):'';
+    h+='<div style="position:relative;margin-bottom:5px;">';
+    h+='<input id="eaSearch-'+i+'" value="'+dispVal+'" placeholder="🔍 ابحث عن حساب..." style="width:100%;padding:8px 12px;border:1.5px solid var(--g2);border-radius:8px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;" oninput="filterAccSel('+i+')" onfocus="showAccDrop('+i+')" onblur="setTimeout(function(){hideAccDrop('+i+')},200)">';
+    h+='<div id="eaDrop-'+i+'" style="display:none;position:absolute;top:100%;right:0;left:0;background:white;border:1.5px solid var(--n);border-radius:8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.15);">';
+    h+=buildAccDropHtml(i,'');
+    h+='</div>';
+    h+='<input type="hidden" id="ea-'+i+'" value="'+l.acc+'">';
+    h+='</div>';
     h+='<div class="fr" style="margin-bottom:5px;">';
     h+='<input type="number" id="edr-'+i+'" value="'+(l.dr||'')+'" placeholder="مدين" oninput="updETE()">';
     h+='<input type="number" id="ecr-'+i+'" value="'+(l.cr||'')+'" placeholder="دائن" oninput="updETE()">';
