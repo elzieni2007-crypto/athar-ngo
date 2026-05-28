@@ -234,7 +234,8 @@ var DB={
   warehouses:[{code:"WH01",name:"المخزن الرئيسي",location:"المقر الرئيسي",manager:"",notes:""}],
   itemCategories:["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"],
   suppliers:[],
-  thirdParties:[]
+  thirdParties:[],
+  bankRecons:[]
 };
 
 try{
@@ -247,6 +248,7 @@ try{
     DB.accounts=_newAccounts;
     // Ensure new DB fields exist
     if(!DB.thirdParties)DB.thirdParties=[];
+    if(!DB.bankRecons)DB.bankRecons=[];
     if(!DB.warehouses)DB.warehouses=DB.warehouses||[];
     if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
     if(!DB.suppliers)DB.suppliers=[];
@@ -323,7 +325,8 @@ function sub(n){
     suppliers:rSuppliersPage,invreports:rInvReports,
     hrreports:rHRReports,
     tpledger:rTPLedger,
-    importexport:rImportExport
+    importexport:rImportExport,
+    reconhist:function(){rReconHistory('');}
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -334,7 +337,8 @@ function sub(n){
     suppliers:"🏭 الموردون",invreports:"📊 تقارير المخازن",
     hrreports:"📊 تقارير الموارد البشرية",
     tpledger:"📒 الأستاذ المساعد",
-    importexport:"📁 استيراد وتصدير"
+    importexport:"📁 استيراد وتصدير",
+    reconhist:"📊 سجل التسويات"
   };
   if(f[n]){try{om(titles[n]||n, f[n]());}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
 }
@@ -552,7 +556,8 @@ function rMore(){
     {i:"🏢",t:"الموارد البشرية",n:"employees"},
     {i:"⚙️",t:"الإعدادات",n:"settings"},
     {i:"📒",t:"الأستاذ المساعد",n:"tpledger"},
-    {i:"📁",t:"استيراد وتصدير",n:"importexport"}
+    {i:"📁",t:"استيراد وتصدير",n:"importexport"},
+    {i:"🔄",t:"سجل التسويات",n:"reconhist"}
   ];
   var h='<div class="ph-t" style="margin-bottom:14px;">القائمة الكاملة</div><div class="mg">';
   items.forEach(function(item){
@@ -1518,19 +1523,364 @@ function rBVAPage(){
   });
   return h;
 }
-function rBankPage(){
-  var B=bals();
-  var h='<div class="ph-t" style="margin-bottom:12px;">🏦 البنوك والخزينة</div>';
-  [["110101","الخزينة - كاش","💵"],["110102","بنك مصر","🏦"],["110103","البنك الأهلي","🏦"],["110104","CIB","🏦"]].forEach(function(a){
-    var b=B[a[0]]||{dr:0,cr:0};
-    var bal=b.dr-b.cr;
-    h+='<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">';
-    h+='<div style="font-size:28px;">'+a[2]+'</div>';
-    h+='<div style="flex:1;"><div style="font-weight:700;">'+a[1]+'</div><code style="font-size:10px;color:var(--g4);">'+a[0]+'</code></div>';
-    h+='<div style="text-align:left;"><div style="font-weight:900;font-size:18px;color:'+(bal>=0?"var(--n)":"var(--rd)")+';">'+fmt(bal)+'</div><div style="font-size:10px;color:var(--g4);">ج.م</div></div></div>';
+// ============================================================
+// BANK RECONCILIATION SYSTEM — التسوية البنكية
+// ============================================================
+
+function initRecon(){
+  if(!DB.bankRecons)DB.bankRecons=[];
+}
+
+// Get all bank/cash accounts from COA (1111-1113 range + any account starting with 111x or 1112-1113)
+function getBankAccounts(){
+  return DB.accounts.filter(function(a){
+    return a.c.startsWith('111') && a.nat==='dr';
   });
+}
+
+// Get all journal movements for a specific account
+function getAccMovements(accCode, fromDate, toDate){
+  var rows=[];
+  (DB.entries||[]).filter(function(e){
+    return e.status==='posted'
+      &&(!fromDate||e.date>=fromDate)
+      &&(!toDate||e.date<=toDate);
+  }).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(l.acc===accCode){
+        rows.push({
+          entryId:e.id, date:e.date, ref:e.ref, desc:e.desc,
+          dr:l.dr||0, cr:l.cr||0,
+          tpName:l.tpName||l.tpId||'', proj:e.proj||''
+        });
+      }
+    });
+  });
+  rows.sort(function(a,b){return a.date<b.date?-1:1;});
+  return rows;
+}
+
+// Calculate running balance for account up to a date
+function getAccBalAtDate(accCode, upToDate){
+  var dr=0,cr=0;
+  (DB.entries||[]).filter(function(e){
+    return e.status==='posted' && (!upToDate||e.date<=upToDate);
+  }).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(l.acc===accCode){dr+=l.dr||0;cr+=l.cr||0;}
+    });
+  });
+  return {dr:dr, cr:cr, net:dr-cr}; // net = book balance (debit-natured account)
+}
+
+// ---- MAIN BANK PAGE (rebuilt) ----
+function rBankPage(){
+  var banks=getBankAccounts();
+  var B=bals();
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div class="ph-t">🏦 البنوك والخزينة</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+banks.length+' حساب</div></div>';
+  h+='</div>';
+
+  if(!banks.length){
+    return h+'<div style="background:var(--abg);border-radius:10px;padding:16px;font-size:13px;color:#92400e;">لا توجد حسابات بنكية (111x) في شجرة الحسابات</div>';
+  }
+
+  var totalCash=0;
+  banks.forEach(function(acc){
+    var b=B[acc.c]||{dr:0,cr:0};
+    var bal=b.dr-b.cr;
+    totalCash+=bal;
+    // Get last recon
+    var lastRecon=(DB.bankRecons||[]).filter(function(r){return r.accCode===acc.c;})
+      .sort(function(a,b){return b.date>a.date?1:-1;})[0];
+
+    h+='<div class="card" style="margin-bottom:10px;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">';
+    h+='<div>';
+    h+='<code style="font-size:10.5px;background:var(--g1);padding:2px 8px;border-radius:5px;color:var(--n);">'+acc.c+'</code>';
+    h+='<div style="font-weight:800;font-size:15px;margin-top:4px;">'+acc.n+'</div>';
+    if(lastRecon){
+      h+='<div style="font-size:10.5px;color:var(--g4);">آخر تسوية: '+lastRecon.date;
+      var diff=lastRecon.bookBal-lastRecon.bankBal;
+      h+=' · فرق: <span style="color:'+(Math.abs(diff)<0.01?'var(--gr)':'var(--rd)')+';">'+fmt(Math.abs(diff))+' ج.م</span></div>';
+    }
+    h+='</div>';
+    h+='<div style="text-align:left;">';
+    h+='<div style="font-size:9.5px;color:var(--g4);">رصيد الدفاتر</div>';
+    h+='<div style="font-weight:900;font-size:18px;color:'+(bal>=0?'var(--n)':'var(--rd)')+';">'+fmt(Math.abs(bal))+'</div>';
+    h+='<div style="font-size:10px;color:var(--g4);">'+(bal>=0?'مدين':'دائن')+'</div>';
+    h+='</div></div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">';
+    h+='<button class="btn btn-sm" style="background:var(--n);font-size:11px;" onclick="openRecon(\''+acc.c+'\')">🔄 تسوية بنكية</button>';
+    h+='<button class="btn btn-sm btn-gy" onclick="viewAccLedger(\''+acc.c+'\',\''+acc.n+'\')" style="font-size:11px;">📋 كشف الحركات</button>';
+    h+='</div></div>';
+  });
+
+  // Total summary
+  h+='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:12px;padding:14px;color:white;margin-top:4px;">';
+  h+='<div style="font-size:11px;opacity:.7;">إجمالي النقدية والبنوك</div>';
+  h+='<div style="font-weight:900;font-size:22px;">'+fmt(totalCash)+' ج.م</div>';
+  h+='</div>';
   return h;
 }
+
+// ---- ACCOUNT LEDGER VIEW (for any account) ----
+function viewAccLedger(accCode, accName){
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:10px;padding:12px;margin-bottom:12px;color:white;">';
+  h+='<code style="font-size:10px;opacity:.7;">'+accCode+'</code>';
+  h+='<div style="font-weight:900;font-size:16px;">'+(accName||accCode)+'</div></div>';
+  h+='<div class="fr" style="margin-bottom:10px;">';
+  h+='<div class="fg"><label>من تاريخ</label><input type="date" id="al-from" onchange="refreshAccLedger(\''+accCode+'\',\''+accName+'\')"></div>';
+  h+='<div class="fg"><label>إلى تاريخ</label><input type="date" id="al-to" onchange="refreshAccLedger(\''+accCode+'\',\''+accName+'\')"></div>';
+  h+='</div>';
+  h+='<div id="al-body">'+buildAccLedgerTable(accCode,'','')+'</div>';
+  om('📋 كشف حساب — '+(accName||accCode), h);
+}
+function refreshAccLedger(accCode,accName){
+  var from=sv('al-from')||'';var to=sv('al-to')||'';
+  var el2=document.getElementById('al-body');
+  if(el2)el2.innerHTML=buildAccLedgerTable(accCode,from,to);
+}
+function buildAccLedgerTable(accCode,fromD,toD){
+  // Opening balance before fromD
+  var opening=fromD?getAccBalAtDate(accCode, getPrevDay(fromD)).net:0;
+  var rows=getAccMovements(accCode,fromD,toD);
+  if(!rows.length&&!opening)
+    return '<div style="text-align:center;color:var(--g4);padding:20px;">لا توجد حركات</div>';
+
+  var h='<div style="overflow-x:auto;"><table><thead><tr>';
+  h+='<th>التاريخ</th><th>المرجع</th><th>البيان</th><th>مدين ↑</th><th>دائن ↓</th><th>الرصيد</th>';
+  h+='</tr></thead><tbody>';
+
+  var run=opening;
+  if(fromD&&opening!==0){
+    h+='<tr style="background:var(--g1);">';
+    h+='<td colspan="3" style="font-weight:700;font-size:11px;">رصيد أول المدة</td>';
+    h+='<td class="tn"></td><td class="tn"></td>';
+    h+='<td class="tn" style="font-weight:800;">'+fmt(Math.abs(opening))+(opening>=0?' م':' د')+'</td></tr>';
+  }
+
+  var tDr=0,tCr=0;
+  rows.forEach(function(r){
+    run+=r.dr-r.cr;tDr+=r.dr;tCr+=r.cr;
+    var balAbs=Math.abs(run);var balDir=run>=0?'م':'د';
+    h+='<tr>';
+    h+='<td style="font-size:11px;white-space:nowrap;">'+r.date+'</td>';
+    h+='<td style="font-size:11px;color:var(--sk);">'+r.ref+'</td>';
+    h+='<td style="font-size:11px;">'+r.desc+(r.tpName?'<br><span style="font-size:10px;color:var(--g4);">'+r.tpName+'</span>':'')+'</td>';
+    h+='<td class="tn" style="color:var(--n);font-weight:700;">'+(r.dr>0?fmt(r.dr):'-')+'</td>';
+    h+='<td class="tn" style="color:var(--gr);font-weight:700;">'+(r.cr>0?fmt(r.cr):'-')+'</td>';
+    h+='<td class="tn" style="font-weight:800;">'+fmt(balAbs)+' '+balDir+'</td>';
+    h+='</tr>';
+  });
+
+  var finalBal=opening+tDr-tCr;
+  h+='</tbody><tfoot>';
+  h+='<tr style="background:var(--g1);"><td colspan="3" style="font-weight:900;padding:8px;font-size:12px;">المجموع</td>';
+  h+='<td class="tn" style="font-weight:900;padding:8px;">'+fmt(tDr)+'</td>';
+  h+='<td class="tn" style="font-weight:900;padding:8px;">'+fmt(tCr)+'</td>';
+  h+='<td class="tn" style="font-weight:900;padding:8px;">'+fmt(Math.abs(finalBal))+(finalBal>=0?' م':' د')+'</td></tr>';
+  h+='</tfoot></table></div>';
+
+  h+='<button class="btn btn-sm btn-gy" onclick="exportAccLedgerCSV(\''+accCode+'\')" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
+  return h;
+}
+function getPrevDay(dateStr){
+  var d=new Date(dateStr);
+  d.setDate(d.getDate()-1);
+  return d.toISOString().split('T')[0];
+}
+function exportAccLedgerCSV(accCode){
+  var acc=DB.accounts.find(function(a){return a.c===accCode;})||{n:accCode};
+  var rows=[['التاريخ','المرجع','البيان','مدين','دائن','الرصيد']];
+  var run=0;
+  getAccMovements(accCode,'','').forEach(function(r){
+    run+=r.dr-r.cr;
+    rows.push([r.date,r.ref,r.desc,r.dr||0,r.cr||0,run]);
+  });
+  dlCSV(rows,'ledger-'+acc.n+'-'+new Date().toISOString().split('T')[0]+'.csv');
+  toast('✅ تم التصدير');
+}
+
+// ---- BANK RECONCILIATION MODAL ----
+function openRecon(accCode){
+  initRecon();
+  var acc=DB.accounts.find(function(a){return a.c===accCode;})||{n:accCode,c:accCode};
+  var today=new Date().toISOString().split('T')[0];
+  // Suggest last day of previous month
+  var d=new Date();d.setDate(0); // last day of prev month
+  var suggestDate=d.toISOString().split('T')[0];
+
+  // Previous recons
+  var prevRecons=(DB.bankRecons||[]).filter(function(r){return r.accCode===accCode;})
+    .sort(function(a,b){return b.date>a.date?1:-1;}).slice(0,3);
+
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:10px;padding:12px;margin-bottom:12px;color:white;">';
+  h+='<code style="font-size:10px;opacity:.7;">'+accCode+'</code>';
+  h+='<div style="font-weight:900;font-size:16px;">'+acc.n+'</div></div>';
+
+  h+='<div class="sd">بيانات التسوية</div>';
+  h+='<div class="fr"><div class="fg"><label>تاريخ التسوية (نهاية الفترة) *</label>';
+  h+='<input type="date" id="rc-date" value="'+suggestDate+'" onchange="calcRecon(\''+accCode+'\')"></div>';
+  h+='<div class="fg"><label>رصيد كشف حساب البنك (ج.م) *</label>';
+  h+='<input type="number" id="rc-bank" placeholder="0.00" step="0.01" oninput="calcRecon(\''+accCode+'\')"></div></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="rc-notes" placeholder="رقم كشف الحساب / الفترة ..."></div>';
+
+  h+='<div class="sd">نتيجة التسوية</div>';
+  h+='<div id="rc-result" style="background:var(--g1);border-radius:10px;padding:12px;margin-bottom:12px;">';
+  h+='<div style="color:var(--g4);font-size:12px;">أدخل تاريخ التسوية ورصيد البنك لحساب الفروق</div>';
+  h+='</div>';
+
+  h+='<div style="display:flex;gap:8px;margin-bottom:14px;">';
+  h+='<button class="btn btn-gr" onclick="saveRecon(\''+accCode+'\')" style="flex:1;">✅ حفظ التسوية</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+
+  if(prevRecons.length){
+    h+='<div class="sd">التسويات السابقة</div>';
+    prevRecons.forEach(function(r){
+      var diff=r.bookBal-r.bankBal;
+      var ok=Math.abs(diff)<0.01;
+      h+='<div style="background:white;border:1px solid var(--g2);border-radius:9px;padding:10px;margin-bottom:7px;">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;">';
+      h+='<div><div style="font-weight:700;font-size:12px;">'+r.date+'</div>';
+      h+='<div style="font-size:10.5px;color:var(--g4);">'+(r.notes||'بدون ملاحظات')+'</div></div>';
+      h+='<span class="badge '+(ok?'bg':'br')+'" style="font-size:9.5px;">'+(ok?'✅ متطابق':'⚠️ فرق '+fmt(Math.abs(diff)))+'</span>';
+      h+='</div>';
+      h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:8px;font-size:11px;text-align:center;">';
+      h+='<div style="background:var(--g1);border-radius:6px;padding:6px;"><div style="color:var(--g4);font-size:9.5px;">رصيد الدفاتر</div><div style="font-weight:700;">'+fmt(r.bookBal)+'</div></div>';
+      h+='<div style="background:var(--g1);border-radius:6px;padding:6px;"><div style="color:var(--g4);font-size:9.5px;">رصيد البنك</div><div style="font-weight:700;">'+fmt(r.bankBal)+'</div></div>';
+      h+='<div style="background:'+(ok?'var(--gbg)':'var(--rbg)')+';border-radius:6px;padding:6px;"><div style="color:var(--g4);font-size:9.5px;">الفرق</div><div style="font-weight:800;color:'+(ok?'var(--gr)':'var(--rd)')+';">'+fmt(Math.abs(diff))+'</div></div>';
+      h+='</div></div>';
+    });
+  }
+
+  om('🔄 تسوية بنكية — '+acc.n, h);
+}
+
+function calcRecon(accCode){
+  var dateVal=sv('rc-date');
+  var bankBal=parseFloat((document.getElementById('rc-bank')||{}).value)||0;
+  var el2=document.getElementById('rc-result');
+  if(!el2||!dateVal) return;
+
+  // Book balance at date
+  var bookObj=getAccBalAtDate(accCode, dateVal);
+  var bookBal=bookObj.net; // dr - cr for debit account
+
+  // Movements in period
+  var mvs=getAccMovements(accCode,'',dateVal);
+  var totalDr=mvs.reduce(function(s,r){return s+r.dr;},0);
+  var totalCr=mvs.reduce(function(s,r){return s+r.cr;},0);
+
+  // Difference
+  var diff=bookBal-bankBal;
+  var ok=Math.abs(diff)<0.01;
+
+  var h='';
+  // Main result boxes
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">';
+  h+='<div style="background:var(--skp);border-radius:9px;padding:11px;text-align:center;">';
+  h+='<div style="font-size:10px;color:var(--g4);">رصيد الدفاتر في '+dateVal+'</div>';
+  h+='<div style="font-weight:900;font-size:18px;color:var(--n);">'+fmt(bookBal)+'</div>';
+  h+='<div style="font-size:10px;color:var(--g4);">ج.م</div></div>';
+
+  h+='<div style="background:'+(ok?'var(--gbg)':'var(--abg)')+';border-radius:9px;padding:11px;text-align:center;">';
+  h+='<div style="font-size:10px;color:var(--g4);">رصيد كشف البنك</div>';
+  h+='<div style="font-weight:900;font-size:18px;color:'+(ok?'var(--gr)':'#92400e')+';">'+fmt(bankBal)+'</div>';
+  h+='<div style="font-size:10px;color:var(--g4);">ج.م</div></div>';
+  h+='</div>';
+
+  // Difference highlight
+  h+='<div style="background:'+(ok?'#dcfce7':'#fee2e2')+';border:2px solid '+(ok?'var(--gr)':'var(--rd)')+';border-radius:10px;padding:13px;text-align:center;margin-bottom:10px;">';
+  h+='<div style="font-size:11px;color:var(--g5);margin-bottom:3px;">الفرق (رصيد الدفاتر — رصيد البنك)</div>';
+  h+='<div style="font-weight:900;font-size:22px;color:'+(ok?'var(--gr)':'var(--rd)')+';">'+(ok?'✅ لا يوجد فرق — متطابق ':'⚠️ '+fmt(Math.abs(diff))+' ج.م ')+'</div>';
+  if(!ok){
+    h+='<div style="font-size:11px;color:var(--g5);margin-top:4px;">'+(diff>0?'الدفاتر أكبر من البنك — قد يوجد شيكات صادرة غير مصرفة أو قيود خاطئة':'البنك أكبر من الدفاتر — قد توجد إيداعات غير مسجلة أو رسوم بنكية')+'</div>';
+  }
+  h+='</div>';
+
+  // Movements summary
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px;text-align:center;">';
+  h+='<div style="background:var(--g1);border-radius:8px;padding:8px;"><div style="color:var(--g4);font-size:10px;">إجمالي الإضافات</div><div style="font-weight:800;color:var(--n);">'+fmt(totalDr)+'</div></div>';
+  h+='<div style="background:var(--g1);border-radius:8px;padding:8px;"><div style="color:var(--g4);font-size:10px;">إجمالي السحوبات</div><div style="font-weight:800;color:var(--gr);">'+fmt(totalCr)+'</div></div>';
+  h+='<div style="background:var(--g1);border-radius:8px;padding:8px;"><div style="color:var(--g4);font-size:10px;">عدد الحركات</div><div style="font-weight:800;">'+mvs.length+'</div></div>';
+  h+='</div>';
+
+  // Uncleared items analysis (movements in last 30 days before recon date)
+  var last30=new Date(dateVal);last30.setDate(last30.getDate()-30);
+  var last30str=last30.toISOString().split('T')[0];
+  var recentMvs=mvs.filter(function(r){return r.date>=last30str;});
+  if(recentMvs.length&&!ok){
+    h+='<div style="margin-top:10px;">';
+    h+='<div style="font-size:11.5px;font-weight:800;margin-bottom:6px;color:var(--n);">📋 آخر 30 يوم (قد تكون غير مُصرفة)</div>';
+    h+='<div style="max-height:150px;overflow-y:auto;">';
+    recentMvs.slice(-10).reverse().forEach(function(r){
+      h+='<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--g1);">';
+      h+='<div><span style="color:var(--g4);">'+r.date+'</span> '+r.desc+'</div>';
+      h+='<span style="font-weight:700;color:'+(r.dr>0?'var(--n)':'var(--gr)')+';">'+(r.dr>0?'+'+fmt(r.dr):'-'+fmt(r.cr))+'</span>';
+      h+='</div>';
+    });
+    h+='</div></div>';
+  }
+
+  el2.innerHTML=h;
+}
+
+function saveRecon(accCode){
+  var dateVal=sv('rc-date');
+  var bankBal=parseFloat((document.getElementById('rc-bank')||{}).value);
+  if(!dateVal||isNaN(bankBal)){toast('⚠️ أدخل التاريخ ورصيد البنك');return;}
+  var bookBal=getAccBalAtDate(accCode,dateVal).net;
+  var acc=DB.accounts.find(function(a){return a.c===accCode;})||{n:accCode};
+  initRecon();
+  var recon={
+    id:'RC'+Date.now(),
+    accCode:accCode,accName:acc.n,
+    date:dateVal,
+    bookBal:bookBal,bankBal:bankBal,
+    diff:bookBal-bankBal,
+    notes:sv('rc-notes'),
+    createdAt:new Date().toISOString(),
+    createdBy:(getCurrentUser()||{}).name||'النظام'
+  };
+  DB.bankRecons.push(recon);
+  save();
+  toast('✅ تم حفظ التسوية — '+(Math.abs(recon.diff)<0.01?'متطابق ✅':'فرق '+fmt(Math.abs(recon.diff))+' ج.م'));
+  // Refresh page
+  cm();
+  sub('banks');
+}
+
+// ---- RECON HISTORY PAGE ----
+function rReconHistory(accCode){
+  initRecon();
+  var recons=(DB.bankRecons||[]).filter(function(r){return !accCode||r.accCode===accCode;})
+    .sort(function(a,b){return b.date>a.date?1:-1;});
+  var acc=accCode?DB.accounts.find(function(a){return a.c===accCode;}):null;
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📊 سجل التسويات البنكية'+(acc?' — '+acc.n:'')+'</div>';
+  if(!recons.length){om('📊 سجل التسويات','<div style="text-align:center;color:var(--g4);padding:30px;">لا توجد تسويات محفوظة</div>');return;}
+  h+='<div style="overflow-x:auto;"><table><thead><tr>';
+  h+='<th>التاريخ</th><th>الحساب</th><th>رصيد الدفاتر</th><th>رصيد البنك</th><th>الفرق</th><th>الحالة</th><th>المُعد</th>';
+  h+='</tr></thead><tbody>';
+  recons.forEach(function(r){
+    var ok=Math.abs(r.diff)<0.01;
+    h+='<tr>';
+    h+='<td style="font-size:11px;white-space:nowrap;">'+r.date+'</td>';
+    h+='<td style="font-size:11px;"><code style="font-size:10px;background:var(--g1);padding:1px 5px;border-radius:3px;">'+r.accCode+'</code><div style="font-size:10px;color:var(--g4);">'+r.accName+'</div></td>';
+    h+='<td class="tn" style="font-weight:700;">'+fmt(r.bookBal)+'</td>';
+    h+='<td class="tn" style="color:var(--sk);font-weight:700;">'+fmt(r.bankBal)+'</td>';
+    h+='<td class="tn" style="font-weight:800;color:'+(ok?'var(--gr)':'var(--rd)')+';">'+(ok?'0':fmt(Math.abs(r.diff)))+'</td>';
+    h+='<td><span class="badge '+(ok?'bg':'br')+'" style="font-size:9.5px;">'+(ok?'✅ متطابق':'⚠️ فرق')+'</span></td>';
+    h+='<td style="font-size:10.5px;color:var(--g4);">'+(r.createdBy||'—')+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  om('📊 سجل التسويات البنكية',h);
+}
+
+
+
 function rInvPage(){
   if(!DB.inventory)DB.inventory=[];
   if(!DB.invMovements)DB.invMovements=[];
