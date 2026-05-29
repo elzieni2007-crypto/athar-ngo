@@ -1477,11 +1477,14 @@ function collectTP(prefix, lineCount){
     var tpEl=el("etp-"+i);
     var tpId=tpEl?tpEl.value:"";
     var tp=tpId?DB.thirdParties.find(function(t){return t.id===tpId;}):null;
+    var ccEl=el("ecc-"+i);
+    var ccVal=ccEl?ccEl.value:"";
     lines.push({
       acc:acc, an:a?a.n:"", dr:dr, cr:cr,
       tpId: tp?tp.id:"",
       tpName: tp?tp.name:"",
-      tpType: tp?tp.type:""
+      tpType: tp?tp.type:"",
+      cc: ccVal
     });
   }
   return lines;
@@ -1752,11 +1755,9 @@ function newEntry(){
   var actO=getMDOptions('activities','code','name');
   var dtO=getMDOptions('docTypes','code','name');
   var pmO=getMDOptions('paymentMethods','code','name');
-  if(ccO||locO||actO){
+  if(locO||dtO||pmO){
     h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">';
-    if(ccO)h+='<div class="fg"><label>مركز التكلفة</label><select id="e-cc"><option value="">—</option>'+ccO+'</select></div>';
     if(locO)h+='<div class="fg"><label>الموقع</label><select id="e-loc"><option value="">—</option>'+locO+'</select></div>';
-    if(actO)h+='<div class="fg"><label>النشاط</label><select id="e-act"><option value="">—</option>'+actO+'</select></div>';
     if(dtO)h+='<div class="fg"><label>نوع المستند</label><select id="e-dt"><option value="">—</option>'+dtO+'</select></div>';
     if(pmO)h+='<div class="fg"><label>طريقة الدفع</label><select id="e-pm"><option value="">—</option>'+pmO+'</select></div>';
     h+='</div>';
@@ -6689,6 +6690,7 @@ function onLineProjChange(i){
 function eLnTPwbs(i, projCode, values){
   initTP();
   values=values||{};
+  var ccO=getMDOptions('costCenters','code','name');
   var lineProjCode=values.proj||projCode||'';
   // Project selector options
   var projO='<option value="">— بدون مشروع —</option>';
@@ -6720,6 +6722,7 @@ function eLnTPwbs(i, projCode, values){
     +'<select id="eproj-'+i+'" onchange="onLineProjChange('+i+')" style="width:100%;font-size:11px;color:var(--g4);margin-bottom:5px;">'+projO+'</select>'
     +wbsDrop
     +'<select id="etp-'+i+'" style="font-size:11px;color:var(--g4);">'+tpOpts+'</select>'
+    +(ccO?'<select id="ecc-'+i+'" style="font-size:11px;color:var(--g4);width:100%;margin-top:4px;"><option value="">— مركز التكلفة —</option>'+ccO+'</select>':'')
     +'</div>';
 }
 
