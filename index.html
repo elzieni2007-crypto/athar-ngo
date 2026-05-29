@@ -879,9 +879,9 @@ function rTaxConfig(){
   h+='<button class="btn btn-gy" onclick="resetTaxConfig()">↩️ استعادة الافتراضي</button>';
   h+='</div>';
 
-  om("🧮 إعداد الضريبة والتأمينات", h);
-  previewTaxCalc();
+  return h;
 }
+
 
 function previewTaxCalc(){
   var sal=parseFloat((document.getElementById('tc-test-sal')||{}).value)||20000;
@@ -1032,7 +1032,7 @@ function sub(n){
     reports:"📊 التقارير",
     taxconfig:"🧮 إعداد الضريبة"
   };
-  if(f[n]){try{om(titles[n]||n, f[n]());}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
+  if(f[n]){try{om(titles[n]||n, f[n]());if(n==='taxconfig')previewTaxCalc();}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
 }
 
 // DASHBOARD
@@ -1174,7 +1174,7 @@ function rDash(){
   ];
   h+='<div class="sd" style="margin-bottom:8px;">الأقسام الرئيسية</div>';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">';
-  var _pageKeys={jour:1,proj:1,pay:1,employees:1};
+  var _pageKeys={jour:1,proj:1,pay:1};
   modules_.forEach(function(mod){
     var _ispg=_pageKeys[mod.sec]?1:0;
     h+='<div data-pg="'+(_ispg?'1':'0')+'" data-sec="'+mod.sec+'" onclick="var s=this.dataset.sec;if(this.dataset.pg===\'1\')showPage(s);else sub(s);" style="background:white;border-radius:14px;padding:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.07);border:1px solid #eee;display:flex;align-items:center;gap:10px;">';
@@ -1214,11 +1214,15 @@ function rDash(){
     h+='<div style="font-weight:900;font-size:14px;color:white;">💰 المرتبات — ملخص هذا الشهر</div>';
     h+='<button onclick="sub(\'pay\')" style="background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.4);color:white;border-radius:8px;padding:6px 12px;font-size:10.5px;cursor:pointer;font-weight:700;">عرض تفاصيل الرواتب ›</button>';
     h+='</div>';
-    h+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px;">';
+    h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">';
+    var totalTaxPayroll=activeEmps.reduce(function(s,e){return s+calcFull(e,{}).tax;},0);
+    var totalMar=activeEmps.reduce(function(s,e){return s+calcFull(e,{}).mar;},0);
     var payKpis=[
       {lbl:'عدد الموظفين',val:activeEmps.length+' موظف',ic:'👥'},
       {lbl:'إجمالي الرواتب',val:fmt(totPayroll)+' ج.م',ic:'💳'},
-      {lbl:'مستحقات التأمينات',val:fmt(totalIns)+' ج.م',ic:'🛡️'},
+      {lbl:'التأمينات',val:fmt(totalIns)+' ج.م',ic:'🛡️'},
+      {lbl:'ضريبة الدخل',val:fmt(totalTaxPayroll)+' ج.م',ic:'🏛️'},
+      {lbl:'صندوق الشهداء',val:fmt(totalMar)+' ج.م',ic:'🎗️'},
       {lbl:'صافي الصرف',val:fmt(totalNet)+' ج.م',ic:'💵'},
     ];
     payKpis.forEach(function(k){
