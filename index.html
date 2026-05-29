@@ -744,6 +744,11 @@ function bals(){
 var MONTHS=["يناير","فبراير","مارس","إبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 
 // NAVIGATION
+function showPage(pg){
+  var btn=document.querySelector('[data-nav="'+pg+'"]');
+  nav(pg,btn||null);
+}
+
 function nav(pg,btn){
   // update user badge in topbar
   var tbadge=document.getElementById("tb-user-badge");
@@ -4309,12 +4314,12 @@ function rSetPage(){
   // Org settings (admin only)
   if(isAdmin){
     // Master data quick access
-  h+='<div style="background:var(--n);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" data-sub="masterdata">';
+  h+='<div onclick="sub(\'masterdata\')" style="cursor:pointer;background:var(--n);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" data-sub="masterdata">';
   h+='<div><div style="font-weight:800;color:white;font-size:14px;">🗂️ البيانات الرئيسية</div>';
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">مراكز التكلفة · المواقع · الأنشطة · المحاور · البنوك</div></div>';
   h+='<div style="color:white;font-size:20px;">›</div>';
   h+='</div>';
-  h+='<div style="background:var(--am);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" data-sub="taxconfig">';
+  h+='<div onclick="sub(\'taxconfig\')" style="cursor:pointer;background:var(--am);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" data-sub="taxconfig">';
   h+='<div><div style="font-weight:800;color:white;font-size:14px;">🧮 إعداد الضريبة والتأمينات</div>';
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">شرائح الضريبة · التأمينات · الإعفاءات — قابلة للتعديل</div></div>';
   h+='<div style="color:white;font-size:20px;">›</div>';
