@@ -271,46 +271,64 @@ function sv(id){return el(id)?el(id).value.trim():"";}
 
 // ---- EXTENDED CALC — يشمل المكونات المتغيرة ----
 function calcFull(e, overrides){
-  // Base fixed components from employee record
   var o=overrides||{};
-  var sal   = o.sal   !==undefined ? o.sal   : (e.sal||0);
-  var al    = o.allow !==undefined ? o.allow : (e.allow||0);
-  var nw    = o.natWork!==undefined? o.natWork:(e.natWork||0);
-  var tr    = o.transport!==undefined?o.transport:(e.transport||0);
-  // Variable components (monthly overrides)
-  var ot    = o.overtime!==undefined? o.overtime:(e.overtime||0);  // إضافي
-  var bonus = o.bonus !==undefined ? o.bonus : 0;                  // مكافأة
-  var stipend=o.stipend!==undefined? o.stipend: 0;                 // منحة / بدل استثنائي
-  var ded   = o.deduct!==undefined ? o.deduct : (e.deduct||0);    // خصومات ثابتة
-  var penalty=o.penalty!==undefined? o.penalty: 0;                 // جزاءات
-  var absence=o.absence!==undefined? o.absence: 0;                 // خصم غياب
+  var sal    = o.sal      !==undefined ? o.sal      : (e.sal||0);
+  var al     = o.allow    !==undefined ? o.allow    : (e.allow||0);
+  var nw     = o.natWork  !==undefined ? o.natWork  : (e.natWork||0);
+  var tr     = o.transport!==undefined ? o.transport: (e.transport||0);
+  var ot     = o.overtime !==undefined ? o.overtime : (e.overtime||0);
+  var bonus  = o.bonus    !==undefined ? o.bonus    : 0;
+  var stipend= o.stipend  !==undefined ? o.stipend  : 0;
+  var ded    = o.deduct   !==undefined ? o.deduct   : (e.deduct||0);
+  var penalty= o.penalty  !==undefined ? o.penalty  : 0;
+  var absence= o.absence  !==undefined ? o.absence  : 0;
+  var ins    = o.ins      !==undefined ? o.ins      : (e.ins||"full");
 
-  var ins   = o.ins!==undefined ? o.ins : (e.ins||"full");
-
-  // Gross = ثابت + متغيرات
   var gross = sal + al + nw + tr + ot + bonus + stipend;
-  // التأمينات تُحسب على الأجر الأساسي + علاوات فقط (لا تشمل المكافآت المتغيرة)
-  var iBase = Math.min(sal+al, 10400);
-  var empI  = ins==="none" ? 0 : Math.round(iBase*0.11);
-  var emplI = ins==="full" ? Math.round(iBase*0.1875) : 0;
-  var mar   = Math.round(gross*0.0005);
-  // الضريبة تُحسب على الإجمالي بعد خصم حصة الموظف في التأمين والإعفاء
-  var tBase = Math.max(0, gross-empI-1666.67)*12;
-  var at=0;
-  if(tBase>1200000)     at=241375+(tBase-1200000)*0.275;
-  else if(tBase>400000) at=61375+(tBase-400000)*0.225;
-  else if(tBase>200000) at=21375+(tBase-200000)*0.2;
-  else if(tBase>70000)  at=1875+(tBase-70000)*0.15;
-  else if(tBase>55000)  at=375+(tBase-55000)*0.1;
-  else if(tBase>40000)  at=(tBase-40000)*0.025;
-  var tax   = Math.round(at/12);
+
+  // ============================================================
+  // التأمينات الاجتماعية 2026
+  // الحد الأقصى: 16,700 ج.م | الحد الأدنى: 2,700 ج.م
+  // ============================================================
+  var INS_MAX = 16700;
+  var INS_MIN = 2700;
+  var iBase  = ins==="none" ? 0 : Math.min(Math.max(sal+al, INS_MIN), INS_MAX);
+  var empI   = ins==="none" ? 0 : Math.round(iBase * 0.11);
+  var emplI  = ins==="full" ? Math.round(iBase * 0.1875) : 0;
+
+  // صندوق الشهداء والمصابين: 0.05% من الإجمالي
+  var mar = Math.round(gross * 0.0005);
+
+  // ============================================================
+  // ضريبة الدخل المصرية 2026
+  // الإعفاء الشخصي: 20,000 سنوياً = 1,666.67 شهرياً
+  // الوعاء الشهري = الإجمالي - حصة الموظف في التأمين - الإعفاء
+  // الوعاء السنوي = الشهري × 12
+  // ============================================================
+  var EXEMPT_M = 20000 / 12;  // 1,666.67
+  var taxBaseM = gross - empI - EXEMPT_M;
+  var taxBaseA = Math.max(0, taxBaseM) * 12;
+
+  // شرائح الضريبة المصرية 2026 (قانون 91 لسنة 2005 وتعديلاته)
+  var at = 0;
+  if(taxBaseA > 1200000)     at = 241375 + (taxBaseA-1200000)*0.275;
+  else if(taxBaseA > 400000) at = 61375  + (taxBaseA-400000)*0.225;
+  else if(taxBaseA > 200000) at = 21375  + (taxBaseA-200000)*0.20;
+  else if(taxBaseA > 70000)  at = 1875   + (taxBaseA-70000)*0.15;
+  else if(taxBaseA > 55000)  at = 375    + (taxBaseA-55000)*0.10;
+  else if(taxBaseA > 40000)  at = (taxBaseA-40000)*0.025;
+
+  var tax = Math.round(at / 12);
   var totalDed = ded + penalty + absence;
-  var net   = gross - empI - tax - mar - totalDed;
+  var net = gross - empI - tax - mar - totalDed;
+
   return {
     sal:sal, al:al, nw:nw, tr:tr,
     ot:ot, bonus:bonus, stipend:stipend,
-    gross:gross, empI:empI, emplI:emplI, mar:mar, tax:tax,
-    ded:ded, penalty:penalty, absence:absence, totalDed:totalDed,
+    gross:gross,
+    iBase:iBase, empI:empI, emplI:emplI, mar:mar,
+    taxBaseM:Math.round(taxBaseM), taxBaseA:Math.round(taxBaseA),
+    tax:tax, ded:ded, penalty:penalty, absence:absence, totalDed:totalDed,
     net:Math.max(0,net), cost:gross+emplI
   };
 }
