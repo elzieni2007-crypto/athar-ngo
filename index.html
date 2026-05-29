@@ -343,7 +343,7 @@ function calcFull(e, overrides){
     var brackets;
 
     // هل هناك شرائح مخصصة في الإعدادات؟
-    var hasCfgBrackets=(cfg.brackets&&cfg.brackets.length>0&&cfg.taxMode!=="law7_2024");
+    var hasCfgBrackets=(cfg.brackets&&cfg.brackets.length>0&&cfg.taxMode==="custom");
 
     if(hasCfgBrackets){
       // استخدم الشرائح المخصصة (editable)
