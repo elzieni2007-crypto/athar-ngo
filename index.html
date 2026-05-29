@@ -1131,37 +1131,6 @@ function rDash(){
   h+='</div>';
   h+='<div style="width:36px;height:36px;background:#fee2e2;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;">📤</div>';
   h+='</div></div>';
-  h+='</div>';
-  // Dummy start of old block to match
-  h+='';
-  // Cash;color:white;">';
-  h+='<div style="font-size:10px;opacity:.7;">💵 النقدية</div>';
-  h+='<div style="font-weight:900;font-size:18px;">'+fmt(cash)+'</div>';
-  h+='<div style="font-size:10px;opacity:.6;">ج.م بالصندوق</div></div>';
-  // Bank
-  h+='<div style="background:linear-gradient(135deg,#0e3a5f,#0e7490);border-radius:12px;padding:13px;color:white;">';
-  h+='<div style="font-size:10px;opacity:.7;">🏦 البنوك</div>';
-  h+='<div style="font-weight:900;font-size:18px;">'+fmt(bank)+'</div>';
-  h+='<div style="font-size:10px;opacity:.6;">ج.م إجمالي</div></div>';
-  // Revenue
-  h+='<div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:12px;padding:13px;color:white;">';
-  h+='<div style="font-size:10px;opacity:.7;">📈 الإيرادات</div>';
-  h+='<div style="font-weight:900;font-size:18px;">'+fmt(tRev)+'</div>';
-  h+='<div style="font-size:10px;opacity:.6;">ج.م</div></div>';
-  // Expenses
-  h+='<div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border-radius:12px;padding:13px;color:white;">';
-  h+='<div style="font-size:10px;opacity:.7;">📤 المصروفات</div>';
-  h+='<div style="font-weight:900;font-size:18px;">'+fmt(tExp)+'</div>';
-  h+='<div style="font-size:10px;opacity:.6;">ج.م</div></div>';
-  h+='</div>';
-
-  // === SURPLUS / DEFICIT ===
-  var surplusClr=surplus>=0?'#065f46':'#991b1b';
-  var surplusBg=surplus>=0?'#d1fae5':'#fee2e2';
-  h+='<div style="background:'+surplusBg+';border-radius:12px;padding:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">';
-  h+='<div><div style="font-size:11px;color:'+surplusClr+';font-weight:700;">'+(surplus>=0?'✅ الفائض التراكمي':'⚠️ العجز التراكمي')+'</div>';
-  h+='<div style="font-size:10.5px;color:'+surplusClr+';opacity:.8;">إيرادات — مصروفات</div></div>';
-  h+='<div style="font-weight:900;font-size:22px;color:'+surplusClr+';">'+fmt(Math.abs(surplus))+'<span style="font-size:12px;"> ج.م</span></div></div>';
 
   // === PROJECTS BVA STRIP ===
   if(projStats.length){
@@ -1212,11 +1181,28 @@ function rDash(){
   h+='<div class="sd" style="margin-bottom:8px;">الأقسام الرئيسية</div>';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">';
   modules_.forEach(function(mod){
-    h+='<div onclick="sub('+JSON.stringify(mod.sec)+')" style="background:white;border-radius:14px;padding:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.07);border:1px solid #eee;display:flex;align-items:center;gap:10px;">';
+    h+='<div onclick="sub(\''+mod.sec+'\')" style="background:white;border-radius:14px;padding:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.07);border:1px solid #eee;display:flex;align-items:center;gap:10px;">';
     h+='<div style="width:44px;height:44px;background:'+mod.bg+';border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">'+mod.icon+'</div>';
     h+='<div><div style="font-weight:800;font-size:12px;color:#111;">'+mod.title+'</div>';
     h+='<div style="font-size:10px;color:#6b7280;margin-top:2px;">'+mod.sub+'</div></div>';
     h+='<div style="margin-right:auto;color:#9ca3af;font-size:14px;">›</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+
+  // === إجراءات سريعة ===
+  h+='<div class="sd" style="margin-bottom:8px;">⚡ إجراءات سريعة</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">';
+  var quickActs=[
+    {icon:'📝',lbl:'إضافة قيد',fn:'newEntry()'},
+    {icon:'🏭',lbl:'إضافة مورد',fn:"sub('supp')"},
+    {icon:'📦',lbl:'صرف مخازن',fn:"sub('inv')"},
+    {icon:'💳',lbl:'إعداد مرتب',fn:"openGenPayModal()"},
+  ];
+  quickActs.forEach(function(a){
+    h+='<div onclick="'+a.fn+'" style="background:white;border-radius:12px;padding:10px 6px;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.06);border:1px solid #eee;">';
+    h+='<div style="font-size:22px;margin-bottom:5px;">'+a.icon+'</div>';
+    h+='<div style="font-size:10px;font-weight:700;color:#374151;">'+a.lbl+'</div>';
     h+='</div>';
   });
   h+='</div>';
@@ -1230,7 +1216,7 @@ function rDash(){
     h+='<div style="background:linear-gradient(135deg,#4338ca,#6d28d9);border-radius:16px;padding:16px;margin-bottom:14px;">';
     h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
     h+='<div style="font-weight:900;font-size:14px;color:white;">💰 المرتبات — ملخص هذا الشهر</div>';
-    h+='<button onclick="sub(\'pay\')" style="background:rgba(255,255,255,.2);border:none;color:white;border-radius:8px;padding:5px 10px;font-size:10.5px;cursor:pointer;">عرض تفاصيل الرواتب ›</button>';
+    h+='<button onclick="sub(\'pay\')" style="background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.4);color:white;border-radius:8px;padding:6px 12px;font-size:10.5px;cursor:pointer;font-weight:700;">عرض تفاصيل الرواتب ›</button>';
     h+='</div>';
     h+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px;">';
     var payKpis=[
