@@ -1793,6 +1793,192 @@ function initPayroll(){
 // ============================================================
 // MAIN PAYROLL PAGE
 // ============================================================
+// ============================================================
+// PAYSLIP — قسيمة الراتب
+// ============================================================
+
+function openPayslipModal(){
+  // Modal to choose employee + month
+  var empOpts=DB.employees.filter(function(e){return e.status==="active";}).map(function(e){
+    return '<option value="'+e.id+'">'+e.name+' — '+e.pos+'</option>';
+  }).join("");
+
+  // Build month options (current month + last 11 months)
+  var now=new Date();
+  var monthOpts="";
+  for(var i=0;i<12;i++){
+    var d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    var key=d.getFullYear()+"-"+(d.getMonth()+1).toString().padStart(2,"0");
+    var lbl=MONTHS[d.getMonth()]+" "+d.getFullYear();
+    monthOpts+='<option value="'+key+'"'+(i===0?" selected":"")+'>'+lbl+'</option>';
+  }
+
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:12px;padding:14px;margin-bottom:14px;color:white;">';
+  h+='<div style="font-weight:900;font-size:16px;">📄 قسيمة الراتب</div>';
+  h+='<div style="font-size:11px;opacity:.7;">اختر الموظف والشهر</div></div>';
+  h+='<div class="fg"><label>الموظف</label><select id="slip-emp">'+empOpts+'</select></div>';
+  h+='<div class="fg"><label>الشهر</label><select id="slip-month">'+monthOpts+'</select></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<button class="btn" onclick="previewPayslip()" style="background:var(--n);">👁️ معاينة</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button>';
+  h+='</div>';
+  h+='<div id="slip-preview" style="margin-top:12px;"></div>';
+  om("📄 قسيمة الراتب",h);
+}
+
+function previewPayslip(){
+  var empId=(document.getElementById("slip-emp")||{}).value;
+  var monthKey=(document.getElementById("slip-month")||{}).value;
+  if(!empId||!monthKey) return;
+  var e=DB.employees.find(function(x){return x.id===empId;});
+  if(!e) return;
+  var slipEl=document.getElementById("slip-preview");
+  if(slipEl) slipEl.innerHTML=buildPayslipHTML(e,monthKey,false);
+}
+
+function buildPayslipHTML(e, monthKey, forPrint){
+  var ov=getEmpOverride(e.id,monthKey)||{};
+  var r=calcFull(e,ov);
+  var parts=monthKey.split("-");
+  var mIdx=parseInt(parts[1])-1;
+  var yr=parts[0];
+  var mName=MONTHS[mIdx]+" "+yr;
+  var org=DB.org||{};
+  var prepDate=new Date().toLocaleDateString("ar-EG");
+
+  var bgN  = forPrint?"#0D3B6E":"var(--nd)";
+  var bgCy = forPrint?"#00AEEF":"var(--sk)";
+  var fW   = "font-family:'Cairo',sans-serif;";
+
+  var h='<div style="'+fW+'border:2px solid #0D3B6E;border-radius:14px;overflow:hidden;background:white;">';
+
+  // ── Header ───────────────────────────────────────────────
+  h+='<div style="background:'+bgN+';padding:14px 16px;color:white;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div>';
+  h+='<div style="font-weight:900;font-size:15px;">'+(org.name||"الجمعية")+'</div>';
+  h+='<div style="font-size:11px;opacity:.7;">قسيمة راتب — '+mName+'</div>';
+  h+='</div>';
+  h+='<div style="text-align:left;">';
+  h+='<div style="font-size:10px;opacity:.7;">تاريخ الإصدار</div>';
+  h+='<div style="font-size:11px;font-weight:700;">'+prepDate+'</div>';
+  h+='</div></div>';
+
+  // ── Employee info ─────────────────────────────────────────
+  h+='<div style="background:#f0f4f8;padding:11px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;border-bottom:1px solid #dee2e6;">';
+  var infoItems=[
+    ["الاسم",e.name||"—"],
+    ["كود الموظف",e.id||"—"],
+    ["المسمى الوظيفي",e.pos||"—"],
+    ["القسم",e.dept||"—"],
+    ["نوع التأمين",{full:"تأمين كامل",partial:"تأمين جزئي",none:"بدون تأمين"}[e.ins||"full"]],
+    ["الوعاء التأميني",fmt(r.iBase||0)+" ج.م"],
+  ];
+  infoItems.forEach(function(item){
+    h+='<div><div style="font-size:9.5px;color:#6c757d;">'+item[0]+'</div>';
+    h+='<div style="font-weight:700;font-size:11.5px;color:#0D3B6E;">'+item[1]+'</div></div>';
+  });
+  h+='</div>';
+
+  // ── Earnings ─────────────────────────────────────────────
+  h+='<div style="padding:12px 16px;">';
+  h+='<div style="font-weight:800;font-size:12px;color:#0D3B6E;border-bottom:2px solid #0D3B6E;padding-bottom:5px;margin-bottom:8px;">➕ المستحقات</div>';
+  h+='<table style="width:100%;font-size:11.5px;border-collapse:collapse;">';
+  var earnings=[
+    ["الأجر الأساسي",    r.sal],
+    ["العلاوات الثابتة", r.al],
+    ["بدل طبيعة عمل",    r.nw],
+    ["بدل الانتقال",     r.tr],
+  ];
+  if(r.ot>0)    earnings.push(["ساعات إضافية",r.ot]);
+  if(r.bonus>0) earnings.push(["مكافأة / حافز",r.bonus]);
+  if(r.stipend>0) earnings.push(["منحة استثنائية",r.stipend]);
+
+  earnings.forEach(function(item,i){
+    if(!item[1]) return;
+    h+='<tr style="background:'+(i%2===0?"#f9fafb":"white")+'">';
+    h+='<td style="padding:5px 8px;color:#374151;">'+item[0]+'</td>';
+    h+='<td style="padding:5px 8px;text-align:left;font-weight:700;color:#1a7a4a;">'+fmt(item[1])+'</td></tr>';
+  });
+  h+='<tr style="background:#e8f5e9;font-weight:900;border-top:2px solid #1a7a4a;">';
+  h+='<td style="padding:7px 8px;color:#1a7a4a;">إجمالي المستحقات</td>';
+  h+='<td style="padding:7px 8px;text-align:left;color:#1a7a4a;font-size:13px;">'+fmt(r.gross)+'</td></tr>';
+  h+='</table>';
+
+  // ── Deductions ────────────────────────────────────────────
+  h+='<div style="font-weight:800;font-size:12px;color:#c0392b;border-bottom:2px solid #c0392b;padding-bottom:5px;margin:12px 0 8px;">➖ الاستقطاعات</div>';
+  h+='<table style="width:100%;font-size:11.5px;border-collapse:collapse;">';
+  var deds=[
+    ["تأمين الموظف 11%",  r.empI],
+    ["ضريبة الدخل",       r.tax],
+    ["صندوق الشهداء 0.05%",r.mar],
+  ];
+  if(r.ded>0)     deds.push(["خصومات ثابتة",r.ded]);
+  if(r.penalty>0) deds.push(["جزاءات",r.penalty]);
+  if(r.absence>0) deds.push(["خصم غياب",r.absence]);
+
+  deds.forEach(function(item,i){
+    if(!item[1]) return;
+    h+='<tr style="background:'+(i%2===0?"#fff5f5":"white")+'">';
+    h+='<td style="padding:5px 8px;color:#374151;">'+item[0]+'</td>';
+    h+='<td style="padding:5px 8px;text-align:left;font-weight:700;color:#c0392b;">'+fmt(item[1])+'</td></tr>';
+  });
+  h+='<tr style="background:#fdecea;font-weight:900;border-top:2px solid #c0392b;">';
+  h+='<td style="padding:7px 8px;color:#c0392b;">إجمالي الاستقطاعات</td>';
+  h+='<td style="padding:7px 8px;text-align:left;color:#c0392b;font-size:13px;">'+fmt(r.empI+r.tax+r.mar+r.totalDed)+'</td></tr>';
+  h+='</table>';
+
+  // ── Net + Employer cost ───────────────────────────────────
+  h+='</div>';
+  h+='<div style="background:#0D3B6E;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div style="color:rgba(255,255,255,.75);font-size:12px;font-weight:700;">💰 الراتب الصافي المستحق</div>';
+  h+='<div style="font-weight:900;font-size:22px;color:white;">'+fmt(r.net)+' <span style="font-size:12px;opacity:.7;">ج.م</span></div>';
+  h+='</div>';
+
+  // ── Employer cost box ────────────────────────────────────
+  h+='<div style="background:#fff8e1;padding:10px 16px;display:flex;justify-content:space-between;font-size:11.5px;">';
+  h+='<div style="color:#6c757d;">تأمين صاحب العمل 18.75%: <strong style="color:#d4800a;">'+fmt(r.emplI)+'</strong></div>';
+  h+='<div style="color:#6c757d;">التكلفة الإجمالية للجمعية: <strong style="color:#0D3B6E;">'+fmt(r.cost)+'</strong></div>';
+  h+='</div>';
+
+  // ── Tax base details ──────────────────────────────────────
+  h+='<div style="padding:8px 16px;background:#f8f9fa;border-top:1px solid #dee2e6;font-size:10px;color:#6c757d;">';
+  h+='الوعاء الضريبي السنوي: <strong>'+fmt(r.netTaxable||0)+'</strong> ج.م';
+  h+=' · الإعفاء الشخصي: <strong>'+fmt(r.annualExemptions||20000)+'</strong> ج.م';
+  h+=' · إعداد وفق: قانون 7/2024';
+  h+='</div>';
+
+  h+='</div>';
+
+  // ── Print + Download buttons (only in modal, not print mode)
+  if(!forPrint){
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">';
+    h+='<button class="btn" onclick="printPayslip(\''+e.id+'\',\''+monthKey+'\')" style="background:var(--sk);">🖨️ طباعة PDF</button>';
+    h+='<button class="btn btn-gy" onclick="cm()">إغلاق</button>';
+    h+='</div>';
+  }
+
+  return h;
+}
+
+function printPayslip(empId, monthKey){
+  var e=DB.employees.find(function(x){return x.id===empId;});
+  if(!e) return;
+  var ov=getEmpOverride(e.id,monthKey)||{};
+  var r=calcFull(e,ov);
+  var parts=monthKey.split("-");
+  var mName=MONTHS[parseInt(parts[1])-1]+" "+parts[0];
+  printContent("قسيمة راتب — "+e.name+" — "+mName, buildPayslipHTML(e,monthKey,true));
+}
+
+// viewPayslipFromHistory: called from pay history row
+function viewPayslipForMonth(empId, monthKey){
+  var e=DB.employees.find(function(x){return x.id===empId;});
+  if(!e){toast("الموظف غير موجود");return;}
+  var slipHTML=buildPayslipHTML(e,monthKey,false);
+  om("📄 قسيمة راتب — "+e.name,slipHTML);
+}
+
+
 function rPay(){
   initPayroll();
   var active=DB.employees.filter(function(e){return e.status==="active";});
@@ -1813,7 +1999,8 @@ function rPay(){
   h+='<div style="font-size:11px;color:var(--g4);">'+active.length+' موظف نشط · '+curMoStr+'</div></div>';
   h+='<div style="display:flex;gap:5px;">';
   h+='<button class="btn btn-sm btn-gy" onclick="viewPayHistory()" style="font-size:10.5px;">📋 السجل</button>';
-  h+='<button class="btn btn-gr btn-sm" onclick="openGenPayModal()" style="font-size:10.5px;">⚙️ إعداد مسير</button>';
+  h+='<button class="btn btn-sm" onclick="openPayslipModal()" style="font-size:10.5px;background:var(--sk);">📄 قسيمة راتب</button>';
+h+='<button class="btn btn-gr btn-sm" onclick="openGenPayModal()" style="font-size:10.5px;">⚙️ إعداد مسير</button>';
   h+='</div></div>';
 
   // KPI bar
@@ -1896,12 +2083,13 @@ function buildPayList(q,dept){
       h+='<div style="background:var(--abg);border-radius:7px;padding:6px;"><div style="color:var(--g4);font-size:9px;">ضريبة</div><div style="font-weight:800;color:var(--am);">'+fmt(r.tax)+'</div></div>';
       h+='<div style="background:var(--skp);border-radius:7px;padding:6px;"><div style="color:var(--g4);font-size:9px;">تكلفة</div><div style="font-weight:800;color:var(--n);">'+fmt(r.cost)+'</div></div>';
       h+='</div>';
-            h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">';
+            h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;">';
       h+='<button class="btn btn-sm btn-sky" onclick="editSal('+i+')" style="font-size:10px;">✏️ ثابت</button>';
       var mk3=new Date().getFullYear()+"-"+(new Date().getMonth()+1).toString().padStart(2,"0");
       var hv=getEmpOverride(e.id,mk3);var hvd=(hv.overtime||0)+(hv.bonus||0)+(hv.stipend||0)+(hv.penalty||0)+(hv.absence||0)>0;
       h+='<button class="btn btn-sm" onclick="openVarComponents(\''+e.id+'\',\''+mk3+'\')" style="font-size:10px;background:'+(hvd?'var(--gr)':'var(--am)')+';">🔧'+(hvd?' ✓ متغير':' متغير')+'</button>';
       h+='<button class="btn btn-sm btn-gr" onclick="openGenPayModal(\''+e.id+'\')" style="font-size:10px;">💳 مسير</button>';
+      h+='<button class="btn btn-sm" onclick="openPayslipModal()" style="font-size:10px;background:var(--sk);">📄 قسيمة</button>';
       h+='</div></div>';
     });
   });
@@ -2271,7 +2459,11 @@ function viewPayHistory(){
     h+='<td class="tn" style="font-weight:800;color:var(--gr);">'+fmt(p.net)+'</td>';
     h+='<td class="tn" style="color:var(--sk);">'+fmt(p.cost)+'</td>';
     h+='<td style="font-size:10.5px;color:var(--g4);">'+(p.preparedBy||"—")+'</td>';
-    h+='<td><button class="btn btn-sm btn-sky" onclick="viewPayEntry(\''+p.entryId+'\')" style="font-size:9.5px;">📋</button></td>';
+    h+='<td style="white-space:nowrap;">';
+h+='<button class="btn btn-sm btn-sky" onclick="viewPayEntry(\''+p.entryId+'\')" style="font-size:9.5px;">📋 قيد</button> ';
+if(p.scope==="single"&&p.empId){h+='<button class="btn btn-sm" onclick="viewPayslipForMonth(\''+p.empId+'\',\''+p.monthKey+'\')" style="font-size:9.5px;background:var(--sk);">📄 قسيمة</button>';}
+if(p.scope==="all"||p.scope==="dept"){h+='<button class="btn btn-sm" onclick="openPayslipModal()" style="font-size:9.5px;background:var(--gr);">📄 قسائم</button>';}
+h+='</td>';
     h+='</tr>';
   });
   h+='</tbody></table></div>';
