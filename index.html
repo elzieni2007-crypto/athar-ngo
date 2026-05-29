@@ -513,6 +513,7 @@ function buildSalPreviewHTML(r){
   h+='<div style="background:white;border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">الإجمالي</div><div style="font-weight:800;font-size:14px;color:var(--n);">'+fmt(r.gross)+'</div></div>';
   h+='<div style="background:white;border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">تأمين موظف 11%</div><div style="font-weight:800;color:var(--rd);">'+fmt(r.empI)+'</div></div>';
   h+='<div style="background:white;border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">ضريبة الدخل</div><div style="font-weight:800;color:var(--am);">'+fmt(r.tax)+'</div></div>';
+  h+='<div style="background:white;border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">صندوق الشهداء 0.05%</div><div style="font-weight:800;font-size:14px;color:var(--rd);">'+fmt(r.mar)+'</div></div>';
   h+='<div style="background:white;border-radius:7px;padding:8px;"><div style="color:var(--g4);font-size:10px;">تأمين الجمعية 18.75%</div><div style="font-weight:800;color:var(--sk);">'+fmt(r.emplI)+'</div></div>';
   h+='</div>';
   if(r.ot>0||r.bonus>0||r.stipend>0||r.totalDed>0){
@@ -529,6 +530,7 @@ function buildSalPreviewHTML(r){
   h+='<div style="font-weight:900;font-size:20px;color:white;">'+fmt(r.net)+' <span style="font-size:12px;opacity:.7;">ج.م</span></div></div>';
   h+='<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--g4);margin-top:6px;padding:0 4px;">';
   h+='<span>تكلفة الجمعية الكاملة</span><span style="font-weight:800;color:var(--n);">'+fmt(r.cost)+' ج.م</span></div>';
+  h+='<div style="font-size:10.5px;color:var(--g4);padding:4px 0;">الوعاء الضريبي السنوي: <strong>'+fmt((r.netTaxable||0))+' ج.م</strong> · التأمين التأميني: <strong>'+fmt(r.iBase||0)+' ج.م</strong></div>';
   return h;
 }
 
@@ -1807,7 +1809,7 @@ function rPay(){
   var curMoStr=MONTHS[now.getMonth()]+" "+now.getFullYear();
 
   var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-  h+='<div><div class="ph-t">💳 مسير المرتبات</div>';
+  h+='<div><div class="ph-t">💳 إعداد المرتبات</div>';
   h+='<div style="font-size:11px;color:var(--g4);">'+active.length+' موظف نشط · '+curMoStr+'</div></div>';
   h+='<div style="display:flex;gap:5px;">';
   h+='<button class="btn btn-sm btn-gy" onclick="viewPayHistory()" style="font-size:10.5px;">📋 السجل</button>';
@@ -1949,7 +1951,7 @@ function openGenPayModal(filterEmpId){
 
   var h='';
   if(alreadyRun&&!filterEmpId){
-    h+='<div style="background:var(--abg);border:1.5px solid var(--am);border-radius:9px;padding:10px;margin-bottom:12px;font-size:12px;color:#92400e;">⚠️ تم إعداد مسير المرتبات الكامل لشهر '+MONTHS[now.getMonth()]+' '+defYear+' بالفعل. يمكنك إعداد مرتب موظف محدد فقط.</div>';
+    h+='<div style="background:var(--abg);border:1.5px solid var(--am);border-radius:9px;padding:10px;margin-bottom:12px;font-size:12px;color:#92400e;">⚠️ تم إعداد إعداد المرتبات الكامل لشهر '+MONTHS[now.getMonth()]+' '+defYear+' بالفعل. يمكنك إعداد مرتب موظف محدد فقط.</div>';
   }
 
   h+='<div class="sd">نوع المسير</div>';
@@ -2005,7 +2007,7 @@ function openGenPayModal(filterEmpId){
   h+='<button class="btn btn-gr" onclick="generatePayroll()" style="flex:1;">✅ إنشاء قيد المرتبات</button>';
   h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
 
-  om("💳 إعداد مسير المرتبات",h);
+  om("💳 إعداد المرتبات",h);
   // Set initial scope
   if(filterEmpId) setPayScope("single");
 }
@@ -2159,7 +2161,7 @@ function generatePayroll(){
   // Check duplicate for "all" scope
   if(scope==="all"){
     var dup=(DB.payrollHistory||[]).find(function(p){return p.monthKey===monthKey&&p.scope==="all";});
-    if(dup&&!confirm("تم إعداد مسير المرتبات لشهر "+monthName+" "+year+" بالفعل. هل تريد إعداده مرة أخرى؟"))return;
+    if(dup&&!confirm("تم إعداد إعداد المرتبات لشهر "+monthName+" "+year+" بالفعل. هل تريد إعداده مرة أخرى؟"))return;
   }
 
   // Calculate totals using variable components
@@ -2252,7 +2254,7 @@ function generatePayroll(){
 function viewPayHistory(){
   initPayroll();
   var hist=(DB.payrollHistory||[]).slice().sort(function(a,b){return b.date>a.date?1:-1;});
-  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📋 سجل مسير المرتبات</div>';
+  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📋 سجل إعداد المرتبات</div>';
   if(!hist.length){om("📋 سجل المرتبات","<div style='text-align:center;color:var(--g4);padding:30px;'>لا يوجد سجل مرتبات بعد</div>");return;}
 
   h+='<div style="overflow-x:auto;"><table><thead><tr>';
@@ -2274,7 +2276,7 @@ function viewPayHistory(){
   });
   h+='</tbody></table></div>';
   h+='<button class="btn btn-sm btn-gy" onclick="exportPayHistory()" style="width:100%;margin-top:8px;font-size:11px;">📥 تصدير CSV</button>';
-  om("📋 سجل مسير المرتبات",h);
+  om("📋 سجل إعداد المرتبات",h);
 }
 
 function viewPayEntry(entryId){
@@ -7218,7 +7220,7 @@ function rReportsPage(){
       {icon:"🏦",label:"التأمينات والضرائب",fn:"hrRptInsurance()"},
       {icon:"👤",label:"التوزيع الديموغرافي",fn:"hrRptDemo()"},
       {icon:"💳",label:"تقرير الرواتب التفصيلي",fn:"rptPayrollReport()"},
-      {icon:"📋",label:"سجل مسير المرتبات",fn:"viewPayHistory()"}
+      {icon:"📋",label:"سجل إعداد المرتبات",fn:"viewPayHistory()"}
     ]}
   ];
 
