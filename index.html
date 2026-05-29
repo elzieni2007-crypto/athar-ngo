@@ -361,17 +361,13 @@ function calcFull(e, overrides){
   var mode = cfg.taxCalcMode || "monthly_average";
   var tax;
 
-  if(mode === "cumulative"){
-    // ---- وضع التراكمي: يحسب بناءً على الشهر الحالي ----
-    // يقدر الضريبة على إجمالي الدخل حتى هذا الشهر، ويخصم الشهور السابقة
-    // للحساب الشهري نستخدم: ضريبة الشهر N = (ضريبة_سنوية × N/12) - ضريبة_(N-1)
-    // في حال عدم توفر بيانات شهور سابقة → نستخدم نفس monthly_average
-    var currentMonth = o.currentMonth || (new Date().getMonth()+1);
-    var taxUpToNow   = annualTax * (currentMonth / 12);
-    var taxPrevMonths= o.taxPaidSoFar || 0;
-    tax = Math.max(0, Math.round((taxUpToNow - taxPrevMonths)));
+  if(mode === "cumulative" && o.currentMonth && o.taxPaidSoFar !== undefined){
+    // ---- وضع التراكمي: فقط لما يُمرَّر الشهر والضريبة المدفوعة فعلاً ----
+    // ضريبة الشهر N = (ضريبة سنوية × N/12) − ما دُفع في الشهور السابقة
+    var taxUpToNow = annualTax * (o.currentMonth / 12);
+    tax = Math.max(0, Math.round(taxUpToNow - o.taxPaidSoFar));
   } else {
-    // ---- وضع المتوسط الشهري (الافتراضي) ----
+    // ---- monthly average (الافتراضي لكل الحالات الأخرى) ----
     tax = Math.round(annualTax / 12);
   }
 
