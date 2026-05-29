@@ -241,15 +241,9 @@ var DB={
     emplInsRate:0.1875,
     martyrsRate:0.0005,
     brackets:[
-      {from:0,      to:40000,  rate:0},
-      {from:40000,  to:55000,  rate:0.10},
-      {from:55000,  to:70000,  rate:0.15},
-      {from:70000,  to:200000, rate:0.20},
-      {from:200000, to:400000, rate:0.225},
-      {from:400000, to:1200000,rate:0.25},
-      {from:1200000,to:null,   rate:0.275}
+      {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},{from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},{from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},{from:1200000,to:null,rate:0.275}
     ],
-    taxCalcMode:"cumulative"
+    taxCalcMode:"monthly_average"
   }
 };
 
@@ -269,10 +263,10 @@ try{
     if(!DB.payrollVars)DB.payrollVars={};
     // Always validate taxConfig brackets - reset if outdated (old 2.5% rate)
     var _needReset=!DB.taxConfig||!DB.taxConfig.brackets||
-      (DB.taxConfig.brackets[1]&&DB.taxConfig.brackets[1].rate<0.05);
+      !(DB.taxConfig.brackets[1]&&DB.taxConfig.brackets[1].from===40000&&Math.abs(DB.taxConfig.brackets[1].rate-0.10)<0.001);
     if(_needReset)DB.taxConfig={
       personalExemptAnnual:20000,otherExemptAnnual:0,
-      insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,taxCalcMode:'cumulative',
+      insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,taxCalcMode:'monthly_average',
       brackets:[{from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},{from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},{from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},{from:1200000,to:null,rate:0.275}]};
     if(!DB.warehouses)DB.warehouses=DB.warehouses||[];
     if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
@@ -319,10 +313,7 @@ function calcFull(e, overrides){
   var cfg = (DB.taxConfig && DB.taxConfig.brackets) ? DB.taxConfig : {
     personalExemptAnnual:20000, otherExemptAnnual:0,
     insMin:2700, insMax:16700, empInsRate:0.11, emplInsRate:0.1875, martyrsRate:0.0005,
-    brackets:[{from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},
-              {from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},
-              {from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},
-              {from:1200000,to:null,rate:0.275}]
+    brackets:[{from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},{from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},{from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},{from:1200000,to:null,rate:0.275}]
   };
 
   // 1. التأمينات
@@ -652,12 +643,9 @@ function rTaxConfig(){
   if(!DB.taxConfig||!DB.taxConfig.brackets){
     DB.taxConfig={
       personalExemptAnnual:20000,otherExemptAnnual:0,
-      insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,taxCalcMode:'cumulative',
+      insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,taxCalcMode:'monthly_average',
       brackets:[
-        {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},
-        {from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},
-        {from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},
-        {from:1200000,to:null,rate:0.275}
+        {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},{from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},{from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},{from:1200000,to:null,rate:0.275}
       ]
     };
   }
@@ -848,12 +836,9 @@ function resetTaxConfig(){
   if(!confirm("هل تريد استعادة الإعدادات الافتراضية؟")) return;
   DB.taxConfig={
     personalExemptAnnual:20000,otherExemptAnnual:0,
-    insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,taxCalcMode:'cumulative',
+    insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,taxCalcMode:'monthly_average',
     brackets:[
-      {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},
-      {from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},
-      {from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},
-      {from:1200000,to:null,rate:0.275}
+      {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},{from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},{from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},{from:1200000,to:null,rate:0.275}
     ]
   };
   save();rTaxConfig();toast("✅ تمت الاستعادة");
