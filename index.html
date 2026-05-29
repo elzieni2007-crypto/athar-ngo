@@ -334,16 +334,47 @@ function calcFull(e, overrides){
   // ============================================================
   // حساب الضريبة — دالة الشرائح التراكمية
   // ============================================================
+  // ============================================================
+  // نظام الشرائح المتغيرة حسب مستوى الدخل — قانون 7/2024
+  // الشريحة المعفاة (0%) تتقلص كلما زاد الدخل الإجمالي
+  // ============================================================
   function applyBrackets(amount){
     var tax=0;
-    var brackets=cfg.brackets||[];
-    for(var i=0;i<brackets.length;i++){
-      var b=brackets[i];
-      var from=b.from||0;
-      var to=b.to||Infinity;
-      if(amount<=from) break;
-      var chunk=Math.min(amount,to)-from;
-      tax+=chunk*(b.rate||0);
+    var brackets;
+
+    // هل هناك شرائح مخصصة في الإعدادات؟
+    var hasCfgBrackets=(cfg.brackets&&cfg.brackets.length>0&&cfg.taxMode!=="law7_2024");
+
+    if(hasCfgBrackets){
+      // استخدم الشرائح المخصصة (editable)
+      brackets=cfg.brackets;
+      for(var i=0;i<brackets.length;i++){
+        var b=brackets[i];
+        var fr=b.from||0,to2=b.to||Infinity;
+        if(amount<=fr) break;
+        tax+=(Math.min(amount,to2)-fr)*(b.rate||0);
+      }
+    } else {
+      // قانون 7 لسنة 2024 — شرائح متغيرة حسب مستوى الدخل
+      var tiers;
+      if(amount<=400000){
+        tiers=[[0,40000,0],[40000,55000,0.10],[55000,70000,0.15],[70000,200000,0.20],[200000,400000,0.225]];
+      } else if(amount<=700000){
+        tiers=[[0,55000,0.10],[55000,70000,0.15],[70000,200000,0.20],[200000,400000,0.225],[400000,700000,0.25]];
+      } else if(amount<=800000){
+        tiers=[[0,70000,0.15],[70000,200000,0.20],[200000,400000,0.225],[400000,800000,0.25]];
+      } else if(amount<=900000){
+        tiers=[[0,200000,0.20],[200000,400000,0.225],[400000,900000,0.25]];
+      } else if(amount<=1200000){
+        tiers=[[0,400000,0.225],[400000,1200000,0.25]];
+      } else {
+        tiers=[[0,1200000,0.25],[1200000,null,0.275]];
+      }
+      for(var j=0;j<tiers.length;j++){
+        var t2=tiers[j],tfr=t2[0],tto=t2[1]||Infinity;
+        if(amount<=tfr) break;
+        tax+=(Math.min(amount,tto)-tfr)*t2[2];
+      }
     }
     return tax;
   }
