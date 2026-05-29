@@ -231,7 +231,25 @@ var DB={
   bankRecons:[],
   masterData:null,
   payrollHistory:[],
-  payrollVars:{}
+  payrollVars:{},
+  taxConfig:{
+    personalExemptAnnual:20000,
+    otherExemptAnnual:0,
+    insMin:2700,
+    insMax:16700,
+    empInsRate:0.11,
+    emplInsRate:0.1875,
+    martyrsRate:0.0005,
+    brackets:[
+      {from:0,      to:40000,  rate:0},
+      {from:40000,  to:55000,  rate:0.025},
+      {from:55000,  to:70000,  rate:0.10},
+      {from:70000,  to:200000, rate:0.15},
+      {from:200000, to:400000, rate:0.20},
+      {from:400000, to:1200000,rate:0.225},
+      {from:1200000,to:null,   rate:0.275}
+    ]
+  }
 };
 
 try{
@@ -248,6 +266,10 @@ try{
     if(!DB.masterData)DB.masterData=null;
     if(!DB.payrollHistory)DB.payrollHistory=[];
     if(!DB.payrollVars)DB.payrollVars={};
+    if(!DB.taxConfig||!DB.taxConfig.brackets)DB.taxConfig={
+      personalExemptAnnual:20000,otherExemptAnnual:0,
+      insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,
+      brackets:[{from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},{from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},{from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},{from:1200000,to:null,rate:0.275}]};
     if(!DB.warehouses)DB.warehouses=DB.warehouses||[];
     if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
     if(!DB.suppliers)DB.suppliers=[];
@@ -284,41 +306,57 @@ function calcFull(e, overrides){
   var absence= o.absence  !==undefined ? o.absence  : 0;
   var ins    = o.ins      !==undefined ? o.ins      : (e.ins||"full");
 
+  // Gross
   var gross = sal + al + nw + tr + ot + bonus + stipend;
 
   // ============================================================
-  // التأمينات الاجتماعية 2026
-  // الحد الأقصى: 16,700 ج.م | الحد الأدنى: 2,700 ج.م
+  // قراءة الإعدادات من taxConfig (قابلة للتعديل من الأدمن)
   // ============================================================
-  var INS_MAX = 16700;
-  var INS_MIN = 2700;
-  var iBase  = ins==="none" ? 0 : Math.min(Math.max(sal+al, INS_MIN), INS_MAX);
-  var empI   = ins==="none" ? 0 : Math.round(iBase * 0.11);
-  var emplI  = ins==="full" ? Math.round(iBase * 0.1875) : 0;
+  var cfg = (DB.taxConfig && DB.taxConfig.brackets) ? DB.taxConfig : {
+    personalExemptAnnual:20000, otherExemptAnnual:0,
+    insMin:2700, insMax:16700, empInsRate:0.11, emplInsRate:0.1875, martyrsRate:0.0005,
+    brackets:[{from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.025},
+              {from:55000,to:70000,rate:0.10},{from:70000,to:200000,rate:0.15},
+              {from:200000,to:400000,rate:0.20},{from:400000,to:1200000,rate:0.225},
+              {from:1200000,to:null,rate:0.275}]
+  };
 
-  // صندوق الشهداء والمصابين: 0.05% من الإجمالي
-  var mar = Math.round(gross * 0.0005);
+  // 1. التأمينات
+  var iBase  = ins==="none" ? 0 : Math.min(Math.max(sal+al, cfg.insMin||2700), cfg.insMax||16700);
+  var empI   = ins==="none" ? 0 : Math.round(iBase * (cfg.empInsRate||0.11));
+  var emplI  = ins==="full" ? Math.round(iBase * (cfg.emplInsRate||0.1875)) : 0;
+  var annualInsurance = empI * 12;
 
-  // ============================================================
-  // ضريبة الدخل المصرية 2026
-  // الإعفاء الشخصي: 20,000 سنوياً = 1,666.67 شهرياً
-  // الوعاء الشهري = الإجمالي - حصة الموظف في التأمين - الإعفاء
-  // الوعاء السنوي = الشهري × 12
-  // ============================================================
-  var EXEMPT_M = 20000 / 12;  // 1,666.67
-  var taxBaseM = gross - empI - EXEMPT_M;
-  var taxBaseA = Math.max(0, taxBaseM) * 12;
+  // 2. الإعفاءات السنوية
+  var annualExemptions = (cfg.personalExemptAnnual||20000) + (cfg.otherExemptAnnual||0);
 
-  // شرائح الضريبة المصرية 2026 (قانون 91 لسنة 2005 وتعديلاته)
-  var at = 0;
-  if(taxBaseA > 1200000)     at = 241375 + (taxBaseA-1200000)*0.275;
-  else if(taxBaseA > 400000) at = 61375  + (taxBaseA-400000)*0.225;
-  else if(taxBaseA > 200000) at = 21375  + (taxBaseA-200000)*0.20;
-  else if(taxBaseA > 70000)  at = 1875   + (taxBaseA-70000)*0.15;
-  else if(taxBaseA > 55000)  at = 375    + (taxBaseA-55000)*0.10;
-  else if(taxBaseA > 40000)  at = (taxBaseA-40000)*0.025;
+  // 3. الوعاء الضريبي السنوي
+  // annualGross - annualInsurance - annualExemptions
+  var annualGross = gross * 12;
+  var netTaxable  = Math.max(0, annualGross - annualInsurance - annualExemptions);
 
-  var tax = Math.round(at / 12);
+  // 4. تطبيق الشرائح
+  function applyBrackets(amount){
+    var tax=0;
+    var brackets=cfg.brackets||[];
+    for(var i=0;i<brackets.length;i++){
+      var b=brackets[i];
+      var from=b.from||0;
+      var to=b.to||Infinity;
+      if(amount<=from) break;
+      var chunk=Math.min(amount,to)-from;
+      tax+=chunk*(b.rate||0);
+    }
+    return tax;
+  }
+
+  // 5. الضريبة الشهرية = السنوية ÷ 12
+  var annualTax  = applyBrackets(netTaxable);
+  var tax        = Math.round(annualTax / 12);
+
+  // صندوق الشهداء
+  var mar = Math.round(gross * (cfg.martyrsRate||0.0005));
+
   var totalDed = ded + penalty + absence;
   var net = gross - empI - tax - mar - totalDed;
 
@@ -326,14 +364,18 @@ function calcFull(e, overrides){
     sal:sal, al:al, nw:nw, tr:tr,
     ot:ot, bonus:bonus, stipend:stipend,
     gross:gross,
-    iBase:iBase, empI:empI, emplI:emplI, mar:mar,
-    taxBaseM:Math.round(taxBaseM), taxBaseA:Math.round(taxBaseA),
-    tax:tax, ded:ded, penalty:penalty, absence:absence, totalDed:totalDed,
+    iBase:iBase, empI:empI, emplI:emplI,
+    annualInsurance:annualInsurance,
+    annualExemptions:annualExemptions,
+    annualGross:annualGross,
+    netTaxable:Math.round(netTaxable),
+    annualTax:Math.round(annualTax),
+    tax:tax, mar:mar,
+    ded:ded, penalty:penalty, absence:absence, totalDed:totalDed,
     net:Math.max(0,net), cost:gross+emplI
   };
 }
 
-// Keep old calc as alias
 function calc(e){ return calcFull(e,{}); }
 
 // ---- EDIT SAL MODAL (fixed components) ----
@@ -586,6 +628,200 @@ function rMore(){
 }
 
 
+// ============================================================
+// TAX CONFIG PAGE — إعداد شرائح الضريبة
+// ============================================================
+function rTaxConfig(){
+  if(!DB.taxConfig||!DB.taxConfig.brackets){
+    DB.taxConfig={
+      personalExemptAnnual:20000,otherExemptAnnual:0,
+      insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,
+      brackets:[
+        {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.025},
+        {from:55000,to:70000,rate:0.10},{from:70000,to:200000,rate:0.15},
+        {from:200000,to:400000,rate:0.20},{from:400000,to:1200000,rate:0.225},
+        {from:1200000,to:null,rate:0.275}
+      ]
+    };
+  }
+  var cfg=DB.taxConfig;
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:12px;padding:14px;margin-bottom:14px;color:white;">';
+  h+='<div style="font-weight:900;font-size:16px;">🧮 إعداد الضريبة والتأمينات</div>';
+  h+='<div style="font-size:11px;opacity:.7;margin-top:3px;">قابل للتعديل بدون تغيير الكود</div></div>';
+
+  // Insurance settings
+  h+='<div class="sd">🏦 التأمينات الاجتماعية</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h+='<div class="fg"><label>الحد الأدنى للتأمين (ج.م)</label><input type="number" id="tc-insMin" value="'+cfg.insMin+'" placeholder="2700"></div>';
+  h+='<div class="fg"><label>الحد الأقصى للتأمين (ج.م)</label><input type="number" id="tc-insMax" value="'+cfg.insMax+'" placeholder="16700"></div>';
+  h+='<div class="fg"><label>حصة الموظف (%)</label><input type="number" id="tc-empR" value="'+(cfg.empInsRate*100).toFixed(1)+'" step="0.1" placeholder="11"></div>';
+  h+='<div class="fg"><label>حصة صاحب العمل (%)</label><input type="number" id="tc-emplR" value="'+(cfg.emplInsRate*100).toFixed(2)+'" step="0.01" placeholder="18.75"></div>';
+  h+='</div>';
+
+  // Exemptions
+  h+='<div class="sd">💰 الإعفاءات الضريبية السنوية</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h+='<div class="fg"><label>الإعفاء الشخصي (ج.م/سنة)</label><input type="number" id="tc-exempt" value="'+cfg.personalExemptAnnual+'" placeholder="20000"></div>';
+  h+='<div class="fg"><label>إعفاءات أخرى (ج.م/سنة)</label><input type="number" id="tc-exempt2" value="'+(cfg.otherExemptAnnual||0)+'" placeholder="0"></div>';
+  h+='</div>';
+  h+='<div style="background:var(--skp);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:11.5px;font-weight:700;color:var(--n);">';
+  h+='إجمالي الإعفاء الشهري = (الشخصي + الأخرى) ÷ 12 = <span id="tc-exempt-preview">'+(((cfg.personalExemptAnnual||20000)+(cfg.otherExemptAnnual||0))/12).toFixed(2)+'</span> ج.م/شهر</div>';
+
+  // Tax brackets
+  h+='<div class="sd">📊 شرائح الضريبة</div>';
+  h+='<div style="font-size:11px;color:var(--g4);margin-bottom:8px;">المعادلة: الوعاء السنوي = (الراتب الشهري × 12) − التأمين السنوي − الإعفاءات</div>';
+  h+='<div id="tc-brackets">';
+
+  cfg.brackets.forEach(function(b,i){
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:5px;margin-bottom:6px;align-items:center;" id="tcb-'+i+'">';
+    h+='<div class="fg" style="margin:0;"><label style="font-size:10px;">من (ج.م)</label>';
+    h+='<input type="number" id="tc-from-'+i+'" value="'+b.from+'" style="font-size:11px;"></div>';
+    h+='<div class="fg" style="margin:0;"><label style="font-size:10px;">إلى (ج.م / فارغ=∞)</label>';
+    h+='<input type="number" id="tc-to-'+i+'" value="'+(b.to||'')+'" placeholder="∞" style="font-size:11px;"></div>';
+    h+='<div class="fg" style="margin:0;"><label style="font-size:10px;">النسبة (%)</label>';
+    h+='<input type="number" id="tc-rate-'+i+'" value="'+(b.rate*100).toFixed(1)+'" step="0.5" style="font-size:11px;"></div>';
+    h+='<button class="btn btn-rd btn-sm" onclick="removeBracket('+i+')" style="font-size:11px;margin-top:15px;">✕</button>';
+    h+='</div>';
+  });
+  h+='</div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="addBracket()" style="width:100%;margin-bottom:12px;">+ شريحة جديدة</button>';
+
+  // صندوق الشهداء
+  h+='<div class="fg" style="margin-bottom:12px;"><label>صندوق الشهداء والمصابين (%)</label>';
+  h+='<input type="number" id="tc-martyrs" value="'+(cfg.martyrsRate*100).toFixed(2)+'" step="0.01" placeholder="0.05"></div>';
+
+  // Preview calculator
+  h+='<div class="sd">🧪 اختبار المعادلة</div>';
+  h+='<div class="fr" style="margin-bottom:8px;">';
+  h+='<div class="fg"><label>راتب شهري تجريبي</label><input type="number" id="tc-test-sal" value="20000" oninput="previewTaxCalc()" placeholder="20000"></div>';
+  h+='<div class="fg"><label>وعاء تأمين</label><input type="number" id="tc-test-ins-base" value="16700" oninput="previewTaxCalc()" placeholder="16700"></div>';
+  h+='</div>';
+  h+='<div id="tc-test-result" style="background:var(--g1);border-radius:9px;padding:11px;margin-bottom:14px;"></div>';
+
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<button class="btn" onclick="saveTaxConfig()" style="background:var(--gr);">💾 حفظ الإعدادات</button>';
+  h+='<button class="btn btn-gy" onclick="resetTaxConfig()">↩️ استعادة الافتراضي</button>';
+  h+='</div>';
+
+  om("🧮 إعداد الضريبة والتأمينات", h);
+  previewTaxCalc();
+}
+
+function previewTaxCalc(){
+  var sal=parseFloat((document.getElementById('tc-test-sal')||{}).value)||20000;
+  var insBase=parseFloat((document.getElementById('tc-test-ins-base')||{}).value)||16700;
+  var exempt1=parseFloat((document.getElementById('tc-exempt')||{}).value)||20000;
+  var exempt2=parseFloat((document.getElementById('tc-exempt2')||{}).value)||0;
+  var empR=parseFloat((document.getElementById('tc-empR')||{}).value)||11;
+
+  var empI=Math.round(insBase*(empR/100));
+  var annualG=sal*12;
+  var annualIns=empI*12;
+  var annualExempt=exempt1+exempt2;
+  var netTaxable=Math.max(0,annualG-annualIns-annualExempt);
+
+  // Read brackets from UI
+  var brackets=[];
+  var i=0;
+  while(document.getElementById('tc-from-'+i)){
+    var from=parseFloat((document.getElementById('tc-from-'+i)||{}).value)||0;
+    var to=parseFloat((document.getElementById('tc-to-'+i)||{}).value)||null;
+    var rate=(parseFloat((document.getElementById('tc-rate-'+i)||{}).value)||0)/100;
+    brackets.push({from:from,to:to,rate:rate});
+    i++;
+  }
+
+  var annualTax=0;
+  brackets.forEach(function(b){
+    var from=b.from,to=b.to||Infinity;
+    if(netTaxable<=from) return;
+    annualTax+=(Math.min(netTaxable,to)-from)*b.rate;
+  });
+  var monthlyTax=Math.round(annualTax/12);
+  var martyrsR=parseFloat((document.getElementById('tc-martyrs')||{}).value)||0.05;
+  var martyrs=Math.round(sal*(martyrsR/100));
+  var net=sal-empI-monthlyTax-martyrs;
+
+  // Update exempt preview
+  var ep=document.getElementById('tc-exempt-preview');
+  if(ep) ep.textContent=((exempt1+exempt2)/12).toFixed(2);
+
+  var el2=document.getElementById('tc-test-result');
+  if(!el2) return;
+  var h='<div style="font-size:11.5px;font-weight:800;color:var(--n);margin-bottom:8px;">📋 تفاصيل الحساب:</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:11px;">';
+  h+='<div>الراتب الشهري:</div><div style="font-weight:700;text-align:left;">'+fmt(sal)+'</div>';
+  h+='<div>الراتب السنوي:</div><div style="font-weight:700;text-align:left;">'+fmt(annualG)+'</div>';
+  h+='<div>التأمين الشهري ('+empR+'%):</div><div style="color:var(--rd);font-weight:700;text-align:left;">−'+fmt(empI)+'</div>';
+  h+='<div>التأمين السنوي:</div><div style="color:var(--rd);text-align:left;">−'+fmt(annualIns)+'</div>';
+  h+='<div>الإعفاءات السنوية:</div><div style="color:var(--rd);text-align:left;">−'+fmt(annualExempt)+'</div>';
+  h+='<div style="font-weight:800;border-top:1px solid var(--g2);padding-top:4px;">الوعاء الضريبي السنوي:</div>';
+  h+='<div style="font-weight:800;color:var(--n);text-align:left;border-top:1px solid var(--g2);padding-top:4px;">'+fmt(netTaxable)+'</div>';
+  h+='<div>الضريبة السنوية:</div><div style="color:var(--am);text-align:left;">'+fmt(Math.round(annualTax))+'</div>';
+  h+='<div style="font-weight:800;">الضريبة الشهرية (÷12):</div><div style="color:var(--am);font-weight:800;text-align:left;">'+fmt(monthlyTax)+'</div>';
+  h+='<div>صندوق الشهداء:</div><div style="color:var(--g4);text-align:left;">'+fmt(martyrs)+'</div>';
+  h+='</div>';
+  h+='<div style="margin-top:10px;background:linear-gradient(135deg,var(--nd),var(--n));border-radius:9px;padding:11px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<span style="color:white;font-size:12px;font-weight:700;">الصافي المستحق</span>';
+  h+='<span style="color:white;font-weight:900;font-size:18px;">'+fmt(net)+' ج.م</span></div>';
+  el2.innerHTML=h;
+}
+
+function addBracket(){
+  var cfg=DB.taxConfig||{brackets:[]};
+  cfg.brackets=cfg.brackets||[];
+  var last=cfg.brackets[cfg.brackets.length-1]||{to:1200000};
+  cfg.brackets.push({from:last.to||1200000,to:null,rate:0.30});
+  DB.taxConfig=cfg;
+  rTaxConfig();
+}
+function removeBracket(i){
+  if((DB.taxConfig.brackets||[]).length<=1){toast("⚠️ يجب إبقاء شريحة واحدة على الأقل");return;}
+  DB.taxConfig.brackets.splice(i,1);
+  rTaxConfig();
+}
+
+function saveTaxConfig(){
+  if(!DB.taxConfig) DB.taxConfig={};
+  DB.taxConfig.insMin=parseFloat((document.getElementById('tc-insMin')||{}).value)||2700;
+  DB.taxConfig.insMax=parseFloat((document.getElementById('tc-insMax')||{}).value)||16700;
+  DB.taxConfig.empInsRate=(parseFloat((document.getElementById('tc-empR')||{}).value)||11)/100;
+  DB.taxConfig.emplInsRate=(parseFloat((document.getElementById('tc-emplR')||{}).value)||18.75)/100;
+  DB.taxConfig.personalExemptAnnual=parseFloat((document.getElementById('tc-exempt')||{}).value)||20000;
+  DB.taxConfig.otherExemptAnnual=parseFloat((document.getElementById('tc-exempt2')||{}).value)||0;
+  DB.taxConfig.martyrsRate=(parseFloat((document.getElementById('tc-martyrs')||{}).value)||0.05)/100;
+  var brackets=[];
+  var i=0;
+  while(document.getElementById('tc-from-'+i)){
+    brackets.push({
+      from:parseFloat((document.getElementById('tc-from-'+i)||{}).value)||0,
+      to:parseFloat((document.getElementById('tc-to-'+i)||{}).value)||null,
+      rate:(parseFloat((document.getElementById('tc-rate-'+i)||{}).value)||0)/100
+    });
+    i++;
+  }
+  DB.taxConfig.brackets=brackets.sort(function(a,b){return a.from-b.from;});
+  save();
+  toast("✅ تم حفظ إعدادات الضريبة — سيتم تطبيقها على كل الحسابات القادمة");
+  cm();
+}
+
+function resetTaxConfig(){
+  if(!confirm("هل تريد استعادة الإعدادات الافتراضية؟")) return;
+  DB.taxConfig={
+    personalExemptAnnual:20000,otherExemptAnnual:0,
+    insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,
+    brackets:[
+      {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.025},
+      {from:55000,to:70000,rate:0.10},{from:70000,to:200000,rate:0.15},
+      {from:200000,to:400000,rate:0.20},{from:400000,to:1200000,rate:0.225},
+      {from:1200000,to:null,rate:0.275}
+    ]
+  };
+  save();rTaxConfig();toast("✅ تمت الاستعادة");
+}
+
+
 function sub(n){
   var f={
     accounts:rAccPage,trial:rTrialPage,balance:rBalPage,
@@ -597,7 +833,8 @@ function sub(n){
     importexport:rImportExport,
     reconhist:function(){rReconHistory('');},
     masterdata:rMasterData,
-    reports:rReportsPage
+    reports:rReportsPage,
+    taxconfig:rTaxConfig
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -611,7 +848,8 @@ function sub(n){
     importexport:"📁 استيراد وتصدير",
     reconhist:"📊 سجل التسويات",
     masterdata:"⚙️ البيانات الرئيسية",
-    reports:"📊 التقارير"
+    reports:"📊 التقارير",
+    taxconfig:"🧮 إعداد الضريبة"
   };
   if(f[n]){try{om(titles[n]||n, f[n]());}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
 }
@@ -3604,6 +3842,11 @@ function rSetPage(){
   h+='<div style="background:var(--n);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" data-sub="masterdata">';
   h+='<div><div style="font-weight:800;color:white;font-size:14px;">🗂️ البيانات الرئيسية</div>';
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">مراكز التكلفة · المواقع · الأنشطة · المحاور · البنوك</div></div>';
+  h+='<div style="color:white;font-size:20px;">›</div>';
+  h+='</div>';
+  h+='<div style="background:var(--am);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" data-sub="taxconfig">';
+  h+='<div><div style="font-weight:800;color:white;font-size:14px;">🧮 إعداد الضريبة والتأمينات</div>';
+  h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">شرائح الضريبة · التأمينات · الإعفاءات — قابلة للتعديل</div></div>';
   h+='<div style="color:white;font-size:20px;">›</div>';
   h+='</div>';
   h+='<div class="sd">بيانات الجمعية</div>';
