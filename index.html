@@ -242,13 +242,14 @@ var DB={
     martyrsRate:0.0005,
     brackets:[
       {from:0,      to:40000,  rate:0},
-      {from:40000,  to:55000,  rate:0.025},
-      {from:55000,  to:70000,  rate:0.10},
-      {from:70000,  to:200000, rate:0.15},
-      {from:200000, to:400000, rate:0.20},
-      {from:400000, to:1200000,rate:0.225},
+      {from:40000,  to:55000,  rate:0.10},
+      {from:55000,  to:70000,  rate:0.15},
+      {from:70000,  to:200000, rate:0.20},
+      {from:200000, to:400000, rate:0.225},
+      {from:400000, to:1200000,rate:0.25},
       {from:1200000,to:null,   rate:0.275}
-    ]
+    ],
+    taxCalcMode:"cumulative"
   }
 };
 
@@ -266,9 +267,12 @@ try{
     if(!DB.masterData)DB.masterData=null;
     if(!DB.payrollHistory)DB.payrollHistory=[];
     if(!DB.payrollVars)DB.payrollVars={};
-    if(!DB.taxConfig||!DB.taxConfig.brackets)DB.taxConfig={
+    // Always validate taxConfig brackets - reset if outdated (old 2.5% rate)
+    var _needReset=!DB.taxConfig||!DB.taxConfig.brackets||
+      (DB.taxConfig.brackets[1]&&DB.taxConfig.brackets[1].rate<0.05);
+    if(_needReset)DB.taxConfig={
       personalExemptAnnual:20000,otherExemptAnnual:0,
-      insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,
+      insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,taxCalcMode:'cumulative',
       brackets:[{from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},{from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},{from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},{from:1200000,to:null,rate:0.275}]};
     if(!DB.warehouses)DB.warehouses=DB.warehouses||[];
     if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
@@ -315,9 +319,9 @@ function calcFull(e, overrides){
   var cfg = (DB.taxConfig && DB.taxConfig.brackets) ? DB.taxConfig : {
     personalExemptAnnual:20000, otherExemptAnnual:0,
     insMin:2700, insMax:16700, empInsRate:0.11, emplInsRate:0.1875, martyrsRate:0.0005,
-    brackets:[{from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.025},
-              {from:55000,to:70000,rate:0.10},{from:70000,to:200000,rate:0.15},
-              {from:200000,to:400000,rate:0.20},{from:400000,to:1200000,rate:0.225},
+    brackets:[{from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},
+              {from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},
+              {from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},
               {from:1200000,to:null,rate:0.275}]
   };
 
@@ -336,6 +340,9 @@ function calcFull(e, overrides){
   var netTaxable  = Math.max(0, annualGross - annualInsurance - annualExemptions);
 
   // 4. تطبيق الشرائح
+  // ============================================================
+  // حساب الضريبة — دالة الشرائح التراكمية
+  // ============================================================
   function applyBrackets(amount){
     var tax=0;
     var brackets=cfg.brackets||[];
@@ -350,9 +357,23 @@ function calcFull(e, overrides){
     return tax;
   }
 
-  // 5. الضريبة الشهرية = السنوية ÷ 12
-  var annualTax  = applyBrackets(netTaxable);
-  var tax        = Math.round(annualTax / 12);
+  var annualTax = applyBrackets(netTaxable);
+  var mode = cfg.taxCalcMode || "monthly_average";
+  var tax;
+
+  if(mode === "cumulative"){
+    // ---- وضع التراكمي: يحسب بناءً على الشهر الحالي ----
+    // يقدر الضريبة على إجمالي الدخل حتى هذا الشهر، ويخصم الشهور السابقة
+    // للحساب الشهري نستخدم: ضريبة الشهر N = (ضريبة_سنوية × N/12) - ضريبة_(N-1)
+    // في حال عدم توفر بيانات شهور سابقة → نستخدم نفس monthly_average
+    var currentMonth = o.currentMonth || (new Date().getMonth()+1);
+    var taxUpToNow   = annualTax * (currentMonth / 12);
+    var taxPrevMonths= o.taxPaidSoFar || 0;
+    tax = Math.max(0, Math.round((taxUpToNow - taxPrevMonths)));
+  } else {
+    // ---- وضع المتوسط الشهري (الافتراضي) ----
+    tax = Math.round(annualTax / 12);
+  }
 
   // صندوق الشهداء
   var mar = Math.round(gross * (cfg.martyrsRate||0.0005));
@@ -635,11 +656,11 @@ function rTaxConfig(){
   if(!DB.taxConfig||!DB.taxConfig.brackets){
     DB.taxConfig={
       personalExemptAnnual:20000,otherExemptAnnual:0,
-      insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,
+      insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,taxCalcMode:'cumulative',
       brackets:[
-        {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.025},
-        {from:55000,to:70000,rate:0.10},{from:70000,to:200000,rate:0.15},
-        {from:200000,to:400000,rate:0.20},{from:400000,to:1200000,rate:0.225},
+        {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},
+        {from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},
+        {from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},
         {from:1200000,to:null,rate:0.275}
       ]
     };
@@ -686,6 +707,19 @@ function rTaxConfig(){
   h+='</div>';
   h+='<button class="btn btn-sm btn-gy" onclick="addBracket()" style="width:100%;margin-bottom:12px;">+ شريحة جديدة</button>';
 
+  // Tax calculation mode
+  var curMode=(cfg.taxCalcMode||'cumulative');
+  h+='<div class="sd">⚙️ طريقة حساب الضريبة الشهرية</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h+='<div id="tmode-avg" onclick="setTaxMode(\'monthly_average\')" style="border-radius:10px;padding:12px;cursor:pointer;border:2px solid '+(curMode==='monthly_average'?'var(--n)':'var(--g2)')+';background:'+(curMode==='monthly_average'?'var(--skp)':'white')+';">';
+  h+='<div style="font-weight:800;font-size:12px;color:var(--n);">📊 Monthly Average</div>';
+  h+='<div style="font-size:10.5px;color:var(--g4);margin-top:3px;">الضريبة السنوية ÷ 12</div>';
+  h+='<div style="font-size:10px;color:var(--g4);">مناسب للرواتب الثابتة المنتظمة</div></div>';
+  h+='<div id="tmode-cum" onclick="setTaxMode(\'cumulative\')" style="border-radius:10px;padding:12px;cursor:pointer;border:2px solid '+(curMode==='cumulative'?'var(--gr)':'var(--g2)')+';background:'+(curMode==='cumulative'?'var(--gbg)':'white')+';">';
+  h+='<div style="font-weight:800;font-size:12px;color:var(--gr);">📈 Cumulative (تراكمي)</div>';
+  h+='<div style="font-size:10.5px;color:var(--g4);margin-top:3px;">ضريبة حتى الشهر N − ما سبق</div>';
+  h+='<div style="font-size:10px;color:var(--g4);">مطابق للشيت — موصى به للرواتب العالية</div></div>';
+  h+='</div>';
   // صندوق الشهداء
   h+='<div class="fg" style="margin-bottom:12px;"><label>صندوق الشهداء والمصابين (%)</label>';
   h+='<input type="number" id="tc-martyrs" value="'+(cfg.martyrsRate*100).toFixed(2)+'" step="0.01" placeholder="0.05"></div>';
@@ -767,6 +801,12 @@ function previewTaxCalc(){
   el2.innerHTML=h;
 }
 
+function setTaxMode(mode){
+  if(!DB.taxConfig)DB.taxConfig={};
+  DB.taxConfig.taxCalcMode=mode;
+  save();rTaxConfig();
+  toast("✅ "+(mode==='cumulative'?'وضع التراكمي':'وضع المتوسط الشهري')+" نشط");
+}
 function addBracket(){
   var cfg=DB.taxConfig||{brackets:[]};
   cfg.brackets=cfg.brackets||[];
@@ -790,6 +830,8 @@ function saveTaxConfig(){
   DB.taxConfig.personalExemptAnnual=parseFloat((document.getElementById('tc-exempt')||{}).value)||20000;
   DB.taxConfig.otherExemptAnnual=parseFloat((document.getElementById('tc-exempt2')||{}).value)||0;
   DB.taxConfig.martyrsRate=(parseFloat((document.getElementById('tc-martyrs')||{}).value)||0.05)/100;
+  // mode already saved by setTaxMode, but keep in sync
+  if(!DB.taxConfig.taxCalcMode)DB.taxConfig.taxCalcMode='cumulative';
   var brackets=[];
   var i=0;
   while(document.getElementById('tc-from-'+i)){
@@ -810,11 +852,11 @@ function resetTaxConfig(){
   if(!confirm("هل تريد استعادة الإعدادات الافتراضية؟")) return;
   DB.taxConfig={
     personalExemptAnnual:20000,otherExemptAnnual:0,
-    insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,
+    insMin:2700,insMax:16700,empInsRate:0.11,emplInsRate:0.1875,martyrsRate:0.0005,taxCalcMode:'cumulative',
     brackets:[
-      {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.025},
-      {from:55000,to:70000,rate:0.10},{from:70000,to:200000,rate:0.15},
-      {from:200000,to:400000,rate:0.20},{from:400000,to:1200000,rate:0.225},
+      {from:0,to:40000,rate:0},{from:40000,to:55000,rate:0.10},
+      {from:55000,to:70000,rate:0.15},{from:70000,to:200000,rate:0.20},
+      {from:200000,to:400000,rate:0.225},{from:400000,to:1200000,rate:0.25},
       {from:1200000,to:null,rate:0.275}
     ]
   };
@@ -2110,8 +2152,18 @@ function generatePayroll(){
 
   // Calculate totals using variable components
   var tot={gross:0,empI:0,emplI:0,tax:0,mar:0,net:0,cost:0,totalDed:0};
+  var payMonth=parseInt(month)||1;
   emps.forEach(function(e){
     var ov=getEmpOverride(e.id,monthKey);
+    ov.currentMonth=payMonth;
+    // Cumulative: calculate tax already paid this year for this employee
+    if((DB.taxConfig&&DB.taxConfig.taxCalcMode)==='cumulative'){
+      var taxPaid=0;
+      (DB.payrollHistory||[]).filter(function(h){
+        return h.empId===e.id&&h.monthKey<monthKey;
+      }).forEach(function(h){taxPaid+=h.empTax||0;});
+      ov.taxPaidSoFar=taxPaid;
+    }
     var r=calcFull(e,ov);
     Object.keys(tot).forEach(function(k){if(r[k]!==undefined)tot[k]+=r[k];});
   });
@@ -2172,7 +2224,7 @@ function generatePayroll(){
   if(!DB.payrollHistory)DB.payrollHistory=[];
   DB.payrollHistory.push({
     id:entryId,date:payDate,monthKey:monthKey,monthName:monthName+" "+year,
-    scope:scope,dept:dept,empId:empId,empCount:emps.length,
+    scope:scope,dept:dept,empId:empId,empCount:emps.length,empTax:tot.tax,
     gross:tot.gross,net:tot.net,cost:tot.cost,
     entryId:entryId,
     preparedBy:(getCurrentUser()||{}).name||"النظام"
