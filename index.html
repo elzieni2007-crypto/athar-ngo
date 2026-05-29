@@ -1081,6 +1081,18 @@ function rDash(){
 
   var h='';
 
+  // === DATE + ORG HEADER ===
+  var _d=new Date();
+  var _days=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  var _months=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var _dStr=_days[_d.getDay()]+' '+_d.getDate()+' '+_months[_d.getMonth()]+' '+_d.getFullYear();
+  var _orgName=(DB.org&&DB.org.name)||'الجمعية';
+  h+='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div><div style="color:rgba(255,255,255,.65);font-size:9.5px;">مرحباً</div>';
+  h+='<div style="color:white;font-weight:900;font-size:14px;">'+_orgName+'</div></div>';
+  h+='<div style="text-align:left;color:rgba(255,255,255,.75);font-size:10px;">📅 '+_dStr+'</div>';
+  h+='</div>';
+
   // === ROW 1: KPI STRIP ===
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
   h+='<div style="background:linear-gradient(135deg,#0e4d2e,#059669);border-radius:12px;padding:13px;color:white;">';
@@ -1148,10 +1160,10 @@ function rDash(){
   var modules_=[
     {icon:'💰',title:'المالية',sub:'القيود والحسابات',sec:'jour',bg:'#ede9fe',ic:'#7c3aed'},
     {icon:'🎯',title:'المشروعات',sub:'إدارة المنح والمشروعات',sec:'proj',bg:'#d1fae5',ic:'#059669'},
-    {icon:'🛒',title:'المشتريات',sub:'إدارة المشتريات والموردين',sec:'supp',bg:'#fef9c3',ic:'#ca8a04'},
-    {icon:'👥',title:'الموارد البشرية',sub:'إدارة الموظفين والبيانات',sec:'emp',bg:'#dbeafe',ic:'#2563eb'},
-    {icon:'💳',title:'المرتبات',sub:'إدارة الرواتب والاستحقاقات',sec:'pay',bg:'#fce7f3',ic:'#db2777'},
-    {icon:'📦',title:'المخزون',sub:'إدارة المخزن والمستودعات',sec:'inv',bg:'#ffedd5',ic:'#ea580c'},
+    {icon:'🏦',title:'البنوك والخزينة',sub:'الأرصدة والتسوية البنكية',sec:'banks',bg:'#dbeafe',ic:'#2563eb'},
+    {icon:'👥',title:'الموارد البشرية',sub:'إدارة الموظفين والبيانات',sec:'employees',bg:'#fce7f3',ic:'#db2777'},
+    {icon:'💳',title:'المرتبات',sub:'إدارة الرواتب والاستحقاقات',sec:'pay',bg:'#e0f2fe',ic:'#0284c7'},
+    {icon:'📦',title:'المخازن',sub:'إدارة المخزن والمستودعات',sec:'inventory',bg:'#ffedd5',ic:'#ea580c'},
     {icon:'📊',title:'التقارير',sub:'تقارير مالية وإدارية',sec:'reports',bg:'#f0fdf4',ic:'#16a34a'},
     {icon:'⚙️',title:'الإعدادات',sub:'إعدادات النظام والجمعية',sec:'settings',bg:'#f1f5f9',ic:'#475569'},
   ];
@@ -1172,8 +1184,8 @@ function rDash(){
   h+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">';
   var quickActs=[
     {icon:'📝',lbl:'إضافة قيد',fn:'newEntry()'},
-    {icon:'🏭',lbl:'إضافة مورد',fn:"sub('supp')"},
-    {icon:'📦',lbl:'صرف مخازن',fn:"sub('inv')"},
+    {icon:'🏭',lbl:'الموردون',fn:"sub(\'suppliers\')"},
+    {icon:'📦',lbl:'المخازن',fn:"sub(\'inventory\')"},
     {icon:'💳',lbl:'إعداد مرتب',fn:"openGenPayModal()"},
   ];
   quickActs.forEach(function(a){
