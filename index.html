@@ -234,6 +234,7 @@ var LOGO_B64="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAYGBgYHBgc
 
 var DB={
   org:{name:"جمعية نموذجية للتنمية",year:2025},
+  assets:[],
   projects:[],
   entries:[],
   employees:[
@@ -1015,7 +1016,8 @@ function sub(n){
     reconhist:function(){rReconHistory('');},
     masterdata:rMasterData,
     reports:rReportsPage,
-    taxconfig:rTaxConfig
+    taxconfig:rTaxConfig,
+    assets:rAssetsPage
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -1030,7 +1032,8 @@ function sub(n){
     reconhist:"📊 سجل التسويات",
     masterdata:"⚙️ البيانات الرئيسية",
     reports:"📊 التقارير",
-    taxconfig:"🧮 إعداد الضريبة"
+    taxconfig:"🧮 إعداد الضريبة",
+    assets:"🏢 الأصول الثابتة"
   };
   if(f[n]){try{om(titles[n]||n, f[n]());if(n==='taxconfig')previewTaxCalc();}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
 }
@@ -1170,6 +1173,7 @@ function rDash(){
     {icon:'💳',title:'المرتبات',sub:'إدارة الرواتب والاستحقاقات',sec:'pay',bg:'#e0f2fe',ic:'#0284c7'},
     {icon:'📦',title:'المخازن',sub:'إدارة المخزن والمستودعات',sec:'inventory',bg:'#ffedd5',ic:'#ea580c'},
     {icon:'📊',title:'التقارير',sub:'تقارير مالية وإدارية',sec:'reports',bg:'#f0fdf4',ic:'#16a34a'},
+    {icon:'🏢',title:'الأصول الثابتة',sub:'الأصول والإهلاك',sec:'assets',bg:'#fef3c7',ic:'#d97706'},
     {icon:'⚙️',title:'الإعدادات',sub:'إعدادات النظام والجمعية',sec:'settings',bg:'#f1f5f9',ic:'#475569'},
   ];
   h+='<div class="sd" style="margin-bottom:8px;">الأقسام الرئيسية</div>';
@@ -3386,6 +3390,382 @@ function rReconHistory(accCode){
   om('📊 سجل التسويات البنكية',h);
 }
 
+
+
+// ================================================================
+// FIXED ASSETS MODULE — الأصول الثابتة والإهلاك
+// ================================================================
+
+// ── Asset categories mapped to COA ──────────────────────────────
+var ASSET_CATS = [
+  {code:'1212', name:'مبانى ومنشآت',             deprAcc:'1221', expAcc:'5311', rate:0.05},
+  {code:'1213', name:'أثاث وتجهيزات مكتبية',     deprAcc:'1222', expAcc:'5312', rate:0.10},
+  {code:'1214', name:'أجهزة تكنولوجيا المعلومات',deprAcc:'1223', expAcc:'5313', rate:0.25},
+  {code:'1215', name:'آلات ومعدات',               deprAcc:'1224', expAcc:'5314', rate:0.10},
+  {code:'1216', name:'وسائل نقل وانتقال',         deprAcc:'1225', expAcc:'5315', rate:0.20},
+  {code:'1231', name:'برمجيات وأنظمة معلومات',    deprAcc:'1232', expAcc:'5316', rate:0.33},
+];
+
+// ── Init assets array ────────────────────────────────────────────
+function initAssets(){
+  if(!DB.assets) DB.assets=[];
+}
+
+// ── Calculate depreciation for one asset ────────────────────────
+function calcAssetDepr(asset){
+  // القسط الثابت: (التكلفة - القيمة المتبقية) / العمر الإنتاجي بالأشهر
+  var cost   = asset.cost || 0;
+  var resVal = asset.residualValue || 0;
+  var lifeM  = (asset.lifeYears || 1) * 12;
+  var monthly = Math.round((cost - resVal) / lifeM * 100) / 100;
+
+  // حساب المدة المنقضية
+  var start  = new Date(asset.startDate || asset.purchaseDate);
+  var today  = new Date();
+  var elapsed= (today.getFullYear()-start.getFullYear())*12 + (today.getMonth()-start.getMonth());
+  var accDepr= Math.min(monthly * elapsed, cost - resVal);
+  var bookVal= Math.max(cost - accDepr, resVal);
+  var remainM= Math.max(0, lifeM - elapsed);
+
+  return {monthly:monthly, accumulated:Math.round(accDepr), bookValue:Math.round(bookVal), elapsedMonths:elapsed, remainingMonths:remainM, fullyDepreciated:remainM===0};
+}
+
+// ── Assets Page ──────────────────────────────────────────────────
+function rAssetsPage(){
+  initAssets();
+  var assets = DB.assets;
+  var totalCost=0, totalAccDepr=0, totalBookVal=0;
+  assets.forEach(function(a){
+    var d=calcAssetDepr(a);
+    totalCost+=a.cost||0;
+    totalAccDepr+=d.accumulated;
+    totalBookVal+=d.bookValue;
+  });
+
+  var h='';
+  // Header
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">🏢 الأصول الثابتة</div>';
+  h+='<div style="display:flex;gap:6px;">';
+  h+='<button class="btn btn-sm" onclick="postAllDeprModal()" style="font-size:10.5px;background:var(--am);">📋 قيد إهلاك شهري</button>';
+  h+='<button class="btn btn-sm btn-gr" onclick="newAssetModal()" style="font-size:10.5px;">+ إضافة أصل</button>';
+  h+='</div></div>';
+
+  // KPI strip
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h+='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:11px;padding:11px;color:white;text-align:center;">';
+  h+='<div style="font-size:9.5px;opacity:.7;">💰 إجمالي التكلفة</div>';
+  h+='<div style="font-weight:900;font-size:15px;">'+fmt(totalCost)+'</div>';
+  h+='<div style="font-size:9px;opacity:.6;">ج.م</div></div>';
+  h+='<div style="background:linear-gradient(135deg,#c0392b,#e74c3c);border-radius:11px;padding:11px;color:white;text-align:center;">';
+  h+='<div style="font-size:9.5px;opacity:.7;">📉 مجمع الإهلاك</div>';
+  h+='<div style="font-weight:900;font-size:15px;">'+fmt(totalAccDepr)+'</div>';
+  h+='<div style="font-size:9px;opacity:.6;">ج.م</div></div>';
+  h+='<div style="background:linear-gradient(135deg,#1a7a4a,#27ae60);border-radius:11px;padding:11px;color:white;text-align:center;">';
+  h+='<div style="font-size:9.5px;opacity:.7;">📊 القيمة الدفترية</div>';
+  h+='<div style="font-weight:900;font-size:15px;">'+fmt(totalBookVal)+'</div>';
+  h+='<div style="font-size:9px;opacity:.6;">ج.م</div></div>';
+  h+='</div>';
+
+  if(!assets.length){
+    h+='<div style="text-align:center;padding:40px;color:var(--g4);">لا توجد أصول مسجلة — أضف أصلاً جديداً</div>';
+    return h;
+  }
+
+  // Assets list
+  h+='<div style="display:flex;flex-direction:column;gap:8px;">';
+  assets.forEach(function(a,idx){
+    var d=calcAssetDepr(a);
+    var cat=ASSET_CATS.find(function(c){return c.code===a.category;})||{name:a.category,rate:0};
+    var pct=a.cost>0?Math.round(d.accumulated/a.cost*100):0;
+    var statusClr=d.fullyDepreciated?'#6b7280':d.bookValue<a.cost*0.2?'#c0392b':'#1a7a4a';
+    var statusLbl=d.fullyDepreciated?'مهلك بالكامل':d.remainingMonths+' شهر متبقي';
+
+    h+='<div style="background:white;border-radius:12px;padding:12px;box-shadow:0 1px 6px rgba(0,0,0,.07);border:1px solid #eee;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+    h+='<div>';
+    h+='<div style="font-weight:800;font-size:13px;color:var(--nd);">'+a.name+'</div>';
+    var custName='';
+    if(a.custodianId){var cEmp=DB.employees.find(function(e){return e.id===a.custodianId;});if(cEmp)custName=cEmp.name;}
+    var locName='';
+    if(a.location&&DB.masterData&&DB.masterData.locations){var locObj=DB.masterData.locations.find(function(l){return l.code===a.location;});if(locObj)locName=locObj.name;}
+    h+='<div style="font-size:10px;color:var(--g4);">'+cat.name+' · '+a.serial+' · '+a.purchaseDate+'</div>';
+    h+='<div style="display:flex;gap:8px;margin-top:3px;">';
+    if(locName) h+='<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;border-radius:5px;padding:1px 7px;">📍 '+locName+'</span>';
+    if(a.room)  h+='<span style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:5px;padding:1px 7px;">🚪 '+a.room+'</span>';
+    if(custName)h+='<span style="font-size:10px;background:#d1fae5;color:#065f46;border-radius:5px;padding:1px 7px;">👤 '+custName+'</span>';
+    h+='</div>';
+    h+='</div>';
+    h+='<div style="display:flex;gap:5px;">';
+    h+='<button class="btn btn-sm" onclick="editAssetModal('+idx+')" style="font-size:9.5px;padding:3px 8px;">✏️</button>';
+    h+='<button class="btn btn-sm btn-rd" onclick="deleteAsset('+idx+')" style="font-size:9.5px;padding:3px 8px;">🗑️</button>';
+    h+='</div></div>';
+
+    // Values row
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;font-size:11px;">';
+    h+='<div style="background:#f8f9fa;border-radius:7px;padding:7px;text-align:center;">';
+    h+='<div style="color:var(--g4);font-size:9.5px;">التكلفة</div><div style="font-weight:700;">'+fmt(a.cost)+'</div></div>';
+    h+='<div style="background:#fff5f5;border-radius:7px;padding:7px;text-align:center;">';
+    h+='<div style="color:var(--g4);font-size:9.5px;">مجمع الإهلاك</div><div style="font-weight:700;color:#c0392b;">'+fmt(d.accumulated)+'</div></div>';
+    h+='<div style="background:#f0fdf4;border-radius:7px;padding:7px;text-align:center;">';
+    h+='<div style="color:var(--g4);font-size:9.5px;">القيمة الدفترية</div><div style="font-weight:700;color:#1a7a4a;">'+fmt(d.bookValue)+'</div></div>';
+    h+='</div>';
+
+    // Progress bar
+    h+='<div style="background:#f1f5f9;border-radius:6px;height:6px;margin-bottom:6px;">';
+    h+='<div style="background:linear-gradient(90deg,#c0392b,#e74c3c);height:100%;border-radius:6px;width:'+Math.min(pct,100)+'%;"></div></div>';
+    h+='<div style="display:flex;justify-content:space-between;font-size:10px;">';
+    h+='<span style="color:var(--g4);">إهلاك شهري: <strong>'+fmt(d.monthly)+'</strong> ج.م</span>';
+    h+='<span style="color:'+statusClr+';font-weight:700;">'+statusLbl+'</span>';
+    h+='</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  return h;
+}
+
+// ── New Asset Modal ──────────────────────────────────────────────
+function newAssetModal(){
+  initAssets();
+  var catOpts=ASSET_CATS.map(function(c){
+    return '<option value="'+c.code+'">'+c.name+' ('+Math.round(c.rate*100)+'%/سنة)</option>';
+  }).join('');
+
+  var h='<div class="fg"><label>اسم الأصل *</label><input id="ast-name" placeholder="مثال: سيارة تويوتا كورولا 2024"></div>';
+  h+='<div class="fg"><label>فئة الأصل *</label><select id="ast-cat" onchange="updateAssetRate()"><option value="">— اختر الفئة —</option>'+catOpts+'</select></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>الرقم التسلسلي</label><input id="ast-serial" placeholder="SN-001"></div>';
+  h+='<div class="fg"><label>تاريخ الشراء *</label><input id="ast-pdate" type="date" value="'+new Date().toISOString().split("T")[0]+'"></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>تاريخ بدء الإهلاك *</label><input id="ast-sdate" type="date" value="'+new Date().toISOString().split("T")[0]+'"></div>';
+  h+='<div class="fg"><label>العمر الإنتاجي (سنوات) *</label><input id="ast-life" type="number" value="5" min="1" max="50" onchange="updateAssetRate()"></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>تكلفة الأصل (ج.م) *</label><input id="ast-cost" type="number" placeholder="0.00" oninput="previewAssetCalc()"></div>';
+  h+='<div class="fg"><label>القيمة التخريدية (ج.م)</label><input id="ast-resid" type="number" value="0" oninput="previewAssetCalc()"></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  var locOpts2='';
+  if(DB.masterData&&DB.masterData.locations){DB.masterData.locations.forEach(function(l){locOpts2+='<option value="'+l.code+'">'+l.name+'</option>';});}
+  h+='<div class="fg"><label>📍 الموقع / الفرع</label><select id="ast-loc"><option value="">— —</option>'+locOpts2+'</select></div>';
+  var empOpts2='';
+  DB.employees.filter(function(e){return e.status==="active";}).forEach(function(e){empOpts2+='<option value="'+e.id+'">'+e.name+'</option>';});
+  h+='<div class="fg"><label>👤 العهدة / المسؤول</label><select id="ast-cust"><option value="">— —</option>'+empOpts2+'</select></div>';
+  h+='</div>';
+  h+='<div class="fg"><label>🚪 المكان التفصيلي (مكتب / غرفة / طابق)</label><input id="ast-room" placeholder="مثال: مكتب الحسابات — الدور الثاني"></div>';
+  h+='<div class="fg"><label>الجهة الممولة / مصدر التمويل</label><input id="ast-donor" placeholder="اختياري"></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="ast-note" placeholder="اختياري"></div>';
+  // Preview
+  h+='<div id="ast-preview" style="background:#f0f9ff;border-radius:9px;padding:10px;margin:8px 0;font-size:11.5px;display:none;">';
+  h+='<div style="font-weight:700;color:var(--nd);margin-bottom:5px;">📊 معاينة الإهلاك</div>';
+  h+='<div id="ast-preview-content"></div></div>';
+  h+='<button class="btn" onclick="saveNewAsset()" style="width:100%;margin-top:4px;">✅ حفظ الأصل</button>';
+  om('🏢 إضافة أصل ثابت جديد', h);
+}
+
+function updateAssetRate(){
+  var catCode=(document.getElementById('ast-cat')||{}).value;
+  var cat=ASSET_CATS.find(function(c){return c.code===catCode;});
+  if(cat){
+    var lifeEl=document.getElementById('ast-life');
+    if(lifeEl&&lifeEl.value==='5') lifeEl.value=Math.round(1/cat.rate);
+  }
+  previewAssetCalc();
+}
+
+function previewAssetCalc(){
+  var cost=parseFloat((document.getElementById('ast-cost')||{}).value)||0;
+  var resid=parseFloat((document.getElementById('ast-resid')||{}).value)||0;
+  var life=parseInt((document.getElementById('ast-life')||{}).value)||5;
+  var prev=document.getElementById('ast-preview');
+  var prevC=document.getElementById('ast-preview-content');
+  if(!prev||!prevC||cost<=0) return;
+  var monthly=Math.round((cost-resid)/life/12*100)/100;
+  var annual=Math.round((cost-resid)/life*100)/100;
+  prev.style.display='block';
+  prevC.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">'
+    +'<div><div style="color:var(--g4);font-size:9.5px;">إهلاك شهري</div><div style="font-weight:700;color:var(--rd);">'+fmt(monthly)+' ج.م</div></div>'
+    +'<div><div style="color:var(--g4);font-size:9.5px;">إهلاك سنوي</div><div style="font-weight:700;color:var(--am);">'+fmt(annual)+' ج.م</div></div>'
+    +'<div><div style="color:var(--g4);font-size:9.5px;">القيمة التخريدية</div><div style="font-weight:700;color:var(--gr);">'+fmt(resid)+' ج.م</div></div>'
+    +'</div>';
+}
+
+function saveNewAsset(){
+  var name=(document.getElementById('ast-name')||{}).value||'';
+  var cat=(document.getElementById('ast-cat')||{}).value||'';
+  var cost=parseFloat((document.getElementById('ast-cost')||{}).value)||0;
+  if(!name){toast('⚠️ اسم الأصل مطلوب');return;}
+  if(!cat){toast('⚠️ فئة الأصل مطلوبة');return;}
+  if(!cost){toast('⚠️ تكلفة الأصل مطلوبة');return;}
+
+  initAssets();
+  var asset={
+    id:'AST-'+Date.now(),
+    name:name,
+    category:cat,
+    serial:(document.getElementById('ast-serial')||{}).value||'—',
+    purchaseDate:(document.getElementById('ast-pdate')||{}).value||new Date().toISOString().split('T')[0],
+    startDate:(document.getElementById('ast-sdate')||{}).value||new Date().toISOString().split('T')[0],
+    lifeYears:parseInt((document.getElementById('ast-life')||{}).value)||5,
+    cost:cost,
+    residualValue:parseFloat((document.getElementById('ast-resid')||{}).value)||0,
+    location:(document.getElementById('ast-loc')||{}).value||'',
+    room:(document.getElementById('ast-room')||{}).value||'',
+    custodianId:(document.getElementById('ast-cust')||{}).value||'',
+    donor:(document.getElementById('ast-donor')||{}).value||'',
+    note:(document.getElementById('ast-note')||{}).value||'',
+    status:'active'
+  };
+  DB.assets.push(asset);
+  save();
+  cm();
+  sub('assets');
+  toast('✅ تم حفظ الأصل: '+asset.name);
+}
+
+function deleteAsset(idx){
+  initAssets();
+  if(!confirm('حذف الأصل: '+DB.assets[idx].name+' ؟'))return;
+  DB.assets.splice(idx,1);
+  save();
+  sub('assets');
+}
+
+function editAssetModal(idx){
+  initAssets();
+  var a=DB.assets[idx];
+  if(!a)return;
+  var catOpts=ASSET_CATS.map(function(c){
+    return '<option value="'+c.code+'"'+(c.code===a.category?' selected':'')+'>'+c.name+' ('+Math.round(c.rate*100)+'%/سنة)</option>';
+  }).join('');
+  var h='<div class="fg"><label>اسم الأصل</label><input id="edt-name" value="'+a.name+'"></div>';
+  h+='<div class="fg"><label>فئة الأصل</label><select id="edt-cat">'+catOpts+'</select></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>الرقم التسلسلي</label><input id="edt-serial" value="'+a.serial+'"></div>';
+  h+='<div class="fg"><label>تاريخ الشراء</label><input id="edt-pdate" type="date" value="'+a.purchaseDate+'"></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>بدء الإهلاك</label><input id="edt-sdate" type="date" value="'+a.startDate+'"></div>';
+  h+='<div class="fg"><label>العمر الإنتاجي (سنوات)</label><input id="edt-life" type="number" value="'+a.lifeYears+'"></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>التكلفة (ج.م)</label><input id="edt-cost" type="number" value="'+a.cost+'"></div>';
+  h+='<div class="fg"><label>القيمة التخريدية</label><input id="edt-resid" type="number" value="'+a.residualValue+'"></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  var locOpts3='<option value="">— —</option>';
+  if(DB.masterData&&DB.masterData.locations){DB.masterData.locations.forEach(function(l){locOpts3+='<option value="'+l.code+'"'+(l.code===a.location?' selected':'')+'>'+l.name+'</option>';});}
+  h+='<div class="fg"><label>📍 الموقع / الفرع</label><select id="edt-loc">'+locOpts3+'</select></div>';
+  var empOpts3='<option value="">— —</option>';
+  DB.employees.filter(function(e){return e.status==="active";}).forEach(function(e){empOpts3+='<option value="'+e.id+'"'+(e.id===a.custodianId?' selected':'')+'>'+e.name+'</option>';});
+  h+='<div class="fg"><label>👤 العهدة</label><select id="edt-cust">'+empOpts3+'</select></div>';
+  h+='</div>';
+  h+='<div class="fg"><label>🚪 المكان التفصيلي</label><input id="edt-room" value="'+(a.room||'')+'"></div>';
+  h+='<div class="fg"><label>الجهة الممولة</label><input id="edt-donor" value="'+(a.donor||'')+'"></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="edt-note" value="'+(a.note||'')+'"></div>';
+  h+='<button class="btn" onclick="saveEditAsset('+idx+')" style="width:100%;">✅ حفظ التعديلات</button>';
+  om('✏️ تعديل أصل: '+a.name, h);
+}
+
+function saveEditAsset(idx){
+  initAssets();
+  var a=DB.assets[idx];
+  if(!a)return;
+  a.name=(document.getElementById('edt-name')||{}).value||a.name;
+  a.category=(document.getElementById('edt-cat')||{}).value||a.category;
+  a.serial=(document.getElementById('edt-serial')||{}).value||a.serial;
+  a.purchaseDate=(document.getElementById('edt-pdate')||{}).value||a.purchaseDate;
+  a.startDate=(document.getElementById('edt-sdate')||{}).value||a.startDate;
+  a.lifeYears=parseInt((document.getElementById('edt-life')||{}).value)||a.lifeYears;
+  a.cost=parseFloat((document.getElementById('edt-cost')||{}).value)||a.cost;
+  a.residualValue=parseFloat((document.getElementById('edt-resid')||{}).value)||0;
+  a.location=(document.getElementById('edt-loc')||{}).value||a.location||'';
+  a.room=(document.getElementById('edt-room')||{}).value||'';
+  a.custodianId=(document.getElementById('edt-cust')||{}).value||a.custodianId||'';
+  a.donor=(document.getElementById('edt-donor')||{}).value||'';
+  a.note=(document.getElementById('edt-note')||{}).value||'';
+  save();
+  cm();
+  sub('assets');
+  toast('✅ تم تعديل الأصل');
+}
+
+// ── Monthly Depreciation Journal Entry ──────────────────────────
+function postAllDeprModal(){
+  initAssets();
+  var active=DB.assets.filter(function(a){return a.status==='active';});
+  if(!active.length){toast('لا توجد أصول نشطة');return;}
+
+  var today=new Date();
+  var monthKey=today.getFullYear()+'-'+(today.getMonth()+1).toString().padStart(2,'0');
+  var MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var mName=MONTHS[today.getMonth()]+' '+today.getFullYear();
+
+  var totalDepr=0;
+  var rows='';
+  var byCategory={};
+
+  active.forEach(function(a){
+    var d=calcAssetDepr(a);
+    if(d.fullyDepreciated||d.monthly<=0)return;
+    var cat=ASSET_CATS.find(function(c){return c.code===a.category;})||{expAcc:'5316',deprAcc:'1232',name:'أخرى'};
+    if(!byCategory[cat.code]) byCategory[cat.code]={cat:cat,total:0,assets:[]};
+    byCategory[cat.code].total+=d.monthly;
+    byCategory[cat.code].assets.push(a.name);
+    totalDepr+=d.monthly;
+  });
+
+  rows+='<table style="width:100%;font-size:11px;border-collapse:collapse;margin-bottom:12px;">';
+  rows+='<tr><th style="text-align:right;padding:5px;background:var(--g1);">الفئة</th><th style="text-align:right;padding:5px;background:var(--g1);">ح/إهلاك</th><th style="text-align:left;padding:5px;background:var(--g1);">المبلغ</th></tr>';
+  Object.values(byCategory).forEach(function(g){
+    rows+='<tr><td style="padding:5px;border-bottom:1px solid #eee;">'+g.cat.name+'</td>';
+    rows+='<td style="padding:5px;border-bottom:1px solid #eee;color:var(--g4);font-size:10px;">'+g.cat.expAcc+' ← '+g.cat.deprAcc+'</td>';
+    rows+='<td style="padding:5px;border-bottom:1px solid #eee;text-align:left;font-weight:700;color:var(--rd);">'+fmt(g.total)+' ج.م</td></tr>';
+  });
+  rows+='<tr style="background:#fff8e1;"><td colspan="2" style="padding:7px;font-weight:800;">إجمالي الإهلاك الشهري</td>';
+  rows+='<td style="padding:7px;text-align:left;font-weight:900;color:var(--nd);font-size:13px;">'+fmt(totalDepr)+' ج.م</td></tr>';
+  rows+='</table>';
+
+  var h='<div style="background:var(--g1);border-radius:9px;padding:10px;margin-bottom:12px;font-size:12px;">';
+  h+='<div style="font-weight:700;color:var(--nd);">📅 إهلاك شهر: '+mName+'</div>';
+  h+='<div style="color:var(--g4);font-size:10.5px;">'+active.length+' أصل نشط</div></div>';
+  h+=rows;
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<button class="btn" onclick="postDeprEntry('+JSON.stringify(byCategory).replace(/'/g,"&#39;")+')" style="background:var(--am);">✅ ترحيل القيد</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button>';
+  h+='</div>';
+  om('📋 قيد الإهلاك الشهري — '+mName, h);
+}
+
+function postDeprEntry(byCategory){
+  var today=new Date().toISOString().split('T')[0];
+  var id='J'+new Date().getFullYear()+'-DEP-'+String(Date.now()).slice(-5);
+  var MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var d=new Date();
+  var mName=MONTHS[d.getMonth()]+' '+d.getFullYear();
+  var lines=[];
+
+  Object.values(byCategory).forEach(function(g){
+    if(g.total<=0)return;
+    lines.push({acc:g.cat.expAcc, an:'إهلاك '+g.cat.name, dr:Math.round(g.total), cr:0});
+    lines.push({acc:g.cat.deprAcc, an:'مجمع إهلاك '+g.cat.name, dr:0, cr:Math.round(g.total)});
+  });
+
+  if(!lines.length){toast('لا توجد مبالغ إهلاك');return;}
+
+  var entry={
+    id:id, date:today, desc:'قيد إهلاك شهر '+mName+' — تلقائي',
+    ref:'DEP-'+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'),
+    lines:lines, status:'posted', autoDepr:true
+  };
+  if(!DB.entries) DB.entries=[];
+  DB.entries.push(entry);
+  save();
+  cm();
+  sub('assets');
+  toast('✅ تم ترحيل قيد الإهلاك — '+mName);
+}
 
 
 function rInvPage(){
