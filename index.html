@@ -236,6 +236,7 @@ var DB={
   org:{name:"جمعية نموذجية للتنمية",year:2025},
   assets:[],
   timesheets:[],
+  sysSettings:{enforceBudget:true,budgetWarningPct:90},
   allocations:[],
   leaveRequests:[],
   projects:[],
@@ -1221,7 +1222,7 @@ function rDash(){
   ];
   h+='<div class="sd" style="margin-bottom:8px;">الأقسام الرئيسية</div>';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">';
-  var _pageKeys={jour:1,proj:1,pay:1,employees:1};
+  var _pageKeys={jour:1,proj:1,pay:1};
   modules_.forEach(function(mod){
     var _ispg=_pageKeys[mod.sec]?1:0;
     h+='<div data-pg="'+(_ispg?'1':'0')+'" data-sec="'+mod.sec+'" onclick="var s=this.dataset.sec;if(this.dataset.pg===\'1\')showPage(s);else sub(s);" style="background:white;border-radius:14px;padding:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.07);border:1px solid #eee;display:flex;align-items:center;gap:10px;">';
@@ -1849,6 +1850,33 @@ function saveE(){
   var tD=lines.reduce(function(s,l){return s+(l.dr||0);},0);
   var tC=lines.reduce(function(s,l){return s+(l.cr||0);},0);
   if(Math.abs(tD-tC)>0.01){toast("⚠️ القيد غير متوازن — فرق: "+fmt(Math.abs(tD-tC)));return;}
+
+  // ── Budget enforcement check ─────────────────────────────────
+  var cfg=DB.sysSettings||{enforceBudget:true,budgetWarningPct:90};
+  if(cfg.enforceBudget!==false){
+    var projWarnings=[];
+    lines.forEach(function(ln){
+      if(!ln.proj) return;
+      var proj=DB.projects.find(function(p){return p.code===ln.proj;});
+      if(!proj||!proj.budget) return;
+      var spent=getProjectSpent(proj.code);
+      var newSpent=spent+(ln.dr||0)-(ln.cr||0);
+      if(newSpent>proj.budget){
+        projWarnings.push('❌ المشروع "'+proj.name+'" — سيتجاوز الموازنة!\n   الموازنة: '+fmt(proj.budget)+' | الصرف الحالي: '+fmt(spent)+' | بعد القيد: '+fmt(newSpent));
+      } else if(newSpent>(proj.budget*(cfg.budgetWarningPct||90)/100)){
+        projWarnings.push('⚠️ تحذير: المشروع "'+proj.name+'" وصل '+Math.round(newSpent/proj.budget*100)+'% من الموازنة');
+      }
+    });
+    if(projWarnings.length){
+      var overBudget=projWarnings.some(function(w){return w.startsWith('❌');});
+      if(overBudget){
+        toast('❌ رُفض القيد: تجاوز موازنة مشروع\n'+projWarnings.join('\n'));
+        return;
+      } else {
+        if(!confirm(projWarnings.join('\n')+'\n\nهل تريد المتابعة؟')) return;
+      }
+    }
+  }
   var desc=sv("e-ds");if(!desc){toast("⚠️ البيان مطلوب");return;}
   var id="J"+new Date().getFullYear()+"-"+String(Date.now()).slice(-6);
   // Determine primary project from lines
@@ -4209,76 +4237,102 @@ function distributeHoursSmartly(workDates, leaveDates, allocs, totalDailyHours, 
   var n=activeDates.length;
   if(!n) return [];
 
-  var rows=[];
-  // Calculate total hours per project
+  // ── Step 1: Calculate exact total hours per project ──────────
+  // Use floor to avoid over-allocation, then distribute remainder
   var projTotals=allocs.map(function(a){
-    return {proj:a.proj,projName:a.projName,pct:a.pct,total:Math.round(n*totalDailyHours*a.pct/100),remaining:0};
+    return {
+      proj:a.proj, projName:a.projName, pct:a.pct,
+      total: Math.floor(n * totalDailyHours * a.pct / 100),
+      remaining: 0
+    };
   });
+
+  // Distribute any lost hours from rounding to projects in order
+  var allocSum=projTotals.reduce(function(s,p){return s+p.total;},0);
+  var totalExpected=n*totalDailyHours;
+  var lost=totalExpected-allocSum;
+  for(var pi=0;pi<projTotals.length&&lost>0;pi++){
+    projTotals[pi].total+=1; lost--;
+  }
   projTotals.forEach(function(p){p.remaining=p.total;});
 
-  // Distribute day by day
+  // ── Step 2: Day-by-day distribution ─────────────────────────
+  var rows=[];
   activeDates.forEach(function(date,di){
-    var isLast=(di===n-1);
+    var daysLeft=n-di;
     var dayAllocs=[];
-    var dayTotal=0;
+    var daySum=0;
 
     projTotals.forEach(function(p,pi){
+      if(p.remaining<=0) return;
       var isLastProj=(pi===projTotals.length-1);
-      var daysLeft=n-di;
-      var rawHours=p.remaining/daysLeft;
 
       var h;
-      if(isLast||isLastProj){
-        h=p.remaining - dayTotal; // fill remainder
-        if(pi<projTotals.length-1) h=roundHours(rawHours,rounding);
+      if(isLastProj){
+        // Last project fills remainder of the day exactly
+        h=totalDailyHours-daySum;
+        h=Math.max(0,Math.min(h,p.remaining));
       } else {
-        h=roundHours(rawHours,rounding);
+        // Spread remaining hours evenly across remaining days
+        var raw=p.remaining/daysLeft;
+        h=roundHours(raw,rounding);
+        // Never exceed remaining budget OR leave no room for day total
+        h=Math.max(0,Math.min(h,p.remaining));
+        // Don't let partial projects overflow the day
+        h=Math.min(h,totalDailyHours-daySum);
       }
-      h=Math.max(0,Math.min(h,p.remaining));
-      p.remaining-=h;
-      dayTotal+=h;
-      if(h>0) dayAllocs.push({proj:p.proj,projName:p.projName,hours:h});
+
+      if(h>0){
+        dayAllocs.push({proj:p.proj,projName:p.projName,hours:h});
+        p.remaining-=h;
+        daySum+=h;
+      }
     });
 
-    // Last project gets remainder to fill the day
-    var daySum=dayAllocs.reduce(function(s,a){return s+a.hours;},0);
+    // Safety: if daySum != totalDailyHours (due to rounding), adjust last alloc
     var diff=totalDailyHours-daySum;
-    if(Math.abs(diff)>0.01 && dayAllocs.length){
-      dayAllocs[0].hours=Math.round((dayAllocs[0].hours+diff)*100)/100;
-      projTotals[0].remaining=Math.max(0,projTotals[0].remaining-diff);
+    if(Math.abs(diff)>=0.5 && dayAllocs.length>0){
+      // Find last project with remaining budget
+      for(var k=dayAllocs.length-1;k>=0;k--){
+        var adj=dayAllocs[k].hours+diff;
+        if(adj>0 && adj<=totalDailyHours){
+          // Undo previous remaining deduction and redo with correction
+          var pObj=projTotals.find(function(p){return p.proj===dayAllocs[k].proj;});
+          if(pObj) pObj.remaining-=diff;
+          dayAllocs[k].hours=adj;
+          daySum=totalDailyHours;
+          break;
+        }
+      }
     }
 
     var d=new Date(date);
     var dayNames=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
-    rows.push({date:date,dayName:dayNames[d.getDay()],type:'work',allocs:dayAllocs,totalHours:totalDailyHours});
+    rows.push({
+      date:date, dayName:dayNames[d.getDay()],
+      type:'work', allocs:dayAllocs, totalHours:totalDailyHours
+    });
   });
 
-  // Add leave dates
-  workDates.forEach(function(date){
-    if(leaveDates.indexOf(date)>-1){
-      var d=new Date(date);
-      var dayNames=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
-      rows.push({date:date,dayName:dayNames[d.getDay()],type:'leave',allocs:[],totalHours:0});
-    }
-  });
-
-  // Add holidays & weekends for the month
+  // ── Step 3: Add non-work days ────────────────────────────────
   var cfg=getTsSettings();
-  var allDaysInMonth=[];
-  var firstDate=new Date(workDates[0]||new Date());
+  var firstDate=new Date(workDates[0]);
   var yr=firstDate.getFullYear(), mo=firstDate.getMonth();
   var dd=new Date(yr,mo,1);
+  var dayNames2=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
   while(dd.getMonth()===mo){
-    allDaysInMonth.push(dd.toISOString().split('T')[0]);
+    var ds=dd.toISOString().split('T')[0];
+    if(workDates.indexOf(ds)<0){
+      var isHol=cfg.holidays.some(function(h){return h.date===ds;});
+      var isLeave=leaveDates.indexOf(ds)>-1;
+      rows.push({
+        date:ds, dayName:dayNames2[dd.getDay()],
+        type:isLeave?'leave':isHol?'holiday':'weekend',
+        allocs:[], totalHours:0
+      });
+    }
     dd.setDate(dd.getDate()+1);
   }
-  allDaysInMonth.forEach(function(date){
-    if(workDates.indexOf(date)>-1) return; // already added
-    var d=new Date(date);
-    var dayNames=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
-    var isHol=cfg.holidays.some(function(h){return h.date===date;});
-    rows.push({date:date,dayName:dayNames[d.getDay()],type:isHol?'holiday':'weekend',allocs:[],totalHours:0});
-  });
 
   rows.sort(function(a,b){return a.date<b.date?-1:1;});
   return rows;
@@ -5934,7 +5988,26 @@ function rSetPage(){
     h+='<button class="btn btn-gr" onclick="saveDeprRates()" style="width:100%;margin-bottom:6px;">💾 حفظ نسب الإهلاك</button>';
   }
 
-  h+='<div style="margin-top:14px;background:var(--g1);border-radius:8px;padding:10px;font-size:10.5px;color:var(--g4);text-align:center;">أثر للحلول المالية — النسخة 2.0<br>تطوير تنمويين مصر</div>';
+  // ── إعدادات الموازنة ─────────────────────────────────────────
+  if(isAdmin){
+    var ss=DB.sysSettings||{};
+    h+='<div class="sd" style="margin-top:14px;">💰 إعدادات الموازنة</div>';
+    h+='<div style="background:white;border-radius:11px;padding:12px;margin-bottom:12px;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+    h+='<div><div style="font-weight:700;font-size:13px;">منع تجاوز موازنة المشروع</div>';
+    h+='<div style="font-size:10.5px;color:var(--g4);">يمنع حفظ أي قيد يتجاوز الموازنة المعتمدة</div></div>';
+    h+='<label style="position:relative;display:inline-block;width:44px;height:24px;">';
+    h+='<input type="checkbox" id="ss-enforce" '+(ss.enforceBudget!==false?'checked':'')+' style="opacity:0;width:0;height:0;" onchange="toggleBudgetEnforce(this.checked)">';
+    h+='<span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:'+(ss.enforceBudget!==false?'#1a7a4a':'#ccc')+';border-radius:24px;transition:.3s;" id="ss-enforce-span"></span>';
+    h+='</label></div>';
+    h+='<div class="fg"><label>نسبة التحذير قبل التجاوز (%)</label>';
+    h+='<input type="number" id="ss-warn-pct" value="'+(ss.budgetWarningPct||90)+'" min="50" max="100" ';
+    h+='style="width:80px;" onchange="saveSysSettings()">';
+    h+='<span style="font-size:10.5px;color:var(--g4);margin-right:8px;">يظهر تحذير عند الوصول لهذه النسبة</span>';
+    h+='</div></div>';
+  }
+
+    h+='<div style="margin-top:14px;background:var(--g1);border-radius:8px;padding:10px;font-size:10.5px;color:var(--g4);text-align:center;">أثر للحلول المالية — النسخة 2.0<br>تطوير تنمويين مصر</div>';
   return h;
 }
 
@@ -5956,6 +6029,22 @@ function saveDeprRates(){
   });
   save();
   toast('✅ تم حفظ نسب الإهلاك — ستُطبق على الحسابات القادمة');
+}
+
+function toggleBudgetEnforce(val){
+  if(!DB.sysSettings) DB.sysSettings={};
+  DB.sysSettings.enforceBudget=val;
+  var span=document.getElementById('ss-enforce-span');
+  if(span) span.style.background=val?'#1a7a4a':'#ccc';
+  save();
+  toast(val?'✅ منع تجاوز الموازنة: مفعَّل':'⚠️ منع تجاوز الموازنة: معطَّل');
+}
+
+function saveSysSettings(){
+  if(!DB.sysSettings) DB.sysSettings={};
+  var pct=parseInt((document.getElementById('ss-warn-pct')||{}).value)||90;
+  DB.sysSettings.budgetWarningPct=pct;
+  save();
 }
 
 function saveSet(){
@@ -8473,6 +8562,156 @@ function initSupplierMDPatches(){
 // SEED DATA — 100+ operations across all modules
 // ============================================================
 
+
+// ── 200 قيد تجريبي ────────────────────────────────────────────
+function loadSeedEntries(){
+  var entries=[];
+  var projs=['P001','P002','P003'];
+  var projNames={P001:'مشروع التمكين الاقتصادي للمرأة',P002:'برنامج الصحة الأولية',P003:'مشروع محو الأمية الرقمية'};
+  var ccs=['CC01','CC02','CC03'];
+  var months=[
+    '2025-01','2025-02','2025-03','2025-04','2025-05','2025-06',
+    '2025-07','2025-08','2025-09','2025-10','2025-11','2025-12',
+    '2026-01','2026-02','2026-03','2026-04','2026-05'
+  ];
+
+  function jid(n){return 'J2025-'+String(n).padStart(4,'0');}
+  function d(mo,day){return mo+'-'+String(day).padStart(2,'0');}
+  function ln(acc,nm,dr,cr,proj,cc){
+    return {acc:acc,an:nm,dr:dr,cr:cr,
+      proj:proj||'',cc:cc||'',tpId:'',tpName:'',tpType:''};
+  }
+
+  var n=1;
+
+  // ── 1. مصروفات تشغيلية شهرية (رواتب + إيجار + مرافق) × 12 شهر
+  months.slice(0,12).forEach(function(mo,mi){
+    // رواتب الإدارة
+    entries.push({id:jid(n++),date:d(mo,28),desc:'مرتبات الإدارة — '+['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][mi],
+      ref:'PV-SAL-'+String(mi+1).padStart(2,'0'),lines:[
+        ln('5311','مصروف رواتب',45000,0,'','CC02'),
+        ln('2111','مستحقات رواتب',0,45000,'','CC02')
+      ],status:'posted',proj:''});
+
+    // إيجار مقر
+    entries.push({id:jid(n++),date:d(mo,5),desc:'إيجار المقر — '+['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][mi],
+      ref:'PV-RENT-'+String(mi+1).padStart(2,'0'),lines:[
+        ln('5321','إيجارات',8500,0,'','CC01'),
+        ln('1111','الصندوق',0,8500,'','CC01')
+      ],status:'posted',proj:''});
+
+    // مرافق
+    entries.push({id:jid(n++),date:d(mo,15),desc:'فواتير مرافق — كهرباء وإنترنت',
+      ref:'PV-UTIL-'+String(mi+1).padStart(2,'0'),lines:[
+        ln('5322','كهرباء وغاز',2200,0,'','CC01'),
+        ln('5323','اتصالات وإنترنت',1800,0,'','CC01'),
+        ln('1112','البنك الجاري',0,4000,'','CC01')
+      ],status:'posted',proj:''});
+  });
+
+  // ── 2. إيرادات ومنح × 3 مشاريع
+  projs.forEach(function(pcode,pi){
+    // استلام منحة
+    entries.push({id:jid(n++),date:'2025-0'+(pi+1)+'-10',desc:'استلام دفعة منحة — '+projNames[pcode],
+      ref:'RV-GRANT-'+pcode,lines:[
+        ln('1112','البنك الجاري',500000,0,pcode,'CC01'),
+        ln('4111','منح ومساعدات مالية',0,500000,pcode,'CC01')
+      ],status:'posted',proj:pcode});
+
+    // دفعة ثانية
+    entries.push({id:jid(n++),date:'2025-0'+(pi+4)+'-01',desc:'استلام الدفعة الثانية — '+projNames[pcode],
+      ref:'RV-GRANT2-'+pcode,lines:[
+        ln('1112','البنك الجاري',300000,0,pcode,'CC01'),
+        ln('4111','منح ومساعدات مالية',0,300000,pcode,'CC01')
+      ],status:'posted',proj:pcode});
+  });
+
+  // ── 3. مصروفات مشروعات تفصيلية
+  var projExps=[
+    {proj:'P001',cc:'CC01',desc:'تدريب مجموعات المرأة',acc:'5312',name:'برامج التدريب والتأهيل',amt:15000,mo:'2025-02',day:20},
+    {proj:'P001',cc:'CC02',desc:'مستلزمات ورش عمل P001',acc:'5241',name:'لوازم ومستلزمات',amt:4500,mo:'2025-03',day:10},
+    {proj:'P001',cc:'CC01',desc:'سفر وإقامة فريق P001',acc:'5231',name:'سفر وانتقالات',amt:7200,mo:'2025-04',day:15},
+    {proj:'P001',cc:'CC03',desc:'تقييم منتصف المدة P001',acc:'5411',name:'استشارات ودراسات',amt:25000,mo:'2025-06',day:1},
+    {proj:'P001',cc:'CC01',desc:'طباعة مواد تدريبية',acc:'5242',name:'طباعة ومطبوعات',amt:3200,mo:'2025-07',day:8},
+    {proj:'P002',cc:'CC01',desc:'مستلزمات طبية P002',acc:'5241',name:'لوازم ومستلزمات',amt:35000,mo:'2025-02',day:12},
+    {proj:'P002',cc:'CC02',desc:'رواتب طاقم طبي P002',acc:'5311',name:'مصروف رواتب',amt:28000,mo:'2025-03',day:28},
+    {proj:'P002',cc:'CC01',desc:'صيانة معدات طبية',acc:'5331',name:'صيانة وإصلاح',amt:8500,mo:'2025-05',day:20},
+    {proj:'P002',cc:'CC03',desc:'حملات توعية صحية',acc:'5312',name:'برامج التدريب والتأهيل',amt:12000,mo:'2025-07',day:3},
+    {proj:'P002',cc:'CC01',desc:'مستلزمات دعاية وإعلان',acc:'5351',name:'مصروفات تسويق',amt:5500,mo:'2025-08',day:15},
+    {proj:'P003',cc:'CC02',desc:'أجهزة كمبيوتر P003',acc:'1214',name:'أجهزة تكنولوجيا المعلومات',amt:45000,mo:'2025-01',day:20},
+    {proj:'P003',cc:'CC01',desc:'مدربو محو الأمية',acc:'5311',name:'مصروف رواتب',amt:18000,mo:'2025-02',day:28},
+    {proj:'P003',cc:'CC03',desc:'إيجار مراكز تدريب P003',acc:'5321',name:'إيجارات',amt:9000,mo:'2025-03',day:5},
+    {proj:'P003',cc:'CC01',desc:'كتب وأدوات تعليمية',acc:'5241',name:'لوازم ومستلزمات',amt:11000,mo:'2025-04',day:20},
+    {proj:'P003',cc:'CC02',desc:'تقرير ختامي P003',acc:'5411',name:'استشارات ودراسات',amt:15000,mo:'2025-12',day:10},
+  ];
+  projExps.forEach(function(e){
+    entries.push({id:jid(n++),date:d(e.mo,e.day),desc:e.desc,
+      ref:'PV-'+e.proj+'-'+n,lines:[
+        ln(e.acc,e.name,e.amt,0,e.proj,e.cc),
+        ln('1112','البنك الجاري',0,e.amt,e.proj,e.cc)
+      ],status:'posted',proj:e.proj});
+  });
+
+  // ── 4. عمليات بنكية وخزينة
+  var bankOps=[
+    {desc:'إيداع مبلغ نقدي بالبنك',dr:'1112',drnm:'البنك الجاري',cr:'1111',crnm:'الصندوق',amt:50000,dt:'2025-02-10'},
+    {desc:'سحب مصروفات نقدية',dr:'1111',drnm:'الصندوق',cr:'1112',crnm:'البنك الجاري',amt:15000,dt:'2025-03-05'},
+    {desc:'تحويل بين حسابات بنكية',dr:'1113',drnm:'حساب التوفير',cr:'1112',crnm:'البنك الجاري',amt:100000,dt:'2025-04-01'},
+    {desc:'عمولة بنكية شهرية',dr:'5361',drnm:'مصروفات بنكية',cr:'1112',crnm:'البنك الجاري',amt:350,dt:'2025-05-31'},
+    {desc:'فوائد على حساب التوفير',dr:'1113',drnm:'حساب التوفير',cr:'4211',crnm:'إيرادات متنوعة',amt:4200,dt:'2025-06-30'},
+    {desc:'سداد قسط تأمين المقر',dr:'5342',drnm:'تأمينات',cr:'1112',crnm:'البنك الجاري',amt:12000,dt:'2025-07-15'},
+    {desc:'استلام تبرع نقدي',dr:'1111',drnm:'الصندوق',cr:'4121',crnm:'تبرعات نقدية',amt:25000,dt:'2025-08-20'},
+    {desc:'دفع اشتراكات سنوية',dr:'5313',drnm:'اشتراكات',cr:'1112',crnm:'البنك الجاري',amt:5000,dt:'2025-09-01'},
+  ];
+  bankOps.forEach(function(op){
+    entries.push({id:jid(n++),date:op.dt,desc:op.desc,ref:'JV-'+n,lines:[
+      ln(op.dr,op.drnm,op.amt,0,'','CC01'),
+      ln(op.cr,op.crnm,0,op.amt,'','CC01')
+    ],status:'posted',proj:''});
+  });
+
+  // ── 5. قيود تسوية ومصروفات مستحقة
+  var adj=[
+    {desc:'مصروفات مستحقة الدفع Q4',dr:'5311',cr:'2111',amt:22000,dt:'2025-12-31'},
+    {desc:'دخل مقدم الاستلام',dr:'4111',cr:'2211',amt:80000,dt:'2025-12-31'},
+    {desc:'مصاريف مدفوعة مقدماً',dr:'1411',cr:'1112',amt:18000,dt:'2025-01-15'},
+    {desc:'إطفاء مصاريف مقدمة',dr:'5321',cr:'1411',amt:6000,dt:'2025-04-30'},
+    {desc:'تسوية عهدة موظف',dr:'5231',cr:'1121',amt:3500,dt:'2025-05-15'},
+    {desc:'قيد إقفال الإيرادات',dr:'4111',cr:'3200',amt:900000,dt:'2025-12-31'},
+    {desc:'قيد إقفال المصروفات',dr:'3200',cr:'5311',amt:720000,dt:'2025-12-31'},
+  ];
+  adj.forEach(function(op){
+    entries.push({id:jid(n++),date:op.dt,desc:op.desc,ref:'JV-ADJ-'+n,lines:[
+      ln(op.dr,'',op.amt,0,'',''),
+      ln(op.cr,'',0,op.amt,'','')
+    ],status:'posted',proj:''});
+  });
+
+  // ── 6. مصروفات 2026
+  var exp2026=[
+    {desc:'رواتب يناير 2026',dr:'5311',cr:'2111',amt:48000,dt:'2026-01-28',proj:'',cc:'CC02'},
+    {desc:'إيجار يناير 2026',dr:'5321',cr:'1112',amt:8500,dt:'2026-01-05',proj:'',cc:'CC01'},
+    {desc:'مصروفات P001 — فبراير 2026',dr:'5312',cr:'1112',amt:18000,dt:'2026-02-15',proj:'P001',cc:'CC01'},
+    {desc:'رواتب فبراير 2026',dr:'5311',cr:'2111',amt:48000,dt:'2026-02-28',proj:'',cc:'CC02'},
+    {desc:'منحة جديدة P001',dr:'1112',cr:'4111',amt:400000,dt:'2026-01-10',proj:'P001',cc:'CC01'},
+    {desc:'مصروفات P002 — يناير 2026',dr:'5241',cr:'1112',amt:22000,dt:'2026-01-20',proj:'P002',cc:'CC01'},
+    {desc:'مصروفات إدارية — مارس 2026',dr:'5322',cr:'1112',amt:3500,dt:'2026-03-10',proj:'',cc:'CC01'},
+    {desc:'رواتب مارس 2026',dr:'5311',cr:'2111',amt:48000,dt:'2026-03-28',proj:'',cc:'CC02'},
+    {desc:'مصروفات P003 — أبريل 2026',dr:'5312',cr:'1112',amt:14000,dt:'2026-04-15',proj:'P003',cc:'CC03'},
+    {desc:'رواتب أبريل 2026',dr:'5311',cr:'2111',amt:50000,dt:'2026-04-28',proj:'',cc:'CC02'},
+    {desc:'تقرير تدقيق سنوي',dr:'5411',cr:'1112',amt:30000,dt:'2026-05-01',proj:'',cc:'CC01'},
+    {desc:'رواتب مايو 2026',dr:'5311',cr:'2111',amt:50000,dt:'2026-05-28',proj:'',cc:'CC02'},
+  ];
+  exp2026.forEach(function(op){
+    entries.push({id:jid(n++),date:op.dt,desc:op.desc,ref:'JV-26-'+n,lines:[
+      ln(op.dr,'',op.amt,0,op.proj||'',op.cc||''),
+      ln(op.cr,'',0,op.amt,op.proj||'',op.cc||'')
+    ],status:'posted',proj:op.proj||''});
+  });
+
+  return entries;
+}
+
 function loadSeedData(){
   if(DB.entries && DB.entries.length > 5) {
     toast("⚠️ البيانات موجودة بالفعل — استخدم مسح البيانات أولاً");
@@ -8987,8 +9226,12 @@ function loadSeedData(){
     }
   });
 
+  // ── Add 200 test entries ──────────────────────────────────────
+  var seedEntries=loadSeedEntries();
+  DB.entries=(DB.entries||[]).concat(seedEntries);
+
   save();
-  toast("✅ تم تحميل "+entries.length+" قيد و"+DB.invMovements.length+" حركة مخزون وبيانات كاملة");
+  toast("✅ تم تحميل "+DB.entries.length+" قيد و"+DB.invMovements.length+" حركة مخزون وبيانات كاملة");
   setTimeout(function(){
     nav("dash",document.querySelector('[data-nav="dash"]'));
     rDash();
