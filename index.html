@@ -235,6 +235,9 @@ var LOGO_B64="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAYGBgYHBgc
 var DB={
   org:{name:"جمعية نموذجية للتنمية",year:2025},
   assets:[],
+  timesheets:[],
+  allocations:[],
+  leaveRequests:[],
   projects:[],
   entries:[],
   employees:[
@@ -768,29 +771,64 @@ function nav(pg,btn){
 }
 
 function rMore(){
-  var items=[
-    {i:"🌳",t:"شجرة الحسابات",n:"accounts"},
-    {i:"⚖️",t:"ميزان المراجعة",n:"trial"},
-    {i:"📈",t:"الميزانية العمومية",n:"balance"},
-    {i:"💰",t:"قائمة الدخل",n:"income"},
-    {i:"📉",t:"متابعة BVA",n:"bva"},
-    {i:"🏦",t:"البنوك والخزينة",n:"banks"},
-    {i:"📦",t:"المخازن",n:"inventory"},
-    {i:"🏢",t:"الموارد البشرية",n:"employees"},
-    {i:"⚙️",t:"الإعدادات",n:"settings"},
-    {i:"📒",t:"الأستاذ المساعد",n:"tpledger"},
-    {i:"📁",t:"استيراد وتصدير",n:"importexport"},
-    {i:"🔄",t:"سجل التسويات",n:"reconhist"},
-    {i:"🗂️",t:"البيانات الرئيسية",n:"masterdata"},
-    {i:"📊",t:"التقارير",n:"reports"}
+  var cu=getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+
+  var sections=[
+    {header:"💰 المالية", items:[
+      {i:"📝",t:"القيود اليومية",n:"jour",pg:true},
+      {i:"🌳",t:"شجرة الحسابات",n:"accounts"},
+      {i:"⚖️",t:"ميزان المراجعة",n:"trial"},
+      {i:"📈",t:"الميزانية العمومية",n:"balance"},
+      {i:"💰",t:"قائمة الدخل",n:"income"},
+      {i:"📒",t:"الأستاذ المساعد",n:"tpledger"},
+    ]},
+    {header:"🎯 المشروعات", items:[
+      {i:"🎯",t:"المشروعات",n:"proj",pg:true},
+      {i:"📉",t:"متابعة BVA",n:"bva"},
+    ]},
+    {header:"🏦 البنوك والخزينة", items:[
+      {i:"🏦",t:"البنوك والخزينة",n:"banks"},
+      {i:"🔄",t:"سجل التسويات",n:"reconhist"},
+    ]},
+    {header:"👥 الموارد البشرية", items:[
+      {i:"🏢",t:"الموارد البشرية",n:"employees",pg:true},
+      {i:"💳",t:"المرتبات",n:"pay",pg:true},
+      {i:"⏱️",t:"Timesheet والتوزيع",n:"timesheet"},
+      {i:"🌴",t:"إجازاتي",n:"myleaves"},
+      {i:"✅",t:"اعتماد الإجازات",n:"leaveapproval",admin:true},
+      {i:"📊",t:"تقارير HR",n:"hrreports"},
+    ]},
+    {header:"📦 المخازن والأصول", items:[
+      {i:"📦",t:"المخازن",n:"inventory"},
+      {i:"🏭",t:"الموردون",n:"suppliers"},
+      {i:"📊",t:"تقارير المخازن",n:"invreports"},
+      {i:"🏢",t:"الأصول الثابتة",n:"assets"},
+    ]},
+    {header:"📊 التقارير", items:[
+      {i:"📊",t:"التقارير",n:"reports"},
+    ]},
+    {header:"⚙️ الإعدادات", items:[
+      {i:"⚙️",t:"الإعدادات",n:"settings"},
+      {i:"🗂️",t:"البيانات الرئيسية",n:"masterdata"},
+      {i:"🧮",t:"إعداد الضريبة",n:"taxconfig",admin:true},
+      {i:"📁",t:"استيراد وتصدير",n:"importexport",admin:true},
+    ]},
   ];
-  var h='<div class="ph-t" style="margin-bottom:14px;">القائمة الكاملة</div><div class="mg">';
-  items.forEach(function(item){
-    h+='<div class="mi" data-sub="'+item.n+'">';
-    h+='<div class="mi-i">'+item.i+'</div>';
-    h+='<div class="mi-t">'+item.t+'</div></div>';
+
+  var h='<div class="ph-t" style="margin-bottom:14px;">القائمة الكاملة</div>';
+  sections.forEach(function(sec){
+    h+='<div style="margin-bottom:14px;">';
+    h+='<div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div>';
+    h+='<div class="mg">';
+    sec.items.forEach(function(item){
+      if(item.admin&&!isAdmin) return;
+      h+='<div class="mi" onclick="'+(item.pg?'showPage':'sub')+'(\''+item.n+'\');">';
+      h+='<div class="mi-i">'+item.i+'</div>';
+      h+='<div class="mi-t">'+item.t+'</div></div>';
+    });
+    h+='</div></div>';
   });
-  h+="</div>";
   el("pg-more").innerHTML=h;
 }
 
@@ -1017,7 +1055,10 @@ function sub(n){
     masterdata:rMasterData,
     reports:rReportsPage,
     taxconfig:rTaxConfig,
-    assets:rAssetsPage
+    assets:rAssetsPage,
+    timesheet:rTimesheetPage,
+    myleaves:rMyLeavesPage,
+    leaveapproval:rLeaveApprovalPage
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -1033,7 +1074,10 @@ function sub(n){
     masterdata:"⚙️ البيانات الرئيسية",
     reports:"📊 التقارير",
     taxconfig:"🧮 إعداد الضريبة",
-    assets:"🏢 الأصول الثابتة"
+    assets:"🏢 الأصول الثابتة",
+    timesheet:"⏱️ Timesheet & التوزيع",
+    myleaves:"🌴 إجازاتي",
+    leaveapproval:"✅ اعتماد الإجازات"
   };
   if(f[n]){try{om(titles[n]||n, f[n]());if(n==='taxconfig')previewTaxCalc();}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
 }
@@ -1173,12 +1217,11 @@ function rDash(){
     {icon:'💳',title:'المرتبات',sub:'إدارة الرواتب والاستحقاقات',sec:'pay',bg:'#e0f2fe',ic:'#0284c7'},
     {icon:'📦',title:'المخازن',sub:'إدارة المخزن والمستودعات',sec:'inventory',bg:'#ffedd5',ic:'#ea580c'},
     {icon:'📊',title:'التقارير',sub:'تقارير مالية وإدارية',sec:'reports',bg:'#f0fdf4',ic:'#16a34a'},
-    {icon:'🏢',title:'الأصول الثابتة',sub:'الأصول والإهلاك',sec:'assets',bg:'#fef3c7',ic:'#d97706'},
     {icon:'⚙️',title:'الإعدادات',sub:'إعدادات النظام والجمعية',sec:'settings',bg:'#f1f5f9',ic:'#475569'},
   ];
   h+='<div class="sd" style="margin-bottom:8px;">الأقسام الرئيسية</div>';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">';
-  var _pageKeys={jour:1,proj:1,pay:1};
+  var _pageKeys={jour:1,proj:1,pay:1,employees:1};
   modules_.forEach(function(mod){
     var _ispg=_pageKeys[mod.sec]?1:0;
     h+='<div data-pg="'+(_ispg?'1':'0')+'" data-sec="'+mod.sec+'" onclick="var s=this.dataset.sec;if(this.dataset.pg===\'1\')showPage(s);else sub(s);" style="background:white;border-radius:14px;padding:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.07);border:1px solid #eee;display:flex;align-items:center;gap:10px;">';
@@ -1196,7 +1239,7 @@ function rDash(){
   var quickActs=[
     {icon:'📝',lbl:'إضافة قيد',fn:'newEntry()'},
     {icon:'🏭',lbl:'الموردون',fn:"sub(\'suppliers\')"},
-    {icon:'📦',lbl:'المخازن',fn:"sub(\'inventory\')"},
+    {icon:'📦',lbl:'صرف مخازن',fn:"sub(\'inventory\')"},
     {icon:'💳',lbl:'إعداد مرتب',fn:"openGenPayModal()"},
   ];
   quickActs.forEach(function(a){
@@ -1993,6 +2036,45 @@ function rProj(){
   el("pg-proj").innerHTML=h;
 }
 
+// newProj — add new project modal
+function newProj(){
+  var h='';
+  h+='<div class="fg"><label>كود المشروع *</label><input id="np-code" placeholder="مثال: P005"></div>';
+  h+='<div class="fg"><label>اسم المشروع *</label><input id="np-name" placeholder="اسم المشروع بالعربية"></div>';
+  h+='<div class="fg"><label>المانح / الجهة الممولة</label><input id="np-donor" placeholder="اسم المانح"></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>تاريخ البداية</label><input id="np-start" type="date"></div>';
+  h+='<div class="fg"><label>تاريخ النهاية</label><input id="np-end" type="date"></div>';
+  h+='</div>';
+  h+='<div class="fg"><label>الموازنة الكلية (ج.م)</label><input id="np-budget" type="number" placeholder="0"></div>';
+  h+='<div class="fg"><label>الحالة</label>';
+  h+='<select id="np-status"><option value="active">نشط</option><option value="closed">مغلق</option></select></div>';
+  h+='<div class="fg"><label>وصف مختصر</label><input id="np-desc" placeholder="اختياري"></div>';
+  h+='<button class="btn btn-gr" onclick="saveNewProj()" style="width:100%;">✅ حفظ المشروع</button>';
+  om('🎯 مشروع جديد', h);
+}
+
+function saveNewProj(){
+  var code=(document.getElementById('np-code')||{}).value||'';
+  var name=(document.getElementById('np-name')||{}).value||'';
+  if(!code){toast('⚠️ كود المشروع مطلوب');return;}
+  if(!name){toast('⚠️ اسم المشروع مطلوب');return;}
+  if(DB.projects.find(function(p){return p.code===code;})){toast('⚠️ كود المشروع موجود بالفعل');return;}
+  var proj={
+    code:code, name:name,
+    donor:(document.getElementById('np-donor')||{}).value||'',
+    start:(document.getElementById('np-start')||{}).value||'',
+    end:(document.getElementById('np-end')||{}).value||'',
+    budget:parseFloat((document.getElementById('np-budget')||{}).value)||0,
+    status:(document.getElementById('np-status')||{}).value||'active',
+    desc:(document.getElementById('np-desc')||{}).value||'',
+    spent:0
+  };
+  DB.projects.push(proj);
+  save();cm();rProj();
+  toast('✅ تم حفظ المشروع: '+proj.name);
+}
+
 // PAYROLL
 // ============================================================
 // PAYROLL SYSTEM — نظام إعداد المرتبات الكامل
@@ -2198,7 +2280,7 @@ function rPay(){
   // Summary KPIs
   var totals={gross:0,empI:0,emplI:0,tax:0,mar:0,net:0,cost:0};
   active.forEach(function(e){
-    var r=calc(e);
+    var r=calcFull(e,{});
     totals.gross+=r.gross;totals.empI+=r.empI;totals.emplI+=r.emplI;
     totals.tax+=r.tax;totals.mar+=r.mar;totals.net+=r.net;totals.cost+=r.cost;
   });
@@ -2266,14 +2348,14 @@ function buildPayList(q,dept){
 
   Object.keys(groups).forEach(function(dept){
     var deptEmps=groups[dept];
-    var dTot=deptEmps.reduce(function(s,e){var r=calc(e);return s+r.gross;},0);
+    var dTot=deptEmps.reduce(function(s,e){var r=calcFull(e,{});return s+r.gross;},0);
     h+='<div style="background:var(--g1);border-radius:8px;padding:7px 12px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;">';
     h+='<span style="font-weight:800;font-size:12.5px;color:var(--n);">🏢 '+dept+' ('+deptEmps.length+')</span>';
     h+='<span style="font-size:11px;font-weight:700;color:var(--g4);">إجمالي: '+fmt(dTot)+' ج.م</span></div>';
 
     deptEmps.forEach(function(e){
       var i=DB.employees.indexOf(e);
-      var r=calc(e);
+      var r=calcFull(e,{});
       var iCls={"full":"bg","partial":"ba","none":"bgy"}[e.ins||"full"];
       var iLbl={"full":"كامل","partial":"جزئي","none":"بدون"}[e.ins||"full"];
       h+='<div class="ec" style="margin-bottom:8px;">';
@@ -2713,7 +2795,7 @@ function rptPayrollReport(){
   h+='</tr></thead><tbody>';
   var tot={sal:0,gross:0,empI:0,emplI:0,tax:0,mar:0,ded:0,net:0,cost:0};
   active.forEach(function(e){
-    var r=calc(e);
+    var r=calcFull(e,{});
     tot.sal+=e.sal||0;tot.gross+=r.gross;tot.empI+=r.empI;tot.emplI+=r.emplI;
     tot.tax+=r.tax;tot.mar+=r.mar;tot.ded+=e.deduct||0;tot.net+=r.net;tot.cost+=r.cost;
     csvRows.push([e.id,e.name,e.pos,e.dept||"",e.sal||0,e.allow||0,e.natWork||0,e.transport||0,e.overtime||0,r.gross,r.empI,r.emplI,r.tax,r.mar,e.deduct||0,r.net,r.cost]);
@@ -3397,7 +3479,7 @@ function rReconHistory(accCode){
 // ================================================================
 
 // ── Asset categories mapped to COA ──────────────────────────────
-var ASSET_CATS = [
+var ASSET_CATS_DEFAULT = [
   {code:'1212', name:'مبانى ومنشآت',             deprAcc:'1221', expAcc:'5311', rate:0.05},
   {code:'1213', name:'أثاث وتجهيزات مكتبية',     deprAcc:'1222', expAcc:'5312', rate:0.10},
   {code:'1214', name:'أجهزة تكنولوجيا المعلومات',deprAcc:'1223', expAcc:'5313', rate:0.25},
@@ -3405,6 +3487,17 @@ var ASSET_CATS = [
   {code:'1216', name:'وسائل نقل وانتقال',         deprAcc:'1225', expAcc:'5315', rate:0.20},
   {code:'1231', name:'برمجيات وأنظمة معلومات',    deprAcc:'1232', expAcc:'5316', rate:0.33},
 ];
+
+// Returns ASSET_CATS with rates from masterData if customized
+function getAssetCats(){
+  initMD();
+  var rates=DB.masterData.deprRates||{};
+  return ASSET_CATS_DEFAULT.map(function(cat){
+    var custom=rates[cat.code];
+    return custom ? Object.assign({},cat,{rate:custom.rate}) : cat;
+  });
+}
+var ASSET_CATS = ASSET_CATS_DEFAULT; // backward compat
 
 // ── Init assets array ────────────────────────────────────────────
 function initAssets(){
@@ -3476,7 +3569,7 @@ function rAssetsPage(){
   h+='<div style="display:flex;flex-direction:column;gap:8px;">';
   assets.forEach(function(a,idx){
     var d=calcAssetDepr(a);
-    var cat=ASSET_CATS.find(function(c){return c.code===a.category;})||{name:a.category,rate:0};
+    var _cats=getAssetCats();var cat=_cats.find(function(c){return c.code===a.category;})||{name:a.category,rate:0};
     var pct=a.cost>0?Math.round(d.accumulated/a.cost*100):0;
     var statusClr=d.fullyDepreciated?'#6b7280':d.bookValue<a.cost*0.2?'#c0392b':'#1a7a4a';
     var statusLbl=d.fullyDepreciated?'مهلك بالكامل':d.remainingMonths+' شهر متبقي';
@@ -3527,7 +3620,7 @@ function rAssetsPage(){
 // ── New Asset Modal ──────────────────────────────────────────────
 function newAssetModal(){
   initAssets();
-  var catOpts=ASSET_CATS.map(function(c){
+  var catOpts=getAssetCats().map(function(c){
     return '<option value="'+c.code+'">'+c.name+' ('+Math.round(c.rate*100)+'%/سنة)</option>';
   }).join('');
 
@@ -3636,7 +3729,7 @@ function editAssetModal(idx){
   initAssets();
   var a=DB.assets[idx];
   if(!a)return;
-  var catOpts=ASSET_CATS.map(function(c){
+  var catOpts=getAssetCats().map(function(c){
     return '<option value="'+c.code+'"'+(c.code===a.category?' selected':'')+'>'+c.name+' ('+Math.round(c.rate*100)+'%/سنة)</option>';
   }).join('');
   var h='<div class="fg"><label>اسم الأصل</label><input id="edt-name" value="'+a.name+'"></div>';
@@ -3709,7 +3802,7 @@ function postAllDeprModal(){
   active.forEach(function(a){
     var d=calcAssetDepr(a);
     if(d.fullyDepreciated||d.monthly<=0)return;
-    var cat=ASSET_CATS.find(function(c){return c.code===a.category;})||{expAcc:'5316',deprAcc:'1232',name:'أخرى'};
+    var _cats=getAssetCats();var cat=_cats.find(function(c){return c.code===a.category;})||{expAcc:'5316',deprAcc:'1232',name:'أخرى'};
     if(!byCategory[cat.code]) byCategory[cat.code]={cat:cat,total:0,assets:[]};
     byCategory[cat.code].total+=d.monthly;
     byCategory[cat.code].assets.push(a.name);
@@ -3768,6 +3861,1000 @@ function postDeprEntry(byCategory){
 }
 
 
+// ================================================================
+// TIMESHEET & COST ALLOCATION MODULE
+// ================================================================
+
+// ── Init DB collections ─────────────────────────────────────────
+// ================================================================
+// LEAVE REQUEST MODULE — نظام طلبات الإجازات
+// ================================================================
+
+function initLeaves(){
+  if(!DB.leaveRequests) DB.leaveRequests=[];
+}
+
+var LEAVE_TYPES=[
+  {code:'annual',  name:'إجازة سنوية',     color:'#1d4ed8', bg:'#dbeafe'},
+  {code:'sick',    name:'إجازة مرضية',     color:'#dc2626', bg:'#fee2e2'},
+  {code:'mission', name:'مهمة رسمية',      color:'#7c3aed', bg:'#ede9fe'},
+  {code:'unpaid',  name:'إجازة بدون مرتب', color:'#92400e', bg:'#fef3c7'},
+  {code:'other',   name:'أخرى',            color:'#374151', bg:'#f1f5f9'},
+];
+
+function getLeaveDatesForTs(empId, year, month){
+  initLeaves();
+  return DB.leaveRequests.filter(function(r){
+    return r.empId===empId && r.status==='approved';
+  }).reduce(function(dates,req){
+    // expand date range
+    var d=new Date(req.fromDate);
+    var end=new Date(req.toDate);
+    while(d<=end){
+      var ds=d.toISOString().split('T')[0];
+      var dy=parseInt(ds.split('-')[0]);
+      var dm=parseInt(ds.split('-')[1]);
+      if(dy===year&&dm===month&&dates.indexOf(ds)<0) dates.push(ds);
+      d.setDate(d.getDate()+1);
+    }
+    return dates;
+  },[]);
+}
+
+// ── My Leaves Page (for employee) ────────────────────────────────
+function rMyLeavesPage(){
+  initLeaves();
+  var cu=getCurrentUser();
+  if(!cu){toast('يجب تسجيل الدخول');return;}
+
+  // Find employee linked to current user
+  var emp=DB.employees.find(function(e){
+    return e.userId===cu.id||e.username===cu.username||e.id===cu.empId;
+  });
+
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">🌴 الإجازات</div>';
+  h+='<button class="btn btn-sm btn-gr" onclick="newLeaveRequestModal()" style="font-size:10.5px;">+ طلب إجازة</button>';
+  h+='</div>';
+
+  if(!emp){
+    h+='<div style="background:#fff9c4;border-radius:10px;padding:14px;margin-bottom:12px;font-size:12px;">';
+    h+='⚠️ لم يتم ربط حسابك بملف موظف. تواصل مع الأدمن لربط حسابك.<br>';
+    h+='<button class="btn btn-sm btn-gr" onclick="newLeaveRequestModal(true)" style="margin-top:8px;font-size:10.5px;">طلب إجازة بدون ملف</button>';
+    h+='</div>';
+  }
+
+  // Leave balance (simple)
+  if(emp){
+    var approved=DB.leaveRequests.filter(function(r){return r.empId===emp.id&&r.status==='approved'&&r.type==='annual';});
+    var usedDays=approved.reduce(function(s,r){return s+((new Date(r.toDate)-new Date(r.fromDate))/86400000+1);},0);
+    var balance=Math.max(0,21-usedDays); // 21 days default annual
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
+    h+='<div style="background:linear-gradient(135deg,#1d4ed8,#3b82f6);border-radius:11px;padding:11px;color:white;text-align:center;">';
+    h+='<div style="font-size:9.5px;opacity:.7;">رصيد الإجازة السنوية</div>';
+    h+='<div style="font-weight:900;font-size:20px;">'+balance+'</div>';
+    h+='<div style="font-size:9px;opacity:.6;">يوم متبقي</div></div>';
+    h+='<div style="background:linear-gradient(135deg,#c0392b,#e74c3c);border-radius:11px;padding:11px;color:white;text-align:center;">';
+    h+='<div style="font-size:9.5px;opacity:.7;">مُستخدم</div>';
+    h+='<div style="font-weight:900;font-size:20px;">'+Math.round(usedDays)+'</div>';
+    h+='<div style="font-size:9px;opacity:.6;">يوم</div></div>';
+    h+='<div style="background:linear-gradient(135deg,#1a7a4a,#27ae60);border-radius:11px;padding:11px;color:white;text-align:center;">';
+    h+='<div style="font-size:9.5px;opacity:.7;">الرصيد الكلي</div>';
+    h+='<div style="font-weight:900;font-size:20px;">21</div>';
+    h+='<div style="font-size:9px;opacity:.6;">يوم/سنة</div></div>';
+    h+='</div>';
+  }
+
+  // My requests
+  var myReqs=DB.leaveRequests.filter(function(r){
+    return emp?r.empId===emp.id:r.requestedBy===cu.id;
+  }).sort(function(a,b){return b.createdAt>a.createdAt?1:-1;});
+
+  if(!myReqs.length){
+    h+='<div style="text-align:center;padding:30px;color:var(--g4);">لا توجد طلبات إجازة مسجلة</div>';
+    return h;
+  }
+
+  myReqs.forEach(function(req){
+    var lt=LEAVE_TYPES.find(function(t){return t.code===req.type;})||LEAVE_TYPES[4];
+    var days=Math.round((new Date(req.toDate)-new Date(req.fromDate))/86400000)+1;
+    var statusClr=req.status==='approved'?'#1a7a4a':req.status==='rejected'?'#c0392b':'#d97706';
+    var statusLbl=req.status==='approved'?'✅ معتمدة':req.status==='rejected'?'❌ مرفوضة':'⏳ قيد المراجعة';
+
+    h+='<div style="background:white;border-radius:12px;padding:12px;margin-bottom:8px;box-shadow:0 1px 6px rgba(0,0,0,.07);border-right:4px solid '+lt.color+';">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;">';
+    h+='<div>';
+    h+='<div style="font-weight:800;font-size:13px;color:var(--nd);">'+lt.name+'</div>';
+    h+='<div style="font-size:11px;color:var(--g4);">'+req.fromDate+' → '+req.toDate+' ('+days+' أيام)</div>';
+    if(req.reason) h+='<div style="font-size:10.5px;color:var(--g4);margin-top:3px;">'+req.reason+'</div>';
+    h+='</div>';
+    h+='<div style="text-align:left;">';
+    h+='<div style="font-weight:700;font-size:11px;color:'+statusClr+';">'+statusLbl+'</div>';
+    if(req.status==='pending'){
+      h+='<button onclick="cancelLeaveRequest(\''+req.id+'\')" style="background:#fee2e2;border:none;border-radius:6px;padding:3px 8px;font-size:10px;color:#c0392b;cursor:pointer;margin-top:4px;">إلغاء</button>';
+    }
+    h+='</div></div></div>';
+  });
+  return h;
+}
+
+// ── New Leave Request Modal ──────────────────────────────────────
+function newLeaveRequestModal(noEmp){
+  initLeaves();
+  var cu=getCurrentUser();
+  var emp=DB.employees.find(function(e){return e.userId===cu.id||e.username===cu.username||e.id===cu.empId;});
+
+  var typeOpts=LEAVE_TYPES.map(function(t){
+    return '<option value="'+t.code+'">'+t.name+'</option>';
+  }).join('');
+
+  var now=new Date().toISOString().split('T')[0];
+  var h='';
+
+  if(!emp&&!noEmp){
+    h+='<div style="background:#fff9c4;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11.5px;">⚠️ حسابك غير مرتبط بملف موظف</div>';
+  }
+
+  if(emp){
+    h+='<div style="background:var(--g1);border-radius:9px;padding:9px;margin-bottom:10px;font-size:11.5px;">';
+    h+='👤 <strong>'+emp.name+'</strong> · '+emp.pos+'</div>';
+  } else {
+    // Admin submitting on behalf
+    var empOpts=DB.employees.filter(function(e){return e.status==='active';}).map(function(e){
+      return '<option value="'+e.id+'">'+e.name+'</option>';
+    }).join('');
+    h+='<div class="fg"><label>الموظف</label><select id="lv-emp"><option value="">— اختر —</option>'+empOpts+'</select></div>';
+  }
+
+  h+='<div class="fg"><label>نوع الإجازة *</label><select id="lv-type">'+typeOpts+'</select></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>من تاريخ *</label><input id="lv-from" type="date" value="'+now+'" onchange="calcLeaveDays()"></div>';
+  h+='<div class="fg"><label>إلى تاريخ *</label><input id="lv-to" type="date" value="'+now+'" onchange="calcLeaveDays()"></div>';
+  h+='</div>';
+  h+='<div style="background:#f0f9ff;border-radius:8px;padding:8px;margin-bottom:10px;font-size:12px;text-align:center;">';
+  h+='عدد الأيام: <strong id="lv-days">1</strong> يوم</div>';
+  h+='<div class="fg"><label>السبب / الملاحظات</label><input id="lv-reason" placeholder="اختياري"></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+
+  // Admin can approve directly
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  if(isAdmin){
+    h+='<button class="btn" onclick="submitLeaveRequest(true)" style="background:var(--gr);">✅ اعتماد مباشر</button>';
+    h+='<button class="btn btn-gy" onclick="submitLeaveRequest(false)">📤 إرسال للمراجعة</button>';
+  } else {
+    h+='<button class="btn btn-gr" onclick="submitLeaveRequest(false)" style="width:100%;grid-column:span 2;">📤 إرسال طلب الإجازة</button>';
+  }
+  h+='</div>';
+  om('🌴 طلب إجازة جديد', h);
+}
+
+function calcLeaveDays(){
+  var from=(document.getElementById('lv-from')||{}).value;
+  var to=(document.getElementById('lv-to')||{}).value;
+  if(!from||!to)return;
+  var days=Math.round((new Date(to)-new Date(from))/86400000)+1;
+  var el=document.getElementById('lv-days');
+  if(el) el.textContent=Math.max(1,days);
+}
+
+function submitLeaveRequest(autoApprove){
+  initLeaves();
+  var cu=getCurrentUser();
+  var emp=DB.employees.find(function(e){return e.userId===cu.id||e.username===cu.username||e.id===cu.empId;});
+  var empId=emp?emp.id:(document.getElementById('lv-emp')||{}).value||cu.id;
+  var type=(document.getElementById('lv-type')||{}).value||'annual';
+  var from=(document.getElementById('lv-from')||{}).value;
+  var to=(document.getElementById('lv-to')||{}).value;
+  var reason=(document.getElementById('lv-reason')||{}).value||'';
+
+  if(!from||!to){toast('⚠️ حدد تاريخ الإجازة');return;}
+  if(new Date(to)<new Date(from)){toast('⚠️ تاريخ الانتهاء قبل تاريخ البداية');return;}
+
+  var req={
+    id:'LV-'+Date.now(),
+    empId:empId,
+    requestedBy:cu.id,
+    type:type,
+    fromDate:from,
+    toDate:to,
+    reason:reason,
+    status:autoApprove?'approved':'pending',
+    approvedBy:autoApprove?cu.name:null,
+    createdAt:new Date().toISOString()
+  };
+  DB.leaveRequests.push(req);
+  save();cm();
+  sub('myleaves');
+  toast(autoApprove?'✅ تم اعتماد الإجازة':'📤 تم إرسال طلب الإجازة للمراجعة');
+}
+
+function cancelLeaveRequest(id){
+  if(!confirm('إلغاء هذا الطلب؟'))return;
+  var req=DB.leaveRequests.find(function(r){return r.id===id;});
+  if(req) req.status='cancelled';
+  save();sub('myleaves');
+}
+
+// ── Admin: Leave Approval Page ────────────────────────────────────
+function rLeaveApprovalPage(){
+  initLeaves();
+  var pending=DB.leaveRequests.filter(function(r){return r.status==='pending';});
+  var all=DB.leaveRequests.filter(function(r){return r.status!=='cancelled';})
+    .sort(function(a,b){return b.createdAt>a.createdAt?1:-1;});
+
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">✅ اعتماد الإجازات</div>';
+  h+='<button class="btn btn-sm btn-gr" onclick="newLeaveRequestModal(true)" style="font-size:10.5px;">+ إجازة جديدة</button>';
+  h+='</div>';
+
+  if(pending.length){
+    h+='<div style="background:#fff9c4;border-radius:10px;padding:10px;margin-bottom:12px;">';
+    h+='<div style="font-weight:800;color:#92400e;margin-bottom:8px;">⏳ طلبات بانتظار الاعتماد ('+pending.length+')</div>';
+    pending.forEach(function(req){
+      var emp=DB.employees.find(function(e){return e.id===req.empId;})||{name:req.empId};
+      var lt=LEAVE_TYPES.find(function(t){return t.code===req.type;})||LEAVE_TYPES[4];
+      var days=Math.round((new Date(req.toDate)-new Date(req.fromDate))/86400000)+1;
+      h+='<div style="background:white;border-radius:9px;padding:10px;margin-bottom:6px;">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;">';
+      h+='<div>';
+      h+='<div style="font-weight:700;font-size:12px;">'+emp.name+' — '+lt.name+'</div>';
+      h+='<div style="font-size:10.5px;color:var(--g4);">'+req.fromDate+' → '+req.toDate+' ('+days+' أيام)</div>';
+      if(req.reason) h+='<div style="font-size:10px;color:var(--g4);">'+req.reason+'</div>';
+      h+='</div>';
+      h+='<div style="display:flex;gap:5px;">';
+      h+='<button onclick="approveLeave(\''+req.id+'\')" style="background:#d1fae5;border:none;border-radius:7px;padding:5px 10px;color:#065f46;cursor:pointer;font-size:11px;font-weight:700;">✅ اعتماد</button>';
+      h+='<button onclick="rejectLeave(\''+req.id+'\')" style="background:#fee2e2;border:none;border-radius:7px;padding:5px 10px;color:#c0392b;cursor:pointer;font-size:11px;font-weight:700;">❌ رفض</button>';
+      h+='</div></div></div>';
+    });
+    h+='</div>';
+  }
+
+  // All requests
+  h+='<div class="sd" style="margin-bottom:8px;">كل الطلبات</div>';
+  if(!all.length){
+    h+='<div style="text-align:center;padding:20px;color:var(--g4);">لا توجد طلبات</div>';
+    return h;
+  }
+
+  all.forEach(function(req){
+    var emp=DB.employees.find(function(e){return e.id===req.empId;})||{name:req.empId};
+    var lt=LEAVE_TYPES.find(function(t){return t.code===req.type;})||LEAVE_TYPES[4];
+    var days=Math.round((new Date(req.toDate)-new Date(req.fromDate))/86400000)+1;
+    var statusClr=req.status==='approved'?'#1a7a4a':req.status==='rejected'?'#c0392b':req.status==='pending'?'#d97706':'#9ca3af';
+    var statusLbl={'approved':'✅ معتمدة','rejected':'❌ مرفوضة','pending':'⏳ منتظرة','cancelled':'🚫 ملغية'}[req.status]||req.status;
+
+    h+='<div style="background:white;border-radius:10px;padding:10px;margin-bottom:6px;border-right:3px solid '+lt.color+';box-shadow:0 1px 4px rgba(0,0,0,.06);">';
+    h+='<div style="display:flex;justify-content:space-between;">';
+    h+='<div>';
+    h+='<div style="font-weight:700;font-size:12px;color:var(--nd);">'+emp.name+'</div>';
+    h+='<div style="font-size:10.5px;color:var(--g4);">'+lt.name+' · '+req.fromDate+' → '+req.toDate+' ('+days+' أيام)</div>';
+    h+='</div>';
+    h+='<span style="font-size:10px;font-weight:700;color:'+statusClr+';">'+statusLbl+'</span>';
+    h+='</div></div>';
+  });
+  return h;
+}
+
+function approveLeave(id){
+  initLeaves();
+  var req=DB.leaveRequests.find(function(r){return r.id===id;});
+  if(!req)return;
+  var cu=getCurrentUser();
+  req.status='approved';
+  req.approvedBy=cu?cu.name:'Admin';
+  req.approvedAt=new Date().toISOString();
+  save();
+  sub('leaveapproval');
+  toast('✅ تم اعتماد الإجازة');
+}
+
+function rejectLeave(id){
+  initLeaves();
+  var req=DB.leaveRequests.find(function(r){return r.id===id;});
+  if(!req)return;
+  req.status='rejected';
+  save();
+  sub('leaveapproval');
+  toast('❌ تم رفض الطلب');
+}
+
+
+function initTimesheet(){
+  if(!DB.timesheets)   DB.timesheets=[];
+  if(!DB.allocations)  DB.allocations=[];
+  if(!DB.tsSettings)   DB.tsSettings={
+    dailyHours:8,
+    workDays:[0,1,2,3,4], // 0=Sun..6=Sat — Sun-Thu default
+    holidays:[],           // [{date:'2026-01-07',name:'عيد الميلاد'}]
+    rounding:'whole',      // whole | half | exact
+    allowEdit:true
+  };
+}
+
+// ── Helpers ─────────────────────────────────────────────────────
+function getTsSettings(){ initTimesheet(); return DB.tsSettings; }
+
+function getWorkDaysInMonth(year, month){ // month 1-based
+  var cfg=getTsSettings();
+  var days=[], d=new Date(year,month-1,1);
+  while(d.getMonth()===month-1){
+    if(cfg.workDays.indexOf(d.getDay())>-1){
+      var ds=d.toISOString().split('T')[0];
+      var isHol=cfg.holidays.some(function(h){return h.date===ds;});
+      if(!isHol) days.push(ds);
+    }
+    d.setDate(d.getDate()+1);
+  }
+  return days;
+}
+
+function getEmployeeLeaves(empId, year, month){
+  // Returns approved leave dates from leaveRequests
+  initLeaves();
+  return getLeaveDatesForTs(empId, year, month);
+}
+
+function roundHours(h, rounding){
+  if(rounding==='whole')  return Math.round(h);
+  if(rounding==='half')   return Math.round(h*2)/2;
+  return Math.round(h*100)/100;
+}
+
+// ── Smart daily distribution ─────────────────────────────────────
+// Distributes monthly hours across days in a natural, audit-friendly way
+function distributeHoursSmartly(workDates, leaveDates, allocs, totalDailyHours, rounding){
+  var activeDates=workDates.filter(function(d){return leaveDates.indexOf(d)<0;});
+  var n=activeDates.length;
+  if(!n) return [];
+
+  var rows=[];
+  // Calculate total hours per project
+  var projTotals=allocs.map(function(a){
+    return {proj:a.proj,projName:a.projName,pct:a.pct,total:Math.round(n*totalDailyHours*a.pct/100),remaining:0};
+  });
+  projTotals.forEach(function(p){p.remaining=p.total;});
+
+  // Distribute day by day
+  activeDates.forEach(function(date,di){
+    var isLast=(di===n-1);
+    var dayAllocs=[];
+    var dayTotal=0;
+
+    projTotals.forEach(function(p,pi){
+      var isLastProj=(pi===projTotals.length-1);
+      var daysLeft=n-di;
+      var rawHours=p.remaining/daysLeft;
+
+      var h;
+      if(isLast||isLastProj){
+        h=p.remaining - dayTotal; // fill remainder
+        if(pi<projTotals.length-1) h=roundHours(rawHours,rounding);
+      } else {
+        h=roundHours(rawHours,rounding);
+      }
+      h=Math.max(0,Math.min(h,p.remaining));
+      p.remaining-=h;
+      dayTotal+=h;
+      if(h>0) dayAllocs.push({proj:p.proj,projName:p.projName,hours:h});
+    });
+
+    // Last project gets remainder to fill the day
+    var daySum=dayAllocs.reduce(function(s,a){return s+a.hours;},0);
+    var diff=totalDailyHours-daySum;
+    if(Math.abs(diff)>0.01 && dayAllocs.length){
+      dayAllocs[0].hours=Math.round((dayAllocs[0].hours+diff)*100)/100;
+      projTotals[0].remaining=Math.max(0,projTotals[0].remaining-diff);
+    }
+
+    var d=new Date(date);
+    var dayNames=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+    rows.push({date:date,dayName:dayNames[d.getDay()],type:'work',allocs:dayAllocs,totalHours:totalDailyHours});
+  });
+
+  // Add leave dates
+  workDates.forEach(function(date){
+    if(leaveDates.indexOf(date)>-1){
+      var d=new Date(date);
+      var dayNames=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+      rows.push({date:date,dayName:dayNames[d.getDay()],type:'leave',allocs:[],totalHours:0});
+    }
+  });
+
+  // Add holidays & weekends for the month
+  var cfg=getTsSettings();
+  var allDaysInMonth=[];
+  var firstDate=new Date(workDates[0]||new Date());
+  var yr=firstDate.getFullYear(), mo=firstDate.getMonth();
+  var dd=new Date(yr,mo,1);
+  while(dd.getMonth()===mo){
+    allDaysInMonth.push(dd.toISOString().split('T')[0]);
+    dd.setDate(dd.getDate()+1);
+  }
+  allDaysInMonth.forEach(function(date){
+    if(workDates.indexOf(date)>-1) return; // already added
+    var d=new Date(date);
+    var dayNames=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+    var isHol=cfg.holidays.some(function(h){return h.date===date;});
+    rows.push({date:date,dayName:dayNames[d.getDay()],type:isHol?'holiday':'weekend',allocs:[],totalHours:0});
+  });
+
+  rows.sort(function(a,b){return a.date<b.date?-1:1;});
+  return rows;
+}
+
+// ── Monthly Allocation Page ──────────────────────────────────────
+function rTimesheetPage(){
+  initTimesheet();
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">⏱️ Timesheet & التوزيع</div>';
+  h+='<div style="display:flex;gap:6px;">';
+  h+='<button class="btn btn-sm" onclick="rTsSettings()" style="font-size:10.5px;background:var(--g3);color:var(--nd);">⚙️ الإعدادات</button>';
+  h+='<button class="btn btn-sm btn-gr" onclick="newAllocationModal()" style="font-size:10.5px;">+ توزيع جديد</button>';
+  h+='</div></div>';
+
+  // Saved allocations list
+  var allocs=DB.allocations||[];
+  if(!allocs.length){
+    h+='<div style="text-align:center;padding:40px 20px;color:var(--g4);">';
+    h+='<div style="font-size:40px;margin-bottom:10px;">⏱️</div>';
+    h+='<div style="font-weight:700;margin-bottom:6px;">لا توجد توزيعات محفوظة</div>';
+    h+='<div style="font-size:11px;">ابدأ بإضافة توزيع شهري لموظف</div></div>';
+    return h;
+  }
+
+  // Group by month
+  var byMonth={};
+  allocs.forEach(function(a){
+    var k=a.year+'-'+String(a.month).padStart(2,'0');
+    if(!byMonth[k]) byMonth[k]=[];
+    byMonth[k].push(a);
+  });
+
+  Object.keys(byMonth).sort().reverse().forEach(function(mk){
+    var mo=byMonth[mk];
+    var parts=mk.split('-');
+    var mName=MONTHS[parseInt(parts[1])-1]+' '+parts[0];
+    h+='<div style="margin-bottom:14px;">';
+    h+='<div class="sd" style="margin-bottom:8px;">📅 '+mName+'</div>';
+    mo.forEach(function(a,idx){
+      var emp=DB.employees.find(function(e){return e.id===a.empId;})||{name:a.empId};
+      var totalPct=a.projects.reduce(function(s,p){return s+p.pct;},0);
+      var statusClr=a.status==='approved'?'#1a7a4a':a.status==='draft'?'#d97706':'#1d4ed8';
+      var statusLbl=a.status==='approved'?'معتمد':a.status==='draft'?'مسودة':'محفوظ';
+
+      h+='<div style="background:white;border-radius:12px;padding:12px;margin-bottom:8px;box-shadow:0 1px 6px rgba(0,0,0,.07);border:1px solid #eee;">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+      h+='<div>';
+      h+='<div style="font-weight:800;font-size:13px;color:var(--nd);">'+emp.name+'</div>';
+      h+='<div style="font-size:10.5px;color:var(--g4);">'+emp.pos+'</div></div>';
+      h+='<span style="background:'+statusClr+';color:white;border-radius:6px;padding:2px 10px;font-size:10px;font-weight:700;">'+statusLbl+'</span>';
+      h+='</div>';
+
+      // Allocation bars
+      h+='<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">';
+      a.projects.forEach(function(p){
+        h+='<div style="display:flex;align-items:center;gap:6px;">';
+        h+='<div style="font-size:10.5px;color:var(--nd);width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+p.projName+'</div>';
+        h+='<div style="flex:1;background:#f1f5f9;border-radius:4px;height:8px;">';
+        h+='<div style="background:var(--sk);height:100%;border-radius:4px;width:'+p.pct+'%;"></div></div>';
+        h+='<div style="font-size:10.5px;font-weight:700;color:var(--sk);width:35px;text-align:left;">'+p.pct+'%</div>';
+        h+='</div>';
+      });
+      h+='</div>';
+
+      h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">';
+      h+='<button class="btn btn-sm btn-sky" onclick="generateTimesheetModal(\''+a.id+'\')" style="font-size:10px;">⚡ توليد TS</button>';
+      if(a.tsGenerated){
+        h+='<button class="btn btn-sm btn-gr" onclick="previewTimesheetModal(\''+a.id+'\')" style="font-size:10px;">👁️ معاينة</button>';
+        h+='<button class="btn btn-sm" onclick="printTimesheetPDF(\''+a.id+'\')" style="font-size:10px;background:var(--am);">🖨️ PDF</button>';
+      } else {
+        h+='<button class="btn btn-sm btn-gy" onclick="editAllocation(\''+a.id+'\')" style="font-size:10px;">✏️ تعديل</button>';
+        h+='<button class="btn btn-sm btn-rd" onclick="deleteAllocation(\''+a.id+'\')" style="font-size:10px;">🗑️</button>';
+      }
+      h+='</div></div>';
+    });
+    h+='</div>';
+  });
+  return h;
+}
+
+// ── New Allocation Modal ─────────────────────────────────────────
+function newAllocationModal(copyId){
+  initTimesheet();
+  var now=new Date();
+  var activeProjs=DB.projects.filter(function(p){return p.status==='active';});
+  var empOpts=DB.employees.filter(function(e){return e.status==='active';}).map(function(e){
+    return '<option value="'+e.id+'">'+e.name+' — '+e.pos+'</option>';
+  }).join('');
+
+  var mOpts=MONTHS.map(function(m,i){
+    return '<option value="'+(i+1)+'"'+(i===now.getMonth()?' selected':'')+'>'+m+'</option>';
+  }).join('');
+
+  // Copy previous month if requested
+  var copyData=null;
+  if(copyId) copyData=DB.allocations.find(function(a){return a.id===copyId;});
+
+  var h='<div class="fg"><label>الموظف *</label><select id="al-emp" onchange="updateAllocSalary()">'+empOpts+'</select></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>الشهر *</label><select id="al-month">'+mOpts+'</select></div>';
+  h+='<div class="fg"><label>السنة *</label><input id="al-year" type="number" value="'+now.getFullYear()+'" min="2020" max="2035"></div>';
+  h+='</div>';
+  h+='<div class="fg"><label>الراتب الشهري (ج.م)</label><input id="al-sal" type="number" placeholder="يُحسب تلقائياً" style="background:#f9fafb;"></div>';
+
+  h+='<div class="sd" style="margin:10px 0 6px;">📊 توزيع المشروعات</div>';
+  h+='<div id="al-projs">';
+  // Default: one project row
+  var defaultProjs=copyData?copyData.projects:[{projCode:'',pct:100}];
+  defaultProjs.forEach(function(p,i){
+    h+=buildProjRow(i,activeProjs,p.projCode,p.pct);
+  });
+  h+='</div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="addProjRow()" style="width:100%;margin:6px 0;">+ إضافة مشروع</button>';
+
+  h+='<div id="al-pct-check" style="text-align:center;font-size:12px;font-weight:700;padding:8px;border-radius:8px;background:#f1f5f9;margin-bottom:10px;">';
+  h+='إجمالي النسب: <span id="al-pct-total">100</span>%</div>';
+
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<button class="btn" onclick="saveAllocation()" style="background:var(--gr);">💾 حفظ التوزيع</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button>';
+  h+='</div>';
+  om('📊 توزيع شهري جديد', h);
+  updateAllocSalary();
+}
+
+function buildProjRow(i,projs,selCode,pct){
+  var opts=projs.map(function(p){
+    return '<option value="'+p.code+'"'+(p.code===selCode?' selected':'')+'>'+p.name+'</option>';
+  }).join('');
+  return '<div id="pr-row-'+i+'" style="display:grid;grid-template-columns:1fr 80px 32px;gap:6px;margin-bottom:6px;">'
+    +'<select id="pr-proj-'+i+'" class="pr-proj" onchange="calcPctTotal()"><option value="">— اختر مشروع —</option>'+opts+'</select>'
+    +'<div style="position:relative;">'
+    +'<input id="pr-pct-'+i+'" class="pr-pct" type="number" value="'+(pct||0)+'" min="0" max="100" step="5" oninput="calcPctTotal()" '
+    +'style="width:100%;text-align:center;padding-left:18px;">'
+    +'<span style="position:absolute;left:6px;top:50%;transform:translateY(-50%);color:var(--g4);font-size:11px;">%</span>'
+    +'</div>'
+    +'<button onclick="removeProjRow('+i+')" style="background:#fee2e2;border:none;border-radius:7px;color:#c0392b;cursor:pointer;font-size:14px;">×</button>'
+    +'</div>';
+}
+
+var _alProjCount=1;
+function addProjRow(){
+  var container=document.getElementById('al-projs');
+  if(!container)return;
+  var activeProjs=DB.projects.filter(function(p){return p.status==='active';});
+  var div=document.createElement('div');
+  div.innerHTML=buildProjRow(_alProjCount++,activeProjs,'',0);
+  container.appendChild(div.firstChild);
+  calcPctTotal();
+}
+
+function removeProjRow(i){
+  var row=document.getElementById('pr-row-'+i);
+  if(row)row.remove();
+  calcPctTotal();
+}
+
+function calcPctTotal(){
+  var total=0;
+  document.querySelectorAll('.pr-pct').forEach(function(inp){total+=parseFloat(inp.value)||0;});
+  var el=document.getElementById('al-pct-total');
+  var box=document.getElementById('al-pct-check');
+  if(el) el.textContent=total;
+  if(box){
+    box.style.background=Math.abs(total-100)<0.01?'#d1fae5':'#fee2e2';
+    box.style.color=Math.abs(total-100)<0.01?'#065f46':'#c0392b';
+  }
+}
+
+function updateAllocSalary(){
+  var empId=(document.getElementById('al-emp')||{}).value;
+  if(!empId)return;
+  var emp=DB.employees.find(function(e){return e.id===empId;});
+  if(!emp)return;
+  var r=calcFull(emp,{});
+  var salEl=document.getElementById('al-sal');
+  if(salEl) salEl.value=r.gross||emp.sal||0;
+}
+
+function saveAllocation(){
+  initTimesheet();
+  var empId=(document.getElementById('al-emp')||{}).value;
+  var month=parseInt((document.getElementById('al-month')||{}).value);
+  var year=parseInt((document.getElementById('al-year')||{}).value);
+  var sal=parseFloat((document.getElementById('al-sal')||{}).value)||0;
+  if(!empId||!month||!year){toast('⚠️ بيانات غير مكتملة');return;}
+
+  // Collect projects
+  var projs=[];
+  document.querySelectorAll('.pr-proj').forEach(function(sel,i){
+    var code=sel.value;
+    if(!code)return;
+    var pct=parseFloat(document.querySelectorAll('.pr-pct')[i].value)||0;
+    var proj=DB.projects.find(function(p){return p.code===code;});
+    if(proj) projs.push({projCode:code,proj:code,projName:proj.name,pct:pct});
+  });
+
+  var total=projs.reduce(function(s,p){return s+p.pct;},0);
+  if(Math.abs(total-100)>0.01){toast('⚠️ إجمالي النسب يجب أن يساوي 100% — الحالي: '+total+'%');return;}
+
+  var alloc={
+    id:'AL-'+Date.now(),empId:empId,month:month,year:year,salary:sal,
+    projects:projs,status:'saved',tsGenerated:false,
+    createdAt:new Date().toISOString()
+  };
+  DB.allocations.push(alloc);
+  save();cm();
+  sub('timesheet');
+  toast('✅ تم حفظ التوزيع');
+}
+
+function deleteAllocation(id){
+  if(!confirm('حذف هذا التوزيع؟'))return;
+  DB.allocations=DB.allocations.filter(function(a){return a.id!==id;});
+  save();sub('timesheet');
+}
+
+function editAllocation(id){
+  var a=DB.allocations.find(function(x){return x.id===id;});
+  if(!a)return;
+  newAllocationModal(null);
+  setTimeout(function(){
+    var empEl=document.getElementById('al-emp');
+    var monEl=document.getElementById('al-month');
+    var yrEl=document.getElementById('al-year');
+    var salEl=document.getElementById('al-sal');
+    if(empEl)empEl.value=a.empId;
+    if(monEl)monEl.value=a.month;
+    if(yrEl)yrEl.value=a.year;
+    if(salEl)salEl.value=a.salary;
+  },100);
+}
+
+// ── Generate Timesheet ───────────────────────────────────────────
+function generateTimesheetModal(allocId){
+  initTimesheet();
+  var a=DB.allocations.find(function(x){return x.id===allocId;});
+  if(!a){toast('التوزيع غير موجود');return;}
+  var emp=DB.employees.find(function(e){return e.id===a.empId;})||{name:a.empId};
+  var cfg=getTsSettings();
+  var mName=MONTHS[a.month-1]+' '+a.year;
+
+  var workDates=getWorkDaysInMonth(a.year,a.month);
+  var leaveDates=getEmployeeLeaves(a.empId,a.year,a.month);
+  var activeDates=workDates.filter(function(d){return leaveDates.indexOf(d)<0;});
+
+  var totalWorkDays=workDates.length;
+  var totalLeaveDays=leaveDates.length;
+  var effectiveDays=activeDates.length;
+  var totalHours=effectiveDays*cfg.dailyHours;
+
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:11px;padding:12px;margin-bottom:12px;color:white;">';
+  h+='<div style="font-weight:900;font-size:14px;">'+emp.name+'</div>';
+  h+='<div style="font-size:11px;opacity:.7;">'+mName+' · '+emp.pos+'</div></div>';
+
+  h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">';
+  var kpis=[
+    {lbl:'أيام العمل',val:totalWorkDays+' يوم',clr:'var(--nd)'},
+    {lbl:'إجازات',val:totalLeaveDays+' يوم',clr:'#c0392b'},
+    {lbl:'الساعات الفعلية',val:totalHours+' ساعة',clr:'#1a7a4a'},
+  ];
+  kpis.forEach(function(k){
+    h+='<div style="background:#f8f9fa;border-radius:9px;padding:9px;text-align:center;">';
+    h+='<div style="font-size:9.5px;color:var(--g4);">'+k.lbl+'</div>';
+    h+='<div style="font-weight:900;font-size:15px;color:'+k.clr+';">'+k.val+'</div></div>';
+  });
+  h+='</div>';
+
+  h+='<div class="sd" style="margin-bottom:8px;">توزيع الساعات</div>';
+  h+='<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px;">';
+  a.projects.forEach(function(p){
+    var hrs=Math.round(totalHours*p.pct/100);
+    var cost=Math.round(a.salary*p.pct/100);
+    h+='<div style="display:flex;justify-content:space-between;background:#f8f9fa;border-radius:8px;padding:8px 10px;">';
+    h+='<div><div style="font-weight:700;font-size:12px;">'+p.projName+'</div>';
+    h+='<div style="font-size:10px;color:var(--g4);">'+p.pct+'% من الوقت</div></div>';
+    h+='<div style="text-align:left;">';
+    h+='<div style="font-weight:800;color:var(--sk);">'+hrs+' ساعة</div>';
+    h+='<div style="font-size:10px;color:var(--g4);">'+fmt(cost)+' ج.م</div></div></div>';
+  });
+  h+='</div>';
+
+  // Leave input section
+  h+='<div class="fg"><label>📅 أيام الإجازة (تواريخ مفصولة بفاصلة)</label>';
+  h+='<input id="ts-leaves" placeholder="مثال: 2026-05-12,2026-05-13" value="'+leaveDates.join(',')+'"></div>';
+  h+='<div style="font-size:10px;color:var(--g4);margin-bottom:10px;">إضافة تواريخ الإجازات إن وجدت — النظام سيستبعدها تلقائياً</div>';
+
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<button class="btn" onclick="doGenerateTimesheet(\''+allocId+'\')" style="background:var(--gr);">⚡ توليد الـ Timesheet</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button>';
+  h+='</div>';
+  om('⚡ توليد Timesheet — '+mName,h);
+}
+
+function doGenerateTimesheet(allocId){
+  initTimesheet();
+  var a=DB.allocations.find(function(x){return x.id===allocId;});
+  if(!a)return;
+  var cfg=getTsSettings();
+
+  // Get leaves from input
+  var leavesInput=(document.getElementById('ts-leaves')||{}).value||'';
+  var leaveDates=leavesInput?leavesInput.split(',').map(function(s){return s.trim();}).filter(Boolean):[];
+
+  var workDates=getWorkDaysInMonth(a.year,a.month);
+  var rows=distributeHoursSmartly(workDates,leaveDates,a.projects,cfg.dailyHours,cfg.rounding);
+
+  a.tsRows=rows;
+  a.tsGenerated=true;
+  a.tsGeneratedAt=new Date().toISOString();
+  a.leaveDates=leaveDates;
+  save();cm();
+  // Show preview immediately
+  previewTimesheetModal(allocId);
+  toast('✅ تم توليد الـ Timesheet');
+}
+
+// ── Preview Timesheet ────────────────────────────────────────────
+function previewTimesheetModal(allocId){
+  initTimesheet();
+  var a=DB.allocations.find(function(x){return x.id===allocId;});
+  if(!a||!a.tsRows){toast('الـ Timesheet لم يُولَّد بعد');return;}
+  var emp=DB.employees.find(function(e){return e.id===a.empId;})||{name:a.empId};
+  var mName=MONTHS[a.month-1]+' '+a.year;
+
+  var totalWorkHrs=a.tsRows.filter(function(r){return r.type==='work';}).reduce(function(s,r){return s+r.totalHours;},0);
+
+  var h='<div style="font-weight:800;font-size:13px;color:var(--nd);margin-bottom:10px;">'+emp.name+' — '+mName+'</div>';
+
+  // Summary strip
+  h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;">';
+  a.projects.forEach(function(p){
+    var hrs=a.tsRows.filter(function(r){return r.type==='work';}).reduce(function(s,r){
+      var pa=r.allocs.find(function(x){return x.proj===p.proj;});
+      return s+(pa?pa.hours:0);
+    },0);
+    var cost=Math.round(a.salary*p.pct/100);
+    h+='<div style="background:#f0f9ff;border-radius:8px;padding:8px;text-align:center;">';
+    h+='<div style="font-size:9.5px;color:var(--g4);">'+p.projName.substring(0,18)+'</div>';
+    h+='<div style="font-weight:800;color:var(--sk);">'+hrs+' ساعة</div>';
+    h+='<div style="font-size:10px;color:var(--g4);">'+fmt(cost)+' ج.م</div></div>';
+  });
+  h+='</div>';
+
+  // Daily rows table
+  h+='<div style="overflow-x:auto;font-size:11px;">';
+  h+='<table style="width:100%;border-collapse:collapse;">';
+  h+='<tr style="background:var(--nd);color:white;">';
+  h+='<td style="padding:6px 5px;">التاريخ</td>';
+  h+='<td style="padding:6px 5px;">اليوم</td>';
+  h+='<td style="padding:6px 5px;">النوع</td>';
+  a.projects.forEach(function(p){
+    h+='<td style="padding:6px 5px;text-align:center;">'+p.projName.substring(0,10)+'</td>';
+  });
+  h+='<td style="padding:6px 5px;text-align:center;">الإجمالي</td>';
+  h+='</tr>';
+
+  a.tsRows.forEach(function(row,ri){
+    var isWork=row.type==='work';
+    var isLeave=row.type==='leave';
+    var rowBg=ri%2===0?'#f8f9fa':'white';
+    if(isLeave) rowBg='#fff9c4';
+    if(row.type==='holiday'||row.type==='weekend') rowBg='#f1f5f9';
+
+    h+='<tr style="background:'+rowBg+';border-bottom:1px solid #eee;">';
+    h+='<td style="padding:5px;font-size:10.5px;">'+row.date.slice(5)+'</td>';
+    h+='<td style="padding:5px;font-size:10.5px;">'+row.dayName+'</td>';
+    h+='<td style="padding:5px;">';
+    if(isWork)       h+='<span style="color:#1a7a4a;font-size:10px;">عمل</span>';
+    else if(isLeave) h+='<span style="color:#d97706;font-size:10px;">إجازة</span>';
+    else if(row.type==='holiday') h+='<span style="color:#c0392b;font-size:10px;">عطلة</span>';
+    else             h+='<span style="color:var(--g4);font-size:10px;">إجازة أسبوعية</span>';
+    h+='</td>';
+    a.projects.forEach(function(p){
+      var pa=isWork?row.allocs.find(function(x){return x.proj===p.proj;}):null;
+      var hrs=pa?pa.hours:0;
+      h+='<td style="padding:5px;text-align:center;font-weight:'+(hrs>0?'700':'400')+';color:'+(hrs>0?'var(--nd)':'var(--g4)')+';">';
+      h+=hrs>0?hrs:(isWork?'—':'');
+      h+='</td>';
+    });
+    h+='<td style="padding:5px;text-align:center;font-weight:800;color:var(--nd);">'+(isWork?row.totalHours:'')+'</td>';
+    h+='</tr>';
+  });
+
+  // Totals row
+  h+='<tr style="background:var(--nd);color:white;">';
+  h+='<td colspan="3" style="padding:7px 5px;font-weight:800;">الإجمالي</td>';
+  a.projects.forEach(function(p){
+    var hrs=a.tsRows.filter(function(r){return r.type==='work';}).reduce(function(s,r){
+      var pa=r.allocs.find(function(x){return x.proj===p.proj;});return s+(pa?pa.hours:0);
+    },0);
+    h+='<td style="padding:7px 5px;text-align:center;font-weight:900;">'+hrs+'</td>';
+  });
+  h+='<td style="padding:7px 5px;text-align:center;font-weight:900;">'+totalWorkHrs+'</td>';
+  h+='</tr></table></div>';
+
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">';
+  h+='<button class="btn" onclick="printTimesheetPDF(\''+allocId+'\')" style="background:var(--am);">🖨️ طباعة PDF</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إغلاق</button>';
+  h+='</div>';
+
+  om('👁️ معاينة Timesheet — '+mName,h);
+}
+
+// ── Print Timesheet PDF ──────────────────────────────────────────
+function printTimesheetPDF(allocId){
+  initTimesheet();
+  var a=DB.allocations.find(function(x){return x.id===allocId;});
+  if(!a||!a.tsRows){toast('الـ Timesheet لم يُولَّد بعد');return;}
+  var emp=DB.employees.find(function(e){return e.id===a.empId;})||{name:a.empId,pos:'',nameEn:''};
+  var org=DB.org||{};
+  var mName=MONTHS[a.month-1]+' '+a.year;
+  var totalWorkHrs=a.tsRows.filter(function(r){return r.type==='work';}).reduce(function(s,r){return s+r.totalHours;},0);
+
+  var projHeaders=a.projects.map(function(p){return '<th style="padding:6px;border:1px solid #ccc;background:#1e3a5f;color:white;font-size:10px;">'+p.projName.substring(0,14)+'</th>';}).join('');
+  var projTotals=a.projects.map(function(p){
+    var hrs=a.tsRows.filter(function(r){return r.type==='work';}).reduce(function(s,r){var pa=r.allocs.find(function(x){return x.proj===p.proj;});return s+(pa?pa.hours:0);},0);
+    return '<td style="padding:6px;border:1px solid #ccc;text-align:center;font-weight:900;background:#1e3a5f;color:white;">'+hrs+'</td>';
+  }).join('');
+
+  var dataRows=a.tsRows.map(function(row,ri){
+    var isWork=row.type==='work';
+    var bg=ri%2===0?'#f8f9fa':'white';
+    if(row.type==='leave') bg='#fff9c4';
+    if(row.type==='weekend'||row.type==='holiday') bg='#f0f0f0';
+    var typeLabel=isWork?'Work':row.type==='leave'?'Leave':row.type==='holiday'?'Holiday':'Weekend';
+    var cells=a.projects.map(function(p){
+      var pa=isWork?row.allocs.find(function(x){return x.proj===p.proj;}):null;
+      var hrs=pa?pa.hours:'';
+      return '<td style="padding:5px;border:1px solid #eee;text-align:center;font-size:10px;">'+(hrs||'')+'</td>';
+    }).join('');
+    return '<tr style="background:'+bg+';">'
+      +'<td style="padding:5px;border:1px solid #eee;font-size:10px;">'+row.date+'</td>'
+      +'<td style="padding:5px;border:1px solid #eee;font-size:10px;">'+row.dayName+'</td>'
+      +'<td style="padding:5px;border:1px solid #eee;font-size:10px;font-weight:600;">'+typeLabel+'</td>'
+      +cells
+      +'<td style="padding:5px;border:1px solid #eee;text-align:center;font-weight:800;font-size:10px;">'+(isWork?row.totalHours:'')+'</td>'
+      +'</tr>';
+  }).join('');
+
+  // Cost allocation table
+  var costRows=a.projects.map(function(p){
+    var hrs=a.tsRows.filter(function(r){return r.type==='work';}).reduce(function(s,r){var pa=r.allocs.find(function(x){return x.proj===p.proj;});return s+(pa?pa.hours:0);},0);
+    var cost=Math.round(a.salary*p.pct/100);
+    return '<tr><td style="padding:6px 10px;border-bottom:1px solid #eee;">'+p.projName+'</td>'
+      +'<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center;">'+p.pct+'%</td>'
+      +'<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center;">'+hrs+'</td>'
+      +'<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:left;font-weight:700;">'+cost.toLocaleString()+' ج.م</td></tr>';
+  }).join('');
+
+  var html='<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">'
+    +'<style>body{font-family:Cairo,Arial,sans-serif;font-size:11px;margin:0;padding:20px;color:#222;}'
+    +'table{border-collapse:collapse;width:100%;}th,td{vertical-align:middle;}'
+    +'.header{background:#1e3a5f;color:white;padding:16px 20px;border-radius:10px;margin-bottom:16px;}'
+    +'@media print{.no-print{display:none;}}</style></head><body>'
+    +'<div class="header">'
+    +'<div style="font-size:18px;font-weight:900;">⏱️ Timesheet — '+mName+'</div>'
+    +'<div style="font-size:12px;opacity:.8;">'+(org.name||'الجمعية')+'</div></div>'
+
+    +'<table style="margin-bottom:16px;font-size:11px;"><tr>'
+    +'<td width="50%"><strong>اسم الموظف:</strong> '+emp.name+'</td>'
+    +'<td width="50%"><strong>المسمى الوظيفي:</strong> '+(emp.pos||'—')+'</td></tr><tr>'
+    +'<td><strong>الشهر:</strong> '+mName+'</td>'
+    +'<td><strong>إجمالي الساعات:</strong> '+totalWorkHrs+' ساعة</td></tr></table>'
+
+    +'<table style="margin-bottom:20px;">'
+    +'<tr style="background:#1e3a5f;color:white;">'
+    +'<th style="padding:6px;border:1px solid #ccc;font-size:10px;">التاريخ</th>'
+    +'<th style="padding:6px;border:1px solid #ccc;font-size:10px;">اليوم</th>'
+    +'<th style="padding:6px;border:1px solid #ccc;font-size:10px;">النوع</th>'
+    +projHeaders
+    +'<th style="padding:6px;border:1px solid #ccc;background:#1e3a5f;color:white;font-size:10px;">الإجمالي</th></tr>'
+    +dataRows
+    +'<tr style="background:#1e3a5f;"><td colspan="3" style="padding:6px;border:1px solid #ccc;color:white;font-weight:800;">الإجمالي الكلي</td>'
+    +projTotals
+    +'<td style="padding:6px;border:1px solid #ccc;text-align:center;font-weight:900;background:#1e3a5f;color:white;">'+totalWorkHrs+'</td></tr></table>'
+
+    +'<div style="font-size:13px;font-weight:800;color:#1e3a5f;margin-bottom:8px;">توزيع التكلفة (Cost Allocation)</div>'
+    +'<table style="margin-bottom:20px;">'
+    +'<tr style="background:#f0f9ff;"><th style="padding:6px 10px;text-align:right;">المشروع</th>'
+    +'<th style="padding:6px 10px;">النسبة</th><th style="padding:6px 10px;">الساعات</th>'
+    +'<th style="padding:6px 10px;">التكلفة</th></tr>'+costRows
+    +'<tr style="background:#1e3a5f;color:white;"><td style="padding:7px 10px;font-weight:800;">الإجمالي</td>'
+    +'<td style="padding:7px 10px;text-align:center;font-weight:800;">100%</td>'
+    +'<td style="padding:7px 10px;text-align:center;font-weight:800;">'+totalWorkHrs+'</td>'
+    +'<td style="padding:7px 10px;text-align:left;font-weight:800;">'+a.salary.toLocaleString()+' ج.م</td></tr></table>'
+
+    +'<table style="margin-top:30px;"><tr>'
+    +'<td style="text-align:center;width:33%;padding-top:40px;border-top:1px solid #333;">توقيع الموظف</td>'
+    +'<td style="width:4%;"></td>'
+    +'<td style="text-align:center;width:33%;padding-top:40px;border-top:1px solid #333;">توقيع المدير المباشر</td>'
+    +'<td style="width:4%;"></td>'
+    +'<td style="text-align:center;width:33%;padding-top:40px;border-top:1px solid #333;">توقيع المدير المالي</td>'
+    +'</tr></table>'
+    +'</body></html>';
+
+  printContent('Timesheet — '+emp.name+' — '+mName, html);
+}
+
+// ── Timesheet Settings ───────────────────────────────────────────
+function rTsSettings(){
+  initTimesheet();
+  var cfg=getTsSettings();
+  var dayNames=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  var wdChks=dayNames.map(function(d,i){
+    return '<label style="margin-left:12px;font-size:11.5px;"><input type="checkbox" id="ts-wd-'+i+'" '
+      +(cfg.workDays.indexOf(i)>-1?'checked':'')+' style="margin-left:4px;">'+d+'</label>';
+  }).join('');
+
+  var h='<div class="fg"><label>ساعات العمل اليومية</label>'
+    +'<input id="ts-hrs" type="number" value="'+cfg.dailyHours+'" min="1" max="12"></div>';
+  h+='<div class="fg"><label>أيام العمل الأسبوعية</label>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px;background:#f8f9fa;border-radius:8px;">'+wdChks+'</div></div>';
+  h+='<div class="fg"><label>طريقة تقريب الساعات</label>'
+    +'<select id="ts-rounding">'
+    +'<option value="whole"'+(cfg.rounding==='whole'?' selected':'')+'>أرقام صحيحة فقط (Whole Hours)</option>'
+    +'<option value="half"'+(cfg.rounding==='half'?' selected':'')+'>نصف ساعة مسموح (Half Hours)</option>'
+    +'<option value="exact"'+(cfg.rounding==='exact'?' selected':'')+'>دقيق (Exact Decimal)</option>'
+    +'</select></div>';
+
+  // Holidays
+  h+='<div class="sd" style="margin:10px 0 6px;">🗓️ العطلات الرسمية</div>';
+  h+='<div id="ts-hols">';
+  (cfg.holidays||[]).forEach(function(hol,i){
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 28px;gap:6px;margin-bottom:5px;">'
+      +'<input id="hol-date-'+i+'" type="date" value="'+hol.date+'" class="hol-date">'
+      +'<input id="hol-name-'+i+'" value="'+hol.name+'" placeholder="اسم العطلة" class="hol-name">'
+      +'<button onclick="removeHoliday('+i+')" style="background:#fee2e2;border:none;border-radius:7px;color:#c0392b;cursor:pointer;">×</button>'
+      +'</div>';
+  });
+  h+='</div>';
+  h+='<button class="btn btn-sm btn-gy" onclick="addHoliday()" style="width:100%;margin-bottom:10px;">+ إضافة عطلة رسمية</button>';
+  h+='<button class="btn btn-gr" onclick="saveTsSettings()" style="width:100%;">💾 حفظ الإعدادات</button>';
+  om('⚙️ إعدادات الـ Timesheet', h);
+}
+
+var _holCount=0;
+function addHoliday(){
+  var container=document.getElementById('ts-hols');
+  if(!container)return;
+  var i=_holCount++;
+  var div=document.createElement('div');
+  div.id='hol-row-'+i;
+  div.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr 28px;gap:6px;margin-bottom:5px;">'
+    +'<input id="hol-date-'+i+'" type="date" class="hol-date">'
+    +'<input id="hol-name-'+i+'" placeholder="اسم العطلة" class="hol-name">'
+    +'<button onclick="removeHoliday('+i+')" style="background:#fee2e2;border:none;border-radius:7px;color:#c0392b;cursor:pointer;">×</button>'
+    +'</div>';
+  container.appendChild(div);
+}
+
+function removeHoliday(i){
+  var row=document.getElementById('hol-row-'+i)||document.getElementById('hol-date-'+i);
+  if(row&&row.parentElement) row.parentElement.parentElement.remove();
+  else if(row) row.parentElement.remove();
+}
+
+function saveTsSettings(){
+  initTimesheet();
+  var hrs=parseInt((document.getElementById('ts-hrs')||{}).value)||8;
+  var rounding=(document.getElementById('ts-rounding')||{}).value||'whole';
+  var wds=[];
+  for(var i=0;i<7;i++){var cb=document.getElementById('ts-wd-'+i);if(cb&&cb.checked)wds.push(i);}
+  var hols=[];
+  document.querySelectorAll('.hol-date').forEach(function(inp,i){
+    var nameInp=document.querySelectorAll('.hol-name')[i];
+    if(inp.value&&nameInp) hols.push({date:inp.value,name:nameInp.value||inp.value});
+  });
+  DB.tsSettings={dailyHours:hrs,workDays:wds,holidays:hols,rounding:rounding,allowEdit:true};
+  save();cm();
+  toast('✅ تم حفظ إعدادات الـ Timesheet');
+}
+
+
 function rInvPage(){
   if(!DB.inventory)DB.inventory=[];
   if(!DB.invMovements)DB.invMovements=[];
@@ -3804,13 +4891,16 @@ function rEmpPage(){
   var inactive=DB.employees.filter(function(e){return e.status!=="active";});
   // KPI bar
   var tGross=0,tNet=0,tCost=0;
-  active.forEach(function(e){var r=calc(e);tGross+=r.gross;tNet+=r.net;tCost+=r.cost;});
+  active.forEach(function(e){var r=calcFull(e,{});tGross+=r.gross;tNet+=r.net;tCost+=r.cost;});
 
   var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
   h+='<div><div class="ph-t">🏢 الموارد البشرية</div>';
   h+='<div style="font-size:11px;color:var(--g4);">'+active.length+' نشط · '+inactive.length+' غير نشط</div></div>';
   h+='<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;">';
   h+='<button class="btn btn-sm" style="background:var(--n);font-size:10.5px;" onclick="sub(\'hrreports\')">📊 تقارير HR</button>';
+  h+='<button class="btn btn-sm" style="background:var(--sk);font-size:10.5px;" onclick="sub(\'timesheet\')">⏱️ Timesheet</button>';
+  h+='<button class="btn btn-sm" style="background:#1d4ed8;font-size:10.5px;" onclick="sub(\'leaveapproval\')">✅ الإجازات</button>';
+  h+='<button class="btn btn-sm" style="background:#d97706;font-size:10.5px;" onclick="sub(\'assets\')">🏢 الأصول</button>';
   h+='<button class="btn btn-gr btn-sm" style="font-size:10.5px;" onclick="newEmp()">+ موظف</button>';
   h+='</div></div>';
 
@@ -3881,7 +4971,7 @@ function renderHRList(q,dept){
     h+='<div class="sd">'+dept+'</div>';
     groups[dept].forEach(function(e){
       var i=DB.employees.indexOf(e);
-      var r=calc(e);
+      var r=calcFull(e,{});
       var iCls={"full":"bg","partial":"ba","none":"bgy"}[e.ins||"full"];
       var sts=e.status==="active"?"bg":"br";
       var stsLbl=e.status==="active"?"نشط":e.status==="resigned"?"استقالة":e.status==="terminated"?"إنهاء":"غير نشط";
@@ -4004,7 +5094,7 @@ function hrRptByDept(){
     var d=e.dept||"غير محدد";
     if(!map[d])map[d]={total:0,active:0,tGross:0,tNet:0};
     map[d].total++;
-    if(e.status==="active"){map[d].active++;var r=calc(e);map[d].tGross+=r.gross;map[d].tNet+=r.net;}
+    if(e.status==="active"){map[d].active++;var r=calcFull(e,{});map[d].tGross+=r.gross;map[d].tNet+=r.net;}
   });
   var total=DB.employees.length;
   var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">🏢 توزيع الموظفين على الأقسام</div>';
@@ -4036,7 +5126,7 @@ function hrRptByGrade(){
     var g=e.grade||"غير محدد";
     if(!map[g])map[g]={count:0,emps:[],tGross:0};
     map[g].count++;map[g].emps.push(e.name);
-    var r=calc(e);map[g].tGross+=r.gross;
+    var r=calcFull(e,{});map[g].tGross+=r.gross;
   });
   var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">⭐ التوزيع حسب الدرجة الوظيفية</div>';
   if(!Object.keys(map).length){hrOm("⭐ الدرجات الوظيفية","<div style='text-align:center;color:var(--g4);padding:20px;'>لا بيانات</div>");return;}
@@ -4086,7 +5176,7 @@ function hrRptByContract(){
 function hrRptSalaries(){
   var deptMap={};
   DB.employees.filter(function(e){return e.status==="active";}).forEach(function(e){
-    var d=e.dept||"غير محدد";var r=calc(e);
+    var d=e.dept||"غير محدد";var r=calcFull(e,{});
     if(!deptMap[d])deptMap[d]={count:0,tGross:0,tNet:0,tCost:0,tIns:0,tTax:0,emps:[]};
     deptMap[d].count++;deptMap[d].tGross+=r.gross;deptMap[d].tNet+=r.net;
     deptMap[d].tCost+=r.cost;deptMap[d].tIns+=r.empI;deptMap[d].tTax+=r.tax;
@@ -4242,7 +5332,7 @@ function hrRptInsurance(){
   h+='<th>الموظف</th><th>نوع التأمين</th><th>تأمين الموظف 11%</th><th>تأمين الجمعية 18.75%</th><th>ضريبة الدخل</th><th>صندوق الشهداء</th>';
   h+='</tr></thead><tbody>';
   active.forEach(function(e){
-    var r=calc(e);
+    var r=calcFull(e,{});
     tEmpI+=r.empI;tEmplI+=r.emplI;tTax+=r.tax;tMar+=r.mar;
     var iCls={"full":"bg","partial":"ba","none":"bgy"}[e.ins||"full"];
     var iLbl={"full":"كامل","partial":"جزئي","none":"بدون"}[e.ins||"full"];
@@ -4425,7 +5515,7 @@ function saveEmp(id){
 function viewEmp(i){
   var e=DB.employees[i];
   if(!e)return;
-  var r=calc(e);
+  var r=calcFull(e,{});
   var mgr=DB.employees.find(function(x){return x.id===e.manager;});
   var iLbl={"full":"تأمين كامل","partial":"جزئي","none":"بدون"}[e.ins||"full"];
   var yos="";
@@ -4704,6 +5794,21 @@ function rSetPage(){
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">مراكز التكلفة · المواقع · الأنشطة · المحاور · البنوك</div></div>';
   h+='<div style="color:white;font-size:20px;">›</div>';
   h+='</div>';
+  h+='<div onclick="sub(\'timesheet\')" style="cursor:pointer;background:var(--sk);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div><div style="font-weight:800;color:white;font-size:14px;">⏱️ إعدادات الـ Timesheet</div>';
+  h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">ساعات العمل · أيام العطل · طريقة التقريب</div></div>';
+  h+='<div style="color:white;font-size:20px;">›</div>';
+  h+="</div>";
+  h+='<div onclick="sub(\'leaveapproval\')" style="cursor:pointer;background:#1d4ed8;border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div><div style="font-weight:800;color:white;font-size:14px;">🌴 إدارة الإجازات</div>';
+  h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">طلبات الإجازة والاعتماد</div></div>';
+  h+='<div style="color:white;font-size:20px;">›</div>';
+  h+="</div>";
+  h+='<div onclick="sub(\'assets\')" style="cursor:pointer;background:#d97706;border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div><div style="font-weight:800;color:white;font-size:14px;">🏢 الأصول الثابتة</div>';
+  h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">إدارة الأصول والإهلاك ونسب الإهلاك</div></div>';
+  h+='<div style="color:white;font-size:20px;">›</div>';
+  h+="</div>";
   h+='<div onclick="sub(\'taxconfig\')" style="cursor:pointer;background:var(--am);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" data-sub="taxconfig">';
   h+='<div><div style="font-weight:800;color:white;font-size:14px;">🧮 إعداد الضريبة والتأمينات</div>';
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">شرائح الضريبة · التأمينات · الإعفاءات — قابلة للتعديل</div></div>';
@@ -4802,8 +5907,55 @@ function rSetPage(){
     h+='<button class="btn btn-sm btn-gy" onclick="loadSeedData()" style="width:100%;">🌱 تحميل بيانات تجريبية</button>';
   }
 
+  // ── نسب الإهلاك ────────────────────────────────────────────
+  if(isAdmin){
+    initMD();
+    var rates=DB.masterData.deprRates||{};
+    h+='<div class="sd" style="margin-top:14px;">🏢 نسب إهلاك الأصول الثابتة</div>';
+    h+='<div style="font-size:10.5px;color:var(--g4);margin-bottom:10px;">القسط الثابت — قابلة للتعديل حسب سياسة الجمعية</div>';
+    h+='<table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:10px;">';
+    h+='<tr style="background:var(--nd);color:white;">';
+    h+='<td style="padding:7px 8px;border-radius:7px 0 0 0;">فئة الأصل</td>';
+    h+='<td style="padding:7px 8px;text-align:center;">النسبة السنوية %</td>';
+    h+='<td style="padding:7px 8px;text-align:center;border-radius:0 7px 0 0;">العمر الافتراضي</td>';
+    h+='</tr>';
+    getAssetCats().forEach(function(cat){
+      h+='<tr style="border-bottom:1px solid #eee;">';
+      h+='<td style="padding:7px 8px;font-weight:600;color:var(--nd);">'+cat.name+'</td>';
+      h+='<td style="padding:5px 8px;text-align:center;">';
+      h+='<input type="number" id="depr-rate-'+cat.code+'" data-code="'+cat.code+'" value="'+Math.round(cat.rate*100)+'" min="1" max="100" step="1" ';
+      h+='style="width:60px;text-align:center;border:1.5px solid var(--sk);border-radius:6px;padding:4px;font-size:12px;font-family:Cairo,sans-serif;" ';
+      h+='onchange="previewDeprChange(this.dataset.code,this.value)"> %';
+      h+='</td>';
+      h+='<td style="padding:7px 8px;text-align:center;color:var(--g4);font-size:11px;" id="depr-life-'+cat.code+'">'+(cat.rate>0?Math.round(1/cat.rate)+' سنة':'—')+'</td>';
+      h+='</tr>';
+    });
+    h+='</table>';
+    h+='<button class="btn btn-gr" onclick="saveDeprRates()" style="width:100%;margin-bottom:6px;">💾 حفظ نسب الإهلاك</button>';
+  }
+
   h+='<div style="margin-top:14px;background:var(--g1);border-radius:8px;padding:10px;font-size:10.5px;color:var(--g4);text-align:center;">أثر للحلول المالية — النسخة 2.0<br>تطوير تنمويين مصر</div>';
   return h;
+}
+
+function previewDeprChange(code, val){
+  var rate=parseFloat(val)||0;
+  var lifeEl=document.getElementById('depr-life-'+code);
+  if(lifeEl) lifeEl.textContent=rate>0?Math.round(100/rate)+' سنة':'—';
+}
+
+function saveDeprRates(){
+  initMD();
+  if(!DB.masterData.deprRates) DB.masterData.deprRates={};
+  getAssetCats().forEach(function(cat){
+    var inp=document.getElementById('depr-rate-'+cat.code);
+    if(inp){
+      var rate=parseFloat(inp.value)||0;
+      DB.masterData.deprRates[cat.code]={name:cat.name, rate:rate/100};
+    }
+  });
+  save();
+  toast('✅ تم حفظ نسب الإهلاك — ستُطبق على الحسابات القادمة');
 }
 
 function saveSet(){
@@ -4990,66 +6142,6 @@ function getLowStockItems(){
 }
 
 // ---- MAIN PAGE ----
-function rInvPage(){
-  initInv();
-  var _inv_filter={cat:"",wh:"",q:""};
-  var cats=DB.itemCategories||[];
-  var whs=DB.warehouses;
-  var low=getLowStockItems();
-
-  var h='';
-  // Header
-  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
-  h+='<div><div class="ph-t">📦 المخازن</div>';
-  h+='<div style="font-size:11px;color:var(--g4);">'+DB.inventory.length+' صنف · '+whs.length+' مخزن</div></div>';
-  h+='<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;">';
-  h+='<button class="btn btn-sm" style="background:var(--n);font-size:10.5px;" onclick="sub(\'invreports\')">📊 تقارير</button>';
-  h+='<button class="btn btn-sm" style="background:var(--am);font-size:10.5px;" onclick="sub(\'suppliers\')">🏭 موردون</button>';
-  h+='<button class="btn btn-sky btn-sm" style="font-size:10.5px;" onclick="newWarehouse()">🏪 مخزن</button>';
-  h+='<button class="btn btn-gr btn-sm" style="font-size:10.5px;" onclick="newItem()">+ صنف</button>';
-  h+='</div></div>';
-
-  // Low stock alert
-  if(low.length){
-    h+='<div style="background:var(--rbg);border:1.5px solid var(--rd);border-radius:10px;padding:10px 12px;margin-bottom:10px;">';
-    h+='<div style="font-weight:800;font-size:12px;color:var(--rd);margin-bottom:6px;">⚠️ تنبيه — أصناف قاربت على النفاد ('+low.length+')</div>';
-    low.forEach(function(item){
-      var qty=getTotalQty(item.code);
-      h+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(220,38,38,.1);">';
-      h+='<span>'+item.name+'</span>';
-      h+='<span style="font-weight:800;color:var(--rd);">'+qty+' / '+item.minQty+' '+item.unit+'</span>';
-      h+='</div>';
-    });
-    h+='</div>';
-  }
-
-  // Warehouses bar
-  if(whs.length){
-    h+='<div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;">';
-    h+='<div class="btn btn-sm inv-wh-btn" style="background:var(--n);color:white;white-space:nowrap;font-size:11px;" onclick="invFilterWH(\'\')">🏪 الكل</div>';
-    whs.forEach(function(wh){
-      h+='<div class="btn btn-sm inv-wh-btn" style="background:var(--g2);color:var(--n);white-space:nowrap;font-size:11px;" onclick="invFilterWH(\''+wh.code+'\')">'+wh.name+'</div>';
-    });
-    h+='</div>';
-  }
-
-  // Search + category filter
-  h+='<div style="display:flex;gap:7px;margin-bottom:10px;">';
-  h+='<input id="inv-search" placeholder="🔍 بحث بالاسم أو الكود أو الفئة..." style="flex:1;padding:9px 12px;border:1.5px solid var(--g2);border-radius:9px;font-size:12px;font-family:Cairo,sans-serif;" oninput="invSearch()">';
-  h+='</div>';
-  h+='<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;" id="inv-cats">';
-  h+='<span class="badge bb inv-cat-btn" style="cursor:pointer;font-size:10.5px;padding:5px 11px;" onclick="invFilterCat(\'\')">الكل</span>';
-  cats.forEach(function(c){
-    h+='<span class="badge bgy inv-cat-btn" style="cursor:pointer;white-space:nowrap;font-size:10.5px;padding:5px 11px;" onclick="invFilterCat(\''+c+'\')">'+c+'</span>';
-  });
-  h+='</div>';
-
-  // Items list
-  h+='<div id="inv-list">';
-  h+=renderInvList("","","");
-  h+='</div>';
-  return h;
-}
 
 function renderInvList(q,cat,wh){
   initInv();
@@ -5903,7 +6995,7 @@ function exportEmployees(){
   if(!DB.employees.length){toast("⚠️ لا يوجد موظفون");return;}
   var rows=[["الكود","الاسم بالعربي","الاسم بالإنجليزي","المسمى الوظيفي","القسم","الدرجة","نوع التوظيف","نوع العقد","تاريخ التعيين","نهاية العقد","الحالة","الأجر الأساسي","إجمالي المرتب","الصافي","نوع التأمين","الموبايل","البريد"]];
   DB.employees.forEach(function(e){
-    var r=calc(e);
+    var r=calcFull(e,{});
     rows.push([e.id,e.name,e.nameEn||"",e.pos,e.dept||"",e.grade||"",e.empType||"",e.contractType||"",e.hireDate||"",e.contractEnd||"",e.status,e.sal||0,r.gross,r.net,e.ins,e.mobile||"",e.email||""]);
   });
   dlCSV(rows,"employees-"+new Date().toISOString().split("T")[0]+".csv");
@@ -6132,6 +7224,14 @@ function initMD(){
       {code:"PR",name:"طلب شراء"},
       {code:"CE",name:"مطالبة مصروف"}
     ],
+    deprRates:{
+      "1212":{"name":"مبانى ومنشآت","rate":0.05},
+      "1213":{"name":"أثاث وتجهيزات مكتبية","rate":0.10},
+      "1214":{"name":"أجهزة تكنولوجيا المعلومات","rate":0.25},
+      "1215":{"name":"آلات ومعدات","rate":0.10},
+      "1216":{"name":"وسائل نقل وانتقال","rate":0.20},
+      "1231":{"name":"برمجيات وأنظمة معلومات","rate":0.33}
+    },
     paymentMethods:[
       {code:"CASH",name:"نقداً"},
       {code:"BANK",name:"تحويل بنكي"},
@@ -7009,27 +8109,6 @@ function selectAccFromDrop(el2){
 }
 
 // collectTP - reads lines from entry form
-function collectTP(prefix,lineCount){
-  var lines=[];
-  for(var i=0;i<lineCount;i++){
-    var acc=(el('ea-'+i)||{}).value||'';
-    var dr=parseFloat((el('edr-'+i)||{}).value)||0;
-    var cr=parseFloat((el('ecr-'+i)||{}).value)||0;
-    if(!acc||(dr===0&&cr===0)) continue;
-    var a=DB.accounts.find(function(x){return x.c===acc;});
-    var tpEl=el('etp-'+i);
-    var tpId=tpEl?tpEl.value:'';
-    var tp=tpId?(DB.thirdParties||[]).find(function(t){return t.id===tpId;}):null;
-    var wbsCode=(el('ewbs-'+i)||{}).value||'';
-    var lineProj=(el('eproj-'+i)||{}).value||'';
-    lines.push({
-      acc:acc, an:a?a.n:'', dr:dr, cr:cr,
-      tpId:tp?tp.id:'', tpName:tp?tp.name:'', tpType:tp?tp.type:'',
-      wbsCode:wbsCode, proj:lineProj
-    });
-  }
-  return lines;
-}
 
 // onProjChange - rebuild entry lines when project changes
 function onProjChange(){
@@ -7161,40 +8240,8 @@ function selectWBSFromDrop(el2){
 }
 
 // Rebuild lines when project changes in entry form
-function onProjChange(){
-  var projCode=(el('e-p')||{}).value||'';
-  var hasWBS=projCode&&getWBSForProject(projCode).length>0;
-  // Rebuild all current lines with WBS
-  var container=el('els');if(!container)return;
-  var oldCount=_eL;
-  container.innerHTML='';
-  for(var i=0;i<oldCount;i++){
-    container.innerHTML+=eLnTPwbs(i,projCode);
-  }
-  updET();
-}
 
 // Override collectTP to also capture wbsCode
-function collectTP(prefix,lineCount){
-  var lines=[];
-  for(var i=0;i<lineCount;i++){
-    var acc=(el('ea-'+i)||{}).value||'';
-    var dr=parseFloat((el('edr-'+i)||{}).value)||0;
-    var cr=parseFloat((el('ecr-'+i)||{}).value)||0;
-    if(!acc||(dr===0&&cr===0)) continue;
-    var a=DB.accounts.find(function(x){return x.c===acc;});
-    var tpEl=el('etp-'+i);
-    var tpId=tpEl?tpEl.value:'';
-    var tp=tpId?(DB.thirdParties||[]).find(function(t){return t.id===tpId;}):null;
-    var wbsCode=(el('ewbs-'+i)||{}).value||'';
-    lines.push({
-      acc:acc, an:a?a.n:'', dr:dr, cr:cr,
-      tpId:tp?tp.id:'', tpName:tp?tp.name:'', tpType:tp?tp.type:'',
-      wbsCode:wbsCode
-    });
-  }
-  return lines;
-}
 
 // buildAccDropHtml override — filter to expense accounts when wbs search active
 // (existing function already shows all — this is fine, user can search by 5xxx)
@@ -7953,25 +9000,6 @@ function loadSeedData(){
 // UNIFIED REPORTS SYSTEM — نظام التقارير المتكامل
 // ============================================================
 
-function rTPLedger(){
-  syncTPFromHR();
-  initTP();
-  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-  h+='<div><div class="ph-t">📒 الأستاذ المساعد</div>';
-  h+='<div style="font-size:11px;color:var(--g4);">'+DB.thirdParties.length+' طرف ثالث</div></div>';
-  h+='<button class="btn btn-gr btn-sm" onclick="newTP()">+ طرف جديد</button></div>';
-  var types=["all","employee","supplier","customer","other"];
-  var typeLabels={all:"الكل",employee:"موظفون",supplier:"موردون",customer:"عملاء",other:"أخرى"};
-  h+='<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;" id="tp-type-pills">';
-  types.forEach(function(t){
-    h+='<span class="badge '+(t==="all"?"bb":"bgy")+' tp-type-pill" style="cursor:pointer;white-space:nowrap;font-size:10.5px;padding:5px 11px;" data-tp-type="'+t+'" onclick="tpFilterType(this.getAttribute(\'data-tp-type\'))">'+typeLabels[t]+'</span>';
-  });
-  h+='</div>';
-  h+='<input id="tp-search" placeholder="🔍 بحث..." style="width:100%;padding:9px 12px;border:1.5px solid var(--g2);border-radius:9px;font-size:12px;font-family:Cairo,sans-serif;box-sizing:border-box;margin-bottom:10px;" oninput="tpSearch()">';
-  h+='<div id="tp-list">'+renderTPList("","")+'</div>';
-  return h;
-}
-
 function rReportsPage(){
   var h='<div class="ph-t" style="margin-bottom:14px;">📊 التقارير</div>';
   var sections=[
@@ -8017,6 +9045,15 @@ function rReportsPage(){
       {icon:"👤",label:"التوزيع الديموغرافي",fn:"hrRptDemo()"},
       {icon:"💳",label:"تقرير الرواتب التفصيلي",fn:"rptPayrollReport()"},
       {icon:"📋",label:"سجل إعداد المرتبات",fn:"viewPayHistory()"}
+    ]},
+    {title:"⏱️ تقارير Timesheet",reports:[
+      {icon:"⏱️",label:"Timesheet شهري",fn:"sub(\'timesheet\')"},
+      {icon:"📊",label:"توزيع تكلفة الموظفين",fn:"sub(\'timesheet\')"},
+      {icon:"🌴",label:"تقرير الإجازات",fn:"sub(\'leaveapproval\')"},
+    ]},
+    {title:"🏢 تقارير الأصول الثابتة",reports:[
+      {icon:"🏢",label:"كشف الأصول والقيم الدفترية",fn:"sub(\'assets\')"},
+      {icon:"📉",label:"جدول الإهلاك التفصيلي",fn:"sub(\'assets\')"},
     ]}
   ];
 
