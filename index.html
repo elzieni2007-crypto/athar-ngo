@@ -239,6 +239,7 @@ var DB={
   sysSettings:{enforceBudget:true,budgetWarningPct:90},
   allocations:[],
   leaveRequests:[],
+  form41:[],
   projects:[],
   entries:[],
   employees:[
@@ -1079,6 +1080,7 @@ function sub(n){
     reports:rReportsPage,
     taxconfig:rTaxConfig,
     assets:rAssetsPage,
+    form41:rForm41Page,
     timesheet:rTimesheetPage,
     myleaves:rMyLeavesPage,
     leaveapproval:rLeaveApprovalPage
@@ -1098,6 +1100,7 @@ function sub(n){
     reports:"📊 التقارير",
     taxconfig:"🧮 إعداد الضريبة",
     assets:"🏢 الأصول الثابتة",
+    form41:"📋 نموذج 41 — خصم وتحصيل",
     timesheet:"⏱️ Timesheet & التوزيع",
     myleaves:"🌴 إجازاتي",
     leaveapproval:"✅ اعتماد الإجازات"
@@ -4941,6 +4944,367 @@ function saveTsSettings(){
 }
 
 
+// ================================================================
+// نموذج 41 — خصم وتحصيل ضريبة ربع سنوي
+// ================================================================
+
+// ── Withholding tax rate codes — Egypt Tax Law ───────────────────
+// 1% مشتريات وتوريدات | 3% خدمات وإيجارات | 5% مهن حرة واستشارات
+var WHT_TYPES = [
+  // ── 1% — مشتريات وتوريدات ────────────────────────────────────
+  {code:'توريدات',    name:'توريدات ومشتريات',          rate:0.01, group:'1%'},
+  {code:'مقاولات',   name:'مقاولات وتشييد',              rate:0.01, group:'1%'},
+  {code:'صيانة',     name:'صيانة وإصلاح',               rate:0.01, group:'1%'},
+  {code:'طباعة',     name:'طباعة وتصوير',               rate:0.01, group:'1%'},
+  // ── 3% — خدمات ────────────────────────────────────────────────
+  {code:'خدمات',     name:'خدمات عامة',                  rate:0.03, group:'3%'},
+  {code:'سفريات',    name:'سفريات وحجوزات',              rate:0.03, group:'3%'},
+  {code:'ايجار سيارات',name:'إيجار سيارات ووسائل نقل',   rate:0.03, group:'3%'},
+  {code:'شحن',       name:'شحن ونقل',                    rate:0.03, group:'3%'},
+  {code:'تدريب',     name:'تدريب وتعليم',                rate:0.03, group:'3%'},
+  {code:'دعاية',     name:'دعاية وإعلان',                rate:0.03, group:'3%'},
+  // ── 5% — مهن حرة واستشارات ────────────────────────────────────
+  {code:'استشارات',  name:'استشارات إدارية وقانونية',    rate:0.05, group:'5%'},
+  {code:'محاسبة',    name:'محاسبة ومراجعة',              rate:0.05, group:'5%'},
+  {code:'هندسة',     name:'استشارات هندسية وتصميم',      rate:0.05, group:'5%'},
+  {code:'تقنية',     name:'خدمات تقنية معلومات وبرمجة', rate:0.05, group:'5%'},
+  {code:'طبية',      name:'خدمات طبية وصحية',            rate:0.05, group:'5%'},
+  {code:'ابحاث',     name:'بحوث ودراسات وتقييم',         rate:0.05, group:'5%'},
+  // ── أخرى ──────────────────────────────────────────────────────
+  {code:'ايجار',     name:'إيجار عقارات',                rate:0.10, group:'10%'},
+  {code:'عمولات',    name:'عمولات ومكافآت',              rate:0.05, group:'5%'},
+];
+
+// ── Update newTP to include tax ID + deduction type ───────────────
+var _origNewTP = newTP;
+newTP = function(){
+  initTP();
+  var h='<div class="fg"><label>اسم الطرف الثالث *</label><input id="tp-n" placeholder="اسم الشركة / الموظف / العميل"></div>';
+  h+='<div class="fg"><label>النوع</label><select id="tp-t">';
+  h+='<option value="supplier">🏭 مورد</option>';
+  h+='<option value="customer">🤝 عميل</option>';
+  h+='<option value="consultant">💼 مستشار / استشاري</option>';
+  h+='<option value="other">📋 أخرى</option>';
+  h+='</select></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>الرقم الضريبي</label><input id="tp-taxid" placeholder="000-000-000"></div>';
+  h+='<div class="fg"><label>رقم الملف الضريبي</label><input id="tp-fileid" placeholder="-"></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>طبيعة التعامل (للنموذج 41)</label><select id="tp-whttype" onchange="autoFillWhtRate(this.value)">';
+  h+='<option value="">— اختر —</option>';
+  var lastGrp='';
+  WHT_TYPES.forEach(function(t){
+    if(t.group!==lastGrp){
+      h+='<optgroup label="نسبة '+t.group+'">';
+      lastGrp=t.group;
+    }
+    h+='<option value="'+t.code+'">'+t.name+' — '+Math.round(t.rate*100)+'%</option>';
+  });
+  h+='</select></div>';
+  h+='<div class="fg"><label>نسبة الخصم %</label><input id="tp-whtrate" type="number" step="0.1" min="0" max="20" placeholder="1"></div>';
+  h+='</div>';
+  h+='<div class="fg"><label>العنوان</label><input id="tp-addr" placeholder="عنوان الطرف الثالث"></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="tp-notes"></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px;">';
+  h+='<button class="btn btn-gr" onclick="saveTP()" style="flex:1;">✅ إضافة</button>';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
+  om("➕ طرف ثالث جديد", h);
+};
+
+// ── Override saveTP to capture new fields ────────────────────────
+var _origSaveTP = saveTP;
+saveTP = function(){
+  var n=sv("tp-n"); if(!n){alert("الاسم مطلوب");return;}
+  initTP();
+  var whtRate = parseFloat(sv("tp-whtrate")||"0")||0;
+  var whtCode = sv("tp-whttype")||"";
+  if(!whtRate && whtCode){
+    var wt=WHT_TYPES.find(function(t){return t.code===whtCode;});
+    if(wt) whtRate=wt.rate*100;
+  }
+  var tp={
+    id:"TP-"+Date.now(), name:n,
+    type:sv("tp-t")||"supplier",
+    taxId:sv("tp-taxid")||"",
+    fileId:sv("tp-fileid")||"-",
+    whtType:whtCode,
+    whtRate:whtRate,
+    address:sv("tp-addr")||"",
+    notes:sv("tp-notes")||""
+  };
+  DB.thirdParties.push(tp);
+  save(); cm();
+  toast("✅ تم إضافة: "+tp.name);
+};
+
+// ── Also add taxId to org settings ───────────────────────────────
+// (handled in saveSet - orgTaxId field)
+
+// ── Form 41 Generator ────────────────────────────────────────────
+function autoFillWhtRate(code){
+  var t=WHT_TYPES.find(function(x){return x.code===code;});
+  var rateEl=document.getElementById('tp-whtrate');
+  if(t&&rateEl) rateEl.value=Math.round(t.rate*100);
+}
+
+function rForm41Page(){
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">📋 نموذج 41 — خصم وتحصيل</div>';
+  h+='<button class="btn btn-sm btn-gr" onclick="generateForm41()" style="font-size:10.5px;">⚡ توليد النموذج</button>';
+  h+='</div>';
+
+  // Quarter selector
+  var now=new Date();
+  var curQ=Math.ceil((now.getMonth()+1)/3);
+  var curY=now.getFullYear();
+
+  h+='<div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 6px rgba(0,0,0,.07);">';
+  h+='<div class="sd" style="margin-bottom:10px;">اختيار الفترة الضريبية</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>الربع</label><select id="f41-q">';
+  ['الأول (يناير–مارس)','الثاني (أبريل–يونيو)','الثالث (يوليو–سبتمبر)','الرابع (أكتوبر–ديسمبر)'].forEach(function(q,i){
+    h+='<option value="'+(i+1)+'"'+(i+1===curQ?' selected':'')+'>'+q+'</option>';
+  });
+  h+='</select></div>';
+  h+='<div class="fg"><label>السنة</label><input id="f41-y" type="number" value="'+curY+'" min="2020" max="2030"></div>';
+  h+='<div class="fg"><label>رقم المستند</label><input id="f41-doc" placeholder="اختياري"></div>';
+  h+='</div></div>';
+
+  // Org info
+  var org=DB.org||{};
+  h+='<div style="background:#f0f9ff;border-radius:11px;padding:12px;margin-bottom:12px;font-size:11.5px;">';
+  h+='<div style="font-weight:700;color:var(--nd);margin-bottom:6px;">بيانات الجهة</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
+  h+='<div><span style="color:var(--g4);">الاسم: </span><strong>'+( org.name||"—")+'</strong></div>';
+  h+='<div><span style="color:var(--g4);">الرقم الضريبي: </span><strong>'+(org.taxId||"—")+'</strong></div>';
+  h+='<div><span style="color:var(--g4);">العنوان: </span><strong>'+(org.address||"—")+'</strong></div>';
+  h+='<div><span style="color:var(--g4);">التليفون: </span><strong>'+(org.phone||"—")+'</strong></div>';
+  h+='</div>';
+  if(!org.taxId) h+='<div style="color:#c0392b;font-size:10.5px;margin-top:6px;">⚠️ أضف الرقم الضريبي في الإعدادات</div>';
+  h+='</div>';
+
+  // Recent form 41 list
+  var forms=(DB.form41||[]).sort(function(a,b){return b.createdAt>a.createdAt?1:-1;});
+  if(forms.length){
+    h+='<div class="sd" style="margin-bottom:8px;">النماذج السابقة</div>';
+    forms.forEach(function(f){
+      var qNames=['الأول','الثاني','الثالث','الرابع'];
+      h+='<div style="background:white;border-radius:10px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.06);">';
+      h+='<div>';
+      h+='<div style="font-weight:700;font-size:12px;">الربع '+qNames[f.quarter-1]+' — '+f.year+'</div>';
+      h+='<div style="font-size:10.5px;color:var(--g4);">'+f.rows.length+' معاملة · إجمالي الخصم: '+fmt(f.totalWHT)+' ج.م</div>';
+      h+='</div>';
+      h+='<div style="display:flex;gap:5px;">';
+      h+='<button onclick="printForm41(\''+f.id+'\')" style="background:var(--am);border:none;color:white;border-radius:7px;padding:5px 10px;font-size:10px;cursor:pointer;">🖨️ طباعة</button>';
+      h+='<button onclick="deleteForm41(\''+f.id+'\')" style="background:#fee2e2;border:none;color:#c0392b;border-radius:7px;padding:5px 10px;font-size:10px;cursor:pointer;">🗑️</button>';
+      h+='</div></div>';
+    });
+  }
+  return h;
+}
+
+function generateForm41(){
+  var q=parseInt((document.getElementById('f41-q')||{}).value)||1;
+  var y=parseInt((document.getElementById('f41-y')||{}).value)||new Date().getFullYear();
+  var doc=(document.getElementById('f41-doc')||{}).value||'';
+
+  // Date range for quarter
+  var qStart=[[1,1],[4,1],[7,1],[10,1]][q-1];
+  var qEnd=  [[3,31],[6,30],[9,30],[12,31]][q-1];
+  var fromDate=y+'-'+String(qStart[0]).padStart(2,'0')+'-'+String(qStart[1]).padStart(2,'0');
+  var toDate  =y+'-'+String(qEnd[0]).padStart(2,'0')  +'-'+String(qEnd[1]).padStart(2,'0');
+
+  // Find all posted entries in this quarter with third party + withholding
+  var rows=[];
+  var serial=1;
+  (DB.entries||[]).filter(function(e){
+    return e.status==='posted' && e.date>=fromDate && e.date<=toDate;
+  }).forEach(function(entry){
+    entry.lines.forEach(function(ln){
+      if(!ln.tpId) return;
+      var tp=DB.thirdParties.find(function(t){return t.id===ln.tpId;});
+      if(!tp||!tp.taxId) return;
+      var grossAmt=ln.dr||ln.cr||0;
+      if(!grossAmt) return;
+      var whtRate=(tp.whtRate||0)/100;
+      if(!whtRate) return;
+      var netAmt=Math.round(grossAmt/(1+whtRate)*100)/100;
+      var whtAmt=Math.round(grossAmt*whtRate/(1+whtRate)*100)/100;
+
+      rows.push({
+        serial:serial++,
+        taxId:tp.taxId||'',
+        fileId:tp.fileId||'-',
+        name:tp.name||'',
+        address:tp.address||'',
+        date:entry.date,
+        txType:tp.whtType||'خدمات',
+        txTypeCode:'ا.ت',
+        grossAmt:grossAmt,
+        deductType:tp.whtType||'',
+        deductCode:'-',
+        netAmt:netAmt,
+        whtRate:tp.whtRate||0,
+        whtAmt:whtAmt,
+        entryId:entry.id,
+        desc:entry.desc
+      });
+    });
+  });
+
+  if(!rows.length){
+    toast('⚠️ لا توجد معاملات بخصم ضريبي في هذه الفترة\nتأكد من:\n• إضافة الرقم الضريبي للطرف الثالث\n• تحديد نسبة الخصم في بيانات الطرف');
+    return;
+  }
+
+  var totalWHT=rows.reduce(function(s,r){return s+r.whtAmt;},0);
+  var prev=((DB.form41||[]).filter(function(f){
+    return (f.quarter<q&&f.year===y)||(f.year<y);
+  }).sort(function(a,b){return b.createdAt>a.createdAt?1:-1;})[0]||{}).totalWHT||0;
+
+  if(!DB.form41) DB.form41=[];
+  var form={
+    id:'F41-'+Date.now(),
+    quarter:q, year:y, docNum:doc,
+    rows:rows,
+    totalWHT:Math.round(totalWHT*100)/100,
+    prevTotal:Math.round(prev*100)/100,
+    grandTotal:Math.round((totalWHT+prev)*100)/100,
+    createdAt:new Date().toISOString()
+  };
+  DB.form41.push(form);
+  save();
+  sub('form41');
+  toast('✅ تم توليد النموذج 41 — '+rows.length+' معاملة');
+  setTimeout(function(){printForm41(form.id);},300);
+}
+
+function deleteForm41(id){
+  if(!confirm('حذف هذا النموذج؟'))return;
+  DB.form41=(DB.form41||[]).filter(function(f){return f.id!==id;});
+  save();sub('form41');
+}
+
+// ── Print Form 41 ─────────────────────────────────────────────────
+function printForm41(formId){
+  var form=(DB.form41||[]).find(function(f){return f.id===formId;});
+  if(!form){toast('النموذج غير موجود');return;}
+  var org=DB.org||{};
+  var qNames=['الأولى','الثانية','الثالثة','الرابعة'];
+
+  // Build rows HTML
+  var rowsHtml=form.rows.map(function(r){
+    return '<tr>'
+      +'<td>'+r.serial+'</td>'
+      +'<td>'+r.taxId+'</td>'
+      +'<td>'+r.fileId+'</td>'
+      +'<td style="text-align:right;">'+r.name+'</td>'
+      +'<td style="text-align:right;font-size:9px;">'+r.address+'</td>'
+      +'<td>'+r.date+'</td>'
+      +'<td>'+r.txType+'</td>'
+      +'<td>'+r.txTypeCode+'</td>'
+      +'<td>'+r.grossAmt.toLocaleString()+'</td>'
+      +'<td>'+r.deductType+'</td>'
+      +'<td>'+r.deductCode+'</td>'
+      +'<td>'+r.netAmt.toLocaleString()+'</td>'
+      +'<td>'+r.whtRate+'%</td>'
+      +'<td style="font-weight:700;">'+r.whtAmt.toLocaleString()+'</td>'
+      +'</tr>';
+  }).join('');
+
+  var html='<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">'
+    +'<style>'
+    +'* {margin:0;padding:0;box-sizing:border-box;}'
+    +'body {font-family:Arial,sans-serif;font-size:10px;direction:rtl;padding:15px;color:#000;}'
+    +'.header-top {display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}'
+    +'.gov {font-size:13px;font-weight:bold;line-height:1.6;}'
+    +'.form-title {font-size:14px;font-weight:bold;text-align:center;border:2px solid #000;padding:4px 12px;}'
+    +'.org-info {border:1px solid #000;padding:8px;margin:6px 0;display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:10px;}'
+    +'.org-info .row {display:flex;gap:6px;padding:2px 0;border-bottom:1px dotted #ccc;}'
+    +'.org-info .lbl {color:#555;min-width:90px;}'
+    +'.org-info .val {font-weight:bold;}'
+    +'.period-banner {text-align:center;font-size:11px;font-weight:bold;border:1px solid #000;padding:5px;margin:6px 0;background:#f5f5f5;}'
+    +'table {width:100%;border-collapse:collapse;font-size:9px;margin:6px 0;}'
+    +'th {background:#003366;color:white;padding:5px 3px;text-align:center;border:1px solid #000;font-size:9px;}'
+    +'td {border:1px solid #ccc;padding:4px 3px;text-align:center;}'
+    +'.total-row td {background:#f0f0f0;font-weight:bold;font-size:10px;}'
+    +'.cumulative {background:#e8f4e8;}'
+    +'.sigs {display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:25px;text-align:center;}'
+    +'.sig-box {border-top:1px solid #000;padding-top:8px;font-size:10px;}'
+    +'@media print {body{padding:8px;} .no-print{display:none;}}'
+    +'</style></head><body>'
+
+    // ── Header
+    +'<div class="header-top">'
+    +'<div class="gov">وزارة المالية<br>مصلحة الضرائب العامة</div>'
+    +'<div class="form-title">نموذج رقم (41) خصم و تحصيل</div>'
+    +'<div style="font-size:9px;text-align:left;">رقم المستند: '+(form.docNum||'')+'</div>'
+    +'</div>'
+
+    // ── Org info
+    +'<div class="org-info">'
+    +'<div class="row"><span class="lbl">رقم الجهة :</span><span class="val">'+(org.taxId||'')+'</span></div>'
+    +'<div class="row"><span class="lbl">اسم الجهة :</span><span class="val">'+(org.name||'')+'</span></div>'
+    +'<div class="row"><span class="lbl">عنوان الجهة :</span><span class="val">'+(org.address||'')+'</span></div>'
+    +'<div class="row"><span class="lbl">تليفون الجهة :</span><span class="val">'+(org.phone||'')+'</span></div>'
+    +'<div class="row"><span class="lbl">كود نوع الجهة :</span><span class="val">جمعية أهلية</span></div>'
+    +'<div class="row"><span class="lbl">بمبلغ :</span><span class="val">'+form.grandTotal.toLocaleString()+'</span></div>'
+    +'</div>'
+
+    // ── Period
+    +'<div class="period-banner">'
+    +'بيان بالمحصل تحت حساب الضريبة عن المدة '+qNames[form.quarter-1]+' لسنة '+form.year
+    +'</div>'
+
+    // ── Data table
+    +'<table>'
+    +'<thead><tr>'
+    +'<th rowspan="2">م</th>'
+    +'<th rowspan="2">رقم التسجيل الضريبى</th>'
+    +'<th rowspan="2">رقم الملف</th>'
+    +'<th rowspan="2">اسم الممول</th>'
+    +'<th rowspan="2">العنوان</th>'
+    +'<th rowspan="2">تاريخ التعامل</th>'
+    +'<th colspan="2">طبيعة التعامل وكودها</th>'
+    +'<th rowspan="2">القيمة الإجمالية للتعامل</th>'
+    +'<th colspan="2">نوع الخصومات وكودها</th>'
+    +'<th rowspan="2">القيمة الصافية للتعامل</th>'
+    +'<th rowspan="2">نسبة الخصم%</th>'
+    +'<th rowspan="2">المحصل لحساب الضريبة</th>'
+    +'</tr><tr>'
+    +'<th>ط تعامل</th><th>كود</th>'
+    +'<th>نوع الخصم</th><th>كود</th>'
+    +'</tr></thead>'
+    +'<tbody>'+rowsHtml+'</tbody>'
+    +'<tfoot>'
+    +'<tr class="total-row">'
+    +'<td colspan="13" style="text-align:right;padding-left:10px;">الإجمالى</td>'
+    +'<td>'+form.totalWHT.toLocaleString()+'</td>'
+    +'</tr>'
+    +'<tr class="cumulative">'
+    +'<td colspan="13" style="text-align:right;padding-left:10px;">ما قبله</td>'
+    +'<td>'+form.prevTotal.toLocaleString()+'</td>'
+    +'</tr>'
+    +'<tr class="total-row cumulative">'
+    +'<td colspan="13" style="text-align:right;padding-left:10px;font-size:11px;">الإجمالي الحالي (النهائي)</td>'
+    +'<td style="font-size:12px;color:#003366;">'+form.grandTotal.toLocaleString()+'</td>'
+    +'</tr>'
+    +'</tfoot>'
+    +'</table>'
+
+    // ── Signatures
+    +'<div class="sigs">'
+    +'<div class="sig-box">الموظف المختص</div>'
+    +'<div class="sig-box">رئيس جهة العمل</div>'
+    +'</div>'
+    +'</body></html>';
+
+  printContent('نموذج 41 — '+form.year+' — الربع '+qNames[form.quarter-1], html);
+}
+
+
 function rInvPage(){
   if(!DB.inventory)DB.inventory=[];
   if(!DB.invMovements)DB.invMovements=[];
@@ -5880,6 +6244,11 @@ function rSetPage(){
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">مراكز التكلفة · المواقع · الأنشطة · المحاور · البنوك</div></div>';
   h+='<div style="color:white;font-size:20px;">›</div>';
   h+='</div>';
+  h+='<div onclick="sub(\'form41\')" style="cursor:pointer;background:#1d4ed8;border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div><div style="font-weight:800;color:white;font-size:14px;">📋 نموذج 41 — خصم وتحصيل</div>';
+  h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">توليد النموذج الرسمي ربع سنوي لمصلحة الضرائب</div></div>';
+  h+='<div style="color:white;font-size:20px;">›</div>';
+  h+="</div>";
   h+='<div onclick="sub(\'timesheet\')" style="cursor:pointer;background:var(--sk);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">';
   h+='<div><div style="font-weight:800;color:white;font-size:14px;">⏱️ إعدادات الـ Timesheet</div>';
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">ساعات العمل · أيام العطل · طريقة التقريب</div></div>';
@@ -5902,6 +6271,11 @@ function rSetPage(){
   h+='</div>';
   h+='<div class="sd">بيانات الجمعية</div>';
     h+='<div class="fg"><label>اسم الجمعية</label><input id="set-org" value="'+(org.name||'')+'" placeholder="اسم الجمعية"></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>🏛️ الرقم الضريبي للجمعية</label><input id="set-taxid" value="'+(org.taxId||'')+'" placeholder="000-000-000"></div>';
+  h+='<div class="fg"><label>📞 التليفون</label><input id="set-phone" value="'+(org.phone||'')+'" placeholder="02 XXXXXXXX"></div>';
+  h+='</div>';
+  h+='<div class="fg"><label>📍 العنوان الكامل</label><input id="set-addr" value="'+(org.address||'')+'" placeholder="الشارع — المنطقة — المحافظة"></div>';
     h+='<div class="fr"><div class="fg"><label>رقم السجل</label><input id="set-reg" value="'+(org.reg||'')+'"></div>';
     h+='<div class="fg"><label>المحافظة</label><input id="set-gov" value="'+(org.gov||'')+'" placeholder="القاهرة"></div></div>';
     h+='<div class="fr"><div class="fg"><label>السنة المالية</label><select id="set-fy"><option value="jan"'+(org.fy==="jan"?" selected":"")+'>يناير — ديسمبر</option><option value="jul"'+(org.fy==="jul"?" selected":"")+'>يوليو — يونيو</option></select></div>';
@@ -6083,6 +6457,9 @@ function saveSet(){
   if(!DB.org)DB.org={};
   DB.org.name=sv("set-org");DB.org.reg=sv("set-reg");DB.org.gov=sv("set-gov");
   DB.org.fy=sv("set-fy");DB.org.currency=sv("set-cur");
+  DB.org.taxId=sv("set-taxid")||DB.org.taxId||"";
+  DB.org.phone=sv("set-phone")||DB.org.phone||"";
+  DB.org.address=sv("set-addr")||DB.org.address||"";
   save();toast("✅ تم حفظ الإعدادات");
   var tb=document.querySelector(".tb-org");
   if(tb&&DB.org.name)tb.textContent=DB.org.name;
@@ -8744,6 +9121,289 @@ function loadSeedEntries(){
   return entries;
 }
 
+
+// ================================================================
+// SEED: بيانات ضريبية + 50 قيد ربع سنوي (Q1 2026)
+// ================================================================
+function loadWHTSeedData(){
+
+  // ── 1. Update org with tax info ─────────────────────────────────
+  if(!DB.org) DB.org={};
+  DB.org.taxId   = "412-000-123";
+  DB.org.address = "15 شارع النيل — المنطقة المركزية — القاهرة";
+  DB.org.phone   = "02 25000000";
+  DB.org.bank    = "بنك مصر — فرع وسط المدينة";
+  DB.org.reg     = "4521/2010";
+
+  // ── 2. Seed thirdParties with full tax data ──────────────────────
+  var tps=[
+    {id:"TP-W001",name:"شركة النور للتجارة والتوريدات",
+     type:"supplier",taxId:"100-200-301",fileId:"-",
+     address:"12 شارع الصناعة — مدينة نصر — القاهرة",
+     whtType:"صيانة",whtRate:1,notes:"مورد صيانة معتمد"},
+    {id:"TP-W002",name:"محمد عبد الله التوريدات",
+     type:"supplier",taxId:"200-300-402",fileId:"-",
+     address:"45 شارع الجمهورية — الدقي — الجيزة",
+     whtType:"توريدات",whtRate:1,notes:"مورد توريدات مكتبية"},
+    {id:"TP-W003",name:"الأمانة للاستشارات والتدريب",
+     type:"consultant",taxId:"300-400-503",fileId:"-",
+     address:"8 شارع الأزهر — مركز الأعمال — القاهرة",
+     whtType:"استشارات",whtRate:5,notes:"شركة استشارات وتدريب"},
+    {id:"TP-W004",name:"السفر الآمن للسياحة والسفر",
+     type:"supplier",taxId:"400-500-604",fileId:"-",
+     address:"22 شارع عمر بن الخطاب — المهندسين — الجيزة",
+     whtType:"سفريات",whtRate:3,notes:"وكالة سفر"},
+    {id:"TP-W005",name:"أسطول النقل لتأجير السيارات",
+     type:"supplier",taxId:"500-600-705",fileId:"-",
+     address:"شارع الشهيد — المعادي — القاهرة",
+     whtType:"ايجار سيارات",whtRate:3,notes:"تأجير سيارات"},
+    {id:"TP-W006",name:"دار الطباعة الحديثة",
+     type:"supplier",taxId:"600-700-806",fileId:"-",
+     address:"المنطقة الصناعية — 6 أكتوبر — الجيزة",
+     whtType:"طباعة",whtRate:1,notes:"مطبعة ومركز تصميم"},
+    {id:"TP-W007",name:"شركة ديجيتال سولوشنز للبرمجيات",
+     type:"consultant",taxId:"700-800-907",fileId:"-",
+     address:"برج القاهرة بزنس بارك — التجمع الخامس — القاهرة",
+     whtType:"تقنية",whtRate:5,notes:"شركة تطوير أنظمة"},
+    {id:"TP-W008",name:"مكتب الثقة للمحاسبة والمراجعة",
+     type:"consultant",taxId:"800-900-008",fileId:"-",
+     address:"17 شارع سليمان الحلبي — وسط البلد — القاهرة",
+     whtType:"محاسبة",whtRate:5,notes:"مكتب تدقيق خارجي"},
+    {id:"TP-W009",name:"شركة الاتصالات الوطنية",
+     type:"supplier",taxId:"900-100-109",fileId:"-",
+     address:"برج الاتصالات — مدينة نصر — القاهرة",
+     whtType:"خدمات",whtRate:3,notes:"مورد خدمات اتصالات"},
+    {id:"TP-W010",name:"الحارس للخدمات الأمنية",
+     type:"supplier",taxId:"110-200-210",fileId:"-",
+     address:"55 شارع السودان — المهندسين — الجيزة",
+     whtType:"خدمات",whtRate:3,notes:"مورد خدمات أمن وحراسة"},
+  ];
+
+  // Merge — don't duplicate
+  if(!DB.thirdParties) DB.thirdParties=[];
+  tps.forEach(function(tp){
+    if(!DB.thirdParties.find(function(t){return t.id===tp.id;}))
+      DB.thirdParties.push(tp);
+  });
+
+  // ── 3. 50 قيد Q1 2026 بمعاملات خاضعة للخصم ─────────────────────
+  var entries=[];
+  var n=500; // starting serial to avoid conflict
+
+  function jid(x){return 'J2026-WHT-'+String(x).padStart(3,'0');}
+  function ln(acc,nm,dr,cr,tpId){
+    return {acc:acc,an:nm,dr:dr||0,cr:cr||0,
+      proj:'',cc:'CC01',tpId:tpId||'',tpName:'',tpType:''};
+  }
+
+  var data=[
+    // ── يناير 2026 ────────────────────────────────────────────────
+    // صيانة مباني
+    {dt:'2026-01-08',desc:'صيانة مكيفات المقر الرئيسي',ref:'PV-2601-001',
+     tp:'TP-W001',gross:7016.5,net:7016.5,rate:0.01,
+     expAcc:'5241',expNm:'صيانة المباني والمنشآت'},
+    {dt:'2026-01-08',desc:'صيانة وسباكة الحمامات',ref:'PV-2601-002',
+     tp:'TP-W001',gross:4400,net:4400,rate:0.01,
+     expAcc:'5241',expNm:'صيانة المباني والمنشآت'},
+    // توريدات مكتبية
+    {dt:'2026-01-12',desc:'توريد قرطاسية ولوازم مكتبية Q1',ref:'PV-2601-003',
+     tp:'TP-W002',gross:6945,net:6945,rate:0.01,
+     expAcc:'5231',expNm:'قرطاسية ولوازم مكتبية'},
+    {dt:'2026-01-12',desc:'توريد أحبار وورق طابعات',ref:'PV-2601-004',
+     tp:'TP-W002',gross:7525.5,net:6945,rate:0.01,
+     expAcc:'5231',expNm:'قرطاسية ولوازم مكتبية'},
+    // طباعة
+    {dt:'2026-01-15',desc:'طباعة تقارير ومطبوعات المشروع P001',ref:'PV-2601-005',
+     tp:'TP-W006',gross:7420.51,net:7420.51,rate:0.01,
+     expAcc:'5232',expNm:'مطبوعات ودعاية وإعلان'},
+    {dt:'2026-01-15',desc:'طباعة كتيبات تدريبية',ref:'PV-2601-006',
+     tp:'TP-W006',gross:8354.66,net:7420.51,rate:0.01,
+     expAcc:'5232',expNm:'مطبوعات ودعاية وإعلان'},
+    // استشارات
+    {dt:'2026-01-20',desc:'استشارات إدارية Q1 — مصر للاستشارات',ref:'PV-2601-007',
+     tp:'TP-W003',gross:5852,net:5320,rate:0.05,
+     expAcc:'5252',expNm:'أتعاب قانونية واستشارية'},
+    // سفريات
+    {dt:'2026-01-22',desc:'حجوزات سفر فريق التدريب — الإسكندرية',ref:'PV-2601-008',
+     tp:'TP-W004',gross:3269.3,net:3269.3,rate:0.03,
+     expAcc:'5261',expNm:'مصروفات السفر والانتقالات'},
+    // إيجار سيارة
+    {dt:'2026-01-25',desc:'إيجار سيارة للفريق الميداني — يناير',ref:'PV-2601-009',
+     tp:'TP-W005',gross:5700,net:5000,rate:0.03,
+     expAcc:'5261',expNm:'مصروفات السفر والانتقالات'},
+    // اتصالات
+    {dt:'2026-01-31',desc:'فاتورة خدمات اتصالات — يناير',ref:'PV-2601-010',
+     tp:'TP-W009',gross:3850,net:3850,rate:0.03,
+     expAcc:'5223',expNm:'اتصالات وإنترنت'},
+    // تقنية معلومات
+    {dt:'2026-01-28',desc:'خدمات صيانة وتطوير النظام — يناير',ref:'PV-2601-011',
+     tp:'TP-W007',gross:12000,net:11000,rate:0.05,
+     expAcc:'5242',expNm:'صيانة الأجهزة والمعدات'},
+    // أمن وحراسة
+    {dt:'2026-01-31',desc:'خدمات حراسة المقر — يناير',ref:'PV-2601-012',
+     tp:'TP-W010',gross:4800,net:4800,rate:0.03,
+     expAcc:'5263',expNm:'مصروفات متنوعة'},
+
+    // ── فبراير 2026 ───────────────────────────────────────────────
+    {dt:'2026-02-05',desc:'توريد مواد تدريبية P002',ref:'PV-2602-001',
+     tp:'TP-W002',gross:3725,net:3725,rate:0.01,
+     expAcc:'5121',expNm:'مستلزمات وتوريدات البرامج'},
+    {dt:'2026-02-05',desc:'توريد أجهزة عرض وشاشات',ref:'PV-2602-002',
+     tp:'TP-W002',gross:4068.7,net:3725,rate:0.01,
+     expAcc:'5121',expNm:'مستلزمات وتوريدات البرامج'},
+    {dt:'2026-02-10',desc:'استشارات تقييم أثر البرنامج',ref:'PV-2602-003',
+     tp:'TP-W003',gross:8500,net:7727,rate:0.05,
+     expAcc:'5252',expNm:'أتعاب قانونية واستشارية'},
+    {dt:'2026-02-12',desc:'صيانة السيارات الميدانية',ref:'PV-2602-004',
+     tp:'TP-W001',gross:5200,net:5200,rate:0.01,
+     expAcc:'5243',expNm:'صيانة وسائل النقل'},
+    {dt:'2026-02-14',desc:'حجوزات فندق ورشة عمل — الغردقة',ref:'PV-2602-005',
+     tp:'TP-W004',gross:18500,net:18500,rate:0.03,
+     expAcc:'5261',expNm:'مصروفات السفر والانتقالات'},
+    {dt:'2026-02-16',desc:'طباعة بانرات وملصقات حملة توعية',ref:'PV-2602-006',
+     tp:'TP-W006',gross:6800,net:6800,rate:0.01,
+     expAcc:'5232',expNm:'مطبوعات ودعاية وإعلان'},
+    {dt:'2026-02-18',desc:'إيجار سيارات الفريق — فبراير',ref:'PV-2602-007',
+     tp:'TP-W005',gross:5700,net:5000,rate:0.03,
+     expAcc:'5261',expNm:'مصروفات السفر والانتقالات'},
+    {dt:'2026-02-19',desc:'خدمات أمن وحراسة — فبراير',ref:'PV-2602-008',
+     tp:'TP-W010',gross:4800,net:4800,rate:0.03,
+     expAcc:'5263',expNm:'مصروفات متنوعة'},
+    {dt:'2026-02-22',desc:'توريد أجهزة كمبيوتر محمول × 3',ref:'PV-2602-009',
+     tp:'TP-W002',gross:42000,net:42000,rate:0.01,
+     expAcc:'5121',expNm:'مستلزمات وتوريدات البرامج'},
+    {dt:'2026-02-23',desc:'فاتورة اتصالات — فبراير',ref:'PV-2602-010',
+     tp:'TP-W009',gross:3850,net:3850,rate:0.03,
+     expAcc:'5223',expNm:'اتصالات وإنترنت'},
+    {dt:'2026-02-25',desc:'تدقيق حسابات الربع الرابع 2025',ref:'PV-2602-011',
+     tp:'TP-W008',gross:15000,net:13636,rate:0.05,
+     expAcc:'5251',expNm:'أتعاب المراجعة والتدقيق الخارجي'},
+    {dt:'2026-02-26',desc:'استشارات قانونية عقد مورد جديد',ref:'PV-2602-012',
+     tp:'TP-W003',gross:5852,net:5320,rate:0.05,
+     expAcc:'5252',expNm:'أتعاب قانونية واستشارية'},
+    {dt:'2026-02-28',desc:'توريد مواد إغاثية موسم رمضان',ref:'PV-2602-013',
+     tp:'TP-W002',gross:28500,net:28500,rate:0.01,
+     expAcc:'5124',expNm:'مصروفات الإغاثة والمساعدات العينية'},
+    {dt:'2026-02-28',desc:'خدمات تطوير النظام — فبراير',ref:'PV-2602-014',
+     tp:'TP-W007',gross:12000,net:11000,rate:0.05,
+     expAcc:'5242',expNm:'صيانة الأجهزة والمعدات'},
+
+    // ── مارس 2026 ─────────────────────────────────────────────────
+    {dt:'2026-03-04',desc:'توريد قرطاسية الربع الثاني',ref:'PV-2603-001',
+     tp:'TP-W002',gross:6945,net:6945,rate:0.01,
+     expAcc:'5231',expNm:'قرطاسية ولوازم مكتبية'},
+    {dt:'2026-03-04',desc:'توريد ملفات وأدوات مكتبية',ref:'PV-2603-002',
+     tp:'TP-W002',gross:7525.5,net:6945,rate:0.01,
+     expAcc:'5231',expNm:'قرطاسية ولوازم مكتبية'},
+    {dt:'2026-03-08',desc:'صيانة شاملة أجهزة التكييف',ref:'PV-2603-003',
+     tp:'TP-W001',gross:7016.5,net:7016.5,rate:0.01,
+     expAcc:'5241',expNm:'صيانة المباني والمنشآت'},
+    {dt:'2026-03-08',desc:'إصلاح شبكة كهرباء المخزن',ref:'PV-2603-004',
+     tp:'TP-W001',gross:4400,net:4400,rate:0.01,
+     expAcc:'5241',expNm:'صيانة المباني والمنشآت'},
+    {dt:'2026-03-10',desc:'استشارات تصميم منهج تدريبي P003',ref:'PV-2603-005',
+     tp:'TP-W003',gross:9500,net:8636,rate:0.05,
+     expAcc:'5122',expNm:'أتعاب وعقود خدمات برامجية'},
+    {dt:'2026-03-11',desc:'توريد أثاث ومعدات مكتبية',ref:'PV-2603-006',
+     tp:'TP-W001',gross:22458,net:19700,rate:0.01,
+     expAcc:'5121',expNm:'مستلزمات وتوريدات البرامج'},
+    {dt:'2026-03-12',desc:'طباعة تقارير الأثر السنوي',ref:'PV-2603-007',
+     tp:'TP-W006',gross:11200,net:11200,rate:0.01,
+     expAcc:'5232',expNm:'مطبوعات ودعاية وإعلان'},
+    {dt:'2026-03-15',desc:'فاتورة اتصالات — مارس',ref:'PV-2603-008',
+     tp:'TP-W009',gross:3850,net:3850,rate:0.03,
+     expAcc:'5223',expNm:'اتصالات وإنترنت'},
+    {dt:'2026-03-17',desc:'توريد مواد توعوية لحملة صحة الأم',ref:'PV-2603-009',
+     tp:'TP-W002',gross:6000,net:6000,rate:0.01,
+     expAcc:'5121',expNm:'مستلزمات وتوريدات البرامج'},
+    {dt:'2026-03-17',desc:'سفريات زيارات ميدانية الصعيد',ref:'PV-2603-010',
+     tp:'TP-W004',gross:3269.3,net:3269.3,rate:0.03,
+     expAcc:'5261',expNm:'مصروفات السفر والانتقالات'},
+    {dt:'2026-03-19',desc:'إيجار سيارات الفريق — مارس',ref:'PV-2603-011',
+     tp:'TP-W005',gross:5700,net:5000,rate:0.03,
+     expAcc:'5261',expNm:'مصروفات السفر والانتقالات'},
+    {dt:'2026-03-20',desc:'خدمات أمن وحراسة — مارس',ref:'PV-2603-012',
+     tp:'TP-W010',gross:4800,net:4800,rate:0.03,
+     expAcc:'5263',expNm:'مصروفات متنوعة'},
+    {dt:'2026-03-22',desc:'خدمات تطوير النظام والبنية التحتية',ref:'PV-2603-013',
+     tp:'TP-W007',gross:18000,net:16364,rate:0.05,
+     expAcc:'5242',expNm:'صيانة الأجهزة والمعدات'},
+    {dt:'2026-03-24',desc:'استشارات مالية إعداد الميزانية 2026',ref:'PV-2603-014',
+     tp:'TP-W008',gross:12000,net:10909,rate:0.05,
+     expAcc:'5251',expNm:'أتعاب المراجعة والتدقيق الخارجي'},
+    {dt:'2026-03-25',desc:'توريد معدات صحية P002',ref:'PV-2603-015',
+     tp:'TP-W002',gross:35000,net:35000,rate:0.01,
+     expAcc:'5121',expNm:'مستلزمات وتوريدات البرامج'},
+    {dt:'2026-03-26',desc:'خدمات دعاية وإعلان — حملة رمضان',ref:'PV-2603-016',
+     tp:'TP-W009',gross:7500,net:7500,rate:0.03,
+     expAcc:'5232',expNm:'مطبوعات ودعاية وإعلان'},
+    {dt:'2026-03-28',desc:'توريد كمبيوتر وأجهزة P003',ref:'PV-2603-017',
+     tp:'TP-W002',gross:28000,net:28000,rate:0.01,
+     expAcc:'5121',expNm:'مستلزمات وتوريدات البرامج'},
+    {dt:'2026-03-29',desc:'استشارات تقييم نهاية المشروع P001',ref:'PV-2603-018',
+     tp:'TP-W003',gross:15000,net:13636,rate:0.05,
+     expAcc:'5252',expNm:'أتعاب قانونية واستشارية'},
+    {dt:'2026-03-30',desc:'صيانة شاملة للمركبات × 4',ref:'PV-2603-019',
+     tp:'TP-W001',gross:9800,net:9800,rate:0.01,
+     expAcc:'5243',expNm:'صيانة وسائل النقل'},
+    {dt:'2026-03-31',desc:'تدقيق Q1 2026 وإعداد التقارير المالية',ref:'PV-2603-020',
+     tp:'TP-W008',gross:20000,net:18182,rate:0.05,
+     expAcc:'5251',expNm:'أتعاب المراجعة والتدقيق الخارجي'},
+    // -- extra to reach 50 entries
+    {dt:'2026-01-18',desc:'توريد أجهزة عرض ومعدات P002',ref:'PV-2601-013',
+     tp:'TP-W002',gross:15500,net:15500,rate:0.01,
+     expAcc:'5121',expNm:'مستلزمات وتوريدات البرامج'},
+    {dt:'2026-02-03',desc:'صيانة نظام التبريد المركزي',ref:'PV-2602-015',
+     tp:'TP-W001',gross:8200,net:8200,rate:0.01,
+     expAcc:'5241',expNm:'صيانة المباني والمنشآت'},
+    {dt:'2026-03-02',desc:'حجوزات سفر برنامج صحة الأم',ref:'PV-2603-021',
+     tp:'TP-W004',gross:11400,net:11400,rate:0.03,
+     expAcc:'5261',expNm:'مصروفات السفر والانتقالات'},
+    {dt:'2026-01-29',desc:'دورة تدريبية للفريق — إدارة المشروعات',ref:'PV-2601-014',
+     tp:'TP-W003',gross:7000,net:6364,rate:0.05,
+     expAcc:'5123',expNm:'مصروفات التدريب وبناء القدرات'},
+    {dt:'2026-02-20',desc:'طباعة استمارات وبروتوكولات بحثية',ref:'PV-2602-016',
+     tp:'TP-W006',gross:4600,net:4600,rate:0.01,
+     expAcc:'5232',expNm:'مطبوعات ودعاية وإعلان'},
+  ];
+
+  // Build entries
+  data.forEach(function(d){
+    var whtAmt=Math.round(d.net*d.rate*100)/100;
+    var tpObj=DB.thirdParties.find(function(t){return t.id===d.tp;})||{name:''};
+    var entry={
+      id:jid(n++),
+      date:d.dt, desc:d.desc, ref:d.ref,
+      proj:'', status:'posted',
+      lines:[
+        {acc:d.expAcc, an:d.expNm,
+         dr:d.gross,  cr:0,
+         proj:'',cc:'CC01',
+         tpId:d.tp,tpName:tpObj.name,tpType:'supplier'},
+        {acc:'2114', an:'ضرائب مستحقة — خصم وتحصيل',
+         dr:0, cr:whtAmt,
+         proj:'',cc:'CC01',tpId:'',tpName:'',tpType:''},
+        {acc:'1112', an:'ح/ البنك الجاري',
+         dr:0, cr:d.gross-whtAmt,
+         proj:'',cc:'CC01',tpId:'',tpName:'',tpType:''},
+      ]
+    };
+    entries.push(entry);
+  });
+
+  // Validate balance before adding
+  var ok=true;
+  entries.forEach(function(e){
+    var dr=e.lines.reduce(function(s,l){return s+(l.dr||0);},0);
+    var cr=e.lines.reduce(function(s,l){return s+(l.cr||0);},0);
+    if(Math.abs(dr-cr)>0.1){ok=false;console.log('UNBALANCED:',e.id,dr,cr);}
+  });
+
+  if(!DB.entries) DB.entries=[];
+  DB.entries=DB.entries.concat(entries);
+  return entries.length;
+}
+
 function loadSeedData(){
   if(DB.entries && DB.entries.length > 5) {
     toast("⚠️ البيانات موجودة بالفعل — استخدم مسح البيانات أولاً");
@@ -9262,6 +9922,9 @@ function loadSeedData(){
   var seedEntries=loadSeedEntries();
   DB.entries=(DB.entries||[]).concat(seedEntries);
 
+  // ── WHT seed data ─────────────────────────────────────────────
+  loadWHTSeedData();
+
   save();
   toast("✅ تم تحميل "+DB.entries.length+" قيد و"+DB.invMovements.length+" حركة مخزون وبيانات كاملة");
   setTimeout(function(){
@@ -9320,6 +9983,9 @@ function rReportsPage(){
       {icon:"👤",label:"التوزيع الديموغرافي",fn:"hrRptDemo()"},
       {icon:"💳",label:"تقرير الرواتب التفصيلي",fn:"rptPayrollReport()"},
       {icon:"📋",label:"سجل إعداد المرتبات",fn:"viewPayHistory()"}
+    ]},
+    {title:"🏛️ نماذج ضريبية",reports:[
+      {icon:"📋",label:"نموذج 41 — خصم وتحصيل ربع سنوي",fn:"sub(\'form41\')"},
     ]},
     {title:"⏱️ تقارير Timesheet",reports:[
       {icon:"⏱️",label:"Timesheet شهري",fn:"sub(\'timesheet\')"},
