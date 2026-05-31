@@ -240,6 +240,8 @@ var DB={
   allocations:[],
   leaveRequests:[],
   form41:[],
+  archiveLog:{},
+  entryDocs:{},
   projects:[],
   entries:[],
   employees:[
@@ -1081,6 +1083,7 @@ function sub(n){
     taxconfig:rTaxConfig,
     assets:rAssetsPage,
     form41:rForm41Page,
+    archive:rArchivePage,
     timesheet:rTimesheetPage,
     myleaves:rMyLeavesPage,
     leaveapproval:rLeaveApprovalPage
@@ -1101,6 +1104,7 @@ function sub(n){
     taxconfig:"🧮 إعداد الضريبة",
     assets:"🏢 الأصول الثابتة",
     form41:"📋 نموذج 41 — خصم وتحصيل",
+    archive:"🗂️ الأرشيف الإلكتروني",
     timesheet:"⏱️ Timesheet & التوزيع",
     myleaves:"🌴 إجازاتي",
     leaveapproval:"✅ اعتماد الإجازات"
@@ -1975,6 +1979,9 @@ function viewE(id){
   if(can("canDeleteEntries")){var b2=document.createElement("button");b2.className="btn btn-rd btn-sm";b2.style.flex="1";b2.textContent="🗑️ حذف";b2.onclick=function(){delEntry(id);};btns.appendChild(b2);}
   var b3=document.createElement("button");b3.className="btn btn-gy btn-sm";b3.style.flex="1";b3.textContent="إغلاق";b3.onclick=function(){cm();};btns.appendChild(b3);
   var b4=document.createElement("button");b4.className="btn btn-sm";b4.style.cssText="background:var(--sk);flex:1;";b4.textContent="🖨️ طباعة";b4.onclick=function(){printEntry(id);};btns.appendChild(b4);
+  var b5=document.createElement("button");b5.className="btn btn-sm";b5.style.cssText="background:var(--am);flex:1;";b5.textContent="📄 مذكرة صرف";b5.onclick=function(){cm();printPaymentOrder(id);};btns.appendChild(b5);
+  var b7=document.createElement("button");b7.className="btn btn-sm";b7.style.cssText="background:#059669;flex:1;";b7.textContent="📎 المستندات";b7.onclick=function(){openDocsModal(id);};btns.appendChild(b7);
+  var b6=document.createElement("button");b6.className="btn btn-sm";b6.style.cssText="background:#374151;flex:1;";b6.textContent="🗂️ أرشفة";b6.onclick=function(){cm();setTimeout(function(){sub('archive');},100);};btns.appendChild(b6);
   om("📋 تفاصيل القيد",h,btns);
 }
 
@@ -5691,6 +5698,539 @@ function exportAllReportsExcel(){
 }
 
 
+// ================================================================
+// ARCHIVE MODULE — الأرشيف الإلكتروني + مذكرة الصرف + QR
+// ================================================================
+
+// ── QR Code generator (pure JS — no external lib needed) ─────────
+// Uses Google Charts API for QR (works offline fallback to text)
+function getQRUrl(text){
+  var enc=encodeURIComponent(text.substring(0,200));
+  return 'https://chart.googleapis.com/chart?chs=150x150&cht=qr&chl='+enc+'&choe=UTF-8';
+}
+
+// ── Archive status helpers ────────────────────────────────────────
+function initArchive(){
+  if(!DB.archiveLog) DB.archiveLog={}; // {entryId: {status,archivedBy,archivedAt,boxRef,notes}}
+}
+
+function getArchiveStatus(entryId){
+  initArchive();
+  return DB.archiveLog[entryId]||{status:'pending'};
+}
+
+function setArchiveStatus(entryId, status, boxRef, notes){
+  initArchive();
+  var cu=getCurrentUser();
+  DB.archiveLog[entryId]={
+    status:status, // pending | archived | missing
+    archivedBy:cu?cu.name:'',
+    archivedAt:new Date().toISOString(),
+    boxRef:boxRef||'',
+    notes:notes||''
+  };
+  save();
+}
+
+// ── Print Payment Order (مذكرة الصرف) ────────────────────────────
+function printPaymentOrder(entryId){
+  var entry=(DB.entries||[]).find(function(e){return e.id===entryId;});
+  if(!entry){toast('القيد غير موجود');return;}
+  var org=DB.org||{};
+
+  // Build entry details
+  var drLines=entry.lines.filter(function(l){return l.dr>0;});
+  var crLines=entry.lines.filter(function(l){return l.cr>0;});
+  var totalDr=drLines.reduce(function(s,l){return s+(l.dr||0);},0);
+
+  // Get third party info
+  var tp=null;
+  entry.lines.forEach(function(l){
+    if(l.tpId&&!tp) tp=DB.thirdParties.find(function(t){return t.id===l.tpId;});
+  });
+
+  // Archive URL for QR
+  var qrData='أثر-أرشيف | '+entry.id+' | '+entry.date+' | '+(org.name||'') +' | '+fmt(totalDr)+' ج.م';
+  var qrUrl=getQRUrl(qrData);
+
+  // Amount in words (simple Arabic)
+  function arabicAmount(n){
+    n=Math.round(n);
+    if(n===0) return 'صفر';
+    var units=['','واحد','اثنان','ثلاثة','أربعة','خمسة','ستة','سبعة','ثمانية','تسعة','عشرة'];
+    var tens =['','عشرة','عشرون','ثلاثون','أربعون','خمسون','ستون','سبعون','ثمانون','تسعون'];
+    var h=Math.floor(n/1000000),th=Math.floor((n%1000000)/1000),hu=Math.floor((n%1000)/100),t=Math.floor((n%100)/10),u=n%10;
+    var res=[];
+    if(h>0)  res.push((units[h]||h)+' مليون');
+    if(th>0) res.push((units[th]||th)+' ألف');
+    if(hu>0) res.push((units[hu]||hu)+' مئة');
+    if(t>0)  res.push(tens[t]);
+    if(u>0&&t>0)  res.push('و'+units[u]);
+    else if(u>0)  res.push(units[u]);
+    return res.join(' ')+' جنيهاً مصرياً فقط لا غير';
+  }
+
+  // Build line items HTML
+  var linesHtml=drLines.map(function(l){
+    return '<tr><td style="padding:6px 8px;border:1px solid #ddd;text-align:right;">'+l.an+'</td>'
+      +'<td style="padding:6px 8px;border:1px solid #ddd;text-align:center;">'+(l.proj||'—')+'</td>'
+      +'<td style="padding:6px 8px;border:1px solid #ddd;text-align:center;">'+(l.cc||'—')+'</td>'
+      +'<td style="padding:6px 8px;border:1px solid #ddd;text-align:left;font-weight:700;">'+l.dr.toLocaleString()+'</td>'
+      +'</tr>';
+  }).join('');
+
+  // Payment method
+  var payMethod='';
+  crLines.forEach(function(l){
+    if(l.acc==='1112'||l.acc==='1113') payMethod='تحويل بنكي';
+    else if(l.acc==='1111') payMethod='نقداً';
+  });
+
+  var html='<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">'
+    +'<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">'
+    +'<style>'
+    +'*{margin:0;padding:0;box-sizing:border-box;}'
+    +'body{font-family:Cairo,Arial,sans-serif;font-size:11px;padding:20px;color:#000;direction:rtl;}'
+    +'.page{max-width:210mm;margin:0 auto;}'
+    +'.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #0D3B6E;padding-bottom:12px;margin-bottom:14px;}'
+    +'.org-name{font-size:18px;font-weight:900;color:#0D3B6E;}'
+    +'.org-sub{font-size:11px;color:#6b7280;}'
+    +'.doc-title{text-align:center;}'
+    +'.doc-title h1{font-size:20px;font-weight:900;color:#0D3B6E;border:2px solid #0D3B6E;padding:6px 20px;display:inline-block;border-radius:6px;}'
+    +'.doc-title .ref{font-size:12px;color:#6b7280;margin-top:4px;}'
+    +'.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}'
+    +'.meta-box{border:1px solid #e5e7eb;border-radius:8px;padding:10px;}'
+    +'.meta-lbl{font-size:9.5px;color:#9ca3af;margin-bottom:3px;}'
+    +'.meta-val{font-weight:700;font-size:12px;color:#0D3B6E;}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:11px;}'
+    +'th{background:#0D3B6E;color:white;padding:7px 8px;}'
+    +'.amount-words{background:#f0f9ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;}'
+    +'.amount-words .lbl{color:#6b7280;font-size:10px;}'
+    +'.amount-words .val{font-weight:800;color:#1d4ed8;font-size:14px;}'
+    +'.sigs{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:28px;}'
+    +'.sig-box{text-align:center;padding-top:40px;border-top:1px solid #374151;font-size:10px;color:#6b7280;}'
+    +'.archive-strip{display:flex;justify-content:space-between;align-items:center;'
+    +'border:2px dashed #d1d5db;border-radius:8px;padding:10px;margin-top:16px;background:#f9fafb;}'
+    +'.qr-section{text-align:center;}'
+    +'.qr-section img{width:100px;height:100px;}'
+    +'.archive-info{font-size:10px;color:#6b7280;line-height:1.8;}'
+    +'.archive-info strong{color:#0D3B6E;}'
+    +'@media print{body{padding:8px;}}'
+    +'</style></head><body><div class="page">'
+
+    // ── Header
+    +'<div class="header">'
+    +'<div><div class="org-name">'+(org.name||'الجمعية')+'</div>'
+    +'<div class="org-sub">الرقم الضريبي: '+(org.taxId||'—')+'</div>'
+    +'<div class="org-sub">'+(org.address||'')+'</div></div>'
+    +'<div class="doc-title">'
+    +'<h1>مذكرة صرف</h1>'
+    +'<div class="ref">رقم: <strong>'+entry.id+'</strong></div>'
+    +'</div></div>'
+
+    // ── Meta info
+    +'<div class="meta-grid">'
+    +'<div class="meta-box"><div class="meta-lbl">تاريخ المذكرة</div><div class="meta-val">'+entry.date+'</div></div>'
+    +'<div class="meta-box"><div class="meta-lbl">المرجع</div><div class="meta-val">'+(entry.ref||'—')+'</div></div>'
+    +'<div class="meta-box"><div class="meta-lbl">البيان</div><div class="meta-val">'+entry.desc+'</div></div>'
+    +'<div class="meta-box"><div class="meta-lbl">طريقة الدفع</div><div class="meta-val">'+(payMethod||'—')+'</div></div>'
+    +(tp?'<div class="meta-box" style="grid-column:span 2;"><div class="meta-lbl">المستفيد</div><div class="meta-val">'+tp.name+(tp.taxId?' — رقم ضريبي: '+tp.taxId:'')+'</div></div>':'')
+    +'</div>'
+
+    // ── Line items
+    +'<table>'
+    +'<thead><tr><th style="text-align:right;">البند / الحساب</th><th>المشروع</th><th>مركز التكلفة</th><th style="text-align:left;">المبلغ (ج.م)</th></tr></thead>'
+    +'<tbody>'+linesHtml+'</tbody>'
+    +'<tfoot><tr style="background:#f8f9fa;">'
+    +'<td colspan="3" style="padding:7px 8px;border:1px solid #ddd;font-weight:900;text-align:right;">الإجمالي</td>'
+    +'<td style="padding:7px 8px;border:1px solid #ddd;font-weight:900;font-size:14px;text-align:left;color:#0D3B6E;">'+totalDr.toLocaleString()+'</td>'
+    +'</tr></tfoot></table>'
+
+    // ── Amount in words
+    +'<div class="amount-words">'
+    +'<div class="lbl">المبلغ كتابةً:</div>'
+    +'<div class="val">'+arabicAmount(totalDr)+'</div>'
+    +'</div>'
+
+    // ── Signatures
+    +'<div class="sigs">'
+    +'<div class="sig-box">أعده<br>المحاسب</div>'
+    +'<div class="sig-box">اعتمده<br>المدير المالي</div>'
+    +'<div class="sig-box">وافق عليه<br>المدير التنفيذي</div>'
+    +'<div class="sig-box">استلمه<br>المستفيد</div>'
+    +'</div>'
+
+    // ── Archive strip with QR
+    +'<div class="archive-strip">'
+    +'<div class="archive-info">'
+    +'<strong>رقم الأرشفة:</strong> '+entry.id+'<br>'
+    +'<strong>تاريخ:</strong> '+entry.date+'<br>'
+    +'<strong>المبلغ:</strong> '+totalDr.toLocaleString()+' ج.م<br>'
+    +'<strong>الحالة:</strong> □ مؤرشف ورقياً &nbsp; □ مكتمل المستندات<br>'
+    +'<span style="font-size:9px;color:#9ca3af;">امسح QR للتحقق من بيانات القيد</span>'
+    +'</div>'
+    +'<div class="qr-section">'
+    +'<img src="'+qrUrl+'" onerror="this.style.display=\'none\'">'
+    +'<div style="font-size:9px;color:#9ca3af;margin-top:4px;">'+entry.id+'</div>'
+    +'</div></div>'
+
+    +'</div></body></html>';
+
+  printContent('مذكرة صرف — '+entry.id, html);
+}
+
+// ── Archive management page ───────────────────────────────────────
+function rArchivePage(){
+  initArchive();
+  var posted=(DB.entries||[]).filter(function(e){return e.status==='posted';})
+    .sort(function(a,b){return b.date>a.date?1:-1;});
+
+  var total=posted.length;
+  var archived=posted.filter(function(e){return (DB.archiveLog[e.id]||{}).status==='archived';}).length;
+  var missing=posted.filter(function(e){return (DB.archiveLog[e.id]||{}).status==='missing';}).length;
+  var pending=total-archived-missing;
+
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">🗂️ الأرشيف الإلكتروني</div>';
+  h+='<button class="btn btn-sm btn-gr" onclick="exportArchiveReport()" style="font-size:10.5px;">📊 تقرير الأرشيف Excel</button>';
+  h+='</div>';
+
+  // KPI strip
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">';
+  h+='<div style="background:linear-gradient(135deg,#1a7a4a,#27ae60);border-radius:11px;padding:11px;color:white;text-align:center;">';
+  h+='<div style="font-size:9.5px;opacity:.7;">✅ مؤرشف</div><div style="font-weight:900;font-size:22px;">'+archived+'</div>';
+  h+='<div style="font-size:9px;opacity:.6;">'+Math.round(archived/total*100||0)+'%</div></div>';
+  h+='<div style="background:linear-gradient(135deg,#d97706,#f59e0b);border-radius:11px;padding:11px;color:white;text-align:center;">';
+  h+='<div style="font-size:9.5px;opacity:.7;">⏳ قيد الأرشفة</div><div style="font-weight:900;font-size:22px;">'+pending+'</div></div>';
+  h+='<div style="background:linear-gradient(135deg,#c0392b,#e74c3c);border-radius:11px;padding:11px;color:white;text-align:center;">';
+  h+='<div style="font-size:9.5px;opacity:.7;">❌ مستندات ناقصة</div><div style="font-weight:900;font-size:22px;">'+missing+'</div></div>';
+  h+='</div>';
+
+  // Search + filter
+  h+='<div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;">';
+  h+='<input id="arch-search" placeholder="🔍 بحث برقم القيد أو البيان أو التاريخ..." oninput="filterArchive()" style="padding:8px 12px;border-radius:8px;border:1px solid #e5e7eb;">';
+  h+='<select id="arch-filter" onchange="filterArchive()" style="padding:8px;border-radius:8px;border:1px solid #e5e7eb;">';
+  h+='<option value="all">الكل</option>';
+  h+='<option value="pending">⏳ قيد الأرشفة</option>';
+  h+='<option value="archived">✅ مؤرشف</option>';
+  h+='<option value="missing">❌ مستندات ناقصة</option>';
+  h+='</select></div>';
+
+  // Entries list
+  h+='<div id="arch-list">';
+  h+=buildArchiveList(posted, 'all', '');
+  h+='</div>';
+  return h;
+}
+
+function buildArchiveList(entries, filter, search){
+  var filtered=entries.filter(function(e){
+    var st=(DB.archiveLog[e.id]||{}).status||'pending';
+    if(filter!=='all'&&st!==filter) return false;
+    if(search){
+      var s=search.toLowerCase();
+      return e.id.toLowerCase().includes(s)||
+             (e.desc||'').toLowerCase().includes(s)||
+             (e.date||'').includes(s)||
+             (e.ref||'').toLowerCase().includes(s);
+    }
+    return true;
+  });
+
+  if(!filtered.length) return '<div style="text-align:center;padding:20px;color:var(--g4);">لا توجد نتائج</div>';
+
+  var h='';
+  filtered.forEach(function(entry){
+    var arch=DB.archiveLog[entry.id]||{status:'pending'};
+    var totalDr=entry.lines.reduce(function(s,l){return s+(l.dr||0);},0);
+    var statusClr=arch.status==='archived'?'#1a7a4a':arch.status==='missing'?'#c0392b':'#d97706';
+    var statusLbl=arch.status==='archived'?'✅ مؤرشف':arch.status==='missing'?'❌ ناقص':'⏳ قيد الأرشفة';
+    var statusBg=arch.status==='archived'?'#d1fae5':arch.status==='missing'?'#fee2e2':'#fff9c4';
+
+    h+='<div style="background:white;border-radius:11px;padding:11px;margin-bottom:7px;box-shadow:0 1px 5px rgba(0,0,0,.06);border:1px solid #eee;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">';
+    h+='<div>';
+    h+='<div style="display:flex;align-items:center;gap:6px;"><span style="font-weight:800;font-size:12px;color:var(--nd);">'+entry.id+'</span>'+getDocBadge(entry.id)+'</div>';
+    h+='<div style="font-size:10.5px;color:var(--g4);">'+entry.date+' · '+entry.desc+'</div>';
+    if(arch.boxRef) h+='<div style="font-size:10px;color:#2563eb;">📦 '+arch.boxRef+'</div>';
+    h+='</div>';
+    h+='<div style="text-align:left;">';
+    h+='<div style="font-weight:800;font-size:13px;color:var(--nd);">'+fmt(totalDr)+' ج.م</div>';
+    h+='<div style="background:'+statusBg+';color:'+statusClr+';font-size:10px;font-weight:700;border-radius:5px;padding:2px 8px;margin-top:3px;">'+statusLbl+'</div>';
+    h+='</div></div>';
+
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;">';
+    h+='<button onclick="printPaymentOrder(\''+entry.id+'\')" style="background:var(--am);border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">🖨️ مذكرة صرف</button>';
+    h+='<button onclick="openDocsModal(\''+entry.id+'\''+')" style="background:#059669;border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">📎 '+(DB.entryDocs&&DB.entryDocs[entry.id]?DB.entryDocs[entry.id].length+' مستند':'رفع')+'</button>';
+    h+='<button onclick="markArchived(\''+entry.id+'\''+')"   style="background:#1a7a4a;border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">✅ مؤرشف</button>';
+    h+='<button onclick="markMissing(\''+entry.id+'\')" style="background:#c0392b;border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">❌ ناقص</button>';
+    h+='<button onclick="viewE(\''+entry.id+'\')" style="background:var(--sk);border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">👁️ القيد</button>';
+    h+='</div></div>';
+  });
+  return h;
+}
+
+function filterArchive(){
+  var filter=(document.getElementById('arch-filter')||{}).value||'all';
+  var search=((document.getElementById('arch-search')||{}).value||'').trim();
+  var posted=(DB.entries||[]).filter(function(e){return e.status==='posted';})
+    .sort(function(a,b){return b.date>a.date?1:-1;});
+  var el=document.getElementById('arch-list');
+  if(el) el.innerHTML=buildArchiveList(posted,filter,search);
+}
+
+function markArchived(entryId){
+  openDocsModal(entryId);
+}
+
+function markMissing(entryId){
+  openDocsModal(entryId);
+}
+
+// ── Archive Excel Report ──────────────────────────────────────────
+function exportArchiveReport(){
+  loadSheetJS(function(){
+    initArchive();
+    var posted=(DB.entries||[]).filter(function(e){return e.status==='posted';})
+      .sort(function(a,b){return b.date>a.date?1:-1;});
+
+    var headers=['رقم القيد','التاريخ','البيان','المرجع','المبلغ (ج.م)','حالة الأرشفة','رقم الدرج/الملف','أُرشف بواسطة','تاريخ الأرشفة','ملاحظات'];
+    var rows=posted.map(function(e){
+      var arch=DB.archiveLog[e.id]||{};
+      var amt=e.lines.reduce(function(s,l){return s+(l.dr||0);},0);
+      var stMap={reviewed:'✅ مكتملة',incomplete:'⚠️ مستندات ناقصة',archived:'📦 مؤرشف',pending:'🔵 قيد المراجعة'};
+      var st=stMap[arch.status]||'🔵 قيد المراجعة';
+      var docCount=(DB.entryDocs&&DB.entryDocs[e.id])?DB.entryDocs[e.id].length:0;
+      return [e.id,e.date,e.desc,e.ref||'',amt,st,docCount+' مستند',arch.reviewedBy||arch.archivedBy||'',arch.reviewedAt?arch.reviewedAt.slice(0,10):'',arch.notes||''];
+    });
+
+    // Summary
+    var archived=rows.filter(function(r){return r[5].includes('✅');}).length;
+    var missing=rows.filter(function(r){return r[5].includes('❌');}).length;
+    var pending=rows.length-archived-missing;
+
+    rows.push([]);
+    rows.push(['','','','الإجمالي:',rows.length-2+'','','','','','']);
+    rows.push(['','','','✅ مؤرشف:',archived,'','','','','']);
+    rows.push(['','','','❌ ناقص:',missing,'','','','','']);
+    rows.push(['','','','⏳ قيد الأرشفة:',pending,'','','','','']);
+
+    var ws=XLSX.utils.aoa_to_sheet([headers].concat(rows));
+    ws['!cols']=[{wch:18},{wch:12},{wch:35},{wch:14},{wch:14},{wch:16},{wch:18},{wch:16},{wch:14},{wch:25}];
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'تقرير الأرشيف');
+    downloadXLSX(wb,'تقرير_الأرشيف_'+new Date().toISOString().slice(0,10)+'.xlsx');
+    toast('✅ تم تصدير تقرير الأرشيف');
+  });
+}
+
+
+
+// ================================================================
+// DOCUMENT MANAGEMENT — رفع ومراجعة المستندات لكل قيد
+// ================================================================
+
+function initDocs(){
+  if(!DB.entryDocs) DB.entryDocs={}; // {entryId:[{id,name,type,size,data,uploadedBy,uploadedAt}]}
+}
+
+// ── Upload documents modal ────────────────────────────────────────
+function openDocsModal(entryId){
+  initDocs();
+  var entry=(DB.entries||[]).find(function(e){return e.id===entryId;});
+  if(!entry){toast('القيد غير موجود');return;}
+  var arch=DB.archiveLog[entryId]||{status:'pending'};
+  var docs=DB.entryDocs[entryId]||[];
+
+  var statusOpts=[
+    {v:'pending',  l:'🔵 قيد المراجعة',      bg:'#dbeafe',c:'#1d4ed8'},
+    {v:'reviewed', l:'✅ مراجعة كاملة',        bg:'#d1fae5',c:'#065f46'},
+    {v:'incomplete',l:'⚠️ مستندات ناقصة',     bg:'#fff9c4',c:'#92400e'},
+    {v:'archived', l:'📦 مؤرشف ورقياً',        bg:'#ede9fe',c:'#5b21b6'},
+  ];
+
+  var h='';
+  // Entry info header
+  h+='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:10px;padding:10px 12px;margin-bottom:12px;color:white;">';
+  h+='<div style="font-weight:900;font-size:13px;">'+entryId+'</div>';
+  h+='<div style="font-size:10.5px;opacity:.75;">'+entry.date+' · '+entry.desc+'</div>';
+  h+='</div>';
+
+  // Status selector
+  h+='<div class="sd" style="margin-bottom:8px;">حالة المراجعة</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">';
+  statusOpts.forEach(function(opt){
+    var sel=(arch.status||'pending')===opt.v;
+    h+='<button onclick="setDocStatus(\''+entryId+'\',\''+opt.v+'\')" ';
+    h+='style="background:'+(sel?opt.bg:'#f8f9fa')+';color:'+(sel?opt.c:'#6b7280')+';border:'+(sel?'2px solid '+opt.c:'1px solid #e5e7eb')+';';
+    h+='border-radius:8px;padding:8px;font-family:Cairo,sans-serif;font-size:11px;font-weight:'+(sel?'800':'600')+';cursor:pointer;">';
+    h+=opt.l+'</button>';
+  });
+  h+='</div>';
+
+  // Notes (for incomplete)
+  h+='<div class="fg"><label>ملاحظات (ايه اللي ناقص؟)</label>';
+  h+='<textarea id="doc-notes" rows="2" style="font-family:Cairo,sans-serif;font-size:12px;" placeholder="مثال: ناقص صورة التحويل البنكي + توقيع المدير المالي">'+(arch.notes||'')+'</textarea></div>';
+
+  // Uploaded docs list
+  h+='<div class="sd" style="margin-bottom:8px;">المستندات المرفوعة ('+docs.length+')</div>';
+  if(docs.length){
+    h+='<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px;">';
+    docs.forEach(function(doc,i){
+      var sizeKB=Math.round((doc.size||0)/1024);
+      var icon=doc.type&&doc.type.includes('pdf')?'📄':doc.type&&doc.type.includes('image')?'🖼️':'📎';
+      h+='<div style="background:#f8f9fa;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;">';
+      h+='<div style="display:flex;align-items:center;gap:8px;">';
+      h+='<span style="font-size:18px;">'+icon+'</span>';
+      h+='<div><div style="font-weight:700;font-size:11.5px;">'+doc.name+'</div>';
+      h+='<div style="font-size:9.5px;color:var(--g4);">'+sizeKB+'KB · '+doc.uploadedBy+' · '+doc.uploadedAt.slice(0,10)+'</div></div></div>';
+      h+='<div style="display:flex;gap:5px;">';
+      h+='<button onclick="viewDoc(\''+entryId+'\','+i+')" style="background:var(--sk);border:none;color:white;border-radius:6px;padding:4px 8px;font-size:10px;cursor:pointer;">👁️</button>';
+      h+='<button onclick="deleteDoc(\''+entryId+'\','+i+')" style="background:#fee2e2;border:none;color:#c0392b;border-radius:6px;padding:4px 8px;font-size:10px;cursor:pointer;">🗑️</button>';
+      h+='</div></div>';
+    });
+    h+='</div>';
+  } else {
+    h+='<div style="text-align:center;padding:16px;color:var(--g4);font-size:11.5px;border:2px dashed #e5e7eb;border-radius:10px;margin-bottom:10px;">لم يتم رفع أي مستندات بعد</div>';
+  }
+
+  // Upload button
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">';
+  h+='<button onclick="triggerDocUpload(\''+entryId+'\')" style="background:var(--gr);border:none;color:white;border-radius:9px;padding:11px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">📎 رفع مستند</button>';
+  h+='<button onclick="triggerCameraCapture(\''+entryId+'\')" style="background:var(--sk);border:none;color:white;border-radius:9px;padding:11px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">📷 تصوير مباشر</button>';
+  h+='</div>';
+  h+='<input type="file" id="doc-file-'+entryId+'" accept="image/*,application/pdf" multiple style="display:none;" onchange="handleDocUpload(\''+entryId+'\',this)">';
+  h+='<input type="file" id="doc-cam-'+entryId+'" accept="image/*" capture="environment" style="display:none;" onchange="handleDocUpload(\''+entryId+'\',this)">';
+
+  h+='<button onclick="saveDocNotes(\''+entryId+'\')" style="width:100%;background:var(--nd);border:none;color:white;border-radius:9px;padding:10px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">💾 حفظ الملاحظات</button>';
+
+  om('📎 مستندات القيد — '+entryId, h);
+}
+
+function setDocStatus(entryId, status){
+  initDocs(); initArchive();
+  var cu=getCurrentUser();
+  if(!DB.archiveLog[entryId]) DB.archiveLog[entryId]={};
+  DB.archiveLog[entryId].status=status;
+  DB.archiveLog[entryId].reviewedBy=cu?cu.name:'';
+  DB.archiveLog[entryId].reviewedAt=new Date().toISOString();
+  save();
+  // Refresh modal
+  var notes=(document.getElementById('doc-notes')||{}).value||'';
+  DB.archiveLog[entryId].notes=notes;
+  save();
+  openDocsModal(entryId);
+}
+
+function saveDocNotes(entryId){
+  initArchive();
+  var notes=(document.getElementById('doc-notes')||{}).value||'';
+  if(!DB.archiveLog[entryId]) DB.archiveLog[entryId]={status:'pending'};
+  DB.archiveLog[entryId].notes=notes;
+  var cu=getCurrentUser();
+  DB.archiveLog[entryId].updatedBy=cu?cu.name:'';
+  DB.archiveLog[entryId].updatedAt=new Date().toISOString();
+  save();
+  cm();
+  toast('✅ تم حفظ الملاحظات');
+  // Refresh archive page if open
+  if(document.getElementById('arch-list')) filterArchive();
+}
+
+function triggerDocUpload(entryId){
+  var inp=document.getElementById('doc-file-'+entryId);
+  if(inp) inp.click();
+}
+
+function triggerCameraCapture(entryId){
+  var inp=document.getElementById('doc-cam-'+entryId);
+  if(inp) inp.click();
+}
+
+function handleDocUpload(entryId, input){
+  initDocs();
+  var files=Array.from(input.files||[]);
+  if(!files.length) return;
+  var cu=getCurrentUser();
+  var pending=files.length;
+  var MAX_SIZE=5*1024*1024; // 5MB per file
+
+  files.forEach(function(file){
+    if(file.size>MAX_SIZE){
+      toast('⚠️ الملف '+file.name+' أكبر من 5MB — قم بضغطه أولاً');
+      pending--;
+      if(!pending) openDocsModal(entryId);
+      return;
+    }
+    var reader=new FileReader();
+    reader.onload=function(e){
+      if(!DB.entryDocs[entryId]) DB.entryDocs[entryId]=[];
+      DB.entryDocs[entryId].push({
+        id:'DOC-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
+        name:file.name,
+        type:file.type,
+        size:file.size,
+        data:e.target.result, // base64
+        uploadedBy:cu?cu.name:'',
+        uploadedAt:new Date().toISOString()
+      });
+      save();
+      pending--;
+      if(!pending){
+        toast('✅ تم رفع '+files.length+' مستند');
+        openDocsModal(entryId);
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value='';
+}
+
+function viewDoc(entryId, idx){
+  initDocs();
+  var docs=DB.entryDocs[entryId]||[];
+  var doc=docs[idx];
+  if(!doc){toast('المستند غير موجود');return;}
+  // Open in new window
+  var w=window.open('','_blank');
+  if(doc.type&&doc.type.includes('image')){
+    w.document.write('<html><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;">'
+      +'<img src="'+doc.data+'" style="max-width:100%;max-height:100vh;object-fit:contain;">'
+      +'</body></html>');
+  } else {
+    w.document.write('<html><body style="margin:0;height:100vh;">'
+      +'<iframe src="'+doc.data+'" style="width:100%;height:100%;border:none;"></iframe>'
+      +'</body></html>');
+  }
+}
+
+function deleteDoc(entryId, idx){
+  initDocs();
+  if(!confirm('حذف هذا المستند؟')) return;
+  if(DB.entryDocs[entryId]) DB.entryDocs[entryId].splice(idx,1);
+  save();
+  openDocsModal(entryId);
+  toast('✅ تم حذف المستند');
+}
+
+// ── Doc status badge helper ───────────────────────────────────────
+function getDocBadge(entryId){
+  initDocs(); initArchive();
+  var docs=DB.entryDocs[entryId]||[];
+  var arch=DB.archiveLog[entryId]||{status:'pending'};
+  var statusMap={
+    reviewed: {icon:'✅',bg:'#d1fae5',c:'#065f46',lbl:'مكتملة'},
+    incomplete:{icon:'⚠️',bg:'#fff9c4',c:'#92400e',lbl:'ناقصة'},
+    archived:  {icon:'📦',bg:'#ede9fe',c:'#5b21b6',lbl:'مؤرشف'},
+    pending:   {icon:'🔵',bg:'#dbeafe',c:'#1d4ed8',lbl:'قيد المراجعة'},
+  };
+  var st=statusMap[arch.status]||statusMap.pending;
+  return '<span onclick="openDocsModal(\''+entryId+'\')" style="cursor:pointer;background:'+st.bg+';color:'+st.c
+    +';border-radius:5px;padding:2px 7px;font-size:9.5px;font-weight:700;">'+st.icon+' '+st.lbl
+    +(docs.length?' ('+docs.length+'📎)':'')+'</span>';
+}
+
 function rInvPage(){
   if(!DB.inventory)DB.inventory=[];
   if(!DB.invMovements)DB.invMovements=[];
@@ -6630,6 +7170,11 @@ function rSetPage(){
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">مراكز التكلفة · المواقع · الأنشطة · المحاور · البنوك</div></div>';
   h+='<div style="color:white;font-size:20px;">›</div>';
   h+='</div>';
+  h+='<div onclick="sub(\'archive\')" style="cursor:pointer;background:#374151;border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div><div style="font-weight:800;color:white;font-size:14px;">🗂️ الأرشيف الإلكتروني</div>';
+  h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">متابعة أرشفة المستندات — مذكرات الصرف — تقرير الامتثال</div></div>';
+  h+='<div style="color:white;font-size:20px;">›</div>';
+  h+="</div>";
   h+='<div onclick="sub(\'form41\')" style="cursor:pointer;background:#1d4ed8;border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">';
   h+='<div><div style="font-weight:800;color:white;font-size:14px;">📋 نموذج 41 — خصم وتحصيل</div>';
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">توليد النموذج الرسمي ربع سنوي لمصلحة الضرائب</div></div>';
@@ -10400,6 +10945,7 @@ function rReportsPage(){
       {icon:"💳",label:"مسير المرتبات Excel",fn:"exportPayrollExcel()"},
       {icon:"🎯",label:"BVA المشروعات Excel",fn:"exportBVAExcel()"},
       {icon:"🏢",label:"الأصول الثابتة Excel",fn:"exportAssetsExcel()"},
+      {icon:"🗂️",label:"تقرير الأرشيف Excel",fn:"exportArchiveReport()"},
     ]},
     {title:"🏛️ نماذج ضريبية",reports:[
       {icon:"📋",label:"نموذج 41 — خصم وتحصيل ربع سنوي",fn:"sub(\'form41\')"},
