@@ -1085,6 +1085,9 @@ function sub(n){
     assets:rAssetsPage,
     form41:rForm41Page,
     archive:rArchivePage,
+    ai:rAIPage,
+    compliance:rCompliancePage,
+    compliancesettings:rComplianceSettings,
     timesheet:rTimesheetPage,
     myleaves:rMyLeavesPage,
     leaveapproval:rLeaveApprovalPage
@@ -1106,6 +1109,9 @@ function sub(n){
     assets:"🏢 الأصول الثابتة",
     form41:"📋 نموذج 41 — خصم وتحصيل",
     archive:"🗂️ الأرشيف الإلكتروني",
+    ai:"🤖 المساعد المالي الذكي",
+    compliance:"✅ امتثال المستندات",
+    compliancesettings:"⚙️ إعدادات قواعد الامتثال",
     timesheet:"⏱️ Timesheet & التوزيع",
     myleaves:"🌴 إجازاتي",
     leaveapproval:"✅ اعتماد الإجازات"
@@ -1248,6 +1254,8 @@ function rDash(){
     {icon:'💳',title:'المرتبات',sub:'إدارة الرواتب والاستحقاقات',sec:'pay',bg:'#e0f2fe',ic:'#0284c7'},
     {icon:'📦',title:'المخازن',sub:'إدارة المخزن والمستودعات',sec:'inventory',bg:'#ffedd5',ic:'#ea580c'},
     {icon:'📊',title:'التقارير',sub:'تقارير مالية وإدارية',sec:'reports',bg:'#f0fdf4',ic:'#16a34a'},
+    {icon:'🤖',title:'المساعد الذكي',sub:'تحليل مالي بالذكاء الاصطناعي',sec:'ai',bg:'#ede9fe',ic:'#7c3aed'},
+    {icon:'✅',title:'امتثال المستندات',sub:'متطلبات المستندات لكل قيد',sec:'compliance',bg:'#ecfdf5',ic:'#059669'},
     {icon:'⚙️',title:'الإعدادات',sub:'إعدادات النظام والجمعية',sec:'settings',bg:'#f1f5f9',ic:'#475569'},
   ];
   h+='<div class="sd" style="margin-bottom:8px;">الأقسام الرئيسية</div>';
@@ -2040,6 +2048,7 @@ function viewE(id){
   var b4=document.createElement("button");b4.className="btn btn-sm";b4.style.cssText="background:var(--am);flex:1;";b4.textContent="🖨️ طباعة";b4.onclick=function(){printEntrySheet(id);};btns.appendChild(b4);
   var b7=document.createElement("button");b7.className="btn btn-sm";b7.style.cssText="background:#059669;flex:1;";b7.textContent="📎 مستندات";b7.onclick=function(){openDocsModal(id);};btns.appendChild(b7);
   var b6=document.createElement("button");b6.className="btn btn-sm";b6.style.cssText="background:#374151;flex:1;";b6.textContent="🗂️ أرشفة";b6.onclick=function(){cm();sub('archive');};btns.appendChild(b6);
+  var b8=document.createElement("button");b8.className="btn btn-sm";b8.style.cssText="background:#059669;flex:1;";b8.textContent="✅ امتثال";b8.onclick=function(){openComplianceModal(id);};btns.appendChild(b8);
   om("📋 تفاصيل القيد",h,btns);
 }
 
@@ -6270,6 +6279,549 @@ function getDocBadge(entryId){
     +(docs.length?' ('+docs.length+'📎)':'')+'</span>';
 }
 
+// ================================================================
+// AI ASSISTANT — المساعد المالي الذكي
+// ================================================================
+
+// ── Build financial context from DB ──────────────────────────────
+function buildFinancialContext(){
+  var org=DB.org||{};
+  var B=bals();
+
+  // KPIs
+  var cash=0,bank=0,tRev=0,tExp=0;
+  DB.accounts.filter(function(a){return a.c.startsWith('111')&&a.nat==='dr';}).forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    var bal=b.dr-b.cr;
+    if(a.c==='1111') cash+=bal; else bank+=bal;
+  });
+  Object.keys(B).forEach(function(acc){
+    var b=B[acc];
+    if(acc[0]==='4') tRev+=b.cr-b.dr;
+    if(acc[0]==='5') tExp+=b.dr-b.cr;
+  });
+
+  // Projects summary
+  var projSummary=(DB.projects||[]).map(function(p){
+    var spent=getProjectSpent(p.code);
+    var pct=p.budget>0?Math.round(spent/p.budget*100):0;
+    return p.name+': موازنة='+p.budget+' صرف='+Math.round(spent)+' ('+pct+'%) مانح='+p.donor;
+  }).join(' | ');
+
+  // Top expenses last 3 months
+  var now=new Date();
+  var threeMonthsAgo=new Date(now.getFullYear(),now.getMonth()-3,1).toISOString().slice(0,10);
+  var recentExp={};
+  (DB.entries||[]).filter(function(e){return e.status==='posted'&&e.date>=threeMonthsAgo;}).forEach(function(e){
+    e.lines.forEach(function(l){
+      if(l.acc&&l.acc[0]==='5'&&l.dr>0){
+        var acc=DB.accounts.find(function(a){return a.c===l.acc;});
+        var key=l.acc+(acc?' '+acc.n:'');
+        recentExp[key]=(recentExp[key]||0)+l.dr;
+      }
+    });
+  });
+  var topExp=Object.entries(recentExp).sort(function(a,b){return b[1]-a[1];}).slice(0,8)
+    .map(function(e){return e[0]+': '+Math.round(e[1]);}).join(' | ');
+
+  // HR summary
+  var activeEmps=(DB.employees||[]).filter(function(e){return e.status==='active';});
+  var totPayroll=activeEmps.reduce(function(s,e){return s+calcFull(e,{}).cost;},0);
+
+  // WHT balance
+  var wht2114=B['2114']||{cr:0,dr:0};
+  var whtBal=Math.round((wht2114.cr-wht2114.dr)*100)/100;
+
+  // Archive status
+  var posted=(DB.entries||[]).filter(function(e){return e.status==='posted';}).length;
+  var archived=Object.values(DB.archiveLog||{}).filter(function(a){return a.status==='reviewed';}).length;
+
+  return {
+    orgName: org.name||'الجمعية',
+    cash: Math.round(cash),
+    bank: Math.round(bank),
+    revenue: Math.round(tRev),
+    expenses: Math.round(tExp),
+    surplus: Math.round(tRev-tExp),
+    projects: projSummary||'لا توجد مشروعات',
+    topExpenses: topExp||'لا توجد مصروفات',
+    employees: activeEmps.length,
+    payroll: Math.round(totPayroll),
+    whtDue: whtBal,
+    totalEntries: posted,
+    archivedEntries: archived,
+    archivePct: posted>0?Math.round(archived/posted*100):0
+  };
+}
+
+// ── Quick questions ───────────────────────────────────────────────
+var AI_QUESTIONS = [
+  {icon:'📊',text:'ايه الوضع المالي الحالي للجمعية؟'},
+  {icon:'🎯',text:'ايه المشروع اللي بيصرف أكتر من موازنته؟'},
+  {icon:'💰',text:'ايه أكبر بنود المصروفات في آخر 3 شهور؟'},
+  {icon:'⚠️',text:'في مشاكل مالية محتاجة انتباه؟'},
+  {icon:'🏛️',text:'كام ضريبة خصم وتحصيل مستحقة؟'},
+  {icon:'👥',text:'ايه تكلفة المرتبات على الجمعية؟'},
+  {icon:'🗂️',text:'ايه نسبة اكتمال الأرشيف؟'},
+  {icon:'📈',text:'ايه توقعاتك للفائض أو العجز نهاية السنة؟'},
+];
+
+// ── AI Assistant Page ─────────────────────────────────────────────
+function rAIPage(){
+  var ctx=buildFinancialContext();
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div>';
+  h+='<div class="ph-t">🤖 المساعد المالي الذكي</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">اسأل أي سؤال عن أرقام جمعيتك</div>';
+  h+='</div>';
+  h+='<div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:white;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;">AI ✨</div>';
+  h+='</div>';
+
+  // Financial snapshot
+  h+='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:12px;padding:12px;margin-bottom:12px;">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">';
+  var kpis=[
+    {lbl:'الصندوق والبنك',val:fmt(ctx.cash+ctx.bank)+' ج.م'},
+    {lbl:'الإيرادات',val:fmt(ctx.revenue)+' ج.م'},
+    {lbl:'المصروفات',val:fmt(ctx.expenses)+' ج.م'},
+  ];
+  kpis.forEach(function(k){
+    h+='<div style="text-align:center;">';
+    h+='<div style="font-size:9px;color:rgba(255,255,255,.65);">'+k.lbl+'</div>';
+    h+='<div style="font-weight:900;font-size:13px;color:white;">'+k.val+'</div>';
+    h+='</div>';
+  });
+  h+='</div></div>';
+
+  // Quick questions grid
+  h+='<div class="sd" style="margin-bottom:8px;">💡 أسئلة سريعة</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px;">';
+  AI_QUESTIONS.forEach(function(q){
+    h+='<button onclick="askAI(\''+q.text.replace(/'/g,"\\'")+'\')" ';
+    h+='style="background:white;border:1.5px solid #e5e7eb;border-radius:10px;padding:10px;';
+    h+='text-align:right;cursor:pointer;font-family:Cairo,sans-serif;font-size:11px;font-weight:600;color:#374151;">';
+    h+=q.icon+' '+q.text;
+    h+='</button>';
+  });
+  h+='</div>';
+
+  // Custom question
+  h+='<div class="sd" style="margin-bottom:8px;">✍️ سؤال مخصص</div>';
+  h+='<div style="display:flex;gap:8px;margin-bottom:14px;">';
+  h+='<input id="ai-input" placeholder="اكتب سؤالك هنا..." ';
+  h+='style="flex:1;padding:10px 14px;border-radius:10px;border:1.5px solid #e5e7eb;font-family:Cairo,sans-serif;font-size:12px;" ';
+  h+='onkeydown="if(event.key===\'Enter\')askAIFromInput()">';
+  h+='<button onclick="askAIFromInput()" ';
+  h+='style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:white;border:none;border-radius:10px;padding:10px 16px;font-family:Cairo,sans-serif;font-size:13px;cursor:pointer;">إرسال</button>';
+  h+='</div>';
+
+  // Response area
+  h+='<div id="ai-response" style="display:none;background:white;border-radius:12px;padding:14px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #e5e7eb;"></div>';
+
+  // Conversation history
+  h+='<div id="ai-history" style="margin-top:10px;"></div>';
+  return h;
+}
+
+function askAIFromInput(){
+  var inp=document.getElementById('ai-input');
+  var q=inp?inp.value.trim():'';
+  if(!q){toast('اكتب سؤالك أولاً');return;}
+  if(inp) inp.value='';
+  askAI(q);
+}
+
+// ── Core AI call ──────────────────────────────────────────────────
+function askAI(question){
+  var ctx=buildFinancialContext();
+  var respEl=document.getElementById('ai-response');
+  if(!respEl) return;
+
+  // Show loading
+  respEl.style.display='block';
+  respEl.innerHTML='<div style="display:flex;align-items:center;gap:10px;color:var(--g4);">'
+    +'<div style="width:20px;height:20px;border:3px solid var(--sk);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;"></div>'
+    +'<span style="font-size:12px;">المساعد يحلل البيانات...</span></div>'
+    +'<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+
+  // Add question to history
+  addToHistory('user', question);
+
+  var systemPrompt='أنت مساعد مالي ذكي متخصص في محاسبة الجمعيات والمنظمات غير الربحية في مصر. '
+    +'تتحدث بالعربية دائماً. إجاباتك مباشرة وعملية ومبنية على البيانات الفعلية. '
+    +'لا تقل "لا أستطيع" — استخدم البيانات المتاحة وقدم تحليلاً مفيداً. '
+    +'استخدم أرقاماً محددة من البيانات. أجب بشكل منظم ومختصر (3-5 نقاط كحد أقصى).';
+
+  var dataContext='البيانات المالية الحالية لـ '+ctx.orgName+':\n'
+    +'- النقدية والبنوك: '+ctx.cash+' + '+ctx.bank+' = '+(ctx.cash+ctx.bank)+' ج.م\n'
+    +'- الإيرادات الكلية: '+ctx.revenue+' ج.م\n'
+    +'- المصروفات الكلية: '+ctx.expenses+' ج.م\n'
+    +'- الفائض/العجز: '+ctx.surplus+' ج.م\n'
+    +'- المشروعات: '+ctx.projects+'\n'
+    +'- أكبر المصروفات (3 شهور): '+ctx.topExpenses+'\n'
+    +'- الموظفون: '+ctx.employees+' موظف — تكلفة رواتب: '+ctx.payroll+' ج.م/شهر\n'
+    +'- ضريبة خصم وتحصيل مستحقة (ح/2114): '+ctx.whtDue+' ج.م\n'
+    +'- الأرشيف: '+ctx.archivedEntries+' قيد من '+ctx.totalEntries+' ('+ctx.archivePct+'%)';
+
+  fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:1000,
+      system:systemPrompt,
+      messages:[{role:'user',content:dataContext+'\n\nالسؤال: '+question}]
+    })
+  })
+  .then(function(r){return r.json();})
+  .then(function(data){
+    var text=data.content&&data.content[0]?data.content[0].text:'لم أتمكن من الحصول على إجابة';
+    showAIResponse(question, text);
+  })
+  .catch(function(err){
+    showAIResponse(question, '⚠️ حدث خطأ في الاتصال. تأكد من اتصال الإنترنت.\n\nالخطأ: '+err.message);
+  });
+}
+
+function showAIResponse(question, text){
+  var respEl=document.getElementById('ai-response');
+  if(!respEl) return;
+
+  // Format response (convert ** to bold, \n to <br>)
+  var formatted=text
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+
+  respEl.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
+    +'<div style="display:flex;align-items:center;gap:6px;">'
+    +'<div style="width:28px;height:28px;background:linear-gradient(135deg,#7c3aed,#6d28d9);border-radius:8px;'
+    +'display:flex;align-items:center;justify-content:center;color:white;font-size:14px;">🤖</div>'
+    +'<span style="font-weight:700;font-size:12px;color:#374151;">المساعد المالي</span>'
+    +'</div>'
+    +'<button onclick="copyAIResponse()" style="background:var(--g1);border:none;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;">📋 نسخ</button>'
+    +'</div>'
+    +'<div id="ai-resp-text" style="font-size:12.5px;line-height:1.9;color:#374151;">'+formatted+'</div>';
+
+  // Add to history
+  addToHistory('ai', text);
+}
+
+function addToHistory(role, text){
+  if(!window._aiHistory) window._aiHistory=[];
+  window._aiHistory.push({role:role,text:text,time:new Date().toLocaleTimeString('ar-EG')});
+
+  var histEl=document.getElementById('ai-history');
+  if(!histEl||window._aiHistory.length<=2) return; // Skip first Q+A (shown in main area)
+
+  // Show previous conversations
+  var h='<div class="sd" style="margin-bottom:8px;">سجل المحادثة</div>';
+  window._aiHistory.slice(0,-2).forEach(function(msg){
+    var isUser=msg.role==='user';
+    h+='<div style="margin-bottom:8px;display:flex;'+(isUser?'justify-content:flex-end':'justify-content:flex-start')+'">';
+    h+='<div style="max-width:85%;background:'+(isUser?'linear-gradient(135deg,#7c3aed,#6d28d9)':'#f8f9fa')
+      +';color:'+(isUser?'white':'#374151')+';border-radius:12px;padding:9px 12px;font-size:11.5px;line-height:1.7;">';
+    h+=msg.text.replace(/\n/g,'<br>');
+    h+='<div style="font-size:9px;opacity:.6;margin-top:4px;text-align:'+(isUser?'left':'right')+'">'+msg.time+'</div>';
+    h+='</div></div>';
+  });
+  histEl.innerHTML=h;
+}
+
+function copyAIResponse(){
+  var el=document.getElementById('ai-resp-text');
+  if(!el) return;
+  navigator.clipboard.writeText(el.innerText||el.textContent).then(function(){
+    toast('✅ تم نسخ الإجابة');
+  });
+}
+
+
+// ================================================================
+// SMART DOCUMENT COMPLIANCE — امتثال المستندات الذكي
+// ================================================================
+
+// ── Compliance rules per transaction type ─────────────────────────
+var COMPLIANCE_RULES_DEFAULT = {
+  'مشتريات': {
+    name:'مشتريات وتوريدات',
+    icon:'🛒',
+    docs:[
+      {id:'quotations', name:'3 عروض أسعار',      required:true},
+      {id:'po',         name:'أمر شراء معتمد',     required:true},
+      {id:'invoice',    name:'فاتورة المورد',       required:true},
+      {id:'receipt',    name:'سند استلام البضاعة',  required:true},
+      {id:'wht',        name:'خصم ضريبي (نموذج)',   required:false},
+    ]
+  },
+  'خدمات': {
+    name:'خدمات وعقود',
+    icon:'🔧',
+    docs:[
+      {id:'contract',   name:'عقد أو اتفاقية خدمة', required:true},
+      {id:'invoice',    name:'فاتورة الخدمة',        required:true},
+      {id:'delivery',   name:'تقرير إنجاز / تسليم',  required:true},
+      {id:'wht',        name:'خصم ضريبي',             required:false},
+    ]
+  },
+  'استشارات': {
+    name:'استشارات',
+    icon:'💼',
+    docs:[
+      {id:'contract',   name:'عقد استشاري',          required:true},
+      {id:'report',     name:'تقرير الاستشارة',       required:true},
+      {id:'invoice',    name:'فاتورة الأتعاب',        required:true},
+      {id:'wht',        name:'خصم ضريبي 5%',          required:true},
+    ]
+  },
+  'سفريات': {
+    name:'سفريات وانتقالات',
+    icon:'✈️',
+    docs:[
+      {id:'approval',   name:'موافقة المدير',         required:true},
+      {id:'tickets',    name:'تذاكر / حجوزات',        required:true},
+      {id:'invoice',    name:'فاتورة السفريات',        required:true},
+      {id:'report',     name:'تقرير المهمة',           required:false},
+    ]
+  },
+  'صيانة': {
+    name:'صيانة وإصلاح',
+    icon:'🔨',
+    docs:[
+      {id:'order',      name:'طلب صيانة',             required:true},
+      {id:'invoice',    name:'فاتورة الصيانة',         required:true},
+      {id:'receipt',    name:'تقرير الاستلام / الاختبار',required:true},
+    ]
+  },
+  'رواتب': {
+    name:'مرتبات وأجور',
+    icon:'💳',
+    docs:[
+      {id:'payroll',    name:'كشف مرتبات معتمد',      required:true},
+      {id:'transfer',   name:'صورة التحويل البنكي',    required:true},
+      {id:'insurance',  name:'إيصال التأمينات',        required:false},
+    ]
+  },
+  'default': {
+    name:'عملية عامة',
+    icon:'📄',
+    docs:[
+      {id:'invoice',    name:'مستند داعم',             required:true},
+      {id:'approval',   name:'موافقة / اعتماد',        required:false},
+    ]
+  }
+}
+// ── Get rules from DB or defaults ────────────────────────────────
+function getComplianceRules(){
+  if(!DB.sysSettings) DB.sysSettings={};
+  if(!DB.sysSettings.complianceRules){
+    DB.sysSettings.complianceRules=JSON.parse(JSON.stringify(COMPLIANCE_RULES_DEFAULT));
+  }
+  return DB.sysSettings.complianceRules;
+}
+
+;
+
+// ── Get compliance rule for entry ────────────────────────────────
+function getComplianceRule(entry){
+  var desc=(entry.desc||'').toLowerCase();
+  var tp=null;
+  (entry.lines||[]).forEach(function(l){if(l.tpId&&!tp)tp=DB.thirdParties.find(function(t){return t.id===l.tpId;});});
+  var whtType=tp?tp.whtType:'';
+
+  if(desc.includes('مرتب')||desc.includes('راتب')) return 'رواتب';
+  if(whtType==='استشارات'||whtType==='محاسبة'||whtType==='هندسة'||whtType==='تقنية'||whtType==='طبية') return 'استشارات';
+  if(whtType==='خدمات'||whtType==='دعاية'||whtType==='تدريب') return 'خدمات';
+  if(whtType==='سفريات'||whtType==='ايجار سيارات') return 'سفريات';
+  if(whtType==='صيانة') return 'صيانة';
+  if(whtType==='توريدات'||whtType==='طباعة'||whtType==='مقاولات') return 'مشتريات';
+  return 'default';
+}
+
+// ── Get compliance status for entry ──────────────────────────────
+function getComplianceStatus(entryId){
+  initDocs(); initArchive();
+  var entry=(DB.entries||[]).find(function(e){return e.id===entryId;});
+  if(!entry) return null;
+
+  var ruleKey=getComplianceRule(entry);
+  var rules=getComplianceRules();var rule=rules[ruleKey]||rules['default'];
+  var arch=DB.archiveLog[entryId]||{};
+  var docs=DB.entryDocs[entryId]||[];
+  var docCount=docs.length;
+
+  // Check required docs
+  var requiredCount=rule.docs.filter(function(d){return d.required;}).length;
+  var pct=requiredCount>0?Math.min(100,Math.round(docCount/requiredCount*100)):100;
+  var isComplete=arch.status==='reviewed';
+  var hasAnyDocs=docCount>0;
+
+  var status='missing';
+  if(isComplete) status='complete';
+  else if(hasAnyDocs&&pct>=50) status='partial';
+  else if(hasAnyDocs) status='started';
+
+  return {rule:rule,ruleKey:ruleKey,status:status,docCount:docCount,
+    requiredCount:requiredCount,pct:pct,archStatus:arch.status||'pending'};
+}
+
+// ── Compliance modal for entry ────────────────────────────────────
+function openComplianceModal(entryId){
+  initDocs(); initArchive();
+  var entry=(DB.entries||[]).find(function(e){return e.id===entryId;});
+  if(!entry) return;
+
+  var cs=getComplianceStatus(entryId);
+  var rule=cs.rule||getComplianceRules()['default'];
+  var docs=DB.entryDocs[entryId]||[];
+  var arch=DB.archiveLog[entryId]||{};
+
+  var statusColors={complete:'#1a7a4a',partial:'#d97706',started:'#2563eb',missing:'#c0392b'};
+  var statusLabels={complete:'✅ مكتمل',partial:'⏳ جزئي',started:'🔵 بدأت',missing:'❌ ناقص'};
+
+  var h='';
+  // Header
+  h+='<div style="background:'+(statusColors[cs.status]||'#374151')+';border-radius:10px;padding:10px 12px;margin-bottom:12px;color:white;">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div><div style="font-weight:900;font-size:13px;">'+rule.icon+' '+rule.name+'</div>';
+  h+='<div style="font-size:10.5px;opacity:.8;">'+entryId+' · '+entry.date+'</div></div>';
+  h+='<div style="font-weight:900;font-size:16px;">'+(statusLabels[cs.status]||'—')+'</div>';
+  h+='</div>';
+  // Progress bar
+  h+='<div style="background:rgba(255,255,255,.3);border-radius:6px;height:6px;margin-top:8px;">';
+  h+='<div style="background:white;height:100%;border-radius:6px;width:'+cs.pct+'%;transition:width .3s;"></div></div>';
+  h+='<div style="font-size:9.5px;opacity:.7;margin-top:4px;">'+cs.docCount+' من '+cs.requiredCount+' مستند مطلوب</div>';
+  h+='</div>';
+
+  // Required docs checklist
+  h+='<div class="sd" style="margin-bottom:8px;">📋 قائمة المستندات المطلوبة</div>';
+  h+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">';
+  rule.docs.forEach(function(doc,i){
+    var uploaded=i<docs.length; // simplified check
+    h+='<div style="display:flex;align-items:center;gap:10px;background:'+(uploaded?'#f0fdf4':'#fafafa')+';border-radius:8px;padding:9px 12px;">';
+    h+='<div style="width:22px;height:22px;border-radius:50%;background:'+(uploaded?'#1a7a4a':'#e5e7eb')+';display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">';
+    h+=uploaded?'✓':'';
+    h+='</div>';
+    h+='<div style="flex:1;">';
+    h+='<div style="font-size:12px;font-weight:'+(doc.required?'700':'500')+';color:'+(uploaded?'#1a7a4a':'#374151')+';">'+doc.name+'</div>';
+    h+='<div style="font-size:9.5px;color:var(--g4);">'+(doc.required?'مطلوب':'اختياري')+'</div>';
+    h+='</div>';
+    if(!uploaded){
+      h+='<span style="font-size:10px;color:#c0392b;font-weight:700;">ناقص</span>';
+    }
+    h+='</div>';
+  });
+  h+='</div>';
+
+  // Uploaded docs count
+  if(docs.length){
+    h+='<div style="background:#f0f9ff;border-radius:8px;padding:9px;margin-bottom:10px;font-size:11.5px;">';
+    h+='✅ <strong>'+docs.length+' مستند</strong> مرفوع بالفعل';
+    h+='</div>';
+  }
+
+  // Notes
+  if(arch.notes){
+    h+='<div style="background:#fff9c4;border-radius:8px;padding:9px;margin-bottom:10px;font-size:11.5px;">';
+    h+='⚠️ ملاحظة: '+arch.notes;
+    h+='</div>';
+  }
+
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<button onclick="openDocsModal(\''+entryId+'\')" style="background:#059669;border:none;color:white;border-radius:9px;padding:10px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">📎 رفع مستندات</button>';
+  h+='<button onclick="cm()" style="background:var(--g1);border:none;color:var(--nd);border-radius:9px;padding:10px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">إغلاق</button>';
+  h+='</div>';
+
+  om('📋 امتثال المستندات — '+entryId, h);
+}
+
+// ── Compliance Dashboard page ─────────────────────────────────────
+function rCompliancePage(){
+  initDocs(); initArchive();
+  var posted=(DB.entries||[]).filter(function(e){return e.status==='posted';})
+    .sort(function(a,b){return b.date>a.date?1:-1;});
+
+  var stats={complete:0,partial:0,started:0,missing:0};
+  var highRisk=[];
+
+  posted.forEach(function(e){
+    var cs=getComplianceStatus(e.id);
+    if(cs) stats[cs.status]=(stats[cs.status]||0)+1;
+    if(cs&&cs.status==='missing'&&e.lines.reduce(function(s,l){return s+(l.dr||0);},0)>10000){
+      highRisk.push({entry:e,cs:cs});
+    }
+  });
+
+  var total=posted.length;
+  var score=total>0?Math.round((stats.complete||0)/total*100):0;
+
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">✅ امتثال المستندات</div>';
+  h+='<button onclick="rComplianceSettings()" class="btn btn-sm" style="font-size:10.5px;background:var(--g3);color:var(--nd);">⚙️ تعديل القواعد</button>';
+  h+='<div style="background:linear-gradient(135deg,'+(score>=80?'#1a7a4a':score>=50?'#d97706':'#c0392b')+',#374151);';
+  h+='color:white;font-size:13px;font-weight:900;padding:5px 14px;border-radius:20px;">'+score+'%</div>';
+  h+='</div>';
+
+  // Stats
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:7px;margin-bottom:14px;">';
+  [
+    {lbl:'✅ مكتمل',val:stats.complete||0,bg:'#d1fae5',c:'#065f46'},
+    {lbl:'⏳ جزئي',val:stats.partial||0,bg:'#fef3c7',c:'#92400e'},
+    {lbl:'🔵 بدأ',val:stats.started||0,bg:'#dbeafe',c:'#1d4ed8'},
+    {lbl:'❌ ناقص',val:stats.missing||0,bg:'#fee2e2',c:'#c0392b'},
+  ].forEach(function(s){
+    h+='<div style="background:'+s.bg+';border-radius:10px;padding:9px;text-align:center;">';
+    h+='<div style="font-weight:900;font-size:18px;color:'+s.c+';">'+s.val+'</div>';
+    h+='<div style="font-size:9.5px;color:'+s.c+';">'+s.lbl+'</div></div>';
+  });
+  h+='</div>';
+
+  // High risk entries
+  if(highRisk.length){
+    h+='<div style="background:#fff5f5;border-radius:11px;padding:12px;margin-bottom:12px;">';
+    h+='<div style="font-weight:800;color:#c0392b;margin-bottom:8px;">🚨 قيود عالية القيمة بدون مستندات ('+highRisk.length+')</div>';
+    highRisk.slice(0,5).forEach(function(item){
+      var amt=item.entry.lines.reduce(function(s,l){return s+(l.dr||0);},0);
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;background:white;border-radius:8px;padding:8px;margin-bottom:5px;">';
+      h+='<div><div style="font-weight:700;font-size:12px;">'+item.entry.id+'</div>';
+      h+='<div style="font-size:10.5px;color:var(--g4);">'+item.entry.date+' · '+item.entry.desc+'</div></div>';
+      h+='<div style="text-align:left;">';
+      h+='<div style="font-weight:800;color:#c0392b;">'+fmt(amt)+' ج.م</div>';
+      h+='<button onclick="openComplianceModal(\''+item.entry.id+'\')" ';
+      h+='style="background:#c0392b;border:none;color:white;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">معالجة</button>';
+      h+='</div></div>';
+    });
+    h+='</div>';
+  }
+
+  // All entries list
+  h+='<div class="sd" style="margin-bottom:8px;">كل القيود</div>';
+  h+='<div style="display:flex;flex-direction:column;gap:6px;">';
+  posted.slice(0,30).forEach(function(e){
+    var cs=getComplianceStatus(e.id);
+    if(!cs) return;
+    var amt=e.lines.reduce(function(s,l){return s+(l.dr||0);},0);
+    var statusColors={complete:'#1a7a4a',partial:'#d97706',started:'#2563eb',missing:'#c0392b'};
+    var statusLabels={complete:'✅',partial:'⏳',started:'🔵',missing:'❌'};
+    h+='<div style="background:white;border-radius:10px;padding:9px 11px;border:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">';
+    h+='<div>';
+    h+='<div style="font-size:11px;font-weight:700;color:var(--nd);">'+e.id+'</div>';
+    h+='<div style="font-size:10px;color:var(--g4);">'+e.date+' · '+(e.desc.substring(0,30))+'</div>';
+    h+='<div style="font-size:10px;color:'+statusColors[cs.status]+';font-weight:700;margin-top:2px;">'
+      +(statusLabels[cs.status]||'')+'  '+cs.rule.icon+' '+cs.rule.name+' · '+cs.docCount+'/'+cs.requiredCount+' مستندات</div>';
+    h+='</div>';
+    h+='<div style="text-align:left;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">';
+    h+='<div style="font-weight:800;font-size:12px;">'+fmt(amt)+' ج.م</div>';
+    h+='<button onclick="openComplianceModal(\''+e.id+'\')" ';
+    h+='style="background:'+statusColors[cs.status]+';border:none;color:white;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">تفاصيل</button>';
+    h+='</div></div>';
+  });
+  h+='</div>';
+  return h;
+}
+
+
 function rInvPage(){
   if(!DB.inventory)DB.inventory=[];
   if(!DB.invMovements)DB.invMovements=[];
@@ -7209,6 +7761,11 @@ function rSetPage(){
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">مراكز التكلفة · المواقع · الأنشطة · المحاور · البنوك</div></div>';
   h+='<div style="color:white;font-size:20px;">›</div>';
   h+='</div>';
+  h+='<div onclick="sub(\'ai\')" style="cursor:pointer;background:linear-gradient(135deg,#7c3aed,#6d28d9);border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div><div style="font-weight:800;color:white;font-size:14px;">🤖 المساعد المالي الذكي</div>';
+  h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">اسأل أي سؤال عن أرقام جمعيتك</div></div>';
+  h+='<div style="color:white;font-size:20px;">›</div>';
+  h+="</div>";
   h+='<div onclick="sub(\'archive\')" style="cursor:pointer;background:#374151;border-radius:11px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">';
   h+='<div><div style="font-weight:800;color:white;font-size:14px;">🗂️ الأرشيف الإلكتروني</div>';
   h+='<div style="font-size:11px;color:rgba(255,255,255,.7);">متابعة أرشفة المستندات — مذكرات الصرف — تقرير الامتثال</div></div>';
@@ -7391,6 +7948,113 @@ function previewDeprChange(code, val){
   var rate=parseFloat(val)||0;
   var lifeEl=document.getElementById('depr-life-'+code);
   if(lifeEl) lifeEl.textContent=rate>0?Math.round(100/rate)+' سنة':'—';
+}
+
+// ── Compliance Rules Settings ───────────────────────────────────
+function rComplianceSettings(){
+  var rules=getComplianceRules();
+  var ruleKeys=Object.keys(rules);
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">⚙️ إعدادات قواعد الامتثال</div>';
+  h+='<button class="btn btn-sm btn-gr" onclick="addComplianceRule()" style="font-size:10.5px;">+ نوع جديد</button>';
+  h+='</div>';
+  h+='<div style="font-size:11px;color:var(--g4);margin-bottom:12px;background:#f0f9ff;border-radius:8px;padding:9px;">💡 حدد المستندات المطلوبة لكل نوع معاملة — قابل للتعديل حسب سياسة جمعيتك ومتطلبات كل مانح</div>';
+
+  ruleKeys.forEach(function(key){
+    var rule=rules[key];
+    h+='<div style="background:white;border-radius:12px;padding:12px;margin-bottom:10px;border:1px solid #eee;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+    h+='<div style="display:flex;align-items:center;gap:8px;">';
+    h+='<span style="font-size:20px;">'+rule.icon+'</span>';
+    h+='<div style="font-weight:800;font-size:13px;color:var(--nd);">'+rule.name+'</div></div>';
+    if(key!=="default"){
+    h+='<button data-key="'+key+'" onclick="deleteComplianceRule(this.dataset.key)" style="background:#fee2e2;border:none;color:#c0392b;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;">🗑️ حذف</button>';
+    }
+    h+='</div>';
+    h+='<div style="font-size:10.5px;color:var(--g4);margin-bottom:8px;">الكلمات المفتاحية للتعرف: <strong>'+key+'</strong></div>';
+    h+='<div style="display:flex;flex-direction:column;gap:5px;">';
+    rule.docs.forEach(function(doc,i){
+      h+='<div style="display:flex;align-items:center;gap:8px;background:#f8f9fa;border-radius:7px;padding:7px 10px;">';
+      h+='<input type="checkbox" '+(doc.required?'checked':'')+' data-rkey="'+key+'" data-idx="'+i+'"'+' onchange="toggleDocRequired(this.dataset.rkey,parseInt(this.dataset.idx),this.checked)"'+'style="width:16px;height:16px;">';
+      h+='<span style="flex:1;font-size:11.5px;">'+(doc.required?'🔴':'⚪')+' '+doc.name+'</span>';
+      h+='<button data-rkey="'+key+'" data-idx="'+i+'"'+'onclick="removeComplianceDoc(this.dataset.rkey,parseInt(this.dataset.idx))"'+'style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:12px;">×</button>';
+      h+='</div>';
+    });
+    h+='</div>';
+    h+='<button data-rkey="'+key+'" onclick="addDocToRule(this.dataset.rkey)" style="width:100%;margin-top:7px;background:#f8f9fa;border:1px dashed #d1d5db;border-radius:7px;padding:6px;font-family:Cairo,sans-serif;font-size:11px;cursor:pointer;color:var(--g4);">+ إضافة مستند</button>';
+    h+='</div>';
+  });
+
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">';
+  h+='<button onclick="saveComplianceRules()" class="btn btn-gr" style="font-size:12px;">💾 حفظ القواعد</button>';
+  h+='<button onclick="resetComplianceRules()" class="btn btn-gy" style="font-size:12px;">↩️ استعادة الافتراضي</button>';
+  h+='</div>';
+  om('⚙️ إعدادات قواعد الامتثال', h);
+}
+
+function toggleDocRequired(ruleKey, docIdx, val){
+  var rules=getComplianceRules();
+  if(rules[ruleKey]&&rules[ruleKey].docs[docIdx])
+    rules[ruleKey].docs[docIdx].required=val;
+  DB.sysSettings.complianceRules=rules;
+  save();
+  rComplianceSettings();
+}
+
+function removeComplianceDoc(ruleKey, docIdx){
+  var rules=getComplianceRules();
+  if(rules[ruleKey]) rules[ruleKey].docs.splice(docIdx,1);
+  DB.sysSettings.complianceRules=rules;
+  save();
+  rComplianceSettings();
+}
+
+function addDocToRule(ruleKey){
+  var name=prompt('اسم المستند الجديد:');
+  if(!name) return;
+  var required=confirm('هل هو مطلوب إلزامياً؟');
+  var rules=getComplianceRules();
+  if(rules[ruleKey]) rules[ruleKey].docs.push({id:'doc_'+Date.now(),name:name,required:required});
+  DB.sysSettings.complianceRules=rules;
+  save();
+  rComplianceSettings();
+  toast('✅ تم إضافة: '+name);
+}
+
+function addComplianceRule(){
+  var key=prompt('اسم النوع (بالعربي — يُستخدم للتعرف التلقائي):');
+  if(!key) return;
+  var name=key;
+  var icon=prompt('أيقونة (emoji):','📄')||'📄';
+  var rules=getComplianceRules();
+  rules[key]={name:name,icon:icon,docs:[{id:'doc1',name:'مستند داعم',required:true}]};
+  DB.sysSettings.complianceRules=rules;
+  save();
+  rComplianceSettings();
+  toast('✅ تم إضافة نوع: '+name);
+}
+
+function deleteComplianceRule(key){
+  if(!confirm('حذف نوع "'+key+'"؟')) return;
+  var rules=getComplianceRules();
+  delete rules[key];
+  DB.sysSettings.complianceRules=rules;
+  save();
+  rComplianceSettings();
+}
+
+function saveComplianceRules(){
+  save();
+  toast('✅ تم حفظ قواعد الامتثال');
+}
+
+function resetComplianceRules(){
+  if(!confirm('استعادة القواعد الافتراضية؟ سيتم حذف أي تعديلات.')) return;
+  DB.sysSettings.complianceRules=JSON.parse(JSON.stringify(COMPLIANCE_RULES_DEFAULT));
+  save();
+  rComplianceSettings();
+  toast('✅ تم استعادة القواعد الافتراضية');
 }
 
 function saveDeprRates(){
