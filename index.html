@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>أثر | للحلول المالية</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&family=Tajawal:wght@700;900&display=swap" rel="stylesheet">
 <style>
 :root{--n:#1e3a6e;--nd:#152a52;--sk:#29abe2;--skp:#e8f6fd;--gr:#059669;--gbg:#d1fae5;--rd:#dc2626;--rbg:#fee2e2;--am:#d97706;--abg:#fef3c7;--g1:#f0f5fa;--g2:#e2eaf3;--g4:#94a8c2;--g5:#637591;}
@@ -5809,9 +5810,8 @@ function printEntrySheet(id){
   var proj=DB.projects.find(function(p){return p.code===e.proj;})||{};
   var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
 
-  // QR — uses Google Charts API
-  var qrUrl='https://chart.googleapis.com/chart?chs=140x140&cht=qr&chl='
-    +encodeURIComponent(e.id)+'&choe=UTF-8&chld=H|1';
+  // QR — generated locally via QRCode.js (no internet needed)
+  var qrUrl=''; // will be generated inline via canvas
 
   // Lines
   var linesHtml='';
@@ -5882,7 +5882,38 @@ function printEntrySheet(id){
   h+='<div style="font-size:8.5px;color:#9ca3af;margin-top:3px;">امسح للأرشفة</div>';
   h+='</div></div>';
 
-  printContent('سند قيد يومية — '+e.id, h);
+  // Generate QR as data URL before printing
+  if(typeof QRCode !== 'undefined'){
+    try{
+      var qrDiv=document.createElement('div');
+      qrDiv.style.cssText='position:absolute;left:-9999px;top:-9999px;';
+      document.body.appendChild(qrDiv);
+      new QRCode(qrDiv,{text:e.id,width:110,height:110,
+        colorDark:'#0D3B6E',colorLight:'#ffffff',
+        correctLevel:QRCode.CorrectLevel.H});
+      setTimeout(function(){
+        var canvas=qrDiv.querySelector('canvas');
+        if(canvas){
+          var dataUrl=canvas.toDataURL('image/png');
+          h=h.replace('<div id="qr-container-'+e.id+'"','<img src="'+dataUrl+'" width="110" height="110" style="display:block;"'
+            +' /><div style="display:none"');
+        }
+        document.body.removeChild(qrDiv);
+        printContent('سند قيد يومية — '+e.id, h);
+      },200);
+    }catch(err){
+      printContent('سند قيد يومية — '+e.id, h);
+    }
+  } else {
+    // Fallback: show entry ID text box
+    h=h.replace('<div id="qr-container-'+e.id+'"',
+      '<div style="border:2px solid #0D3B6E;border-radius:8px;padding:8px;text-align:center;width:110px;height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;">'
+      +'<div style="font-size:9px;color:#6b7280;margin-bottom:4px;">رقم القيد</div>'
+      +'<div style="font-weight:900;font-size:12px;color:#0D3B6E;">'+e.id+'</div>'
+      +'<div style="font-size:8px;color:#9ca3af;margin-top:4px;">ابحث به في السيستم</div>'
+      +'</div><div style="display:none"');
+    printContent('سند قيد يومية — '+e.id, h);
+  }
 }
 
 
