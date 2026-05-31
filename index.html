@@ -1871,7 +1871,6 @@ function searchEntries(q){
     h+='</div></div>';
     h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">';
     h+='<button data-eid="'+e.id+'" onclick="viewE(this.dataset.eid)" style="background:var(--sk);border:none;color:white;border-radius:7px;padding:6px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">👁️ عرض</button>';
-    h+='<button data-eid="'+e.id+'" onclick="printEntrySheet(this.dataset.eid)" style="background:var(--am);border:none;color:white;border-radius:7px;padding:6px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">🖨️ طباعة القيد</button>';
     h+='<button data-eid="'+e.id+'" onclick="openDocsModal(this.dataset.eid)" style="background:#059669;border:none;color:white;border-radius:7px;padding:6px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">📎 '+(docCount?docCount+' مستند':'مستندات')+'</button>';
     h+='</div></div>';
   });
@@ -2034,14 +2033,12 @@ function viewE(id){
   });
   h+='</tbody><tfoot><tr style="background:var(--g1);"><td colspan="2" style="font-weight:700;padding:7px;">الإجمالي</td>';
   h+='<td class="td tn" style="font-weight:700;">'+fmt(tD)+'</td><td class="tc tn" style="font-weight:700;">'+fmt(tD)+'</td></tr></tfoot></table>';
-  var btns=document.createElement("div");btns.style.display="flex";btns.style.gap="8px";btns.style.marginTop="10px";
+  var btns=document.createElement("div");btns.style.cssText="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;";
   if(can("canEditEntries")){var b1=document.createElement("button");b1.className="btn btn-sky btn-sm";b1.style.flex="1";b1.textContent="✏️ تعديل";b1.onclick=function(){editEntry(id);};btns.appendChild(b1);}
   if(can("canDeleteEntries")){var b2=document.createElement("button");b2.className="btn btn-rd btn-sm";b2.style.flex="1";b2.textContent="🗑️ حذف";b2.onclick=function(){delEntry(id);};btns.appendChild(b2);}
-  var b3=document.createElement("button");b3.className="btn btn-gy btn-sm";b3.style.flex="1";b3.textContent="إغلاق";b3.onclick=function(){cm();};btns.appendChild(b3);
-  var b4=document.createElement("button");b4.className="btn btn-sm";b4.style.cssText="background:var(--sk);flex:1;";b4.textContent="🖨️ طباعة";b4.onclick=function(){printEntry(id);};btns.appendChild(b4);
-  var b5=document.createElement("button");b5.className="btn btn-sm";b5.style.cssText="background:var(--am);flex:1;";b5.textContent="🖨️ طباعة القيد";b5.onclick=function(){cm();printEntrySheet(id);};btns.appendChild(b5);
-  var b7=document.createElement("button");b7.className="btn btn-sm";b7.style.cssText="background:#059669;flex:1;";b7.textContent="📎 المستندات";b7.onclick=function(){openDocsModal(id);};btns.appendChild(b7);
-  var b6=document.createElement("button");b6.className="btn btn-sm";b6.style.cssText="background:#374151;flex:1;";b6.textContent="🗂️ أرشفة";b6.onclick=function(){cm();setTimeout(function(){sub('archive');},100);};btns.appendChild(b6);
+  var b4=document.createElement("button");b4.className="btn btn-sm";b4.style.cssText="background:var(--am);flex:1;";b4.textContent="🖨️ طباعة";b4.onclick=function(){printEntrySheet(id);};btns.appendChild(b4);
+  var b7=document.createElement("button");b7.className="btn btn-sm";b7.style.cssText="background:#059669;flex:1;";b7.textContent="📎 مستندات";b7.onclick=function(){openDocsModal(id);};btns.appendChild(b7);
+  var b6=document.createElement("button");b6.className="btn btn-sm";b6.style.cssText="background:#374151;flex:1;";b6.textContent="🗂️ أرشفة";b6.onclick=function(){cm();sub('archive');};btns.appendChild(b6);
   om("📋 تفاصيل القيد",h,btns);
 }
 
@@ -5805,120 +5802,89 @@ function setArchiveStatus(entryId, status, boxRef, notes){
 // ================================================================
 // PRINT ENTRY SHEET — ورقة القيد البسيطة مع QR
 // ================================================================
-function printEntrySheet(entryId){
-  var entry=(DB.entries||[]).find(function(e){return e.id===entryId;});
-  if(!entry){toast('القيد غير موجود');return;}
+function printEntrySheet(id){
+  var e=(DB.entries||[]).find(function(x){return x.id===id;});
+  if(!e){toast("القيد غير موجود");return;}
   var org=DB.org||{};
+  var proj=DB.projects.find(function(p){return p.code===e.proj;})||{};
+  var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
 
-  var drLines=entry.lines.filter(function(l){return l.dr>0;});
-  var crLines=entry.lines.filter(function(l){return l.cr>0;});
-  var totalDr=drLines.reduce(function(s,l){return s+(l.dr||0);},0);
+  // QR — uses Google Charts API
+  var qrUrl='https://chart.googleapis.com/chart?chs=140x140&cht=qr&chl='
+    +encodeURIComponent(e.id)+'&choe=UTF-8&chld=H|1';
 
-  // QR content = entry ID for quick search
-  var qrText=entry.id;
-  var qrUrl='https://chart.googleapis.com/chart?chs=180x180&cht=qr&chl='+encodeURIComponent(qrText)+'&choe=UTF-8&chld=H|1';
+  // Lines
+  var linesHtml='';
+  (e.lines||[]).forEach(function(l){
+    var tp=l.tpId?(DB.thirdParties||[]).find(function(t){return t.id===l.tpId;}):null;
+    var lineProjCode=l.proj||e.proj||'';
+    var wbsName='';
+    if(l.wbsCode&&lineProjCode){
+      var lp=DB.projects.find(function(p){return p.code===lineProjCode;});
+      if(lp&&lp.wbs){var wb=lp.wbs.find(function(w){return w.code===l.wbsCode;});if(wb)wbsName=wb.name;}
+    }
+    linesHtml+='<tr>'
+      +'<td><code>'+l.acc+'</code></td>'
+      +'<td>'+l.an+'</td>'
+      +'<td>'+(tp?tp.name:'—')+'</td>'
+      +'<td>'+(l.wbsCode?l.wbsCode+(wbsName?' — '+wbsName:''):'—')+'</td>'
+      +'<td class="tn">'+(l.dr>0?fmt(l.dr):'-')+'</td>'
+      +'<td class="tn">'+(l.cr>0?fmt(l.cr):'-')+'</td>'
+      +'</tr>';
+  });
 
-  // Third party
-  var tp=null;
-  entry.lines.forEach(function(l){if(l.tpId&&!tp)tp=DB.thirdParties.find(function(t){return t.id===l.tpId;});});
+  var h='<div class="card">';
+  // Header strip
+  h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;'
+    +'border-bottom:2px solid #0D3B6E;padding-bottom:10px;margin-bottom:12px;">';
+  h+='<div>';
+  h+='<div style="font-size:15px;font-weight:900;color:#0D3B6E;">'+(org.name||'الجمعية')+'</div>';
+  h+='<div style="font-size:10px;color:#6b7280;">'+(org.address||'')+(org.taxId?' · ضريبي: '+org.taxId:'')+'</div>';
+  h+='</div>';
+  h+='<div style="text-align:center;border:1.5px solid #0D3B6E;border-radius:7px;padding:5px 14px;">';
+  h+='<div style="font-size:9px;color:#6b7280;">سند قيد يومية</div>';
+  h+='<div style="font-weight:900;color:#0D3B6E;font-size:13px;">'+e.id+'</div>';
+  h+='</div></div>';
+  // Meta grid
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">';
+  h+='<div><div style="font-size:10px;color:#6b7280;">التاريخ</div><strong>'+e.date+'</strong></div>';
+  h+='<div><div style="font-size:10px;color:#6b7280;">المرجع</div><strong>'+(e.ref||'—')+'</strong></div>';
+  h+='<div><div style="font-size:10px;color:#6b7280;">الإجمالي</div><strong>'+fmt(tD)+' ج.م</strong></div>';
+  h+='</div>';
+  h+='<div style="margin-bottom:10px;"><div style="font-size:10px;color:#6b7280;">البيان</div>'
+    +'<strong style="font-size:13px;">'+e.desc+'</strong></div>';
+  if(proj.name)h+='<div style="margin-bottom:8px;"><div style="font-size:10px;color:#6b7280;">المشروع</div>'
+    +'<strong>'+proj.name+'</strong></div>';
+  h+='</div>';
+  // Lines table
+  h+='<table><thead><tr>'
+    +'<th>الحساب</th><th>الاسم</th><th>الطرف الثالث</th><th>WBS</th>'
+    +'<th class="tn">مدين</th><th class="tn">دائن</th>'
+    +'</tr></thead><tbody>'+linesHtml+'</tbody>'
+    +'<tfoot><tr><td colspan="4" style="font-weight:900;">الإجمالي</td>'
+    +'<td class="tn">'+fmt(tD)+'</td><td class="tn">'+fmt(tD)+'</td>'
+    +'</tr></tfoot></table>';
+  // Signatures + QR
+  h+='<div style="display:flex;justify-content:space-between;align-items:flex-end;'
+    +'margin-top:24px;gap:12px;">';
+  h+='<div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">';
+  ['أعده المحاسب','راجعه','اعتمده'].forEach(function(sig){
+    h+='<div style="border-top:1px solid #374151;padding-top:6px;text-align:center;'
+      +'font-size:10px;color:#6b7280;">'+sig+'</div>';
+  });
+  h+='</div>';
+  // QR
+  h+='<div style="text-align:center;flex-shrink:0;">';
+  h+='<img src="'+qrUrl+'" width="110" height="110" '
+    +'onerror="this.outerHTML=\'<div style=\\\"border:1px solid #e5e7eb;border-radius:6px;'
+    +'padding:6px 10px;text-align:center;font-size:10px;color:#6b7280;width:110px;\\\">'
+    +'ابحث برقم<br><strong style=\\\"color:#0D3B6E;font-size:13px;\\\">'+e.id+'</strong></div>\'">';
+  h+='<div style="font-size:8.5px;color:#9ca3af;margin-top:3px;">امسح للأرشفة</div>';
+  h+='</div></div>';
 
-  // Build lines table
-  var drRows=drLines.map(function(l){
-    return '<tr><td style="padding:5px 8px;border:1px solid #e5e7eb;">'+l.acc+' — '+l.an+'</td>'
-      +'<td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:center;">'+(l.proj||'—')+'</td>'
-      +'<td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:center;">'+(l.cc||'—')+'</td>'
-      +'<td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:left;font-weight:700;">'+l.dr.toLocaleString()+'</td></tr>';
-  }).join('');
-  var crRows=crLines.map(function(l){
-    return '<tr style="background:#f9fafb;"><td style="padding:5px 8px;border:1px solid #e5e7eb;">'+l.acc+' — '+l.an+'</td>'
-      +'<td colspan="2" style="padding:5px 8px;border:1px solid #e5e7eb;text-align:center;color:#6b7280;">دائن</td>'
-      +'<td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:left;font-weight:700;color:#c0392b;">('+l.cr.toLocaleString()+')</td></tr>';
-  }).join('');
-
-  var html='<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">'
-    +'<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">'
-    +'<style>'
-    +'*{margin:0;padding:0;box-sizing:border-box;}'
-    +'body{font-family:Cairo,Arial,sans-serif;font-size:11px;padding:18px;color:#111;direction:rtl;}'
-    +'.header{display:flex;justify-content:space-between;align-items:flex-start;'
-    +'border-bottom:2px solid #0D3B6E;padding-bottom:10px;margin-bottom:12px;}'
-    +'.org-name{font-size:16px;font-weight:900;color:#0D3B6E;}'
-    +'.org-sub{font-size:10px;color:#6b7280;margin-top:2px;}'
-    +'.entry-id{font-size:11px;font-weight:700;color:#0D3B6E;border:1px solid #0D3B6E;'
-    +'padding:4px 12px;border-radius:6px;text-align:center;}'
-    +'.meta{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;}'
-    +'.meta-item{border:1px solid #e5e7eb;border-radius:7px;padding:7px 10px;}'
-    +'.meta-lbl{font-size:9px;color:#9ca3af;}'
-    +'.meta-val{font-weight:700;font-size:12px;color:#0D3B6E;margin-top:2px;}'
-    +'table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:10.5px;}'
-    +'th{background:#0D3B6E;color:white;padding:6px 8px;font-size:10px;}'
-    +'.total-row{background:#f0f9ff;font-weight:900;}'
-    +'.sigs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;margin-top:20px;}'
-    +'.sig-box{border-top:1px solid #374151;padding-top:6px;text-align:center;font-size:10px;color:#6b7280;}'
-    +'.sig-name{font-size:11px;font-weight:700;color:#374151;margin-top:2px;}'
-    +'.bottom{display:flex;justify-content:space-between;align-items:flex-end;'
-    +'border-top:1px dashed #d1d5db;margin-top:18px;padding-top:10px;}'
-    +'.qr-wrap{text-align:center;}'
-    +'.qr-wrap img{width:120px;height:120px;}'
-    +'.qr-label{font-size:9px;color:#9ca3af;margin-top:4px;}'
-    +'.archive-note{font-size:9.5px;color:#6b7280;line-height:1.9;}'
-    +'.archive-note strong{color:#0D3B6E;}'
-    +'@media print{body{padding:10px;}}'
-    +'</style></head><body>'
-
-    // ── Header
-    +'<div class="header">'
-    +'<div>'
-    +'<div class="org-name">'+(org.name||'الجمعية')+'</div>'
-    +'<div class="org-sub">'+(org.address||'')+(org.taxId?' · رقم ضريبي: '+org.taxId:'')+'</div>'
-    +'</div>'
-    +'<div class="entry-id">📋 قيد رقم<br><strong>'+entry.id+'</strong></div>'
-    +'</div>'
-
-    // ── Meta
-    +'<div class="meta">'
-    +'<div class="meta-item"><div class="meta-lbl">التاريخ</div><div class="meta-val">'+entry.date+'</div></div>'
-    +'<div class="meta-item"><div class="meta-lbl">المرجع</div><div class="meta-val">'+(entry.ref||'—')+'</div></div>'
-    +'<div class="meta-item"><div class="meta-lbl">الإجمالي</div><div class="meta-val">'+totalDr.toLocaleString()+' ج.م</div></div>'
-    +'</div>'
-
-    // ── Description
-    +'<div style="background:#f8f9fa;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:12px;font-weight:600;color:#0D3B6E;">'
-    +'البيان: '+entry.desc
-    +(tp?'<span style="color:#6b7280;font-weight:400;"> · المستفيد: '+tp.name+'</span>':'')
-    +'</div>'
-
-    // ── Lines table
-    +'<table>'
-    +'<thead><tr><th style="text-align:right;">الحساب</th><th>المشروع</th><th>مركز التكلفة</th><th style="text-align:left;">المبلغ (ج.م)</th></tr></thead>'
-    +'<tbody>'+drRows+crRows+'</tbody>'
-    +'<tfoot><tr class="total-row">'
-    +'<td colspan="3" style="padding:6px 8px;border:1px solid #e5e7eb;font-weight:900;">الإجمالي</td>'
-    +'<td style="padding:6px 8px;border:1px solid #e5e7eb;font-size:13px;text-align:left;font-weight:900;color:#0D3B6E;">'+totalDr.toLocaleString()+'</td>'
-    +'</tr></tfoot></table>'
-
-    // ── Signatures
-    +'<div class="sigs">'
-    +'<div class="sig-box">أعده<div class="sig-name">&nbsp;</div></div>'
-    +'<div class="sig-box">راجعه<div class="sig-name">&nbsp;</div></div>'
-    +'<div class="sig-box">اعتمده<div class="sig-name">&nbsp;</div></div>'
-    +'</div>'
-
-    // ── Bottom: archive note + QR
-    +'<div class="bottom">'
-    +'<div class="archive-note">'
-    +'<strong>للمحاسب:</strong> بعد الطباعة — اجمع المستندات الداعمة<br>'
-    +'ثم صوّر الـ QR بموبايلك للدخول على صفحة الأرشفة مباشرة<br>'
-    +'ارفع المستندات واضغط <strong>"قيد المراجعة ✅"</strong>'
-    +'</div>'
-    +'<div class="qr-wrap">'
-    +'<img src="'+qrUrl+'" onerror="this.parentElement.innerHTML=\'<div style=\\\'border:1px solid #e5e7eb;border-radius:8px;padding:8px;font-size:10px;color:#6b7280;text-align:center;width:120px;\\\'>رقم القيد<br><strong style=\\\"font-size:14px;color:#0D3B6E;\\\">'+entry.id+'</strong><br>ابحث به في السيستم</div>\'">'
-    +'<div class="qr-label">امسح للأرشفة<br>'+entry.id+'</div>'
-    +'</div></div>'
-    +'</body></html>';
-
-  printContent('قيد رقم '+entry.id, html);
+  printContent('سند قيد يومية — '+e.id, h);
 }
+
 
 
 // ── Archive management page ───────────────────────────────────────
@@ -11590,39 +11556,8 @@ function printModal(){
 }
 
 // Print journal entry
-function printEntry(id){
-  var e=(DB.entries||[]).find(function(x){return x.id===id;});
-  if(!e){toast("القيد غير موجود");return;}
-  var proj=DB.projects.find(function(p){return p.code===e.proj;})||{};
-  var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0);},0);
-  var h='<div class="card">';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
-  h+='<div><div style="font-size:10px;color:#6b7280;">رقم القيد</div><strong>'+e.id+'</strong></div>';
-  h+='<div><div style="font-size:10px;color:#6b7280;">التاريخ</div><strong>'+e.date+'</strong></div>';
-  h+='<div><div style="font-size:10px;color:#6b7280;">المرجع</div><strong>'+e.ref+'</strong></div>';
-  h+='</div>';
-  h+='<div style="margin-bottom:8px;"><div style="font-size:10px;color:#6b7280;">البيان</div><strong style="font-size:13px;">'+e.desc+'</strong></div>';
-  if(proj.name)h+='<div><div style="font-size:10px;color:#6b7280;">المشروع</div><strong>'+proj.name+'</strong></div>';
-  h+='</div>';
-  h+='<table><thead><tr><th>الحساب</th><th>الاسم</th><th>الطرف الثالث</th><th>كود WBS</th><th class="tn">مدين</th><th class="tn">دائن</th></tr></thead><tbody>';
-  (e.lines||[]).forEach(function(l){
-    var tp=l.tpId?(DB.thirdParties||[]).find(function(t){return t.id===l.tpId;}):null;
-    var lineProjCode=l.proj||e.proj||'';
-    var wbsName='';
-    if(l.wbsCode&&lineProjCode){
-      var lp=DB.projects.find(function(p){return p.code===lineProjCode;});
-      if(lp&&lp.wbs){var wb=lp.wbs.find(function(w){return w.code===l.wbsCode;});if(wb)wbsName=wb.name;}
-    }
-    h+='<tr><td><code>'+l.acc+'</code></td><td>'+l.an+'</td>';
-    h+='<td>'+(tp?tp.name:'—')+'</td>';
-    h+='<td>'+(l.wbsCode?l.wbsCode+(wbsName?' — '+wbsName:''):'—')+'</td>';
-    h+='<td class="tn">'+(l.dr>0?fmt(l.dr):'-')+'</td>';
-    h+='<td class="tn">'+(l.cr>0?fmt(l.cr):'-')+'</td></tr>';
-  });
-  h+='</tbody><tfoot><tr><td colspan="4" style="font-weight:900;">الإجمالي</td>';
-  h+='<td class="tn">'+fmt(tD)+'</td><td class="tn">'+fmt(tD)+'</td></tr></tfoot></table>';
-  printContent('سند قيد يومية — '+e.id, h);
-}
+function printEntry(id){ printEntrySheet(id); }
+
 
 // Print balance sheet
 function printBalanceSheet(){
