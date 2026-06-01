@@ -1878,9 +1878,9 @@ function searchEntries(q){
     h+='<div style="font-weight:800;color:var(--nd);">'+fmt(tD)+' ج.م</div>';
     h+='<div style="font-size:10px;color:'+stClr+';">'+(e.status==='posted'?'✅ مرحّل':'📝 مسودة')+'</div>';
     h+='</div></div>';
-    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">';
-    h+='<button data-eid="'+e.id+'" onclick="viewE(this.dataset.eid)" style="background:var(--sk);border:none;color:white;border-radius:7px;padding:6px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">👁️ عرض</button>';
-    h+='<button data-eid="'+e.id+'" onclick="openDocsModal(this.dataset.eid)" style="background:#059669;border:none;color:white;border-radius:7px;padding:6px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">📎 '+(docCount?docCount+' مستند':'مستندات')+'</button>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">';
+    h+='<button data-eid="'+e.id+'" onclick="viewE(this.dataset.eid)" style="background:var(--sk);border:none;color:white;border-radius:7px;padding:7px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">👁️ عرض</button>';
+    h+='<button data-eid="'+e.id+'" onclick="openDocsModal(this.dataset.eid)" style="background:#059669;border:none;color:white;border-radius:7px;padding:7px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">📎 '+(docCount?docCount+' مستند':'مستندات')+'</button>';
     h+='</div></div>';
   });
   container.innerHTML=h;
@@ -5891,38 +5891,40 @@ function printEntrySheet(id){
   h+='<div style="font-size:8.5px;color:#9ca3af;margin-top:3px;">امسح للأرشفة</div>';
   h+='</div></div>';
 
-  // Generate QR as data URL before printing
+  // Generate QR then print
+  function doQRAndPrint(dataUrl){
+    var qrHtml;
+    if(dataUrl){
+      qrHtml='<img src="'+dataUrl+'" width="120" height="120" style="display:block;">';
+    } else {
+      qrHtml='<div style="border:2px solid #0D3B6E;border-radius:8px;padding:8px;text-align:center;'
+        +'width:120px;height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;">'
+        +'<div style="font-size:9px;color:#6b7280;margin-bottom:4px;">رقم القيد</div>'
+        +'<div style="font-weight:900;font-size:13px;color:#0D3B6E;">'+e.id+'</div>'
+        +'<div style="font-size:8px;color:#9ca3af;margin-top:4px;">ابحث به في السيستم</div>'
+        +'</div>';
+    }
+    h=h.replace('<div id="qr-container-'+e.id+'"'
+      +' style="width:120px;height:120px;"></div>',qrHtml);
+    printContent('سند قيد يومية — '+e.id, h);
+  }
+
   if(typeof QRCode !== 'undefined'){
     try{
       var qrDiv=document.createElement('div');
-      qrDiv.style.cssText='position:absolute;left:-9999px;top:-9999px;';
+      qrDiv.style.cssText='position:fixed;left:-9999px;top:-9999px;width:120px;height:120px;';
       document.body.appendChild(qrDiv);
-      new QRCode(qrDiv,{text:e.id,width:110,height:110,
+      new QRCode(qrDiv,{text:e.id,width:120,height:120,
         colorDark:'#0D3B6E',colorLight:'#ffffff',
         correctLevel:QRCode.CorrectLevel.H});
       setTimeout(function(){
         var canvas=qrDiv.querySelector('canvas');
-        if(canvas){
-          var dataUrl=canvas.toDataURL('image/png');
-          h=h.replace('<div id="qr-container-'+e.id+'"','<img src="'+dataUrl+'" width="110" height="110" style="display:block;"'
-            +' /><div style="display:none"');
-        }
+        var dataUrl=canvas?canvas.toDataURL('image/png'):null;
         document.body.removeChild(qrDiv);
-        printContent('سند قيد يومية — '+e.id, h);
-      },200);
-    }catch(err){
-      printContent('سند قيد يومية — '+e.id, h);
-    }
-  } else {
-    // Fallback: show entry ID text box
-    h=h.replace('<div id="qr-container-'+e.id+'"',
-      '<div style="border:2px solid #0D3B6E;border-radius:8px;padding:8px;text-align:center;width:110px;height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;">'
-      +'<div style="font-size:9px;color:#6b7280;margin-bottom:4px;">رقم القيد</div>'
-      +'<div style="font-weight:900;font-size:12px;color:#0D3B6E;">'+e.id+'</div>'
-      +'<div style="font-size:8px;color:#9ca3af;margin-top:4px;">ابحث به في السيستم</div>'
-      +'</div><div style="display:none"');
-    printContent('سند قيد يومية — '+e.id, h);
-  }
+        doQRAndPrint(dataUrl);
+      },400);
+    }catch(err){ doQRAndPrint(null); }
+  } else { doQRAndPrint(null); }
 }
 
 
