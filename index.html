@@ -5891,39 +5891,44 @@ function printEntrySheet(id){
   h+='<div style="font-size:8.5px;color:#9ca3af;margin-top:3px;">امسح للأرشفة</div>';
   h+='</div></div>';
 
-  // ── Build QR as inline canvas in the print HTML ─────────────────
-  // This runs INSIDE the print window so no CDN needed
-  var qrScript='<script>'
-    +'var c=document.getElementById("qr-cv-'+e.id+'");'
-    +'if(c){var ctx=c.getContext("2d");'
-    +'ctx.fillStyle="#ffffff";ctx.fillRect(0,0,120,120);'
-    +'ctx.fillStyle="#0D3B6E";'
-    // Draw a simple grid pattern encoding entry ID visually
-    // Real QR via text encoding fallback
-    +'var id="'+e.id+'";'
-    +'var cells=21;var cs=Math.floor(120/cells);'
-    // Encode each char as bit pattern
-    +'for(var i=0;i<id.length&&i<cells*cells;i++){'
-    +'var code=id.charCodeAt(i);'
-    +'var row=Math.floor(i/cells);var col=i%cells;'
-    +'if(code%2===0)ctx.fillRect(col*cs,row*cs,cs,cs);}'
-    // Draw finder patterns (corners)
-    +'[[0,0],[0,cells-7],[cells-7,0]].forEach(function(p){'
-    +'ctx.fillStyle="#0D3B6E";'
-    +'ctx.fillRect(p[1]*cs,p[0]*cs,7*cs,7*cs);'
-    +'ctx.fillStyle="#ffffff";'
-    +'ctx.fillRect((p[1]+1)*cs,(p[0]+1)*cs,5*cs,5*cs);'
-    +'ctx.fillStyle="#0D3B6E";'
-    +'ctx.fillRect((p[1]+2)*cs,(p[0]+2)*cs,3*cs,3*cs);});}'
-    +'<\/script>';
-
-  var qrHtml='<canvas id="qr-cv-'+e.id+'" width="120" height="120" '
-    +'style="display:block;border:1px solid #e5e7eb;border-radius:4px;"></canvas>'
-    +qrScript;
-
-  h=h.replace('<div id="qr-container-'+e.id+'" style="width:120px;height:120px;"></div>', qrHtml);
+  // ── QR: draw directly on canvas in current page, convert to dataURL ──
+  var qrCanvas=document.createElement('canvas');
+  qrCanvas.width=120; qrCanvas.height=120;
+  var qrCtx=qrCanvas.getContext('2d');
+  qrCtx.fillStyle='#ffffff'; qrCtx.fillRect(0,0,120,120);
+  qrCtx.fillStyle='#0D3B6E';
+  // Draw simple grid encoding entry ID
+  var qrText=e.id;
+  var cellCount=21; var cellPx=Math.floor(120/cellCount);
+  // Finder patterns (3 corners)
+  [[0,0],[0,cellCount-7],[cellCount-7,0]].forEach(function(p){
+    qrCtx.fillStyle='#0D3B6E';
+    qrCtx.fillRect(p[1]*cellPx,p[0]*cellPx,7*cellPx,7*cellPx);
+    qrCtx.fillStyle='#ffffff';
+    qrCtx.fillRect((p[1]+1)*cellPx,(p[0]+1)*cellPx,5*cellPx,5*cellPx);
+    qrCtx.fillStyle='#0D3B6E';
+    qrCtx.fillRect((p[1]+2)*cellPx,(p[0]+2)*cellPx,3*cellPx,3*cellPx);
+  });
+  // Data pattern from text
+  qrCtx.fillStyle='#0D3B6E';
+  for(var qi=0;qi<qrText.length;qi++){
+    var code=qrText.charCodeAt(qi);
+    for(var bit=0;bit<8;bit++){
+      if((code>>bit)&1){
+        var qr=qi*8+bit;
+        var qrow=8+Math.floor(qr/cellCount);
+        var qcol=Math.floor(qr%cellCount);
+        if(qrow<cellCount-7) qrCtx.fillRect(qcol*cellPx,qrow*cellPx,cellPx,cellPx);
+      }
+    }
+  }
+  // Convert to data URL and embed in HTML
+  var qrDataUrl=qrCanvas.toDataURL('image/png');
+  var qrImgTag='<img src="'+qrDataUrl+'" width="120" height="120" style="display:block;border:1px solid #e5e7eb;border-radius:4px;">';
+  h=h.replace('<div id="qr-container-'+e.id+'" style="width:120px;height:120px;"></div>', qrImgTag);
   printContent('سند قيد يومية — '+e.id, h);
 }
+
 
 
 
