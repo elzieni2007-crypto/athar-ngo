@@ -5884,10 +5884,10 @@ function printEntrySheet(id){
   h+='</div>';
   // QR
   h+='<div style="text-align:center;flex-shrink:0;">';
-  h+='<img src="'+qrUrl+'" width="110" height="110" '
-    +'onerror="this.outerHTML=\'<div style=\\\"border:1px solid #e5e7eb;border-radius:6px;'
-    +'padding:6px 10px;text-align:center;font-size:10px;color:#6b7280;width:110px;\\\">'
-    +'ابحث برقم<br><strong style=\\\"color:#0D3B6E;font-size:13px;\\\">'+e.id+'</strong></div>\'">';
+  h+='<div id="__QR__" style="width:120px;height:120px;"></div>';
+
+
+
   h+='<div style="font-size:8.5px;color:#9ca3af;margin-top:3px;">امسح للأرشفة</div>';
   h+='</div></div>';
 
@@ -5925,7 +5925,7 @@ function printEntrySheet(id){
   // Convert to data URL and embed in HTML
   var qrDataUrl=qrCanvas.toDataURL('image/png');
   var qrImgTag='<img src="'+qrDataUrl+'" width="120" height="120" style="display:block;border:1px solid #e5e7eb;border-radius:4px;">';
-  h=h.replace('<div id="qr-container-'+e.id+'" style="width:120px;height:120px;"></div>', qrImgTag);
+  h=h.replace('<div id="__QR__" style="width:120px;height:120px;"></div>', qrImgTag);
   printContent('سند قيد يومية — '+e.id, h);
 }
 
@@ -6289,6 +6289,108 @@ function getDocBadge(entryId){
 // ================================================================
 
 // ── Build financial context from DB ──────────────────────────────
+function rKnowledgePage(){
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div class="ph-t" style="font-size:15px;">📚 قاعدة المعرفة</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">قوانين وإجراءات وسياسات الجمعيات</div></div>';
+  h+='<div style="background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;">NGO AI</div>';
+  h+='</div>';
+
+  var kbQuestions=[
+    {icon:'📋',text:'اعمل نموذج 41 ازاي؟'},
+    {icon:'💼',text:'ايه مستندات direct order؟'},
+    {icon:'💰',text:'ازاي احسب مكافأة نهاية الخدمة؟'},
+    {icon:'🛒',text:'امتى بحتاج 3 عروض أسعار؟'},
+    {icon:'🏦',text:'كام نسبة التأمينات على الجمعية؟'},
+    {icon:'📊',text:'ايه متطلبات USAID للمشتريات؟'},
+    {icon:'📅',text:'ايه حقوق الموظف في الإجازة السنوية؟'},
+    {icon:'🧾',text:'ايه شرائح ضريبة الدخل 2024؟'},
+  ];
+
+  h+='<div class="sd" style="margin-bottom:8px;">💡 أسئلة شائعة</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px;">';
+  kbQuestions.forEach(function(q){
+    h+='<button data-q="'+q.text+'" onclick="askKnowledge(this.dataset.q)" ';
+    h+='style="background:white;border:1.5px solid #e5e7eb;border-radius:10px;padding:10px;';
+    h+='text-align:right;cursor:pointer;font-family:Cairo,sans-serif;font-size:11px;font-weight:600;color:#374151;">';
+    h+=q.icon+' '+q.text+'</button>';
+  });
+  h+='</div>';
+
+  h+='<div class="sd" style="margin-bottom:8px;">✍️ سؤال مخصص</div>';
+  h+='<div style="display:flex;gap:8px;margin-bottom:14px;">';
+  h+='<input id="kb-input" placeholder="اسأل عن أي قانون أو إجراء..." ';
+  h+='style="flex:1;padding:10px 14px;border-radius:10px;border:1.5px solid #e5e7eb;font-family:Cairo,sans-serif;font-size:12px;" ';
+  h+='onkeydown="if(event.key===\'Enter\')askKnowledgeFromInput()">';
+  h+='<button onclick="askKnowledgeFromInput()" ';
+  h+='style="background:linear-gradient(135deg,#0D3B6E,#1d4ed8);color:white;border:none;border-radius:10px;padding:10px 16px;font-family:Cairo,sans-serif;font-size:13px;cursor:pointer;">إرسال</button>';
+  h+='</div>';
+  h+='<div id="kb-response" style="display:none;background:white;border-radius:12px;padding:14px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #e5e7eb;"></div>';
+  return h;
+}
+
+function askKnowledgeFromInput(){
+  var inp=document.getElementById('kb-input');
+  var q=inp?inp.value.trim():'';
+  if(!q){toast('اكتب سؤالك أولاً');return;}
+  if(inp) inp.value='';
+  askKnowledge(q);
+}
+
+function askKnowledge(question){
+  var respEl=document.getElementById('kb-response');
+  if(!respEl) return;
+  respEl.style.display='block';
+  respEl.innerHTML='<div style="display:flex;align-items:center;gap:10px;color:var(--g4);">'
+    +'<div style="width:20px;height:20px;border:3px solid #1d4ed8;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;"></div>'
+    +'<span style="font-size:12px;">جاري البحث في قاعدة المعرفة...</span></div>';
+
+  var relevantKB=findRelevantKnowledge(question);
+  var systemPrompt='أنت مستشار متخصص في قوانين وإجراءات الجمعيات الأهلية في مصر. '
+    +'تجيب بالعربية بشكل مختصر وعملي ومحدد. '
+    +'استخدم المعلومات المتاحة في قاعدة المعرفة وأضف أي معرفة تكميلية مفيدة. '
+    +'لو المعلومة غير متوفرة، قل ذلك بوضوح.';
+
+  var userContent=(relevantKB?'قاعدة المعرفة المتاحة:\n'+relevantKB+'\n\n---\n\n':'')
+    +'السؤال: '+question;
+
+  var key=(DB.sysSettings&&DB.sysSettings.anthropicKey)||'';
+  if(!key){
+    respEl.innerHTML='<div style="color:#c0392b;font-size:12px;">🔑 أضف API Key في الإعدادات أولاً</div>';
+    return;
+  }
+
+  fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':key,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:800,
+      system:systemPrompt,
+      messages:[{role:'user',content:userContent}]
+    })
+  })
+  .then(function(r){return r.json();})
+  .then(function(data){
+    if(data.error){respEl.innerHTML='<div style="color:#c0392b;">⚠️ '+data.error.message+'</div>';return;}
+    var text=data.content&&data.content[0]?data.content[0].text:'';
+    var formatted=text.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+    respEl.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+      +'<div style="width:26px;height:26px;background:linear-gradient(135deg,#0D3B6E,#1d4ed8);border-radius:7px;display:flex;align-items:center;justify-content:center;color:white;font-size:13px;">📚</div>'
+      +'<span style="font-weight:700;font-size:12px;color:#374151;">قاعدة المعرفة</span></div>'
+      +'<div style="font-size:12.5px;line-height:1.9;color:#374151;">'+formatted+'</div>';
+  })
+  .catch(function(err){
+    respEl.innerHTML='<div style="color:#c0392b;font-size:12px;">⚠️ خطأ في الاتصال: '+err.message+'</div>';
+  });
+}
+
 function buildFinancialContext(){
   var org=DB.org||{};
   var B=bals();
@@ -6374,7 +6476,14 @@ var AI_QUESTIONS = [
 // ── AI Assistant Page ─────────────────────────────────────────────
 function rAIPage(){
   var ctx=buildFinancialContext();
+  var activeTab=window._aiActiveTab||'financial';
   var h='';
+  // Tabs
+  h+='<div style="display:flex;gap:8px;margin-bottom:14px;">';
+  h+='<button onclick="window._aiActiveTab=\'financial\';sub(\'ai\')" style="flex:1;padding:9px;border-radius:9px;border:none;cursor:pointer;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;background:'+(activeTab==='financial'?'linear-gradient(135deg,#7c3aed,#6d28d9)':'#f1f5f9')+';color:'+(activeTab==='financial'?'white':'#374151')+';">📊 المالي</button>';
+  h+='<button onclick="window._aiActiveTab=\'knowledge\';sub(\'ai\')" style="flex:1;padding:9px;border-radius:9px;border:none;cursor:pointer;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;background:'+(activeTab==='knowledge'?'linear-gradient(135deg,#0D3B6E,#1d4ed8)':'#f1f5f9')+';color:'+(activeTab==='knowledge'?'white':'#374151')+';">📚 معرفة</button>';
+  h+='</div>';
+  if(activeTab==='knowledge') return h+rKnowledgePage();
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
   h+='<div>';
   h+='<div class="ph-t">🤖 المساعد المالي الذكي</div>';
@@ -6839,6 +6948,167 @@ function rCompliancePage(){
   return h;
 }
 
+
+
+// ================================================================
+// NGO KNOWLEDGE BASE — قاعدة معرفة الجمعيات الأهلية
+// ================================================================
+var NGO_KNOWLEDGE = {
+
+  // ── قانون العمل المصري ──────────────────────────────────────────
+  'labor_law': {
+    title:'قانون العمل المصري',
+    topics:['مكافأة نهاية الخدمة','إجازة سنوية','فصل','عقد عمل','تأمينات','أجر'],
+    content:`قانون العمل المصري رقم 12 لسنة 2003:
+
+مكافأة نهاية الخدمة (severance pay):
+- عند انتهاء الخدمة بسبب غير الاستقالة: شهر عن كل سنة خدمة
+- حساب: (الأجر الأساسي ÷ 12) × عدد سنوات الخدمة
+- الحد الأدنى: بعد سنة خدمة كاملة
+- مثال: أجر أساسي 5000 × 3 سنوات = 15000 ج.م
+
+الإجازة السنوية:
+- 21 يوم سنوياً للعامل الذي أمضى أقل من 10 سنوات
+- 30 يوم بعد 10 سنوات خدمة
+- لا يجوز تجميع أكثر من سنتين
+
+أجر المرأة في إجازة الأمومة:
+- إجازة وضع 90 يوم بأجر كامل (لا تُحتسب من الإجازة السنوية)
+- تصرف من صندوق التأمين الاجتماعي
+
+Direct Order (الأمر المباشر):
+- المشتريات حتى 5000 ج.م يمكن بأمر مباشر بدون عروض أسعار
+- من 5000 إلى 50000 ج.م: عرضان سعريان على الأقل
+- أكثر من 50000 ج.م: 3 عروض أسعار أو مناقصة`
+  },
+
+  // ── قانون الضرائب 7/2024 ────────────────────────────────────────
+  'tax_law': {
+    title:'قانون الضرائب المصري 7/2024',
+    topics:['ضريبة دخل','خصم وتحصيل','نموذج 41','شرائح ضريبية','إعفاء'],
+    content:`قانون الضرائب المصري — التعديلات الأخيرة 2024:
+
+شرائح ضريبة الدخل على الرواتب:
+- حتى 40,000 ج.م سنوياً: معفى
+- 40,001 — 55,000: 10%
+- 55,001 — 70,000: 15%
+- 70,001 — 200,000: 20%
+- 200,001 — 400,000: 22.5%
+- أكثر من 400,000: 25%
+
+الإعفاء الشخصي: 20,000 ج.م سنوياً
+
+نموذج 41 — خصم وتحصيل:
+- توريدات ومشتريات: 1% من القيمة الصافية
+- خدمات عامة: 3%
+- سفريات وحجوزات: 3%
+- إيجار سيارات: 3%
+- استشارات ومهن حرة: 5%
+- محاسبة وقانون: 5%
+- إيجار عقارات: 10%
+يُقدَّم النموذج كل 3 أشهر لمصلحة الضرائب
+
+حساب الخصم الضريبي:
+الضريبة = (قيمة الفاتورة × نسبة الخصم) ÷ (1 + نسبة الخصم)
+مثال: فاتورة 5200 × 1% = 5200 × 0.01 ÷ 1.01 = 51.5 ج.م`
+  },
+
+  // ── التأمينات الاجتماعية ────────────────────────────────────────
+  'insurance': {
+    title:'قانون التأمينات الاجتماعية المصري',
+    topics:['تأمينات','اشتراك','صاحب عمل','موظف','معاش'],
+    content:`قانون التأمينات الاجتماعية رقم 148 لسنة 2019:
+
+نسب الاشتراكات (2024):
+- حصة الموظف: 11% من الأجر الأساسي
+- حصة صاحب العمل: 18.75% من الأجر الأساسي
+- صندوق الشهداء: 0.05% من الأجر الأساسي
+
+حدود الأجر الخاضع للتأمين:
+- الحد الأدنى: 2,700 ج.م شهرياً
+- الحد الأقصى: 16,700 ج.م شهرياً
+
+مثال: موظف أجر أساسي 8,000 ج.م:
+- اشتراك الموظف: 8,000 × 11% = 880 ج.م
+- اشتراك صاحب العمل: 8,000 × 18.75% = 1,500 ج.م
+- صندوق الشهداء: 8,000 × 0.05% = 4 ج.م
+- إجمالي التكلفة على الجمعية: 8,000 + 1,500 + 4 = 9,504 ج.م`
+  },
+
+  // ── متطلبات المانحين ────────────────────────────────────────────
+  'donors': {
+    title:'متطلبات المانحين الدوليين',
+    topics:['USAID','EU','UN','مستندات','Audit','تقرير','مانح'],
+    content:`متطلبات المانحين الدوليين الرئيسية:
+
+USAID — المتطلبات الأساسية:
+- Purchase Order: يلزم 3 عروض أسعار لأي مشتريات أكثر من 3000$
+- Timesheet موقّع لكل موظف ممول من المنحة
+- Bank statements مطابقة شهرية
+- تقرير مالي ربع سنوي
+- Audit خارجي سنوي إلزامي
+- احتفاظ بالمستندات 7 سنوات بعد انتهاء المنحة
+
+الاتحاد الأوروبي EU:
+- Original invoices فقط (لا صور)
+- Time allocation لكل موظف يعمل على أكثر من مشروع
+- Procurement policy معتمدة من مجلس الإدارة
+- Cost eligibility: المصروف لازم يكون خلال فترة المنحة فقط
+
+الأمم المتحدة UN:
+- Financial regulations اتباع اللوائح المالية للوكالة المعنية
+- Advance payment report قبل صرف دفعة جديدة
+- Audit trail كامل لكل معاملة`
+  },
+
+  // ── إجراءات المشتريات ───────────────────────────────────────────
+  'procurement': {
+    title:'إجراءات المشتريات في الجمعيات',
+    topics:['مشتريات','عروض أسعار','أمر شراء','تأهيل مورد','لجنة'],
+    content:`إجراءات المشتريات الموصى بها للجمعيات:
+
+حدود المشتريات (الممارسة الشائعة):
+- حتى 2000 ج.م: موافقة المحاسب المالي فقط
+- 2001 — 10,000 ج.م: عرضا سعر + موافقة المدير المالي
+- 10,001 — 50,000 ج.م: 3 عروض أسعار + موافقة المدير التنفيذي
+- أكثر من 50,000 ج.م: لجنة مشتريات + مجلس الإدارة
+
+مستندات ملف المشتريات الكامل:
+1. طلب الشراء (Purchase Requisition)
+2. عروض الأسعار (2 أو 3 حسب المبلغ)
+3. مقارنة العروض (Bid Analysis)
+4. أمر الشراء المعتمد (Purchase Order)
+5. فاتورة المورد (Invoice)
+6. سند الاستلام (Goods Received Note)
+7. سند الصرف أو التحويل البنكي
+
+تأهيل المورد:
+- السجل التجاري ساري
+- البطاقة الضريبية
+- شهادة الضمان الاجتماعي (للشركات)`
+  }
+};
+
+// ── Find relevant knowledge for question ─────────────────────────
+function findRelevantKnowledge(question){
+  var q=question.toLowerCase();
+  var relevant=[];
+  Object.values(NGO_KNOWLEDGE).forEach(function(kb){
+    var score=0;
+    kb.topics.forEach(function(t){
+      if(q.includes(t.toLowerCase())) score+=3;
+    });
+    if(q.includes(kb.title.toLowerCase())) score+=5;
+    // keyword matching
+    var words=q.split(/\s+/);
+    words.forEach(function(w){
+      if(w.length>3&&kb.content.toLowerCase().includes(w)) score+=1;
+    });
+    if(score>0) relevant.push({score:score,content:kb.content,title:kb.title});
+  });
+  relevant.sort(function(a,b){return b.score-a.score;});
+  return relevant.slice(0,2).map(function(r){return r.title+':\n'+r.content;}).join('\n\n---\n\n');
+}
 
 function rInvPage(){
   if(!DB.inventory)DB.inventory=[];
