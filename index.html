@@ -819,6 +819,7 @@ function rMore(){
     {header:"🏦 البنوك والخزينة", items:[
       {i:"🏦",t:"البنوك والخزينة",n:"banks"},
       {i:"🔄",t:"سجل التسويات",n:"reconhist"},
+      {i:"🖊️",t:"طباعة الشيكات",n:"checks"},
     ]},
     {header:"👥 الموارد البشرية", items:[
       {i:"🏢",t:"الموارد البشرية",n:"employees",pg:true},
@@ -3355,6 +3356,7 @@ function rBankPage(){
   var B=bals();
   var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
   h+='<div><div class="ph-t">🏦 البنوك والخزينة</div>';
+  h+='<button onclick="nav(\'checks\',null)" class="btn btn-sm" style="background:#1d4ed8;font-size:10.5px;">🖊️ طباعة شيك</button>';
   h+='<div style="font-size:11px;color:var(--g4);">'+banks.length+' حساب</div></div>';
   h+='</div>';
 
@@ -7277,16 +7279,16 @@ function rCheckPage(){
   // ── Manual input panel ───────────────────────────────────────
   h+='<div id="panel-manual">';
   h+='<div class="fg"><label>اسم المستفيد (عربي) *</label>'
-    +'<input id="chk-name-ar" placeholder="مثال: شركة النور للتجارة" oninput="updateChkPreview()"></div>';
+
   h+='<div class="fg"><label>اسم المستفيد (إنجليزي)</label>'
     +'<input id="chk-name-en" placeholder="Al-Nour Trading Company" oninput="updateChkPreview()"></div>';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
-  h+='<div class="fg"><label>المبلغ *</label>'
-    +'<input id="chk-amount" type="number" placeholder="0.00" step="0.01" min="0" oninput="updateChkPreview()"></div>';
-  h+='<div class="fg"><label>التاريخ *</label>'
-    +'<input id="chk-date" type="date" value="'+today+'" oninput="updateChkPreview()"></div>';
-  h+='</div>';
-  // Live tafqeet
+  h+='<div class="fg"><label>المبلغ بالأرقام *</label><input id="chk-amount" type="number" placeholder="0.00" step="0.01" min="0" style="font-size:18px;font-weight:900;text-align:center;padding:12px;" oninput="updateChkPreview()"></div>';
+  h+='<div class="fg"><label>التاريخ *</label><input id="chk-date" type="date" value="'+today+'" oninput="updateChkPreview()"></div>';
+
+
+
+
+
   h+='<div id="chk-tafqeet-ar" style="background:#f0f9ff;border-radius:8px;padding:10px;margin-bottom:10px;'
     +'font-size:12px;font-weight:700;color:#0D3B6E;min-height:44px;line-height:1.6;">التفقيط يظهر هنا...</div>';
   h+='</div>';
@@ -7460,8 +7462,8 @@ function searchForCheck(q){
       +'</div>';
     h += '<div style="text-align:left;">';
     h += '<div style="font-weight:800;color:var(--nd);">'+fmt(amt)+' ج.م</div>';
-    h += '<button data-eid="'+e.id+'" onclick="fillCheckFromEntry(this.dataset.eid)" '
-      +'style="background:var(--gr);border:none;color:white;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">تعبئة</button>';
+    h += '<button data-eid="'+e.id+'" onclick="fillCheckFromEntry(this.dataset.eid)" style="background:var(--gr);border:none;color:white;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">تعبئة</button>';
+
     h += '</div></div>';
   });
   h += '</div>';
