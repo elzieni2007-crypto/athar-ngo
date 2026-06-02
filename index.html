@@ -220,6 +220,7 @@ tbody tr:hover td{background:var(--skp);}
   <div id="pg-proj" class="pg"></div>
   <div id="pg-pay" class="pg"></div>
   <div id="pg-more" class="pg"></div>
+  <div id="pg-checks" class="pg"></div>
 </div>
 <nav class="bnav">
   <div class="bn on" data-nav="dash"><div class="bn-i">📊</div>الرئيسية</div>
@@ -793,6 +794,7 @@ function nav(pg,btn){
   else if(pg==="jour")rJour();
   else if(pg==="proj")rProj();
   else if(pg==="pay")rPay();
+  else if(pg==="checks"){var _pgChecks=document.getElementById("pg-checks");if(_pgChecks)_pgChecks.innerHTML=rCheckPage();}
   else if(pg==="more")rMore();
   window.scrollTo(0,0);
 }
@@ -1085,7 +1087,7 @@ function sub(n){
     assets:rAssetsPage,
     form41:rForm41Page,
     archive:rArchivePage,
-    checks:rCheckPage,
+    checks:function(){nav('checks',null);},
     ai:rAIPage,
     compliance:rCompliancePage,
     compliancesettings:rComplianceSettings,
@@ -1262,7 +1264,7 @@ function rDash(){
   ];
   h+='<div class="sd" style="margin-bottom:8px;">الأقسام الرئيسية</div>';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">';
-  var _pageKeys={jour:1,proj:1,pay:1};
+  var _pageKeys={jour:1,proj:1,pay:1,checks:1};
   modules_.forEach(function(mod){
     var _ispg=_pageKeys[mod.sec]?1:0;
     h+='<div data-pg="'+(_ispg?'1':'0')+'" data-sec="'+mod.sec+'" onclick="var s=this.dataset.sec;if(this.dataset.pg===\'1\')showPage(s);else sub(s);" style="background:white;border-radius:14px;padding:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.07);border:1px solid #eee;display:flex;align-items:center;gap:10px;">';
@@ -6017,11 +6019,11 @@ function buildArchiveList(entries, filter, search){
     h+='</div></div>';
 
     h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;">';
-    h+='<button onclick="printEntrySheet(\''+entry.id+'\')" style="background:var(--am);border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">🖨️ مذكرة صرف</button>';
-    h+='<button onclick="openDocsModal(\''+entry.id+'\''+')" style="background:#059669;border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">📎 '+(DB.entryDocs&&DB.entryDocs[entry.id]?DB.entryDocs[entry.id].length+' مستند':'رفع')+'</button>';
-    h+='<button onclick="markArchived(\''+entry.id+'\''+')"   style="background:#1a7a4a;border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">✅ مؤرشف</button>';
-    h+='<button onclick="markMissing(\''+entry.id+'\')" style="background:#c0392b;border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">❌ ناقص</button>';
-    h+='<button onclick="viewE(\''+entry.id+'\')" style="background:var(--sk);border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">👁️ القيد</button>';
+    h+='<button data-eid="'+entry.id+'" onclick="printEntrySheet(this.dataset.eid)" style="background:var(--am);border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">🖨️ طباعة القيد</button>';
+    h+='<button data-eid="'+entry.id+'" onclick="openDocsModal(this.dataset.eid)" style="background:#059669;border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">📎 '+(DB.entryDocs&&DB.entryDocs[entry.id]?DB.entryDocs[entry.id].length+' مستند':'رفع')+'</button>';
+    h+='<button data-eid="'+entry.id+'" onclick="markArchived(this.dataset.eid)" style="background:#1a7a4a;border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">✅ مؤرشف</button>';
+    h+='<button data-eid="'+entry.id+'" onclick="markMissing(this.dataset.eid)" style="background:#c0392b;border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">❌ ناقص</button>';
+    h+='<button data-eid="'+entry.id+'" onclick="viewE(this.dataset.eid)" style="background:var(--sk);border:none;color:white;border-radius:7px;padding:5px;font-size:9.5px;cursor:pointer;font-family:Cairo,sans-serif;">👁️ القيد</button>';
     h+='</div></div>';
   });
   return h;
@@ -7220,56 +7222,145 @@ function tafqeetEn(n){
 
 // ── Check printing page ───────────────────────────────────────────
 function rCheckPage(){
-  var h='';
-  h+='<div class="ph-t" style="margin-bottom:14px;">🏦 طباعة الشيكات</div>';
-
-  h+='<div style="background:white;border-radius:14px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:14px;">';
-  h+='<div class="sd" style="margin-bottom:10px;">بيانات الشيك</div>';
-
-  h+='<div class="fg"><label>اسم المستفيد (عربي)</label>';
-  h+='<input id="chk-name-ar" placeholder="مثال: شركة النور للتجارة" oninput="previewCheck()"></div>';
-
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
-  h+='<div class="fg"><label>المبلغ (أرقام)</label>';
-  h+='<input id="chk-amount" type="number" placeholder="0.00" step="0.01" min="0" oninput="previewCheck()"></div>';
-  h+='<div class="fg"><label>التاريخ</label>';
-  h+='<input id="chk-date" type="date" value="'+new Date().toISOString().split('T')[0]+'" oninput="previewCheck()"></div>';
-  h+='</div>';
-
-  // Live tafqeet
-  h+='<div id="chk-tafqeet-ar" style="background:#f0f9ff;border-radius:8px;padding:10px;margin:8px 0;font-size:12.5px;font-weight:700;color:#0D3B6E;min-height:40px;">التفقيط سيظهر هنا...</div>';
-
-  h+='<button class="btn btn-gr" onclick="printBankCheck()" style="width:100%;margin-top:6px;">🖨️ طباعة الشيك</button>';
-  h+='<div style="margin-top:8px;background:#f8f9fa;border-radius:10px;padding:10px;">';
-  h+='<div style="font-size:10.5px;color:var(--g4);font-weight:700;margin-bottom:6px;">⚙️ ضبط مواضع الطباعة</div>';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
-  // Store positions
+  // ── Stand-alone full-screen check writer ─────────────────────
   var pos=JSON.parse(localStorage.getItem('chkPos')||'{"nameTop":22,"amtTop":22,"wordsTop":35,"dateTop":8}');
-  h+='<div class="fg" style="margin-bottom:0;"><label style="font-size:10px;">اسم المستفيد — بُعد من الأعلى (mm)</label>';
-  h+='<input id="pos-name" type="number" value="'+pos.nameTop+'" min="0" max="90" style="width:100%;" oninput="saveChkPos()"></div>';
-  h+='<div class="fg" style="margin-bottom:0;"><label style="font-size:10px;">المبلغ بالأرقام — بُعد من الأعلى (mm)</label>';
-  h+='<input id="pos-amt" type="number" value="'+pos.amtTop+'" min="0" max="90" style="width:100%;" oninput="saveChkPos()"></div>';
-  h+='<div class="fg" style="margin-bottom:0;"><label style="font-size:10px;">المبلغ بالكلمات — بُعد من الأعلى (mm)</label>';
-  h+='<input id="pos-words" type="number" value="'+pos.wordsTop+'" min="0" max="90" style="width:100%;" oninput="saveChkPos()"></div>';
-  h+='<div class="fg" style="margin-bottom:0;"><label style="font-size:10px;">التاريخ — بُعد من الأعلى (mm)</label>';
-  h+='<input id="pos-date" type="number" value="'+pos.dateTop+'" min="0" max="90" style="width:100%;" oninput="saveChkPos()"></div>';
-  h+='</div>';
-  h+='<div style="font-size:10px;color:var(--g4);margin-top:6px;">💡 اطبع شيك تجريبي على ورقة عادية وضعها فوق الشيك للتحقق من المواضع</div>';
-  h+='</div>';
+  var today=new Date().toISOString().split('T')[0];
+
+  var h='';
+
+  // ── Top bar ───────────────────────────────────────────────────
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+  h+='<div><div class="ph-t">🏦 طباعة الشيكات</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">يدوي أو من قيد محاسبي</div></div>';
+  h+='<button onclick="showChkSettings()" class="btn btn-sm" style="background:var(--g1);color:var(--nd);font-size:10.5px;">⚙️ ضبط المواضع</button>';
   h+='</div>';
 
-  // From entry
-  h+='<div style="background:#fff9c4;border-radius:12px;padding:12px;">';
-  h+='<div style="font-weight:700;color:#92400e;margin-bottom:6px;">🔗 تعبئة من قيد محاسبي</div>';
-  h+='<div style="display:flex;gap:8px;">';
-  h+='<input id="chk-entry-search" placeholder="ابحث برقم القيد أو البيان..." ';
-  h+='style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #fcd34d;font-family:Cairo,sans-serif;font-size:12px;" ';
-  h+='oninput="searchForCheck(this.value)">';
+  // ── Two-column layout ─────────────────────────────────────────
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">';
+
+  // ── LEFT: Check preview ───────────────────────────────────────
+  h+='<div>';
+  h+='<div class="sd" style="margin-bottom:10px;">معاينة الشيك</div>';
+  h+='<div id="chk-preview" style="'
+    +'background:white;border:1.5px solid #d1d5db;border-radius:10px;'
+    +'width:100%;aspect-ratio:210/99;position:relative;overflow:hidden;'
+    +'box-shadow:0 2px 12px rgba(0,0,0,.08);'
+    +'">';
+  // Background lines pattern
+  h+='<div style="position:absolute;inset:0;background:repeating-linear-gradient(transparent,transparent 18px,#e5e7eb 18px,#e5e7eb 19px);opacity:.4;"></div>';
+  // MICR line at bottom
+  h+='<div style="position:absolute;bottom:0;left:0;right:0;height:12%;background:#f9fafb;border-top:1px solid #e5e7eb;'
+    +'display:flex;align-items:center;padding:0 4%;gap:8px;">';
+  h+='<div style="font-size:9px;color:#94a3b8;letter-spacing:2px;">⑆ 0000 ⑆ 00000000 ⑇</div>';
+  h+='<div style="flex:1;text-align:center;font-size:9px;color:#94a3b8;">MICR</div>';
   h+='</div>';
-  h+='<div id="chk-entry-results"></div>';
+  // Preview fields
+  h+='<div id="prev-date" style="position:absolute;top:10%;left:5%;font-size:clamp(9px,1.8vw,14px);font-weight:700;color:#111;direction:ltr;">DD / MM / YYYY</div>';
+  h+='<div id="prev-name" style="position:absolute;top:26%;right:5%;font-size:clamp(9px,1.8vw,14px);font-weight:700;color:#111;max-width:65%;">اسم المستفيد</div>';
+  h+='<div id="prev-amt" style="position:absolute;top:26%;left:5%;font-size:clamp(10px,2vw,16px);font-weight:900;color:#0D3B6E;direction:ltr;border:1.5px solid #0D3B6E;padding:2px 8px;border-radius:4px;">0.00</div>';
+  h+='<div id="prev-words" style="position:absolute;top:44%;right:5%;font-size:clamp(8px,1.4vw,11px);font-weight:700;color:#374151;max-width:90%;line-height:1.5;">المبلغ بالكلمات</div>';
   h+='</div>';
+  // Print btn
+  h+='<button onclick="printBankCheck()" class="btn btn-gr" style="width:100%;margin-top:10px;padding:12px;font-size:14px;">🖨️ طباعة الشيك</button>';
+  h+='</div>';
+
+  // ── RIGHT: Input form ─────────────────────────────────────────
+  h+='<div>';
+  // Tab selector
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">';
+  h+='<button id="tab-manual" onclick="switchChkTab(\'manual\')" '
+    +'style="padding:9px;border-radius:8px;border:none;cursor:pointer;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;background:var(--nd);color:white;">✏️ إدخال يدوي</button>';
+  h+='<button id="tab-entry" onclick="switchChkTab(\'entry\')" '
+    +'style="padding:9px;border-radius:8px;border:1.5px solid #e5e7eb;cursor:pointer;font-family:Cairo,sans-serif;font-size:12px;font-weight:600;background:#f8f9fa;color:#374151;">🔗 من قيد</button>';
+  h+='</div>';
+
+  // ── Manual input panel ───────────────────────────────────────
+  h+='<div id="panel-manual">';
+  h+='<div class="fg"><label>اسم المستفيد (عربي) *</label>'
+    +'<input id="chk-name-ar" placeholder="مثال: شركة النور للتجارة" oninput="updateChkPreview()"></div>';
+  h+='<div class="fg"><label>اسم المستفيد (إنجليزي)</label>'
+    +'<input id="chk-name-en" placeholder="Al-Nour Trading Company" oninput="updateChkPreview()"></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>المبلغ *</label>'
+    +'<input id="chk-amount" type="number" placeholder="0.00" step="0.01" min="0" oninput="updateChkPreview()"></div>';
+  h+='<div class="fg"><label>التاريخ *</label>'
+    +'<input id="chk-date" type="date" value="'+today+'" oninput="updateChkPreview()"></div>';
+  h+='</div>';
+  // Live tafqeet
+  h+='<div id="chk-tafqeet-ar" style="background:#f0f9ff;border-radius:8px;padding:10px;margin-bottom:10px;'
+    +'font-size:12px;font-weight:700;color:#0D3B6E;min-height:44px;line-height:1.6;">التفقيط يظهر هنا...</div>';
+  h+='</div>';
+
+  // ── From entry panel ─────────────────────────────────────────
+  h+='<div id="panel-entry" style="display:none;">';
+  h+='<div class="fg"><label>ابحث برقم القيد أو البيان</label>'
+    +'<input id="chk-entry-search" placeholder="J2026... أو اسم المورد..." '
+    +'oninput="searchForCheck(this.value)" '
+    +'style="border:1.5px solid var(--sk);"></div>';
+  h+='<div id="chk-entry-results" style="max-height:280px;overflow-y:auto;"></div>';
+  h+='</div>';
+
+  h+='</div>'; // end right col
+  h+='</div>'; // end grid
+
   return h;
 }
+
+function switchChkTab(tab){
+  var manual=document.getElementById('panel-manual');
+  var entry=document.getElementById('panel-entry');
+  var btnM=document.getElementById('tab-manual');
+  var btnE=document.getElementById('tab-entry');
+  if(!manual||!entry) return;
+  if(tab==='manual'){
+    manual.style.display='';entry.style.display='none';
+    if(btnM){btnM.style.background='var(--nd)';btnM.style.color='white';btnM.style.border='none';}
+    if(btnE){btnE.style.background='#f8f9fa';btnE.style.color='#374151';btnE.style.border='1.5px solid #e5e7eb';}
+  } else {
+    manual.style.display='none';entry.style.display='';
+    if(btnE){btnE.style.background='var(--nd)';btnE.style.color='white';btnE.style.border='none';}
+    if(btnM){btnM.style.background='#f8f9fa';btnM.style.color='#374151';btnM.style.border='1.5px solid #e5e7eb';}
+  }
+}
+
+function updateChkPreview(){
+  var name=(document.getElementById('chk-name-ar')||{}).value||'اسم المستفيد';
+  var amt=parseFloat((document.getElementById('chk-amount')||{}).value)||0;
+  var date=(document.getElementById('chk-date')||{}).value||'';
+
+  // Update tafqeet
+  var arEl=document.getElementById('chk-tafqeet-ar');
+  if(arEl) arEl.textContent=amt>0?tafqeet(amt):'التفقيط يظهر هنا...';
+
+  // Update preview
+  var el=function(id){return document.getElementById(id);};
+  if(el('prev-name')) el('prev-name').textContent=name;
+  if(el('prev-amt'))  el('prev-amt').textContent=amt>0?amt.toLocaleString('en-US',{minimumFractionDigits:2}):'0.00';
+  if(el('prev-words'))el('prev-words').textContent=amt>0?tafqeet(amt):'المبلغ بالكلمات';
+  if(el('prev-date')&&date){
+    var d=new Date(date);
+    var dd=String(d.getDate()).padStart(2,'0');
+    var mm=String(d.getMonth()+1).padStart(2,'0');
+    var yy=d.getFullYear();
+    el('prev-date').textContent=dd+' / '+mm+' / '+yy;
+  }
+}
+
+function showChkSettings(){
+  var pos=JSON.parse(localStorage.getItem('chkPos')||'{"nameTop":22,"amtTop":22,"wordsTop":35,"dateTop":8}');
+  var h='<div style="font-size:11.5px;color:var(--g4);margin-bottom:10px;">أدخل البُعد من الأعلى بالمليميتر لكل حقل</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>اسم المستفيد (mm)</label><input id="pos-name" type="number" value="'+pos.nameTop+'" min="0" max="90" style="width:100%;"></div>';
+  h+='<div class="fg"><label>المبلغ بالأرقام (mm)</label><input id="pos-amt" type="number" value="'+pos.amtTop+'" min="0" max="90" style="width:100%;"></div>';
+  h+='<div class="fg"><label>المبلغ بالكلمات (mm)</label><input id="pos-words" type="number" value="'+pos.wordsTop+'" min="0" max="90" style="width:100%;"></div>';
+  h+='<div class="fg"><label>التاريخ (mm)</label><input id="pos-date" type="number" value="'+pos.dateTop+'" min="0" max="90" style="width:100%;"></div>';
+  h+='</div>';
+  h+='<div style="background:#fff9c4;border-radius:8px;padding:9px;font-size:11.5px;color:#92400e;margin-top:4px;">';
+  h+='💡 اطبع شيك تجريبي على ورقة بيضاء وضعها فوق الشيك الفارغ للتحقق من المواضع</div>';
+  h+='<button onclick="saveChkPos();cm();toast(\'✅ تم حفظ المواضع\')" class="btn btn-gr" style="width:100%;margin-top:10px;">💾 حفظ المواضع</button>';
+  om('⚙️ ضبط مواضع طباعة الشيك', h);
+}
+
 
 function printBankCheck(){
   var h = '';
@@ -14208,7 +14299,7 @@ function sub(n){
     assets:rAssetsPage,
     form41:rForm41Page,
     archive:rArchivePage,
-    checks:rCheckPage,
+    checks:function(){nav('checks',null);},
     timesheet:rTimesheetPage,
     myleaves:rMyLeavesPage,
     leaveapproval:rLeaveApprovalPage
@@ -14377,7 +14468,7 @@ function rDash(){
   ];
   h+='<div class="sd" style="margin-bottom:8px;">الأقسام الرئيسية</div>';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">';
-  var _pageKeys={jour:1,proj:1,pay:1};
+  var _pageKeys={jour:1,proj:1,pay:1,checks:1};
   modules_.forEach(function(mod){
     var _ispg=_pageKeys[mod.sec]?1:0;
     h+='<div data-pg="'+(_ispg?'1':'0')+'" data-sec="'+mod.sec+'" onclick="var s=this.dataset.sec;if(this.dataset.pg===\'1\')showPage(s);else sub(s);" style="background:white;border-radius:14px;padding:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.07);border:1px solid #eee;display:flex;align-items:center;gap:10px;">';
