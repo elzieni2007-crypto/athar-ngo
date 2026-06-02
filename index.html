@@ -7278,7 +7278,7 @@ function rCheckPage(){
 
   // ── Manual input panel ───────────────────────────────────────
   h+='<div id="panel-manual">';
-  h+='<div class="fg"><label>اسم المستفيد (عربي) *</label>'
+  h+='<div class="fg"><label>اسم المستفيد (عربي) *</label><input id="chk-name-ar" placeholder="مثال: شركة النور للتجارة" style="font-size:14px;font-weight:700;" oninput="updateChkPreview()"></div>';
 
   h+='<div class="fg"><label>اسم المستفيد (إنجليزي)</label>'
     +'<input id="chk-name-en" placeholder="Al-Nour Trading Company" oninput="updateChkPreview()"></div>';
@@ -7364,7 +7364,7 @@ function showChkSettings(){
 }
 
 
-function printBankCheck(){
+function _oldBankCheckForm_UNUSED(){
   var h = '';
   h += '<div class="ph-t" style="margin-bottom:14px;">🏦 طباعة الشيكات</div>';
 
