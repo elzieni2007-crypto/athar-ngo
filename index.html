@@ -1081,6 +1081,7 @@ function sub(n){
     hrreports:rHRReports,
     tpledger:rTPLedger,
     importexport:rImportExport,
+    importwizard:rImportWizard,
     reconhist:function(){rReconHistory('');},
     masterdata:rMasterData,
     reports:rReportsPage,
@@ -7563,6 +7564,420 @@ function printBankCheck(){
 
 function printCheck(lang){ printBankCheck(); }
 
+// ================================================================
+// IMPORT WIZARD — استيراد Excel شامل
+// ================================================================
+
+// ── Download template ─────────────────────────────────────────────
+function downloadImportTemplate(){
+  loadSheetJS(function(){
+    var wb = XLSX.utils.book_new();
+
+    // ── Sheet 1: القيود اليومية ──────────────────────────────────
+    var entriesHeaders = [
+      'رقم القيد*','التاريخ* (YYYY-MM-DD)','البيان*','المرجع',
+      'كود الحساب*','مدين','دائن',
+      'المشروع','WBS','مركز التكلفة','كود الطرف الثالث'
+    ];
+    var entriesSample = [
+      ['J2026-001','2026-01-15','صيانة مكيفات','PV-001','5241',5000,0,'P001','WBS-01','CC01','TP001'],
+      ['J2026-001','2026-01-15','صيانة مكيفات','PV-001','2114',50,0,'','','',''],
+      ['J2026-001','2026-01-15','صيانة مكيفات','PV-001','1112',0,5050,'','','',''],
+      ['J2026-002','2026-01-20','رواتب يناير','SAL-01','5311',45000,0,'','','CC02',''],
+      ['J2026-002','2026-01-20','رواتب يناير','SAL-01','2111',0,45000,'','','CC02',''],
+    ];
+    var wsE = XLSX.utils.aoa_to_sheet([entriesHeaders].concat(entriesSample));
+    wsE['!cols'] = entriesHeaders.map(function(h){return {wch:Math.max(h.length+2,14)};});
+    XLSX.utils.book_append_sheet(wb, wsE, 'القيود اليومية');
+
+    // ── Sheet 2: الموازنة والمشروعات ────────────────────────────
+    var projHeaders = [
+      'كود المشروع*','اسم المشروع*','المانح','الموازنة الكلية*',
+      'تاريخ البداية (YYYY-MM-DD)','تاريخ النهاية (YYYY-MM-DD)','الحالة (active/closed)'
+    ];
+    var projSample = [
+      ['P001','مشروع التمكين الاقتصادي','USAID',1500000,'2026-01-01','2026-12-31','active'],
+      ['P002','برنامج الصحة الأولية','WHO',800000,'2026-03-01','2026-09-30','active'],
+    ];
+    var wsP = XLSX.utils.aoa_to_sheet([projHeaders].concat(projSample));
+    wsP['!cols'] = projHeaders.map(function(){return {wch:20};});
+    XLSX.utils.book_append_sheet(wb, wsP, 'المشروعات والموازنة');
+
+    // ── Sheet 3: الموظفين ────────────────────────────────────────
+    var empHeaders = [
+      'كود الموظف*','الاسم*','المسمى الوظيفي','القسم',
+      'الأجر الأساسي*','بدل طبيعة عمل','بدل نقل','بدل سكن',
+      'تاريخ التعيين (YYYY-MM-DD)','نوع العقد (indefinite/fixed)','الحالة (active/inactive)'
+    ];
+    var empSample = [
+      ['E001','أحمد محمد السيد','مدير مالي','المالية',8000,500,300,0,'2020-01-01','indefinite','active'],
+      ['E002','سارة علي حسن','محاسبة','المالية',5500,300,200,0,'2022-06-01','fixed','active'],
+    ];
+    var wsEmp = XLSX.utils.aoa_to_sheet([empHeaders].concat(empSample));
+    wsEmp['!cols'] = empHeaders.map(function(){return {wch:18};});
+    XLSX.utils.book_append_sheet(wb, wsEmp, 'الموظفين');
+
+    // ── Sheet 4: الموردين والأطراف الثالثة ──────────────────────
+    var tpHeaders = [
+      'كود الطرف*','الاسم*','النوع (supplier/consultant/customer)',
+      'الرقم الضريبي','طبيعة التعامل','نسبة الخصم %','العنوان'
+    ];
+    var tpSample = [
+      ['TP001','شركة النور للتجارة','supplier','100-200-301','توريدات',1,'القاهرة'],
+      ['TP002','مكتب الثقة للاستشارات','consultant','200-300-402','استشارات',5,'الجيزة'],
+    ];
+    var wsTP = XLSX.utils.aoa_to_sheet([tpHeaders].concat(tpSample));
+    wsTP['!cols'] = tpHeaders.map(function(){return {wch:20};});
+    XLSX.utils.book_append_sheet(wb, wsTP, 'الموردين والأطراف الثالثة');
+
+    // ── Sheet 5: شجرة الحسابات (إضافة فقط) ─────────────────────
+    var coaHeaders = [
+      'كود الحساب*','اسم الحساب*','طبيعة الحساب (dr/cr)*',
+      'ملاحظة'
+    ];
+    var coaSample = [
+      ['5317','مصروفات تدريب وتأهيل','dr','حسابات مصروفات إضافية'],
+      ['4121','إيرادات تبرعات عينية','cr','إيرادات إضافية'],
+    ];
+    var wsCOA = XLSX.utils.aoa_to_sheet([coaHeaders].concat(coaSample));
+    wsCOA['!cols'] = coaHeaders.map(function(){return {wch:22};});
+    XLSX.utils.book_append_sheet(wb, wsCOA, 'حسابات جديدة (إضافة فقط)');
+
+    // ── Instructions sheet ───────────────────────────────────────
+    var instrRows = [
+      ['📋 تعليمات الاستيراد — نظام أثر','',''],
+      ['','',''],
+      ['الحقول المميزة بـ * إلزامية','',''],
+      ['التواريخ يجب أن تكون بصيغة YYYY-MM-DD','',''],
+      ['القيد الواحد يمكن أن يكون على أكثر من سطر (نفس رقم القيد)','',''],
+      ['كود الحساب يجب أن يطابق شجرة الحسابات الموجودة في النظام','',''],
+      ['','',''],
+      ['⚠️ تحذيرات مهمة','',''],
+      ['لا تعدّل أسماء الأوراق','',''],
+      ['لا تعدّل ترتيب الأعمدة','',''],
+      ['البيانات التجريبية الموجودة لن تُحذف — سيتم الإضافة فقط','',''],
+    ];
+    var wsInstr = XLSX.utils.aoa_to_sheet(instrRows);
+    wsInstr['!cols'] = [{wch:55},{wch:10},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, wsInstr, 'تعليمات');
+
+    downloadXLSX(wb, 'نموذج_استيراد_أثر.xlsx');
+    toast('✅ تم تحميل نموذج الاستيراد — 5 أوراق');
+  });
+}
+
+// ── Import Wizard Page ────────────────────────────────────────────
+function rImportWizard(){
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">';
+  h+='<div><div class="ph-t">📥 استيراد البيانات</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">قيود · مشروعات · موظفين · موردين · حسابات</div></div>';
+  h+='<button class="btn btn-sm" onclick="downloadImportTemplate()" style="background:var(--gr);font-size:10.5px;">📥 تحميل النموذج</button>';
+  h+='</div>';
+
+  // Upload zone
+  h+='<div id="import-drop" onclick="document.getElementById(\'import-file\').click()" '
+    +'style="border:2.5px dashed #29abe2;border-radius:14px;padding:32px;text-align:center;'
+    +'cursor:pointer;background:#f0f9ff;margin-bottom:14px;transition:background .2s;"'
+    +'ondragover="event.preventDefault();this.style.background=\'#dbeafe\';" '
+    +'ondragleave="this.style.background=\'#f0f9ff\';" '
+    +'ondrop="event.preventDefault();handleImportDrop(event.dataTransfer.files[0]);">';
+  h+='<div style="font-size:36px;margin-bottom:8px;">📊</div>';
+  h+='<div style="font-weight:800;font-size:14px;color:var(--nd);margin-bottom:4px;">اسحب ملف Excel هنا أو اضغط للاختيار</div>';
+  h+='<div style="font-size:11.5px;color:var(--g4);">.xlsx فقط — النموذج الرسمي لأثر</div>';
+  h+='<input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;" onchange="handleImportFile(this.files[0])">';
+  h+='</div>';
+
+  // Preview area
+  h+='<div id="import-preview"></div>';
+  return h;
+}
+
+function handleImportDrop(file){ if(file) processImportFile(file); }
+function handleImportFile(file){ if(file) processImportFile(file); }
+
+function processImportFile(file){
+  loadSheetJS(function(){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        var wb = XLSX.read(e.target.result, {type:'binary'});
+        showImportPreview(wb);
+      }catch(err){
+        toast('❌ خطأ في قراءة الملف: '+err.message);
+      }
+    };
+    reader.readAsBinaryString(file);
+  });
+}
+
+function showImportPreview(wb){
+  var preview = document.getElementById('import-preview');
+  if(!preview) return;
+
+  // Parse each sheet
+  var results = {
+    entries: parseEntriesSheet(wb),
+    projects: parseProjectsSheet(wb),
+    employees: parseEmployeesSheet(wb),
+    thirdParties: parseTPSheet(wb),
+    accounts: parseCOASheet(wb),
+  };
+
+  var totalValid = Object.values(results).reduce(function(s,r){return s+(r?r.valid:0);},0);
+  var totalErrors = Object.values(results).reduce(function(s,r){return s+(r?r.errors.length:0);},0);
+
+  var h='';
+  // Summary bar
+  h+='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:12px;padding:14px;margin-bottom:12px;color:white;">';
+  h+='<div style="font-weight:900;font-size:15px;margin-bottom:8px;">📋 ملخص الاستيراد</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">';
+  var sections=[
+    {key:'entries',icon:'📝',lbl:'قيود'},
+    {key:'projects',icon:'🎯',lbl:'مشروعات'},
+    {key:'employees',icon:'👥',lbl:'موظفين'},
+    {key:'thirdParties',icon:'🏭',lbl:'موردين'},
+    {key:'accounts',icon:'🌳',lbl:'حسابات'},
+  ];
+  sections.forEach(function(s){
+    var r=results[s.key];
+    h+='<div style="background:rgba(255,255,255,.12);border-radius:8px;padding:8px;text-align:center;">';
+    h+='<div style="font-size:18px;">'+s.icon+'</div>';
+    h+='<div style="font-weight:900;font-size:16px;">'+(r?r.valid:0)+'</div>';
+    h+='<div style="font-size:9.5px;opacity:.7;">'+s.lbl+'</div>';
+    h+='</div>';
+  });
+  h+='</div></div>';
+
+  // Errors
+  var allErrors=[];
+  Object.values(results).forEach(function(r){if(r)allErrors=allErrors.concat(r.errors);});
+  if(allErrors.length){
+    h+='<div style="background:#fff5f5;border-radius:11px;padding:12px;margin-bottom:12px;">';
+    h+='<div style="font-weight:800;color:#c0392b;margin-bottom:8px;">⚠️ تحذيرات ('+allErrors.length+')</div>';
+    allErrors.slice(0,5).forEach(function(err){
+      h+='<div style="font-size:11px;color:#c0392b;margin-bottom:4px;">• '+err+'</div>';
+    });
+    if(allErrors.length>5) h+='<div style="font-size:11px;color:#c0392b;">... و'+(allErrors.length-5)+' تحذير آخر</div>';
+    h+='</div>';
+  }
+
+  // Import button
+  if(totalValid>0){
+    h+='<button onclick="executeImport()" class="btn btn-gr" style="width:100%;padding:14px;font-size:15px;margin-bottom:8px;">✅ استيراد '+totalValid+' سجل</button>';
+  }
+  h+='<button onclick="document.getElementById(\'import-file\').click()" class="btn btn-gy" style="width:100%;font-size:12px;">📂 اختيار ملف آخر</button>';
+
+  // Store parsed data globally for executeImport
+  window._importData = results;
+  preview.innerHTML = h;
+}
+
+// ── Parsers ───────────────────────────────────────────────────────
+function sheetToRows(wb, sheetName){
+  var ws = wb.Sheets[sheetName];
+  if(!ws) return null;
+  var data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+  if(data.length<2) return null;
+  return data.slice(1).filter(function(r){return r.some(function(c){return c!=='';});});
+}
+
+function parseEntriesSheet(wb){
+  var rows=sheetToRows(wb,'القيود اليومية');
+  if(!rows) return {valid:0,errors:[],data:[]};
+  var entries={}, errors=[];
+  rows.forEach(function(r,i){
+    // New format: ID | Date | Desc | Ref | Acc | Dr | Cr | Proj | WBS | CC | TP
+    var id    = String(r[0]||'').trim();
+    var date  = String(r[1]||'').trim();
+    var desc  = String(r[2]||'').trim();
+    var ref   = String(r[3]||'').trim();
+    var acc   = String(r[4]||'').trim();
+    var dr    = parseFloat(r[5])||0;
+    var cr    = parseFloat(r[6])||0;
+    var proj  = String(r[7]||'').trim();
+    var wbs   = String(r[8]||'').trim();
+    var cc    = String(r[9]||'').trim();
+    var tpId  = String(r[10]||'').trim();
+
+    if(!id||!date||!desc){errors.push('سطر '+(i+2)+': بيانات ناقصة (ID أو تاريخ أو بيان)');return;}
+    if(!acc){errors.push('سطر '+(i+2)+': كود الحساب مطلوب');return;}
+
+    // Create entry header if first line
+    if(!entries[id]) entries[id]={
+      id:id,date:date,desc:desc,ref:ref,proj:proj,status:'posted',lines:[]
+    };
+
+    // Add line
+    if(dr>0||cr>0){
+      entries[id].lines.push({
+        acc:acc,an:'',
+        dr:dr,cr:cr,
+        proj:proj,
+        wbsCode:wbs,
+        cc:cc,
+        tpId:tpId,tpName:'',tpType:''
+      });
+    }
+  });
+
+  // Validate balance
+  Object.values(entries).forEach(function(e){
+    var totDr=e.lines.reduce(function(s,l){return s+l.dr;},0);
+    var totCr=e.lines.reduce(function(s,l){return s+l.cr;},0);
+    if(Math.abs(totDr-totCr)>0.01)
+      errors.push('قيد '+e.id+': غير متوازن — مدين='+totDr+' دائن='+totCr);
+  });
+
+  return {valid:Object.keys(entries).length,errors:errors,data:Object.values(entries)};
+}
+
+function parseProjectsSheet(wb){
+  var rows=sheetToRows(wb,'المشروعات والموازنة');
+  if(!rows) return {valid:0,errors:[],data:[]};
+  var data=[],errors=[];
+  rows.forEach(function(r,i){
+    var code=String(r[0]||'').trim();
+    var name=String(r[1]||'').trim();
+    if(!code||!name){errors.push('مشروع سطر '+(i+2)+': كود أو اسم ناقص');return;}
+    data.push({code:code,name:name,donor:String(r[2]||''),budget:parseFloat(r[3])||0,
+      start:String(r[4]||''),end:String(r[5]||''),status:String(r[6]||'active'),spent:0});
+  });
+  return {valid:data.length,errors:errors,data:data};
+}
+
+function parseEmployeesSheet(wb){
+  var rows=sheetToRows(wb,'الموظفين');
+  if(!rows) return {valid:0,errors:[],data:[]};
+  var data=[],errors=[];
+  rows.forEach(function(r,i){
+    var id=String(r[0]||'').trim();
+    var name=String(r[1]||'').trim();
+    if(!id||!name){errors.push('موظف سطر '+(i+2)+': كود أو اسم ناقص');return;}
+    data.push({id:id,name:name,pos:String(r[2]||''),dept:String(r[3]||''),
+      sal:parseFloat(r[4])||0,nw:parseFloat(r[5])||0,tr:parseFloat(r[6])||0,housing:parseFloat(r[7])||0,
+      hireDate:String(r[8]||''),contractType:String(r[9]||'indefinite'),
+      status:String(r[10]||'active'),empType:'full-time'});
+  });
+  return {valid:data.length,errors:errors,data:data};
+}
+
+function parseTPSheet(wb){
+  var rows=sheetToRows(wb,'الموردين والأطراف الثالثة');
+  if(!rows) return {valid:0,errors:[],data:[]};
+  var data=[],errors=[];
+  rows.forEach(function(r,i){
+    var id=String(r[0]||'').trim();
+    var name=String(r[1]||'').trim();
+    if(!id||!name){errors.push('طرف ثالث سطر '+(i+2)+': كود أو اسم ناقص');return;}
+    data.push({id:id,name:name,type:String(r[2]||'supplier'),
+      taxId:String(r[3]||''),whtType:String(r[4]||''),whtRate:parseFloat(r[5])||0,
+      address:String(r[6]||''),notes:''});
+  });
+  return {valid:data.length,errors:errors,data:data};
+}
+
+function parseCOASheet(wb){
+  var rows=sheetToRows(wb,'حسابات جديدة (إضافة فقط)');
+  if(!rows) return {valid:0,errors:[],data:[]};
+  var data=[],errors=[];
+  rows.forEach(function(r,i){
+    var code=String(r[0]||'').trim();
+    var name=String(r[1]||'').trim();
+    var nat=String(r[2]||'').trim().toLowerCase();
+    if(!code||!name){errors.push('حساب سطر '+(i+2)+': كود أو اسم ناقص');return;}
+    if(nat!=='dr'&&nat!=='cr'){errors.push('حساب '+code+': طبيعة الحساب يجب dr أو cr');return;}
+    // Check if already exists
+    if(DB.accounts.find(function(a){return a.c===code;})){
+      errors.push('حساب '+code+' موجود بالفعل — سيتم تجاهله');return;
+    }
+    data.push({c:code,n:name,nat:nat});
+  });
+  return {valid:data.length,errors:errors,data:data};
+}
+
+// ── Execute Import ────────────────────────────────────────────────
+function executeImport(){
+  var d = window._importData;
+  if(!d){toast('لا توجد بيانات للاستيراد');return;}
+  var stats={entries:0,projects:0,employees:0,thirdParties:0,accounts:0};
+
+  // Import projects
+  if(d.projects&&d.projects.data.length){
+    d.projects.data.forEach(function(p){
+      if(!DB.projects.find(function(x){return x.code===p.code;})){
+        DB.projects.push(p); stats.projects++;
+      }
+    });
+  }
+
+  // Import employees
+  if(d.employees&&d.employees.data.length){
+    d.employees.data.forEach(function(e){
+      if(!DB.employees.find(function(x){return x.id===e.id;})){
+        DB.employees.push(e); stats.employees++;
+      }
+    });
+  }
+
+  // Import third parties
+  if(d.thirdParties&&d.thirdParties.data.length){
+    if(!DB.thirdParties) DB.thirdParties=[];
+    d.thirdParties.data.forEach(function(tp){
+      if(!DB.thirdParties.find(function(x){return x.id===tp.id;})){
+        DB.thirdParties.push(tp); stats.thirdParties++;
+      }
+    });
+  }
+
+  // Import COA
+  if(d.accounts&&d.accounts.data.length){
+    d.accounts.data.forEach(function(a){
+      if(!DB.accounts.find(function(x){return x.c===a.c;})){
+        DB.accounts.push(a); stats.accounts++;
+      }
+    });
+    DB.accounts.sort(function(a,b){return a.c<b.c?-1:1;});
+  }
+
+  // Import entries — enrich with account names + TP names
+  if(d.entries&&d.entries.data.length){
+    var accMap={};
+    DB.accounts.forEach(function(a){accMap[a.c]=a.n;});
+    var tpMap={};
+    (DB.thirdParties||[]).forEach(function(t){tpMap[t.id]=t;});
+
+    d.entries.data.forEach(function(e){
+      if(!DB.entries.find(function(x){return x.id===e.id;})){
+        // Enrich lines
+        e.lines.forEach(function(l){
+          l.an = accMap[l.acc]||l.acc;
+          if(l.tpId){
+            var tp=tpMap[l.tpId];
+            if(tp){l.tpName=tp.name;l.tpType=tp.type;}
+          }
+        });
+        DB.entries.push(e); stats.entries++;
+      }
+    });
+    DB.entries.sort(function(a,b){return a.date>b.date?-1:1;});
+  }
+
+  save();
+  window._importData=null;
+  document.getElementById('import-preview').innerHTML='';
+
+  var msg='✅ تم الاستيراد بنجاح:\n'
+    +(stats.entries?' • '+stats.entries+' قيد\n':'')
+    +(stats.projects?' • '+stats.projects+' مشروع\n':'')
+    +(stats.employees?' • '+stats.employees+' موظف\n':'')
+    +(stats.thirdParties?' • '+stats.thirdParties+' مورد/طرف ثالث\n':'')
+    +(stats.accounts?' • '+stats.accounts+' حساب جديد\n':'');
+
+  toast(msg);
+  setTimeout(function(){sub('importexport');rDash();},500);
+}
+
 function rInvPage(){
   if(!DB.inventory)DB.inventory=[];
   if(!DB.invMovements)DB.invMovements=[];
@@ -10051,6 +10466,15 @@ function parseCSV(text){
 // ---- IMPORT/EXPORT PAGE ----
 function rImportExport(){
   var h='<div class="ph-t" style="margin-bottom:14px;">📁 استيراد وتصدير البيانات</div>';
+
+  // IMPORT WIZARD
+  h+='<div style="background:linear-gradient(135deg,var(--gr),#047857);border-radius:12px;padding:14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="sub(\'importwizard\')">';
+  h+='<div><div style="font-weight:900;color:white;font-size:15px;">📥 استيراد Excel</div>';
+  h+='<div style="font-size:11.5px;color:rgba(255,255,255,.75);">قيود · مشروعات · موظفين · موردين · حسابات — دفعة واحدة</div></div>';
+  h+='<div style="color:white;font-size:24px;">›</div>';
+  h+="</div>";
+
+  h+='<button onclick="downloadImportTemplate()" class="btn" style="width:100%;background:#f0fdf4;color:#065f46;border:1.5px solid #a7f3d0;margin-bottom:14px;font-size:12px;">📥 تحميل نموذج الاستيراد (Excel)</button>';
 
   // EXPORT SECTION
   h+='<div class="sd">📤 تصدير البيانات</div>';
