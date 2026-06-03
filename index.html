@@ -4155,9 +4155,7 @@ function loadReconData(accCode){
   var month=(document.getElementById('rc-month')||{}).value||'';
   var bankBalInput=parseFloat((document.getElementById('rc-bank-bal')||{}).value)||0;
   if(!month){toast('⚠️ اختر الشهر أولاً');return;}
-  cm(); // close modal
-  // Navigate to pg-more and render reconciliation page directly
-  nav('more',null);
+  cm();
   renderReconPage(accCode,month,bankBalInput);
 }
 
@@ -4330,7 +4328,12 @@ function renderReconPage(accCode,month,bankBal){
 
   // Store state in window
   window._recon={accCode:accCode,month:month,openBal:openBal,txns:txns,prevPending:prevPending,manualItems:manualItems,bankBal:bankBal};
-  pg.innerHTML=h;
+  // Show pg-more with recon content
+  document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+  document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+  var pgEl=document.getElementById('pg-more');
+  if(pgEl){pgEl.classList.add('on');pgEl.innerHTML=h;}
+  window.scrollTo(0,0);
 }
 
 function buildManualItemRow(mi,idx){
@@ -8593,14 +8596,17 @@ function printBankCheck(){
 
     +'</body></html>';
 
-  // Open print window
-  var w=window.open('','_blank','width=820,height=420');
-  w.document.write(html);
-  w.document.close();
-  w.onload=function(){
-    w.focus();
-    w.print();
-  };
+  // Show in fullscreen overlay for printing
+  var overlay=document.createElement('div');
+  overlay.id='chk-print-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:white;overflow:auto;';
+  overlay.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#0D3B6E;color:white;">'
+    +'<button onclick="document.getElementById(\'chk-print-overlay\').remove()" style="background:rgba(255,255,255,.2);border:none;color:white;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:Cairo,sans-serif;">✕ إغلاق</button>'
+    +'<button onclick="window.print()" style="background:#059669;border:none;color:white;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:Cairo,sans-serif;">🖨️ طباعة</button>'
+    +'<span style="font-size:13px;font-weight:700;">معاينة الشيك</span>'
+    +'</div>'
+    +'<iframe id="chk-iframe" style="width:100%;height:calc(100vh - 50px);border:none;" srcdoc="'+html.replace(/"/g,"&quot;").replace(/'/g,"&#39;")+'"></iframe>';
+  document.body.appendChild(overlay);
 }
 
 function printCheck(lang){ printBankCheck(); }
