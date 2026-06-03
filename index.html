@@ -4077,6 +4077,14 @@ function rBVAPage(){
 
 function initRecon(){
   if(!DB.bankRecons)DB.bankRecons=[];
+  // Migrate old format: add month+closed fields
+  DB.bankRecons.forEach(function(r){
+    if(!r.month&&r.date) r.month=r.date.slice(0,7);
+    if(r.closed===undefined) r.closed=true;
+    if(!r.clearedIds) r.clearedIds=[];
+    if(!r.manualItems) r.manualItems=[];
+    if(!r.pendingItems) r.pendingItems=[];
+  });
 }
 
 // Get all bank/cash accounts from COA (1111-1113 range + any account starting with 111x or 1112-1113)
@@ -4131,8 +4139,12 @@ function openRecon(accCode){
   var acc=DB.accounts.find(function(a){return a.c===accCode;})||{c:accCode,n:accCode};
   var today=new Date().toISOString().slice(0,7); // YYYY-MM
   // Find last closed recon month
-  var lastRecon=(DB.bankRecons||[]).filter(function(r){return r.accCode===accCode&&r.closed;})
-    .sort(function(a,b){return b.month>a.month?1:-1;})[0];
+  var lastRecon=(DB.bankRecons||[]).filter(function(r){
+    return r.accCode===accCode&&(r.closed||r.month);
+  }).map(function(r){
+    if(!r.month&&r.date) r.month=r.date.slice(0,7);
+    return r;
+  }).sort(function(a,b){return b.month>a.month?1:-1;})[0];
   var defaultMonth=lastRecon
     ? (function(){var d=new Date(lastRecon.month+'-01');d.setMonth(d.getMonth()+1);return d.toISOString().slice(0,7);}())
     : today;
@@ -4215,7 +4227,7 @@ function renderReconPage(accCode,month,bankBal){
 
   // Apply saved cleared state
   txns.forEach(function(t){t.cleared=clearedIds.indexOf(t.entryId+t.date)>-1;});
-  prevPending.forEach(function(t){t.cleared=clearedIds.indexOf('PREV_'+t.entryId+t.date)>-1;});
+  prevPending.forEach(function(t){t.cleared=clearedIds.indexOf('P_'+t.entryId)>-1;});
 
   // ── Render ────────────────────────────────────────────────────
   var pg=document.getElementById('pg-more');
@@ -4252,7 +4264,7 @@ function renderReconPage(accCode,month,bankBal){
     h+='<th style="text-align:left;">دائن</th>';
     h+='</tr></thead><tbody>';
     prevPending.forEach(function(t){
-      var cid='PREV_'+t.entryId+t.date;
+      var cid='P_'+t.entryId;
       var checked=clearedIds.indexOf(cid)>-1;
       h+='<tr style="border-bottom:1px solid #fef3c7;background:'+(checked?'#f0fdf4':'white')+'" id="row-'+cid+'">';
       h+='<td style="padding:6px;text-align:center;"><input type="checkbox" data-cid="'+cid+'" '+(checked?'checked':'')+' onchange="toggleCleared(this)" style="width:16px;height:16px;cursor:pointer;"></td>';
@@ -4519,7 +4531,7 @@ function closeRecon(accCode,month){
   // Quick balance check
   var pendingDr=r.txns.concat(r.prevPending).filter(function(t){
     return state.clearedIds.indexOf(t.entryId+t.date)<0&&
-           state.clearedIds.indexOf('PREV_'+t.entryId+t.date)<0;
+           state.clearedIds.indexOf('P_'+t.entryId)<0;
   }).reduce(function(s,t){return s+t.dr-t.cr;},0);
   var manAdj=state.manualItems.reduce(function(s,mi){return s+mi.type*mi.amt;},0);
   var reconBal=bankBal+pendingDr+manAdj;
@@ -15568,15 +15580,23 @@ function loadSeedData(){
   DB.entries = entries;
 
   // ---- BANK RECON ----
-  DB.bankRecons = [{
-    id:"RC001",accCode:"1112",accName:"ح/ البنك الجاري",
-    date:"2025-03-31",bookBal:0,bankBal:1245000,diff:0,
-    notes:"تسوية Q1 2025",createdAt:"2025-04-05",createdBy:"سارة علي حسن"
-  },{
-    id:"RC002",accCode:"1112",accName:"ح/ البنك الجاري",
-    date:"2025-06-30",bookBal:0,bankBal:980000,diff:0,
-    notes:"تسوية نصف العام",createdAt:"2025-07-03",createdBy:"سارة علي حسن"
-  }];
+  DB.bankRecons = [
+    {id:"RC001",accCode:"1112",accName:"ح/ البنك الجاري",
+     month:"2025-03",date:"2025-03-31",
+     bookBal:0,bankBal:1245000,diff:0,
+     closed:true,clearedIds:[],manualItems:[],pendingItems:[],
+     closedAt:"2025-04-05",closedBy:"سارة علي حسن"},
+    {id:"RC002",accCode:"1112",accName:"ح/ البنك الجاري",
+     month:"2025-04",date:"2025-04-30",
+     bookBal:0,bankBal:1380000,diff:0,
+     closed:true,clearedIds:[],manualItems:[],pendingItems:[],
+     closedAt:"2025-05-03",closedBy:"سارة علي حسن"},
+    {id:"RC003",accCode:"1112",accName:"ح/ البنك الجاري",
+     month:"2025-12",date:"2025-12-31",
+     bookBal:0,bankBal:1520000,diff:0,
+     closed:true,clearedIds:[],manualItems:[],pendingItems:[],
+     closedAt:"2026-01-04",closedBy:"سارة علي حسن"}
+  ];
 
   // Update project budgets from WBS
   DB.projects.forEach(function(p){
