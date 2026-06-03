@@ -23,7 +23,6 @@ body{font-family:"Cairo",sans-serif;background:var(--g1);direction:rtl;}
 .bn-i{font-size:19px;margin-bottom:2px;pointer-events:none;}
 .pg{display:none;} .pg.on{display:block;}
 .card{background:white;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 2px 10px rgba(30,58,110,.08);border:1px solid var(--g2);}
-[data-sub]>*,[data-pg]>*,[data-nav]>*{pointer-events:none;}
 .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
 .ct{font-family:"Tajawal",sans-serif;font-size:15px;font-weight:800;color:var(--n);}
 .hero{background:linear-gradient(135deg,var(--nd),var(--n) 55%,var(--sk));border-radius:14px;padding:18px;margin-bottom:14px;color:white;}
@@ -82,8 +81,9 @@ tbody tr:hover td{background:var(--skp);}
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--n);color:white;padding:10px 22px;border-radius:10px;font-size:13px;font-weight:700;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
 .toast.on{opacity:1;}
 .mg{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.mi{background:white;border-radius:12px;border:1px solid var(--g2);padding:16px;text-align:center;cursor:pointer;box-shadow:0 2px 8px rgba(30,58,110,.06);}
+.mi{background:white;border-radius:12px;border:1px solid var(--g2);padding:16px;text-align:center;cursor:pointer;box-shadow:0 2px 8px rgba(30,58,110,.06);user-select:none;}
 .mi-i{font-size:28px;margin-bottom:7px;pointer-events:none;}
+button,input,select,textarea,a{pointer-events:auto !important;}
 .mi-t{font-weight:700;font-size:13px;color:var(--n);pointer-events:none;}
 .sd{display:flex;align-items:center;gap:8px;margin:14px 0 10px;color:var(--g5);font-size:11px;font-weight:700;}
 .sd::before,.sd::after{content:"";flex:1;height:1px;background:var(--g2);}
@@ -4155,10 +4155,10 @@ function loadReconData(accCode){
   var month=(document.getElementById('rc-month')||{}).value||'';
   var bankBalInput=parseFloat((document.getElementById('rc-bank-bal')||{}).value)||0;
   if(!month){toast('⚠️ اختر الشهر أولاً');return;}
-  cm();
-  sub('banks'); // navigate to banks page to show recon
-  // Actually render full-page recon
-  setTimeout(function(){renderReconPage(accCode,month,bankBalInput);},100);
+  cm(); // close modal
+  // Navigate to pg-more and render reconciliation page directly
+  nav('more',null);
+  renderReconPage(accCode,month,bankBalInput);
 }
 
 function renderReconPage(accCode,month,bankBal){
