@@ -385,11 +385,12 @@ function rOperationsHub(){
     h+=sec.title+'</div>';
     h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
     sec.items.forEach(function(item){
-      h+='<div onclick="'+(item.pg?'showPage':'sub')+'(\''+item.n+'\')" style="background:white;border-radius:12px;padding:14px 12px;'
+      var _attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';
+      h+='<div '+_attr+' style="background:white;border-radius:12px;padding:14px 12px;'
         +'border:1px solid #eee;cursor:pointer;display:flex;align-items:center;gap:10px;'
         +'box-shadow:0 1px 4px rgba(0,0,0,.05);">';
-      h+='<div style="font-size:24px;">'+item.i+'</div>';
-      h+='<div><div style="font-weight:700;font-size:12px;color:var(--nd);">'+item.t+'</div>';
+      h+='<div style="font-size:24px;pointer-events:none;">'+item.i+'</div>';
+      h+='<div style="pointer-events:none;"><div style="font-weight:700;font-size:12px;color:var(--nd);">'+item.t+'</div>';
       h+='<div style="font-size:10px;color:var(--g4);margin-top:1px;">'+item.sub+'</div></div>';
       h+='</div>';
     });
@@ -1023,7 +1024,7 @@ function rMore(){
     h+='<div class="mg">';
     sec.items.forEach(function(item){
       if(item.admin&&!isAdmin) return;
-      h+='<div class="mi" onclick="sub(\''+item.n+'\');">';
+    h+='<div class="mi" data-sub="'+item.n+'">';
       h+='<div class="mi-i">'+item.i+'</div>';
       h+='<div class="mi-t">'+item.t+'</div></div>';
     });
@@ -1612,18 +1613,19 @@ function rDash(){
   // === إجراءات سريعة ===
   h+='<div class="sd" style="margin-bottom:8px;">⚡ إجراءات سريعة</div>';
   h+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">';
-  var quickActs=[
-    {icon:'📝',lbl:'إضافة قيد',fn:'newEntry()'},
-    {icon:'🏭',lbl:'الموردون',fn:"sub(\'suppliers\')"},
-    {icon:'📦',lbl:'صرف مخازن',fn:"sub(\'inventory\')"},
-    {icon:'💳',lbl:'إعداد مرتب',fn:"openGenPayModal()"},
+    var quickActs=[
+    {icon:'📝',lbl:'إضافة قيد',sub:'',fn:'newEntry()'},
+    {icon:'🏭',lbl:'الموردون',sub:'suppliers'},
+    {icon:'📦',lbl:'صرف مخازن',sub:'inv_issue'},
+    {icon:'💳',lbl:'إعداد مرتب',sub:'',fn:'openGenPayModal()'},
   ];
   quickActs.forEach(function(a){
-    h+='<div onclick="'+a.fn+'" style="background:white;border-radius:12px;padding:10px 6px;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.06);border:1px solid #eee;">';
-    h+='<div style="font-size:22px;margin-bottom:5px;">'+a.icon+'</div>';
-    h+='<div style="font-size:10px;font-weight:700;color:#374151;">'+a.lbl+'</div>';
+    var attr=a.sub?'data-sub="'+a.sub+'"':'onclick="'+a.fn+'"';
+    h+='<div '+attr+' style="background:white;border-radius:12px;padding:10px 6px;text-align:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
+    h+='<div style="font-size:22px;margin-bottom:4px;pointer-events:none;">'+a.icon+'</div>';
+    h+='<div style="font-size:10.5px;font-weight:700;color:var(--nd);pointer-events:none;">'+a.lbl+'</div>';
     h+='</div>';
-  });
+  });;
   h+='</div>';
 
   // === PAYROLL SUMMARY CARD ===
