@@ -551,7 +551,13 @@ var DB={
     {c:"5342",n:"تأمين على الأصول",nat:"dr"},
     {c:"5351",n:"مصروفات تسويق وتوعية",nat:"dr"},
     {c:"5361",n:"مصروفات بنكية",nat:"dr"},
-    {c:"5411",n:"استشارات ودراسات",nat:"dr"}],
+    {c:"5411",n:"استشارات ودراسات",nat:"dr"},
+    {c:"1331",n:"سيارات ووسائل نقل",nat:"dr"},
+    {c:"1351",n:"برامج وتراخيص وبراءات اختراع",nat:"dr"},
+    {c:"5271",n:"مصروفات سفر وانتقالات",nat:"dr"},
+    {c:"5281",n:"ضيافة واجتماعات",nat:"dr"},
+    {c:"5291",n:"مصروفات متنوعة أخرى",nat:"dr"},
+    {c:"5341",n:"تأمينات اجتماعية",nat:"dr"}],
   inventory:[],
   invMovements:[],
   warehouses:[{code:"WH01",name:"المخزن الرئيسي",location:"المقر الرئيسي",manager:"",notes:""}],
@@ -1241,13 +1247,14 @@ function sub(n){
     inv_receive:function(){var el=document.getElementById('pg-more');if(el)el.innerHTML=rInvReceivePage();},
     inv_issue:function(){var el=document.getElementById('pg-more');if(el)el.innerHTML=rInvIssuePage();},
     inv_transfer:function(){var el=document.getElementById('pg-more');if(el)el.innerHTML=rInvTransferPage();},
-    inv_dispose:function(){var el=document.getElementById('pg-more');if(el)el.innerHTML=rInvDisposePage();},employees:rEmpPage,settings:rSetPage,
+    inv_dispose:function(){var el=document.getElementById('pg-more');if(el)el.innerHTML=rInvDisposePage();},
+    employees:rEmpPage,
     suppliers:rSuppliersPage,invreports:rInvReports,
     hrreports:rHRReports,
     tpledger:rTPLedger,
     importexport:rImportExport,
     importwizard:rImportWizard,
-    reconhist:function(){rReconHistory('');},
+    reconhist:rReconHistory,
     masterdata:rMasterData,
     reports:rReportsPage,
     taxconfig:rTaxConfig,
@@ -1268,7 +1275,11 @@ function sub(n){
     cashforecast:rCashForecastPage,
     contracts:rContractsPage,
     provisions:rProvisionsPage,
-    execdash:rExecDashboard
+    execdash:rExecDashboard,
+    knowledge:rKnowledgePage,
+    fin:function(){nav('fin',null);},
+    ops:function(){nav('ops',null);},
+    settings:rSetPage
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -1301,16 +1312,20 @@ function sub(n){
     cashforecast:"💵 توقعات التدفق النقدي",
     contracts:"📋 سجل العقود",
     provisions:"💰 مخصص مكافأة نهاية الخدمة",
-    execdash:"🎯 لوحة القيادة التنفيذية"  
+    execdash:"🎯 لوحة القيادة التنفيذية",
+    knowledge:"📚 بنك المعرفة",
+    fin:"💰 المالية",
+    ops:"🎯 العمليات",
+    settings:"⚙️ الإعدادات"
   };
   // Pages that should render full-screen vs modal
-  var fullPages=['accounts','trial','balance','income','bva','banks','inventory','fin','ops',
+  var fullPages=['accounts','trial','balance','income','bva','banks','inventory',
     'openingbals','yearend','donorledger','variance','cashforecast','contracts','provisions','execdash',
     'inv_receive','inv_issue','inv_transfer','inv_dispose',
     'employees','suppliers','invreports','hrreports','tpledger',
     'importexport','importwizard','reconhist','masterdata','reports',
     'taxconfig','assets','form41','archive','ai','compliance',
-    'compliancesettings','timesheet','myleaves','leaveapproval'];
+    'compliancesettings','timesheet','myleaves','leaveapproval','knowledge','settings'];
   if(f[n]){
     try{
       if(fullPages.indexOf(n)>-1){
@@ -9379,6 +9394,281 @@ function rExecDashboard(){
   return h;
 }
 
+// ================================================================
+// SEED DATA — 300 قيد + موردين + عقود شاملة
+// ================================================================
+function loadExtendedSeedData(){
+  if(!DB.thirdParties) DB.thirdParties=[];
+  if(!DB.contracts) DB.contracts=[];
+
+  var today=new Date();
+  function d(y,mo,dy){ return y+'-'+String(mo).padStart(2,'0')+'-'+String(dy).padStart(2,'0'); }
+  function r(min,max){ return Math.round((Math.random()*(max-min)+min)*100)/100; }
+  function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+  // ── موردون وأطراف ثالثة (20 طرف) ──────────────────────────────
+  var tpSeed=[
+    {id:'TP001',name:'شركة النور للمستلزمات المكتبية',type:'supplier',category:'goods',taxId:'100-200-301',commercialReg:'12345',phone:'01001234567',whtType:'توريدات',whtRate:1,commercialRegExpiry:'2025-06-01',taxCardExpiry:'2026-12-31',vatCertExpiry:'2026-06-30'},
+    {id:'TP002',name:'مكتب الثقة للاستشارات المالية',type:'consultant',category:'consulting',taxId:'200-300-402',commercialReg:'23456',phone:'01012345678',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2026-03-15',taxCardExpiry:'2025-09-01',vatCertExpiry:'2026-09-30'},
+    {id:'TP003',name:'مؤسسة الأمل للتنمية البشرية',type:'consultant',category:'consulting',taxId:'300-400-503',commercialReg:'34567',phone:'01023456789',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2027-01-01',taxCardExpiry:'2027-01-01',vatCertExpiry:'2027-01-01'},
+    {id:'TP004',name:'شركة التقنية الحديثة للبرمجيات',type:'supplier',category:'it',taxId:'400-500-604',commercialReg:'45678',phone:'01034567890',whtType:'خدمات',whtRate:3,commercialRegExpiry:'2026-08-15',taxCardExpiry:'2026-08-15',vatCertExpiry:'2026-08-15'},
+    {id:'TP005',name:'مطبعة الإبداع للطباعة والتغليف',type:'supplier',category:'media',taxId:'500-600-705',commercialReg:'56789',phone:'01045678901',whtType:'طباعة',whtRate:3,commercialRegExpiry:'2026-11-30',taxCardExpiry:'2026-11-30',vatCertExpiry:'2025-11-30'},
+    {id:'TP006',name:'شركة الفرسان للنقل والشحن',type:'supplier',category:'transport',taxId:'600-700-806',commercialReg:'67890',phone:'01056789012',whtType:'سفريات',whtRate:3,commercialRegExpiry:'2026-05-01',taxCardExpiry:'2027-05-01',vatCertExpiry:'2027-05-01'},
+    {id:'TP007',name:'مركز التدريب المتقدم للتطوير',type:'consultant',category:'consulting',taxId:'700-800-907',commercialReg:'78901',phone:'01067890123',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2026-12-01',taxCardExpiry:'2026-12-01',vatCertExpiry:'2026-12-01'},
+    {id:'TP008',name:'شركة الضمان للتأمين التعاوني',type:'supplier',category:'services',taxId:'800-900-108',commercialReg:'89012',phone:'01078901234',whtType:'خدمات',whtRate:3,commercialRegExpiry:'2027-03-01',taxCardExpiry:'2027-03-01',vatCertExpiry:'2027-03-01'},
+    {id:'TP009',name:'مكتب المحاسب القانوني أ.أحمد علي',type:'consultant',category:'legal',taxId:'900-100-209',commercialReg:'90123',phone:'01089012345',whtType:'استشارات',whtRate:10,commercialRegExpiry:'2026-07-15',taxCardExpiry:'2026-07-15',vatCertExpiry:'2026-07-15'},
+    {id:'TP010',name:'شركة الخليج للمعدات الطبية',type:'supplier',category:'goods',taxId:'101-201-310',commercialReg:'01234',phone:'01090123456',whtType:'توريدات',whtRate:1,commercialRegExpiry:'2027-06-01',taxCardExpiry:'2027-06-01',vatCertExpiry:'2027-06-01'},
+    {id:'TP011',name:'م. سارة حسن — استشارات تنموية',type:'consultant',category:'consulting',taxId:'111-211-311',commercialReg:'11234',phone:'01001111111',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2026-09-01',taxCardExpiry:'2026-09-01',vatCertExpiry:''},
+    {id:'TP012',name:'شركة الصيانة الشاملة',type:'supplier',category:'construction',taxId:'121-221-321',commercialReg:'12234',phone:'01002222222',whtType:'صيانة',whtRate:3,commercialRegExpiry:'2025-12-01',taxCardExpiry:'2026-06-01',vatCertExpiry:'2026-06-01'},
+    {id:'TP013',name:'موزع شركة اتصالات مصر',type:'supplier',category:'utilities',taxId:'131-231-331',commercialReg:'13234',phone:'01003333333',whtType:'خدمات',whtRate:3,commercialRegExpiry:'2026-01-01',taxCardExpiry:'2026-01-01',vatCertExpiry:'2026-01-01'},
+    {id:'TP014',name:'شركة النيل للخدمات اللوجستية',type:'supplier',category:'transport',taxId:'141-241-341',commercialReg:'14234',phone:'01004444444',whtType:'سفريات',whtRate:3,commercialRegExpiry:'2026-10-01',taxCardExpiry:'2026-10-01',vatCertExpiry:'2026-10-01'},
+    {id:'TP015',name:'مركز القاهرة للأبحاث التنموية',type:'consultant',category:'consulting',taxId:'151-251-351',commercialReg:'15234',phone:'01005555555',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2027-02-01',taxCardExpiry:'2027-02-01',vatCertExpiry:'2027-02-01'},
+  ];
+
+  // Add only new TPs
+  tpSeed.forEach(function(tp){
+    if(!DB.thirdParties.find(function(x){return x.id===tp.id;})){
+      DB.thirdParties.push(tp);
+    }
+  });
+
+  // ── عقود (15 عقد) ────────────────────────────────────────────
+  var contractSeed=[
+    {name:'عقد توريد مستلزمات مكتبية — سنوي',party:'TP001',type:'توريدات',value:85000,startDate:'2026-01-01',endDate:'2026-12-31',project:'P001',notes:'شامل جميع المستلزمات'},
+    {name:'عقد استشارات مالية — ربع سنوي',party:'TP002',type:'استشارات',value:60000,startDate:'2026-01-01',endDate:'2026-03-31',project:'P001',notes:''},
+    {name:'عقد تطوير نظام المعلومات',party:'TP004',type:'استشارات',value:120000,startDate:'2026-02-01',endDate:'2026-07-31',project:'P002',notes:''},
+    {name:'عقد خدمات الطباعة والنشر',party:'TP005',type:'خدمات',value:45000,startDate:'2026-01-15',endDate:'2026-12-31',project:'',notes:''},
+    {name:'عقد نقل وسفريات فريق العمل',party:'TP006',type:'خدمات',value:72000,startDate:'2026-01-01',endDate:'2026-12-31',project:'P002',notes:''},
+    {name:'عقد برنامج تدريبي — القيادة التنموية',party:'TP007',type:'استشارات',value:95000,startDate:'2026-03-01',endDate:'2026-06-30',project:'P001',notes:'50 متدرب'},
+    {name:'عقد تأمين شامل على المعدات',party:'TP008',type:'خدمات',value:28000,startDate:'2026-01-01',endDate:'2026-12-31',project:'',notes:''},
+    {name:'عقد مراجعة حسابات خارجية',party:'TP009',type:'استشارات',value:35000,startDate:'2026-01-01',endDate:'2026-12-31',project:'',notes:'مراجعة سنوية'},
+    {name:'عقد توريد معدات طبية — برنامج صحة',party:'TP010',type:'توريدات',value:250000,startDate:'2026-04-01',endDate:'2026-09-30',project:'P002',notes:''},
+    {name:'عقد استشارات تنموية — منهجية',party:'TP011',type:'استشارات',value:48000,startDate:'2026-02-01',endDate:'2026-05-31',project:'P001',notes:''},
+    {name:'عقد صيانة دورية للمبنى',party:'TP012',type:'خدمات',value:36000,startDate:'2026-01-01',endDate:'2026-12-31',project:'',notes:'صيانة ربع سنوية'},
+    {name:'عقد خدمات الاتصالات والإنترنت',party:'TP013',type:'خدمات',value:18000,startDate:'2026-01-01',endDate:'2026-12-31',project:'',notes:'اشتراك سنوي'},
+    {name:'عقد خدمات لوجستية — توزيع مستلزمات',party:'TP014',type:'خدمات',value:55000,startDate:'2026-03-01',endDate:'2026-08-31',project:'P002',notes:''},
+    {name:'عقد دراسة تقييم أثر البرامج',party:'TP015',type:'استشارات',value:78000,startDate:'2026-05-01',endDate:'2026-10-31',project:'P001',notes:'تقرير نهائي + توصيات'},
+    {name:'عقد خدمات نظافة وصيانة',party:'TP012',type:'خدمات',value:24000,startDate:'2026-01-01',endDate:'2026-12-31',project:'',notes:'شهري'},
+  ];
+
+  contractSeed.forEach(function(ct){
+    if(!DB.contracts.find(function(x){return x.name===ct.name;})){
+      DB.contracts.push(ct);
+    }
+  });
+
+  // ── 300 قيد محاسبي ──────────────────────────────────────────────
+  var existingIds=new Set(DB.entries.map(function(e){return e.id;}));
+  var newEntries=[];
+  var counter=200;
+
+  function eid(){ return 'J2026-'+String(++counter).padStart(3,'0'); }
+  function entry(id,date,desc,ref,proj,lines){
+    var e={id:id,date:date,desc:desc,ref:ref||'',proj:proj||'',status:'posted',lines:[]};
+    // Validate balance
+    var dr=0,cr=0;
+    lines.forEach(function(l){dr+=(l.dr||0);cr+=(l.cr||0);});
+    if(Math.abs(dr-cr)>0.01){console.log('UNBAL:',id,dr,cr);return null;}
+    e.lines=lines;
+    return e;
+  }
+  function ln(acc,an,dr,cr,proj,tpId,tpName,wbs){
+    return {acc:acc,an:an||'',dr:dr||0,cr:cr||0,proj:proj||'',wbsCode:wbs||'',cc:'',tpId:tpId||'',tpName:tpName||'',tpType:''};
+  }
+
+  var months=[
+    ['2026-01',31],['2026-02',28],['2026-03',31],
+    ['2026-04',30],['2026-05',31],['2026-06',30]
+  ];
+  var projs=['P001','P002',''];
+
+  // ── مجموعة 1: مصروفات موردين (60 قيد) ──────────────────────
+  var supplierTxns=[
+    {tp:'TP001',an:'شركة النور للمستلزمات المكتبية',acc:'5241',aName:'مستلزمات مكتبية',whtR:0.01,whtAcc:'2114',amounts:[3500,5200,2800,4100,6500,1900,3200,4800,2500,7200]},
+    {tp:'TP002',an:'مكتب الثقة للاستشارات المالية',acc:'5411',aName:'استشارات ودراسات',whtR:0.05,whtAcc:'2114',amounts:[15000,12000,18000,15000]},
+    {tp:'TP004',an:'شركة التقنية الحديثة',acc:'5241',aName:'مستلزمات مكتبية',whtR:0.03,whtAcc:'2114',amounts:[8500,12000,9500,11000,7500]},
+    {tp:'TP005',an:'مطبعة الإبداع',acc:'5351',aName:'مصروفات تسويق وتوعية',whtR:0.03,whtAcc:'2114',amounts:[4500,3200,5800,2900,4100]},
+    {tp:'TP006',an:'شركة الفرسان للنقل',acc:'5271',aName:'مصروفات سفر وانتقالات',whtR:0.03,whtAcc:'2114',amounts:[6000,4500,7200,5800,4200,6500]},
+    {tp:'TP007',an:'مركز التدريب المتقدم',acc:'5261',aName:'تدريب وتأهيل',whtR:0.05,whtAcc:'2114',amounts:[25000,20000,30000]},
+    {tp:'TP009',an:'م.القانوني أ.أحمد علي',acc:'5411',aName:'استشارات ودراسات',whtR:0.10,whtAcc:'2114',amounts:[8000,8000,8000]},
+    {tp:'TP012',an:'شركة الصيانة الشاملة',acc:'5331',aName:'صيانة وإصلاح',whtR:0.03,whtAcc:'2114',amounts:[9000,9000,9000,9000]},
+  ];
+
+  var moIdx=0;
+  supplierTxns.forEach(function(st){
+    st.amounts.forEach(function(amt){
+      var mo=months[moIdx%months.length];
+      var day=Math.floor(Math.random()*25)+1;
+      var dt=mo[0]+'-'+String(day).padStart(2,'0');
+      var id=eid();
+      if(existingIds.has(id)){counter++;id=eid();}
+      var wht=Math.round(amt*st.whtR*100)/100;
+      var net=amt-wht;
+      var proj=pick(projs);
+      var e=entry(id,dt,'مصروفات — '+st.an,'INV-'+id,proj,[
+        ln(st.acc,st.aName,amt,0,proj,st.tp,st.an),
+        ln(st.whtAcc,'ضرائب خصم وتحصيل',0,wht,proj),
+        ln('2111','موردون ودائنون',0,net,proj,st.tp,st.an),
+      ]);
+      if(e){newEntries.push(e);existingIds.add(id);}
+      moIdx++;
+    });
+  });
+
+  // ── مجموعة 2: مصروفات تشغيل (80 قيد) ──────────────────────────
+  var opsTxns=[
+    {acc:'5321',an:'إيجارات',tp:'',amt_range:[8000,10000]},
+    {acc:'5322',an:'كهرباء وغاز ومياه',tp:'TP013',amt_range:[2500,4500]},
+    {acc:'5323',an:'اتصالات وإنترنت',tp:'TP013',amt_range:[1200,1800]},
+    {acc:'5342',an:'تأمين على الأصول',tp:'TP008',amt_range:[2300,2300]},
+    {acc:'5251',an:'مصروفات طباعة وتصوير',tp:'TP005',amt_range:[800,2000]},
+    {acc:'5271',an:'مصروفات سفر وانتقالات',tp:'',amt_range:[1500,4000]},
+    {acc:'5281',an:'ضيافة واجتماعات',tp:'',amt_range:[500,1500]},
+    {acc:'5361',an:'مصروفات بنكية',tp:'',amt_range:[150,350]},
+  ];
+
+  for(var m2=0;m2<months.length;m2++){
+    opsTxns.forEach(function(op){
+      var mo=months[m2];
+      var day=Math.floor(Math.random()*25)+2;
+      var dt=mo[0]+'-'+String(day).padStart(2,'0');
+      var id=eid();
+      if(existingIds.has(id)){counter++;id=eid();}
+      var amt=r(op.amt_range[0],op.amt_range[1]);
+      amt=Math.round(amt/50)*50;
+      var crAcc=op.acc==='5361'?'1112':'2111';
+      var crAn=op.acc==='5361'?'ح/ البنك الجاري':'موردون ودائنون';
+      var e=entry(id,dt,op.an+' — '+mo[0],'','',[
+        ln(op.acc,op.an,amt,0,'',op.tp),
+        ln(crAcc,crAn,0,amt,'',op.tp),
+      ]);
+      if(e){newEntries.push(e);existingIds.add(id);}
+    });
+  }
+
+  // ── مجموعة 3: إيرادات ومنح (30 قيد) ─────────────────────────
+  var revTxns=[
+    {acc:'4111',an:'منح وإعانات USAID',proj:'P001',amounts:[150000,150000,150000]},
+    {acc:'4112',an:'منح المنظمات الدولية WHO',proj:'P002',amounts:[80000,80000,80000]},
+    {acc:'4121',an:'تبرعات نقدية',proj:'',amounts:[15000,22000,18000,25000,12000]},
+    {acc:'4131',an:'رسوم خدمات وأنشطة',proj:'',amounts:[8000,9500,7200,11000,8800,9200]},
+    {acc:'4211',an:'عائد استثمار احتياطيات',proj:'',amounts:[5500,4800,6200]},
+  ];
+
+  revTxns.forEach(function(rv){
+    var rIdx=0;
+    rv.amounts.forEach(function(amt){
+      var mo=months[rIdx%months.length];
+      rIdx++;
+      var id=eid();
+      if(existingIds.has(id)){counter++;id=eid();}
+      var dt=mo[0]+'-01';
+      var e=entry(id,dt,rv.an+' — تحويل '+mo[0],'RCP-'+id,rv.proj,[
+        ln('1112','ح/ البنك الجاري',amt,0,rv.proj),
+        ln(rv.acc,rv.an,0,amt,rv.proj),
+      ]);
+      if(e){newEntries.push(e);existingIds.add(id);}
+    });
+  });
+
+  // ── مجموعة 4: رواتب وتأمينات (12 قيد — شهري) ───────────────
+  var months3=['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06'];
+  months3.forEach(function(mo){
+    var id1=eid(); var id2=eid();
+    if(!existingIds.has(id1)){
+      var salGross=85000, ins=Math.round(85000*0.1175), netSal=salGross-ins;
+      var e=entry(id1,mo+'-25','مسير رواتب '+mo,'SAL-'+mo,'',[
+        ln('5311','مرتبات وأجور',salGross,0),
+        ln('2111','موردون ودائنون',0,salGross),
+      ]);
+      if(e){newEntries.push(e);existingIds.add(id1);}
+    }
+    if(!existingIds.has(id2)){
+      var insEmp=Math.round(85000*0.1175), insEmpr=Math.round(85000*0.1875);
+      var e2=entry(id2,mo+'-25','تأمينات اجتماعية '+mo,'INS-'+mo,'',[
+        ln('5341','تأمينات اجتماعية',insEmp+insEmpr,0),
+        ln('2121','تأمينات اجتماعية مستحقة',0,insEmp+insEmpr),
+      ]);
+      if(e2){newEntries.push(e2);existingIds.add(id2);}
+    }
+  });
+
+  // ── مجموعة 5: أصول ومصروفات رأسمالية (20 قيد) ──────────────
+  var capitalTxns=[
+    {acc:'1311',an:'أجهزة حاسب آلي',amt:28000,proj:'P001',tp:'TP004'},
+    {acc:'1311',an:'أجهزة حاسب آلي',amt:15000,proj:'P002',tp:'TP004'},
+    {acc:'1321',an:'أثاث ومفروشات',amt:22000,proj:'',tp:'TP001'},
+    {acc:'1331',an:'سيارات ووسائل نقل',amt:180000,proj:'P002',tp:''},
+    {acc:'1351',an:'برامج وتراخيص',amt:35000,proj:'',tp:'TP004'},
+    {acc:'1411',an:'مصروفات مدفوعة مقدماً',amt:24000,proj:'',tp:''},
+  ];
+  capitalTxns.forEach(function(ct){
+    var id=eid();
+    if(!existingIds.has(id)){
+      var e=entry(id,'2026-01-10',ct.an,'PO-'+id,ct.proj,[
+        ln(ct.acc,ct.an,ct.amt,0,ct.proj,ct.tp),
+        ln(ct.amt>50000?'1112':'2111',ct.amt>50000?'ح/ البنك الجاري':'موردون ودائنون',0,ct.amt,ct.proj,ct.tp),
+      ]);
+      if(e){newEntries.push(e);existingIds.add(id);}
+    }
+  });
+
+  // ── مجموعة 6: تسويات ومدفوعات (40 قيد) ─────────────────────
+  // Payment of supplier invoices
+  var payAmts=[3500,5200,15000,8500,6000,25000,8000,9000,3200,4500,12000,4500,4200,30000,8000,9000,5200,7200,18000,9500];
+  payAmts.forEach(function(amt){
+    var id=eid();
+    if(!existingIds.has(id)){
+      var mo=pick(months);
+      var day=Math.floor(Math.random()*25)+1;
+      var dt=mo[0]+'-'+String(day).padStart(2,'0');
+      var tp=pick(['TP001','TP002','TP004','TP005','TP006','TP007','TP009','TP012']);
+      var tpName=(DB.thirdParties.find(function(t){return t.id===tp;})||{name:tp}).name;
+      var e=entry(id,dt,'سداد مستحقات — '+tpName,'PAY-'+id,'',[
+        ln('2111','موردون ودائنون',amt,0,'',tp,tpName),
+        ln('1112','ح/ البنك الجاري',0,amt,'',tp,tpName),
+      ]);
+      if(e){newEntries.push(e);existingIds.add(id);}
+    }
+  });
+
+  // ── مجموعة 7: مصروفات متفرقة (50 قيد) ─────────────────────
+  var miscTxns=[
+    {acc:'5221',an:'مكافآت ومنح موظفين',range:[2000,8000]},
+    {acc:'5241',an:'مستلزمات مكتبية',range:[500,3000]},
+    {acc:'5251',an:'مصروفات طباعة وتصوير',range:[300,1500]},
+    {acc:'5261',an:'تدريب وتأهيل',range:[3000,15000]},
+    {acc:'5271',an:'مصروفات سفر وانتقالات',range:[1000,5000]},
+    {acc:'5281',an:'ضيافة واجتماعات',range:[500,2000]},
+    {acc:'5291',an:'مصروفات متنوعة',range:[200,1000]},
+    {acc:'5411',an:'استشارات ودراسات',range:[5000,20000]},
+  ];
+  for(var k=0;k<50;k++){
+    var id=eid();
+    if(!existingIds.has(id)){
+      var op=miscTxns[k%miscTxns.length];
+      var mo=months[k%months.length];
+      var day=Math.floor(Math.random()*25)+1;
+      var dt=mo[0]+'-'+String(day).padStart(2,'0');
+      var amt2=r(op.range[0],op.range[1]);
+      amt2=Math.round(amt2/100)*100;
+      var proj2=pick(projs);
+      var e=entry(id,dt,op.an,'MISC-'+id,proj2,[
+        ln(op.acc,op.an,amt2,0,proj2),
+        ln('1112','ح/ البنك الجاري',0,amt2,proj2),
+      ]);
+      if(e){newEntries.push(e);existingIds.add(id);}
+    }
+  }
+
+  // Add all entries
+  DB.entries=DB.entries.concat(newEntries);
+  DB.entries.sort(function(a,b){return a.date>b.date?1:-1;});
+  save();
+  toast('✅ تم إضافة '+newEntries.length+' قيد + '+tpSeed.length+' مورد + '+contractSeed.length+' عقد');
+  console.log('Added entries:',newEntries.length);
+}
+
 function rInvPage(){
   initInv();
   var h='';
@@ -10799,6 +11089,7 @@ function rSetPage(){
     h+='<button class="btn btn-gr" style="width:100%;margin-bottom:8px;" onclick="sub(\'importexport\')">📁 استيراد وتصدير البيانات</button>';
     h+='<button class="btn btn-rd" style="width:100%;margin-bottom:8px;" onclick="if(confirm(\'هل أنت متأكد من مسح جميع البيانات؟\'))resetDB()">🗑️ مسح جميع البيانات</button>';
     h+='<button class="btn btn-sm btn-gy" onclick="loadSeedData()" style="width:100%;">🌱 تحميل بيانات تجريبية</button>';
+    h+='<button onclick="loadExtendedSeedData()" class="btn btn-gr btn-sm" style="width:100%;margin-top:6px;">📊 تحميل 300 قيد + موردين + عقود</button>';
   }
 
   // ── نسب الإهلاك ────────────────────────────────────────────
