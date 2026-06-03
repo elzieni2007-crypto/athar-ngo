@@ -243,6 +243,8 @@ var DB={
   leaveRequests:[],
   form41:[],
   archiveLog:{},
+  openingBals:{},
+  contracts:[],
   entryDocs:{},
   projects:[],
   entries:[],
@@ -373,7 +375,18 @@ var DB={
     // ── أوراق الدفع والقبض ────────────────────────────────────────
     {c:"1161",n:"أوراق قبض (شيكات لأجل)",nat:"dr"},
     {c:"2161",n:"أوراق دفع (شيكات مستحقة)",nat:"cr"}
-  ],
+  ,
+    {c:"1411",n:"مصروفات مدفوعة مقدماً",nat:"dr"},
+    {c:"3200",n:"فائض / عجز السنوات السابقة",nat:"cr"},
+    {c:"5319",n:"مخصص مكافأة نهاية الخدمة",nat:"dr"},
+    {c:"5321",n:"إيجارات",nat:"dr"},
+    {c:"5322",n:"كهرباء وغاز ومياه",nat:"dr"},
+    {c:"5323",n:"اتصالات وإنترنت",nat:"dr"},
+    {c:"5331",n:"صيانة وإصلاح",nat:"dr"},
+    {c:"5342",n:"تأمين على الأصول",nat:"dr"},
+    {c:"5351",n:"مصروفات تسويق وتوعية",nat:"dr"},
+    {c:"5361",n:"مصروفات بنكية",nat:"dr"},
+    {c:"5411",n:"استشارات ودراسات",nat:"dr"}],
   inventory:[],
   invMovements:[],
   warehouses:[{code:"WH01",name:"المخزن الرئيسي",location:"المقر الرئيسي",manager:"",notes:""}],
@@ -767,7 +780,12 @@ function bals(){
   var m={};
   DB.accounts.forEach(function(a){m[a.c]={dr:0,cr:0};});
   DB.entries.filter(function(e){return e.status==="posted";}).forEach(function(e){
-    (e.lines||[]).forEach(function(l){if(m[l.acc]){m[l.acc].dr+=l.dr||0;m[l.acc].cr+=l.cr||0;}});
+    (e.lines||[]).forEach(function(l){
+      if(!l.acc) return;
+      if(!m[l.acc]) m[l.acc]={dr:0,cr:0}; // include orphan accounts
+      m[l.acc].dr+=l.dr||0;
+      m[l.acc].cr+=l.cr||0;
+    });
   });
   return m;
 }
@@ -844,6 +862,7 @@ function rMore(){
       {i:"🧮",t:"إعداد الضريبة",n:"taxconfig",admin:true},
       {i:"📁",t:"استيراد وتصدير",n:"importexport",admin:true},
     ]},
+
   ];
 
   var h='<div class="ph-t" style="margin-bottom:14px;">القائمة الكاملة</div>';
@@ -1099,7 +1118,15 @@ function sub(n){
     compliancesettings:rComplianceSettings,
     timesheet:rTimesheetPage,
     myleaves:rMyLeavesPage,
-    leaveapproval:rLeaveApprovalPage
+    leaveapproval:rLeaveApprovalPage,
+    openingbals:rOpeningBalsPage,
+    yearend:rYearEndPage,
+    donorledger:rDonorLedgerPage,
+    variance:rVarianceReportPage,
+    cashforecast:rCashForecastPage,
+    contracts:rContractsPage,
+    provisions:rProvisionsPage,
+    execdash:rExecDashboard
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -1124,10 +1151,19 @@ function sub(n){
     compliancesettings:"⚙️ إعدادات قواعد الامتثال",
     timesheet:"⏱️ Timesheet & التوزيع",
     myleaves:"🌴 إجازاتي",
-    leaveapproval:"✅ اعتماد الإجازات"
+    leaveapproval:"✅ اعتماد الإجازات",
+    openingbals:"📂 الأرصدة الافتتاحية",
+    yearend:"📅 قيود الإقفال",
+    donorledger:"🌍 دفتر أستاذ المانحين",
+    variance:"📊 تقرير التباين",
+    cashforecast:"💵 توقعات التدفق النقدي",
+    contracts:"📋 سجل العقود",
+    provisions:"💰 مخصص مكافأة نهاية الخدمة",
+    execdash:"🎯 لوحة القيادة التنفيذية"  
   };
   // Pages that should render full-screen vs modal
   var fullPages=['accounts','trial','balance','income','bva','banks','inventory',
+    'openingbals','yearend','donorledger','variance','cashforecast','contracts','provisions','execdash',
     'inv_receive','inv_issue','inv_transfer','inv_dispose',
     'employees','suppliers','invreports','hrreports','tpledger',
     'importexport','importwizard','reconhist','masterdata','reports',
@@ -1302,6 +1338,7 @@ function rDash(){
     {icon:'📊',title:'التقارير',sub:'تقارير مالية وإدارية',sec:'reports',bg:'#f0fdf4',ic:'#16a34a'},
     {icon:'🤖',title:'المساعد الذكي',sub:'تحليل مالي بالذكاء الاصطناعي',sec:'ai',bg:'#ede9fe',ic:'#7c3aed'},
     {icon:'✅',title:'امتثال المستندات',sub:'متطلبات المستندات لكل قيد',sec:'compliance',bg:'#ecfdf5',ic:'#059669'},
+    {icon:'🎯',title:'لوحة القيادة',sub:'تحليل تنفيذي شامل',sec:'execdash',bg:'#fff1f2',ic:'#dc2626'},
     {icon:'⚙️',title:'الإعدادات',sub:'إعدادات النظام والجمعية',sec:'settings',bg:'#f1f5f9',ic:'#475569'},
   ];
   h+='<div class="sd" style="margin-bottom:8px;">الأقسام الرئيسية</div>';
@@ -1625,6 +1662,104 @@ function collectTP(prefix, lineCount){
 // ---- THIRD PARTY LEDGER PAGE ----
 
 // ── Account Ledger (الأستاذ المساعد لحساب) ────────────────────────
+
+// ================================================================
+// DRILL-DOWN — تحليل أي رقم بالضغط عليه
+// ================================================================
+function drillDown(opts){
+  // opts: {title, type, filter}
+  // type: 'acc_dr'|'acc_cr'|'proj'|'period_dr'|'period_cr'|'all'
+  var entries=(DB.entries||[]).filter(function(e){return e.status==='posted';});
+  var lines=[];
+
+  entries.forEach(function(e){
+    e.lines.forEach(function(l){
+      var match=false;
+      if(opts.customFilter) match=opts.customFilter(e,l);
+      else if(opts.accCode)  match=(l.acc===opts.accCode);
+      else if(opts.accPrefix) match=(l.acc&&l.acc[0]===opts.accPrefix);
+      else if(opts.proj) match=(l.proj===opts.proj||e.proj===opts.proj);
+      else match=true;
+
+      if(!match) return;
+      if(opts.fromDate&&e.date<opts.fromDate) return;
+      if(opts.toDate&&e.date>opts.toDate) return;
+      if(opts.side==='dr'&&!(l.dr>0)) return;
+      if(opts.side==='cr'&&!(l.cr>0)) return;
+
+      var acc=DB.accounts.find(function(a){return a.c===l.acc;})||{n:l.acc};
+      lines.push({
+        date:e.date, entryId:e.id, desc:e.desc, ref:e.ref||'',
+        acc:l.acc, accName:acc.n,
+        dr:l.dr||0, cr:l.cr||0,
+        proj:l.proj||e.proj||'',
+      });
+    });
+  });
+
+  // Sort by date
+  lines.sort(function(a,b){return a.date>b.date?1:-1;});
+
+  var totDr=lines.reduce(function(s,l){return s+l.dr;},0);
+  var totCr=lines.reduce(function(s,l){return s+l.cr;},0);
+
+  var h='';
+  // Summary
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">';
+  h+='<div style="background:#f0f9ff;border-radius:9px;padding:10px;text-align:center;">';
+  h+='<div style="font-size:10px;color:var(--g4);">عدد الحركات</div>';
+  h+='<div style="font-weight:900;font-size:18px;color:var(--nd);">'+lines.length+'</div></div>';
+  h+='<div style="background:#f0fdf4;border-radius:9px;padding:10px;text-align:center;">';
+  h+='<div style="font-size:10px;color:var(--g4);">إجمالي مدين</div>';
+  h+='<div style="font-weight:900;font-size:15px;color:#059669;">'+fmt(totDr)+'</div></div>';
+  h+='<div style="background:#fff5f5;border-radius:9px;padding:10px;text-align:center;">';
+  h+='<div style="font-size:10px;color:var(--g4);">إجمالي دائن</div>';
+  h+='<div style="font-weight:900;font-size:15px;color:#dc2626;">'+fmt(totCr)+'</div></div>';
+  h+='</div>';
+
+  if(!lines.length){
+    h+='<div style="text-align:center;padding:20px;color:var(--g4);">لا توجد حركات</div>';
+    om(opts.title||'تحليل', h); return;
+  }
+
+  // Table
+  h+='<div style="overflow-x:auto;max-height:65vh;overflow-y:auto;">';
+  h+='<table style="width:100%;font-size:11px;border-collapse:collapse;">';
+  h+='<thead style="position:sticky;top:0;"><tr style="background:var(--nd);color:white;">'
+    +'<th style="padding:7px 6px;text-align:right;white-space:nowrap;">التاريخ</th>'
+    +'<th style="text-align:right;">رقم القيد</th>'
+    +'<th style="text-align:right;">البيان</th>'
+    +'<th style="text-align:right;">الحساب</th>'
+    +'<th style="text-align:right;">المشروع</th>'
+    +'<th style="text-align:left;">مدين</th>'
+    +'<th style="text-align:left;">دائن</th>'
+    +'</tr></thead><tbody>';
+
+  lines.forEach(function(l){
+    h+='<tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;" '
+      +'onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'\'" '
+      +'data-eid="'+l.entryId+'" onclick="viewE(this.dataset.eid)">'
+      +'<td style="padding:5px 6px;white-space:nowrap;">'+l.date+'</td>'
+      +'<td style="color:var(--sk);font-weight:700;">'+l.entryId+'</td>'
+      +'<td style="color:#475569;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+l.desc+'</td>'
+      +'<td style="font-size:10px;color:var(--g4);">'+l.acc+' '+l.accName+'</td>'
+      +'<td style="font-size:10px;color:var(--g4);">'+(l.proj||'—')+'</td>'
+      +'<td style="text-align:left;font-weight:700;color:#059669;">'+(l.dr>0?fmt(l.dr):'—')+'</td>'
+      +'<td style="text-align:left;font-weight:700;color:#dc2626;">'+(l.cr>0?fmt(l.cr):'—')+'</td>'
+      +'</tr>';
+  });
+
+  // Totals row
+  h+='<tr style="background:var(--nd);color:white;font-weight:900;">'
+    +'<td colspan="5" style="padding:7px 6px;">الإجمالي ('+lines.length+' حركة)</td>'
+    +'<td style="padding:7px;text-align:left;">'+fmt(totDr)+'</td>'
+    +'<td style="text-align:left;">'+fmt(totCr)+'</td>'
+    +'</tr>';
+  h+='</tbody></table></div>';
+
+  om(opts.title||'تحليل', h);
+}
+
 function viewAccLedger(accCode){
   var acc=DB.accounts.find(function(a){return a.c===accCode;});
   if(!acc){toast('الحساب غير موجود');return;}
@@ -3432,20 +3567,24 @@ function rTrialPage(){
         +'<td style="padding:5px 6px;font-size:11px;cursor:pointer;" onclick="viewAccLedger(\''+a.c+'\')">'+'<span style="color:var(--sk);margin-left:4px;text-decoration:underline;">'+a.c+'</span>'+a.n+'</td>'
         +'<td style="text-align:left;padding:5px;font-size:11px;">'+(o.dr>0?fmt(o.dr):'—')+'</td>'
         +'<td style="text-align:left;font-size:11px;">'+(o.cr>0?fmt(o.cr):'—')+'</td>'
-        +'<td style="text-align:left;padding:5px;font-size:11px;border-left:1px solid #f1f5f9;">'+(p.dr>0?fmt(p.dr):'—')+'</td>'
-        +'<td style="text-align:left;font-size:11px;">'+(p.cr>0?fmt(p.cr):'—')+'</td>'
+        +'<td style="text-align:left;padding:5px;font-size:11px;border-left:1px solid #f1f5f9;cursor:pointer;" onclick="drillDown({title:a.n+\' — مدين الفترة\',accCode:a.c,side:\'dr\',fromDate:\''+fromDate+'\',toDate:\''+toDate+'\'})">'+(p.dr>0?'<span style="text-decoration:underline;">'+fmt(p.dr)+'</span>':'—')+'</td>'
+        +'<td style="text-align:left;font-size:11px;cursor:pointer;" onclick="drillDown({title:a.n+\' — دائن الفترة\',accCode:a.c,side:\'cr\',fromDate:\''+fromDate+'\',toDate:\''+toDate+'\'})">'+(p.cr>0?'<span style="text-decoration:underline;">'+fmt(p.cr)+'</span>':'—')+'</td>'
         +'<td style="text-align:left;padding:5px;font-size:11.5px;font-weight:700;border-left:1px solid #f1f5f9;">'+(cbNetDr>0?fmt(cbNetDr):'—')+'</td>'
         +'<td style="text-align:left;font-size:11.5px;font-weight:700;">'+(cbNetCr>0?fmt(cbNetCr):'—')+'</td>'
         +'</tr>';
     });
 
     var balanced=Math.abs(tCBdr-tCBcr)<0.01;
+    var _fd=fromDate,_td=toDate;
     h+='</tbody><tfoot>';
     h+='<tr style="background:var(--nd);color:white;font-weight:900;">'
       +'<td style="padding:8px 6px;">الإجمالي</td>'
-      +'<td style="padding:8px;text-align:left;">'+fmt(tOBdr)+'</td><td style="text-align:left;">'+fmt(tOBcr)+'</td>'
-      +'<td style="padding:8px;text-align:left;border-left:1px solid rgba(255,255,255,.2);">'+fmt(tPdr)+'</td><td style="text-align:left;">'+fmt(tPcr)+'</td>'
-      +'<td style="padding:8px;text-align:left;border-left:1px solid rgba(255,255,255,.2);">'+fmt(tCBdr)+'</td><td style="text-align:left;">'+fmt(tCBcr)+'</td>'
+      +'<td style="padding:8px;text-align:left;cursor:pointer;text-decoration:underline;" title="اضغط للتحليل" onclick="drillDown({title:\'إجمالي الرصيد الافتتاحي — مدين\',side:\'dr\',toDate:\''+_fd+'\'})">'+fmt(tOBdr)+'</td>'
+      +'<td style="text-align:left;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'إجمالي الرصيد الافتتاحي — دائن\',side:\'cr\',toDate:\''+_fd+'\'})" >'+fmt(tOBcr)+'</td>'
+      +'<td style="padding:8px;text-align:left;border-left:1px solid rgba(255,255,255,.2);cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'حركة الفترة — مدين\',side:\'dr\',fromDate:\''+_fd+'\',toDate:\''+_td+'\'})" >'+fmt(tPdr)+'</td>'
+      +'<td style="text-align:left;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'حركة الفترة — دائن\',side:\'cr\',fromDate:\''+_fd+'\',toDate:\''+_td+'\'})" >'+fmt(tPcr)+'</td>'
+      +'<td style="padding:8px;text-align:left;border-left:1px solid rgba(255,255,255,.2);cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'الرصيد الختامي — مدين\',side:\'dr\',toDate:\''+_td+'\'})" >'+fmt(tCBdr)+'</td>'
+      +'<td style="text-align:left;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'الرصيد الختامي — دائن\',side:\'cr\',toDate:\''+_td+'\'})" >'+fmt(tCBcr)+'</td>'
       +'</tr>';
     h+='<tr style="background:'+(balanced?'#059669':'#dc2626')+';color:white;">'
       +'<td colspan="7" style="padding:7px;text-align:center;font-weight:800;">'
@@ -3549,7 +3688,7 @@ function rBalPage(){
     if(!bal) return;
     h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
       +'<span style="color:var(--sk);cursor:pointer;text-decoration:underline;" onclick="viewAccLedger(\''+a.c+'\')"  >'+a.n+'</span>'
-      +'<span style="font-weight:700;">'+fmt(bal)+'</span></div>';
+      +'<span style="font-weight:700;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:a.n,accCode:a.c})">'+fmt(bal)+'</span></div>';
   });
   h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #0D3B6E;">'
     +'<span>إجمالي الأصول</span><span style="color:#0D3B6E;">'+fmt(totalAssets)+'</span></div>';
@@ -3564,7 +3703,7 @@ function rBalPage(){
     if(!bal) return;
     h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
       +'<span style="color:var(--sk);cursor:pointer;text-decoration:underline;" onclick="viewAccLedger(\''+a.c+'\')"  >'+a.n+'</span>'
-      +'<span style="font-weight:700;">'+fmt(bal)+'</span></div>';
+      +'<span style="font-weight:700;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:a.n,accCode:a.c})">'+fmt(bal)+'</span></div>';
   });
   // Add surplus
   h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
@@ -3604,7 +3743,8 @@ function rIncPage(){
       +'<span style="color:#475569;">'+a.n+'</span><span style="font-weight:700;color:#059669;">'+fmt(bal)+'</span></div>';
   });
   h+='<div style="display:flex;justify-content:space-between;font-weight:900;margin-top:8px;padding-top:8px;border-top:2px solid #059669;">'
-    +'<span>إجمالي الإيرادات</span><span style="color:#059669;font-size:14px;">'+fmt(tRev)+'</span></div>';
+    +'<span>إجمالي الإيرادات</span>'
+    +'<span style="color:#059669;font-size:14px;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'تحليل الإيرادات\',accPrefix:\'4\',side:\'cr\'})" title="اضغط للتحليل">'+fmt(tRev)+'</span></div>';
   h+='</div>';
 
   // Expenses section
@@ -3620,7 +3760,8 @@ function rIncPage(){
       +'<span style="color:#475569;">'+a.n+'</span><span style="font-weight:700;color:#dc2626;">'+fmt(bal)+'</span></div>';
   });
   h+='<div style="display:flex;justify-content:space-between;font-weight:900;margin-top:8px;padding-top:8px;border-top:2px solid #dc2626;">'
-    +'<span>إجمالي المصروفات</span><span style="color:#dc2626;font-size:14px;">'+fmt(tExp)+'</span></div>';
+    +'<span>إجمالي المصروفات</span>'
+    +'<span style="color:#dc2626;font-size:14px;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'تحليل المصروفات\',accPrefix:\'5\',side:\'dr\'})" title="اضغط للتحليل">'+fmt(tExp)+'</span></div>';
   h+='</div>';
 
   // Surplus/Deficit
@@ -8325,6 +8466,764 @@ function getTotalStock(itemId){
 }
 
 // ── Main Inventory Page ───────────────────────────────────────────
+// ================================================================
+// MODULE 1 — رصيد افتتاحي + قيود الإقفال
+// ================================================================
+
+// ── Opening Balances Page ─────────────────────────────────────────
+function rOpeningBalsPage(){
+  if(!DB.openingBals) DB.openingBals={};
+  var year=DB.org&&DB.org.year?DB.org.year:new Date().getFullYear();
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div class="ph-t">📂 الأرصدة الافتتاحية</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">أول السنة المالية '+year+'</div></div>';
+  h+='<button onclick="saveOpeningBals()" class="btn btn-gr btn-sm">💾 حفظ</button>';
+  h+='</div>';
+  h+='<div style="background:#fff9c4;border-radius:10px;padding:10px;margin-bottom:12px;font-size:11.5px;color:#92400e;">';
+  h+='💡 أدخل أرصدة الحسابات في أول السنة المالية. تُستخدم في ميزان المراجعة كـ "رصيد افتتاحي".';
+  h+='</div>';
+  // Group by account type
+  var groups=[
+    {prefix:'1',name:'الأصول',nat:'dr'},
+    {prefix:'2',name:'الالتزامات',nat:'cr'},
+    {prefix:'3',name:'حقوق الملكية',nat:'cr'},
+    {prefix:'4',name:'الإيرادات',nat:'cr'},
+    {prefix:'5',name:'المصروفات',nat:'dr'},
+  ];
+  groups.forEach(function(g){
+    var accs=DB.accounts.filter(function(a){return a.c&&a.c[0]===g.prefix;});
+    if(!accs.length) return;
+    h+='<div style="background:white;border-radius:11px;padding:12px;margin-bottom:10px;border:1px solid #eee;">';
+    h+='<div style="font-weight:800;color:var(--nd);font-size:13px;margin-bottom:8px;">'+g.name+'</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+    accs.forEach(function(a){
+      var val=DB.openingBals[a.c]||0;
+      h+='<div class="fg" style="margin-bottom:0;">';
+      h+='<label style="font-size:10.5px;"><span style="color:var(--g4);">'+a.c+'</span> '+a.n+'</label>';
+      h+='<input type="number" id="ob-'+a.c+'" value="'+val+'" step="0.01" min="0" '
+        +'style="text-align:left;direction:ltr;" placeholder="0">';
+      h+='</div>';
+    });
+    h+='</div></div>';
+  });
+  return h;
+}
+
+function saveOpeningBals(){
+  if(!DB.openingBals) DB.openingBals={};
+  DB.accounts.forEach(function(a){
+    var el=document.getElementById('ob-'+a.c);
+    if(el){
+      var val=parseFloat(el.value)||0;
+      if(val) DB.openingBals[a.c]=val;
+      else delete DB.openingBals[a.c];
+    }
+  });
+  save();
+  toast('✅ تم حفظ الأرصدة الافتتاحية');
+}
+
+// ── Override getOpeningBals to use DB.openingBals ────────────────
+// Patch the existing getOpeningBals to merge DB entries + manual opening bals
+var _origGetOpeningBals=getOpeningBals;
+function getOpeningBals(fromDate){
+  var ob=_origGetOpeningBals(fromDate);
+  // Add manual opening balances
+  if(DB.openingBals){
+    Object.keys(DB.openingBals).forEach(function(acc){
+      if(!ob[acc]) ob[acc]={dr:0,cr:0};
+      var a=DB.accounts.find(function(x){return x.c===acc;});
+      if(a){
+        if(a.nat==='dr') ob[acc].dr+=DB.openingBals[acc];
+        else ob[acc].cr+=DB.openingBals[acc];
+      }
+    });
+  }
+  return ob;
+}
+
+// ── Year-End Closing Entry ────────────────────────────────────────
+function rYearEndPage(){
+  var B=bals();
+  var year=DB.org&&DB.org.year?DB.org.year:new Date().getFullYear();
+  var tRev=0,tExp=0;
+  DB.accounts.forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    if(a.c[0]==='4') tRev+=b.cr-b.dr;
+    if(a.c[0]==='5') tExp+=b.dr-b.cr;
+  });
+  var surplus=tRev-tExp;
+  var h='';
+  h+='<div class="ph-t" style="margin-bottom:12px;">📅 قيود الإقفال — نهاية السنة</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">';
+  [
+    {lbl:'إجمالي الإيرادات',val:tRev,c:'#059669'},
+    {lbl:'إجمالي المصروفات',val:tExp,c:'#dc2626'},
+    {lbl:surplus>=0?'الفائض':'العجز',val:Math.abs(surplus),c:surplus>=0?'#059669':'#dc2626'},
+    {lbl:'السنة المالية',val:year,c:'var(--nd)'},
+  ].forEach(function(k){
+    h+='<div style="background:white;border-radius:10px;padding:12px;border:1px solid #eee;text-align:center;">';
+    h+='<div style="font-size:10px;color:var(--g4);">'+k.lbl+'</div>';
+    h+='<div style="font-weight:900;font-size:16px;color:'+k.c+';">'+(typeof k.val==='number'?fmt(k.val):k.val)+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+
+  // Closing entries explanation
+  h+='<div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;">';
+  h+='<div style="font-weight:800;color:var(--nd);margin-bottom:10px;">قيود الإقفال المقترحة</div>';
+  // Entry 1: Close revenue
+  h+='<div style="background:#f0fdf4;border-radius:8px;padding:10px;margin-bottom:8px;">';
+  h+='<div style="font-size:11px;font-weight:700;color:#059669;margin-bottom:6px;">قيد 1 — إقفال الإيرادات</div>';
+  h+='<div style="font-size:11px;color:#475569;">مدين: كل حسابات الإيرادات (4xxx) بمجموع '+fmt(tRev)+' ج.م</div>';
+  h+='<div style="font-size:11px;color:#475569;">دائن: ح/3999 ملخص الدخل '+fmt(tRev)+' ج.م</div>';
+  h+='</div>';
+  // Entry 2: Close expenses
+  h+='<div style="background:#fff5f5;border-radius:8px;padding:10px;margin-bottom:8px;">';
+  h+='<div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:6px;">قيد 2 — إقفال المصروفات</div>';
+  h+='<div style="font-size:11px;color:#475569;">مدين: ح/3999 ملخص الدخل '+fmt(tExp)+' ج.م</div>';
+  h+='<div style="font-size:11px;color:#475569;">دائن: كل حسابات المصروفات (5xxx) بمجموع '+fmt(tExp)+' ج.م</div>';
+  h+='</div>';
+  // Entry 3: Transfer surplus
+  h+='<div style="background:#eff6ff;border-radius:8px;padding:10px;margin-bottom:10px;">';
+  h+='<div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:6px;">قيد 3 — تحويل '+(surplus>=0?'الفائض':'العجز')+' للاحتياطي</div>';
+  h+='<div style="font-size:11px;color:#475569;">مدين: ح/3999 ملخص الدخل '+fmt(Math.abs(surplus))+' ج.م</div>';
+  h+='<div style="font-size:11px;color:#475569;">دائن: ح/3111 الاحتياطي العام '+fmt(Math.abs(surplus))+' ج.م</div>';
+  h+='</div>';
+
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<button onclick="generateClosingEntries()" class="btn btn-gr" style="font-size:12px;">⚡ توليد قيود الإقفال</button>';
+  h+='<button onclick="printYearEndReport()" class="btn btn-gy" style="font-size:12px;">🖨️ طباعة التقرير</button>';
+  h+='</div></div>';
+  return h;
+}
+
+function generateClosingEntries(){
+  var B=bals();
+  var year=DB.org&&DB.org.year?DB.org.year:new Date().getFullYear();
+  var today=year+'-12-31';
+  var tRev=0,tExp=0;
+  var revLines=[],expLines=[];
+
+  DB.accounts.forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    if(a.c[0]==='4'){var bal=b.cr-b.dr;if(bal>0){tRev+=bal;revLines.push({acc:a.c,an:a.n,dr:bal,cr:0,proj:'',cc:'',tpId:'',tpName:'',tpType:'',wbsCode:'',autoGenerated:true});}}
+    if(a.c[0]==='5'){var bal2=b.dr-b.cr;if(bal2>0){tExp+=bal2;expLines.push({acc:a.c,an:a.n,dr:0,cr:bal2,proj:'',cc:'',tpId:'',tpName:'',tpType:'',wbsCode:'',autoGenerated:true});}}
+  });
+  var surplus=tRev-tExp;
+  if(!tRev&&!tExp){toast('⚠️ لا توجد إيرادات أو مصروفات للإقفال');return;}
+
+  var closeId='CLS-'+year;
+  if(DB.entries.find(function(e){return e.id===closeId;})){
+    if(!confirm('قيود الإقفال موجودة بالفعل. هل تريد الاستبدال؟')) return;
+    DB.entries=DB.entries.filter(function(e){return e.id!==closeId;});
+  }
+
+  // Summary account line
+  revLines.push({acc:'3999',an:'ملخص الدخل',dr:0,cr:tRev,proj:'',cc:'',tpId:'',tpName:'',tpType:''});
+  expLines.push({acc:'3999',an:'ملخص الدخل',dr:tExp,cr:0,proj:'',cc:'',tpId:'',tpName:'',tpType:''});
+  var surplusLine=surplus>=0
+    ?{acc:'3999',an:'ملخص الدخل',dr:surplus,cr:0,proj:'',cc:'',tpId:'',tpName:'',tpType:''}
+    :{acc:'3999',an:'ملخص الدخل',dr:0,cr:-surplus,proj:'',cc:'',tpId:'',tpName:'',tpType:''};
+  var reserveLine=surplus>=0
+    ?{acc:'3111',an:'الاحتياطي العام',dr:0,cr:surplus,proj:'',cc:'',tpId:'',tpName:'',tpType:''}
+    :{acc:'3111',an:'الاحتياطي العام',dr:-surplus,cr:0,proj:'',cc:'',tpId:'',tpName:'',tpType:''};
+
+  DB.entries.push({
+    id:closeId,date:today,
+    desc:'قيود إقفال السنة المالية '+year,
+    ref:'CLOSING-'+year,proj:'',status:'posted',
+    lines:revLines.concat(expLines).concat([surplusLine,reserveLine])
+  });
+  save();
+  toast('✅ تم توليد قيود الإقفال للسنة '+year);
+}
+
+function printYearEndReport(){
+  var B=bals();
+  var year=DB.org&&DB.org.year?DB.org.year:new Date().getFullYear();
+  var tRev=0,tExp=0;
+  DB.accounts.forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    if(a.c[0]==='4') tRev+=b.cr-b.dr;
+    if(a.c[0]==='5') tExp+=b.dr-b.cr;
+  });
+  var sur=tRev-tExp;
+  var h='<div class="card"><h1>تقرير نهاية السنة المالية '+year+'</h1>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0;">'
+    +'<div><strong>إجمالي الإيرادات:</strong><div style="font-size:20px;font-weight:900;color:#059669;">'+fmt(tRev)+' ج.م</div></div>'
+    +'<div><strong>إجمالي المصروفات:</strong><div style="font-size:20px;font-weight:900;color:#dc2626;">'+fmt(tExp)+' ج.م</div></div>'
+    +'</div>'
+    +'<div style="background:'+(sur>=0?'#f0fdf4':'#fff5f5')+';border-radius:8px;padding:12px;text-align:center;">'
+    +'<div style="font-size:14px;font-weight:900;color:'+(sur>=0?'#059669':'#dc2626')+'">'+(sur>=0?'الفائض الصافي':'العجز الصافي')+': '+fmt(Math.abs(sur))+' ج.م</div>'
+    +'</div></div>';
+  printContent('تقرير نهاية السنة '+year, h);
+}
+
+// ================================================================
+// MODULE 2 — Donor Ledger + Variance Report + Cash Forecast
+// ================================================================
+
+// ── Donor Ledger ──────────────────────────────────────────────────
+function rDonorLedgerPage(){
+  var B=bals();
+  var h='';
+  h+='<div class="ph-t" style="margin-bottom:12px;">🌍 دفتر أستاذ المانحين</div>';
+
+  var donors={};
+  (DB.projects||[]).forEach(function(p){
+    if(!p.donor) return;
+    if(!donors[p.donor]) donors[p.donor]={name:p.donor,projects:[],received:0,spent:0};
+    var spent=getProjectSpent(p.code);
+    donors[p.donor].projects.push({code:p.code,name:p.name,budget:p.budget||0,spent:spent});
+    donors[p.donor].received+=(p.budget||0);
+    donors[p.donor].spent+=spent;
+  });
+
+  if(!Object.keys(donors).length){
+    h+='<div style="text-align:center;padding:30px;color:var(--g4);">لا توجد مشروعات مرتبطة بمانحين</div>';
+    return h;
+  }
+
+  Object.values(donors).forEach(function(d){
+    var rem=d.received-d.spent;
+    var pct=d.received>0?Math.round(d.spent/d.received*100):0;
+    h+='<div style="background:white;border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid #eee;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+    h+='<div style="font-weight:900;font-size:15px;color:var(--nd);">🌍 '+d.name+'</div>';
+    h+='<div style="font-size:11px;background:#dbeafe;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-weight:700;">'+d.projects.length+' مشروع</div>';
+    h+='</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">';
+    [
+      {lbl:'إجمالي المنح',val:d.received,c:'#0D3B6E'},
+      {lbl:'المصروف',val:d.spent,c:'#dc2626'},
+      {lbl:'المتبقي',val:rem,c:rem>=0?'#059669':'#dc2626'},
+    ].forEach(function(k){
+      h+='<div style="background:#f8f9fa;border-radius:8px;padding:8px;text-align:center;">';
+      h+='<div style="font-size:9.5px;color:var(--g4);">'+k.lbl+'</div>';
+      h+='<div style="font-weight:800;font-size:13px;color:'+k.c+';">'+fmt(k.val)+'</div></div>';
+    });
+    h+='</div>';
+    h+='<div style="background:#f0f0f0;border-radius:6px;height:8px;margin-bottom:10px;">';
+    h+='<div style="background:'+(pct>100?'#dc2626':pct>80?'#d97706':'#059669')+';height:100%;border-radius:6px;width:'+Math.min(pct,100)+'%;transition:width .4s;"></div></div>';
+    d.projects.forEach(function(p){
+      var pSpent=getProjectSpent(p.code);
+      var pPct=p.budget>0?Math.round(pSpent/p.budget*100):0;
+      h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:5px 0;border-bottom:1px dashed #f1f5f9;">';
+      h+='<span style="color:#475569;cursor:pointer;color:var(--sk);" onclick="viewProject(\''+p.code+'\')">'+p.name+'</span>';
+      h+='<span style="font-weight:700;color:'+(pPct>100?'#dc2626':pPct>80?'#d97706':'#059669')+';">'+pPct+'%</span>';
+      h+='</div>';
+    });
+    h+='</div>';
+  });
+  return h;
+}
+
+// ── Variance Report (تقرير التباين) ──────────────────────────────
+function rVarianceReportPage(){
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div class="ph-t">📊 تقرير التباين التفصيلي</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">Variance Report — للمانحين</div></div>';
+  h+='<button onclick="exportVarianceExcel()" class="btn btn-sm" style="background:#059669;color:white;font-size:10.5px;">📊 Excel</button>';
+  h+='</div>';
+
+  if(!(DB.projects||[]).length){
+    h+='<div style="text-align:center;padding:30px;color:var(--g4);">لا توجد مشروعات</div>';
+    return h;
+  }
+
+  DB.projects.forEach(function(p){
+    var wbs=p.wbs||[];
+    h+='<div style="background:white;border-radius:12px;margin-bottom:12px;overflow:hidden;border:1px solid #eee;">';
+    h+='<div style="background:var(--nd);color:white;padding:10px 14px;display:flex;justify-content:space-between;">';
+    h+='<div style="font-weight:800;">'+p.code+' — '+p.name+'</div>';
+    h+='<div style="font-size:11px;opacity:.8;">'+(p.donor||'')+'</div>';
+    h+='</div>';
+    h+='<div style="overflow-x:auto;"><table style="width:100%;font-size:11px;border-collapse:collapse;">';
+    h+='<thead><tr style="background:#f8f9fa;">';
+    ['البند','الموازنة','الفعلي','الفرق','%','الحالة'].forEach(function(th){
+      h+='<th style="padding:7px 8px;text-align:right;font-weight:700;color:var(--nd);">'+th+'</th>';
+    });
+    h+='</tr></thead><tbody>';
+
+    var hasWBS=wbs.length>0;
+    if(hasWBS){
+      wbs.forEach(function(w){
+        var spent=getWBSSpent(p.code,w.code);
+        var bud=w.budget||0;
+        var diff=bud-spent;
+        var pct=bud>0?Math.round(spent/bud*100):0;
+        var status=pct>100?'🔴 تجاوز':pct>85?'🟡 تحذير':'🟢 طبيعي';
+        h+='<tr style="border-bottom:1px solid #f1f5f9;">';
+        h+='<td style="padding:6px 8px;padding-right:'+(w.code.split('.').length*14+8)+'px;">'+w.name+'</td>';
+        [bud,spent,diff].forEach(function(v){
+          h+='<td style="padding:6px 8px;text-align:right;font-weight:700;color:'+(v===diff&&v<0?'#dc2626':v===spent&&pct>100?'#dc2626':'var(--nd)')+';">'+fmt(v)+'</td>';
+        });
+        h+='<td style="padding:6px 8px;text-align:right;font-weight:800;color:'+(pct>100?'#dc2626':pct>85?'#d97706':'#059669')+';">'+pct+'%</td>';
+        h+='<td style="padding:6px 8px;">'+status+'</td>';
+        h+='</tr>';
+      });
+    }
+    // Project total
+    var totSpent=getProjectSpent(p.code);
+    var totBud=p.budget||0;
+    var totDiff=totBud-totSpent;
+    var totPct=totBud>0?Math.round(totSpent/totBud*100):0;
+    h+='<tr style="background:#f0f7ff;font-weight:900;">';
+    h+='<td style="padding:8px;">إجمالي المشروع</td>';
+    [totBud,totSpent,totDiff].forEach(function(v){
+      h+='<td style="padding:8px;text-align:right;color:'+(v===totDiff&&v<0?'#dc2626':'var(--nd)')+';">'+fmt(v)+'</td>';
+    });
+    h+='<td style="padding:8px;text-align:right;font-weight:900;color:'+(totPct>100?'#dc2626':totPct>85?'#d97706':'#059669')+';">'+totPct+'%</td>';
+    h+='<td style="padding:8px;">'+(totPct>100?'🔴 تجاوز':totPct>85?'🟡 تحذير':'🟢 طبيعي')+'</td>';
+    h+='</tr>';
+    h+='</tbody></table></div></div>';
+  });
+  return h;
+}
+
+function getWBSSpent(projCode,wbsCode){
+  var total=0;
+  (DB.entries||[]).filter(function(e){return e.status==='posted';}).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if((l.proj===projCode||e.proj===projCode)&&l.wbsCode===wbsCode&&l.dr>0){
+        total+=l.dr;
+      }
+    });
+  });
+  return total;
+}
+
+function exportVarianceExcel(){
+  loadSheetJS(function(){
+    var wb=XLSX.utils.book_new();
+    DB.projects.forEach(function(p){
+      var rows=[['البند','الموازنة','الفعلي','الفرق','%','الحالة']];
+      var wbs=p.wbs||[];
+      wbs.forEach(function(w){
+        var spent=getWBSSpent(p.code,w.code);
+        var bud=w.budget||0;
+        var diff=bud-spent;
+        var pct=bud>0?Math.round(spent/bud*100):0;
+        rows.push([w.name,bud,Math.round(spent),Math.round(diff),pct+'%',pct>100?'تجاوز':pct>85?'تحذير':'طبيعي']);
+      });
+      var totSpent=getProjectSpent(p.code);
+      var totBud=p.budget||0;
+      rows.push(['الإجمالي',totBud,Math.round(totSpent),Math.round(totBud-totSpent),totBud>0?Math.round(totSpent/totBud*100)+'%':'—','']);
+      var ws=XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols']=[{wch:35},{wch:14},{wch:14},{wch:14},{wch:8},{wch:12}];
+      XLSX.utils.book_append_sheet(wb,ws,p.code.substring(0,31));
+    });
+    downloadXLSX(wb,'تقرير_التباين_'+new Date().getFullYear()+'.xlsx');
+    toast('✅ تم تصدير تقرير التباين');
+  });
+}
+
+// ── Cash Forecast ──────────────────────────────────────────────────
+function rCashForecastPage(){
+  var B=bals();
+  var h='';
+  h+='<div class="ph-t" style="margin-bottom:12px;">💵 توقعات التدفق النقدي</div>';
+
+  // Current cash
+  var cashBal=0;
+  DB.accounts.filter(function(a){return a.c&&(a.c.startsWith('111')||a.c.startsWith('112'));}).forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    cashBal+=b.dr-b.cr;
+  });
+
+  // Planned monthly payroll
+  var monthlyPayroll=(DB.employees||[]).filter(function(e){return e.status==='active';})
+    .reduce(function(s,e){return s+calcFull(e,{}).cost;},0);
+
+  // Average monthly expenses (last 3 months)
+  var now=new Date();
+  var months3ago=new Date(now.getFullYear(),now.getMonth()-3,1).toISOString().slice(0,10);
+  var recentExp=0;
+  (DB.entries||[]).filter(function(e){return e.status==='posted'&&e.date>=months3ago;}).forEach(function(e){
+    (e.lines||[]).forEach(function(l){if(l.acc&&l.acc[0]==='5'&&l.dr>0)recentExp+=l.dr;});
+  });
+  var avgMonthlyExp=recentExp/3;
+
+  // Runway
+  var runway=avgMonthlyExp>0?Math.floor(cashBal/avgMonthlyExp):99;
+
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">';
+  [
+    {lbl:'الرصيد النقدي الحالي',val:fmt(cashBal)+' ج.م',c:cashBal>0?'#059669':'#dc2626',bg:'#f0fdf4'},
+    {lbl:'متوسط الصرف الشهري',val:fmt(Math.round(avgMonthlyExp))+' ج.م',c:'#d97706',bg:'#fffbeb'},
+    {lbl:'الرصيد يكفي',val:runway>99?'> سنة':runway+' شهر',c:runway<3?'#dc2626':runway<6?'#d97706':'#059669',bg:runway<3?'#fff5f5':runway<6?'#fffbeb':'#f0fdf4'},
+  ].forEach(function(k){
+    h+='<div style="background:'+k.bg+';border-radius:11px;padding:12px;text-align:center;">';
+    h+='<div style="font-size:9.5px;color:var(--g4);margin-bottom:4px;">'+k.lbl+'</div>';
+    h+='<div style="font-weight:900;font-size:15px;color:'+k.c+';">'+k.val+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+
+  // Monthly forecast table (next 6 months)
+  h+='<div class="sd" style="margin-bottom:8px;">توقعات 6 شهور قادمة</div>';
+  h+='<div style="overflow-x:auto;"><table style="width:100%;font-size:11.5px;border-collapse:collapse;">';
+  h+='<thead><tr style="background:var(--nd);color:white;">'
+    +'<th style="padding:8px;">الشهر</th>'
+    +'<th style="text-align:left;">رصيد أول الشهر</th>'
+    +'<th style="text-align:left;">صرف متوقع</th>'
+    +'<th style="text-align:left;">رصيد آخر الشهر</th>'
+    +'<th>الحالة</th>'
+    +'</tr></thead><tbody>';
+
+  var runBal=cashBal;
+  var monthNames=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  for(var i=0;i<6;i++){
+    var d=new Date(now.getFullYear(),now.getMonth()+i,1);
+    var mName=monthNames[d.getMonth()]+' '+d.getFullYear();
+    var openBal=runBal;
+    var exp=avgMonthlyExp;
+    runBal=openBal-exp;
+    var status=runBal<0?'🔴 عجز نقدي':runBal<avgMonthlyExp?'🟡 تحذير':'🟢 جيد';
+    h+='<tr style="border-bottom:1px solid #f1f5f9;background:'+(runBal<0?'#fff5f5':runBal<avgMonthlyExp?'#fffbeb':'white')+'">';
+    h+='<td style="padding:7px;font-weight:700;">'+mName+'</td>';
+    h+='<td style="text-align:left;font-weight:700;color:var(--nd);">'+fmt(Math.round(openBal))+'</td>';
+    h+='<td style="text-align:left;color:#dc2626;">'+fmt(Math.round(exp))+'</td>';
+    h+='<td style="text-align:left;font-weight:900;color:'+(runBal<0?'#dc2626':runBal<avgMonthlyExp?'#d97706':'#059669')+';">'+fmt(Math.round(runBal))+'</td>';
+    h+='<td style="text-align:center;">'+status+'</td>';
+    h+='</tr>';
+  }
+  h+='</tbody></table></div>';
+  h+='<div style="font-size:10.5px;color:var(--g4);margin-top:8px;text-align:center;">* التوقعات مبنية على متوسط الصرف الفعلي لآخر 3 شهور</div>';
+  return h;
+}
+
+// ================================================================
+// MODULE 3 — سجل العقود + مخصص مكافأة نهاية الخدمة
+// ================================================================
+
+// ── Contracts Register ────────────────────────────────────────────
+function rContractsPage(){
+  if(!DB.contracts) DB.contracts=[];
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div class="ph-t">📋 سجل العقود</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+DB.contracts.length+' عقد مسجل</div></div>';
+  h+='<button onclick="newContract()" class="btn btn-gr btn-sm">+ عقد جديد</button>';
+  h+='</div>';
+
+  // Expiring soon
+  var today=new Date().toISOString().slice(0,10);
+  var in30=new Date(Date.now()+30*24*60*60*1000).toISOString().slice(0,10);
+  var expiring=DB.contracts.filter(function(c){return c.endDate&&c.endDate>=today&&c.endDate<=in30;});
+  if(expiring.length){
+    h+='<div style="background:#fff9c4;border-radius:10px;padding:10px;margin-bottom:12px;">';
+    h+='<div style="font-weight:800;color:#92400e;margin-bottom:6px;">⚠️ عقود تنتهي خلال 30 يوماً ('+expiring.length+')</div>';
+    expiring.forEach(function(c){
+      h+='<div style="font-size:11.5px;color:#92400e;">• '+c.name+' — ينتهي: '+c.endDate+'</div>';
+    });
+    h+='</div>';
+  }
+
+  if(!DB.contracts.length){
+    h+='<div style="text-align:center;padding:30px;color:var(--g4);">لا توجد عقود مسجلة</div>';
+    return h;
+  }
+
+  DB.contracts.forEach(function(ct,i){
+    var spent=ct.value||0;
+    var remaining=ct.value-spent;
+    var daysLeft=ct.endDate?Math.ceil((new Date(ct.endDate)-new Date())/(1000*60*60*24)):null;
+    var statusColor=daysLeft!==null&&daysLeft<30?'#dc2626':daysLeft!==null&&daysLeft<90?'#d97706':'#059669';
+    h+='<div style="background:white;border-radius:11px;padding:12px;margin-bottom:8px;border:1px solid #eee;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">';
+    h+='<div>';
+    h+='<div style="font-weight:800;font-size:13px;color:var(--nd);">'+ct.name+'</div>';
+    h+='<div style="font-size:10.5px;color:var(--g4);">'+(ct.party||'')+(ct.project?' · '+ct.project:'')+'</div>';
+    h+='</div>';
+    h+='<div style="text-align:left;">';
+    h+='<div style="font-weight:900;font-size:14px;">'+fmt(ct.value)+' ج.م</div>';
+    if(daysLeft!==null) h+='<div style="font-size:10px;color:'+statusColor+';font-weight:700;">'+(daysLeft<0?'منتهي':daysLeft+' يوم متبقي')+'</div>';
+    h+='</div></div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:10.5px;margin-bottom:8px;">';
+    h+='<div><span style="color:var(--g4);">بداية: </span>'+ct.startDate+'</div>';
+    h+='<div><span style="color:var(--g4);">نهاية: </span>'+ct.endDate+'</div>';
+    h+='<div><span style="color:var(--g4);">النوع: </span>'+(ct.type||'—')+'</div>';
+    h+='</div>';
+    h+='<div style="display:flex;gap:6px;">';
+    h+='<button data-idx="'+i+'" onclick="editContract(this.dataset.idx)" style="flex:1;background:var(--sk);border:none;color:white;border-radius:7px;padding:5px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">✏️ تعديل</button>';
+    h+='<button data-idx="'+i+'" onclick="deleteContract(this.dataset.idx)" style="background:#fee2e2;border:none;color:#dc2626;border-radius:7px;padding:5px 8px;font-size:10px;cursor:pointer;">🗑️</button>';
+    h+='</div></div>';
+  });
+  return h;
+}
+
+function newContract(){ showContractModal(null); }
+function editContract(idx){ showContractModal(DB.contracts[parseInt(idx)],parseInt(idx)); }
+
+function showContractModal(ct,idx){
+  var edit=ct!==null&&ct!==undefined;
+  var projOpts=(DB.projects||[]).map(function(p){
+    return '<option value="'+p.code+'"'+(ct&&ct.project===p.code?' selected':'')+'>'+p.name+'</option>';
+  }).join('');
+  var h='';
+  h+='<div class="fg"><label>اسم العقد *</label><input id="ct-name" value="'+(ct?ct.name||'':'')+'"></div>';
+  h+='<div class="fg"><label>الطرف الآخر (مورد/مستشار)</label><input id="ct-party" value="'+(ct?ct.party||'':'')+'"></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>نوع العقد</label><select id="ct-type">';
+  ['استشارات','توريدات','خدمات','إيجار','مقاولات','تشغيل'].forEach(function(t){
+    h+='<option'+(ct&&ct.type===t?' selected':'')+'>'+t+'</option>';
+  });
+  h+='</select></div>';
+  h+='<div class="fg"><label>قيمة العقد (ج.م)</label><input id="ct-value" type="number" value="'+(ct?ct.value||0:0)+'"></div>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>تاريخ البداية</label><input id="ct-start" type="date" value="'+(ct?ct.startDate||'':'')+'"></div>';
+  h+='<div class="fg"><label>تاريخ الانتهاء</label><input id="ct-end" type="date" value="'+(ct?ct.endDate||'':'')+'"></div>';
+  h+='</div>';
+  h+='<div class="fg"><label>المشروع</label><select id="ct-proj"><option value="">— عام —</option>'+projOpts+'</select></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="ct-notes" value="'+(ct?ct.notes||'':'')+'"></div>';
+  h+='<button onclick="saveContract('+(edit?idx:'null')+')" class="btn btn-gr" style="width:100%;">'+(edit?'💾 تحديث':'+ إضافة')+'</button>';
+  om((edit?'تعديل عقد':'عقد جديد'), h);
+}
+
+function saveContract(idx){
+  if(!DB.contracts) DB.contracts=[];
+  var ct={
+    name:(document.getElementById('ct-name')||{}).value||'',
+    party:(document.getElementById('ct-party')||{}).value||'',
+    type:(document.getElementById('ct-type')||{}).value||'',
+    value:parseFloat((document.getElementById('ct-value')||{}).value)||0,
+    startDate:(document.getElementById('ct-start')||{}).value||'',
+    endDate:(document.getElementById('ct-end')||{}).value||'',
+    project:(document.getElementById('ct-proj')||{}).value||'',
+    notes:(document.getElementById('ct-notes')||{}).value||'',
+  };
+  if(!ct.name){toast('⚠️ اسم العقد مطلوب');return;}
+  if(idx!==null&&idx!==undefined&&!isNaN(idx)) DB.contracts[parseInt(idx)]=ct;
+  else DB.contracts.push(ct);
+  save(); cm();
+  // Re-render
+  var pg=document.getElementById('pg-more');
+  if(pg) pg.innerHTML='<div style="padding:14px 14px 80px;">'+rContractsPage()+'</div>';
+  toast('✅ تم حفظ العقد: '+ct.name);
+}
+
+function deleteContract(idx){
+  if(!confirm('حذف هذا العقد؟')) return;
+  DB.contracts.splice(parseInt(idx),1);
+  save();
+  var pg=document.getElementById('pg-more');
+  if(pg) pg.innerHTML='<div style="padding:14px 14px 80px;">'+rContractsPage()+'</div>';
+}
+
+// ── Severance Pay Provision ───────────────────────────────────────
+function rProvisionsPage(){
+  var h='';
+  h+='<div class="ph-t" style="margin-bottom:12px;">💰 مخصص مكافأة نهاية الخدمة</div>';
+  h+='<div style="background:#eff6ff;border-radius:10px;padding:10px;margin-bottom:12px;font-size:11.5px;color:#1e40af;">';
+  h+='📋 المخصص الشهري = الأجر الأساسي ÷ 12 عن كل سنة خدمة — يُقيَّد شهرياً في ح/5319 (مقابل) ح/2211';
+  h+='</div>';
+
+  var activeEmps=(DB.employees||[]).filter(function(e){return e.status==='active';});
+  if(!activeEmps.length){
+    h+='<div style="text-align:center;padding:30px;color:var(--g4);">لا توجد موظفين نشطين</div>';
+    return h;
+  }
+
+  var totalMonthly=0,totalAccum=0;
+  h+='<div style="overflow-x:auto;"><table style="width:100%;font-size:11.5px;border-collapse:collapse;">';
+  h+='<thead><tr style="background:var(--nd);color:white;">'
+    +'<th style="padding:8px;text-align:right;">الموظف</th>'
+    +'<th>الأجر الأساسي</th><th>سنوات الخدمة</th>'
+    +'<th>المخصص الشهري</th><th>المخصص المتراكم</th>'
+    +'</tr></thead><tbody>';
+
+  activeEmps.forEach(function(e){
+    var hireDate=e.hireDate?new Date(e.hireDate):null;
+    var years=hireDate?Math.floor((new Date()-hireDate)/(365.25*24*60*60*1000)):0;
+    var monthlyProv=years>0?(e.sal||0)/12:0;
+    var accumProv=monthlyProv*12*years;
+    totalMonthly+=monthlyProv;
+    totalAccum+=accumProv;
+    h+='<tr style="border-bottom:1px solid #f1f5f9;">';
+    h+='<td style="padding:7px;">'+e.name+'</td>';
+    h+='<td style="text-align:right;">'+fmt(e.sal||0)+'</td>';
+    h+='<td style="text-align:center;font-weight:700;">'+years+'</td>';
+    h+='<td style="text-align:right;font-weight:700;color:#d97706;">'+fmt(Math.round(monthlyProv))+'</td>';
+    h+='<td style="text-align:right;font-weight:700;color:var(--nd);">'+fmt(Math.round(accumProv))+'</td>';
+    h+='</tr>';
+  });
+  h+='<tr style="background:var(--nd);color:white;font-weight:900;">';
+  h+='<td colspan="3" style="padding:8px;">الإجمالي</td>';
+  h+='<td style="padding:8px;text-align:right;">'+fmt(Math.round(totalMonthly))+'</td>';
+  h+='<td style="text-align:right;">'+fmt(Math.round(totalAccum))+'</td>';
+  h+='</tr></tbody></table></div>';
+
+  h+='<button onclick="postProvisionEntry()" class="btn btn-gr" style="width:100%;margin-top:12px;font-size:13px;">⚡ قيد المخصص الشهري</button>';
+  return h;
+}
+
+function postProvisionEntry(){
+  var activeEmps=(DB.employees||[]).filter(function(e){return e.status==='active';});
+  var total=0;
+  activeEmps.forEach(function(e){
+    var hireDate=e.hireDate?new Date(e.hireDate):null;
+    var years=hireDate?Math.floor((new Date()-hireDate)/(365.25*24*60*60*1000)):0;
+    if(years>0) total+=(e.sal||0)/12;
+  });
+  if(total<=0){toast('⚠️ لا توجد مخصصات محسوبة');return;}
+  total=Math.round(total*100)/100;
+  var today=new Date().toISOString().slice(0,10);
+  var eid='PROV-'+today.slice(0,7);
+  if(DB.entries.find(function(e){return e.id===eid;})){
+    toast('⚠️ قيد المخصص لهذا الشهر موجود بالفعل: '+eid);return;
+  }
+  DB.entries.push({
+    id:eid,date:today,
+    desc:'مخصص مكافأة نهاية الخدمة — '+today.slice(0,7),
+    ref:'PROV',proj:'',status:'posted',
+    lines:[
+      {acc:'5319',an:'مخصص مكافأة نهاية الخدمة',dr:total,cr:0,proj:'',cc:'',tpId:'',tpName:'',tpType:''},
+      {acc:'2211',an:'مخصص مستحق — مكافأة نهاية خدمة',dr:0,cr:total,proj:'',cc:'',tpId:'',tpName:'',tpType:''},
+    ]
+  });
+  save();
+  toast('✅ تم ترحيل قيد المخصص: '+fmt(total)+' ج.م — رقم القيد: '+eid);
+}
+
+// ================================================================
+// MODULE 4 — Executive Dashboard للمدير التنفيذي
+// ================================================================
+function rExecDashboard(){
+  var B=bals();
+  var h='';
+  h+='<div class="ph-t" style="margin-bottom:12px;">🎯 لوحة القيادة التنفيذية</div>';
+
+  // ── Cash & Financial Health ───────────────────────────────────
+  var cash=0;
+  DB.accounts.filter(function(a){return a.c&&(a.c.startsWith('111')||a.c.startsWith('112'));}).forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0}; cash+=b.dr-b.cr;
+  });
+  var tRev=0,tExp=0;
+  DB.accounts.forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    if(a.c&&a.c[0]==='4') tRev+=b.cr-b.dr;
+    if(a.c&&a.c[0]==='5') tExp+=b.dr-b.cr;
+  });
+  var surplus=tRev-tExp;
+  var now3=new Date(Date.now()-90*24*60*60*1000).toISOString().slice(0,10);
+  var avgExp=0;
+  var expCount=0;
+  var monthlyMap={};
+  (DB.entries||[]).filter(function(e){return e.status==='posted'&&e.date>=now3;}).forEach(function(e){
+    var mo=e.date.slice(0,7);
+    if(!monthlyMap[mo]) monthlyMap[mo]=0;
+    (e.lines||[]).forEach(function(l){if(l.acc&&l.acc[0]==='5'&&l.dr>0){monthlyMap[mo]+=l.dr;}});
+  });
+  var moVals=Object.values(monthlyMap);
+  avgExp=moVals.length?moVals.reduce(function(s,v){return s+v;},0)/moVals.length:0;
+  var runway=avgExp>0?Math.floor(cash/avgExp):99;
+
+  // ── Traffic light for each project ───────────────────────────
+  var projAlerts=[];
+  (DB.projects||[]).filter(function(p){return p.status==='active';}).forEach(function(p){
+    var spent=getProjectSpent(p.code);
+    var pct=p.budget>0?spent/p.budget*100:0;
+    var light=pct>100?'🔴':pct>85?'🟡':'🟢';
+    projAlerts.push({light:light,name:p.name,pct:Math.round(pct),donor:p.donor||'',
+      budget:p.budget||0,spent:spent,code:p.code});
+  });
+  projAlerts.sort(function(a,b){return b.pct-a.pct;});
+
+  // ── Compliance score ──────────────────────────────────────────
+  var posted=(DB.entries||[]).filter(function(e){return e.status==='posted';}).length;
+  var reviewed=Object.values(DB.archiveLog||{}).filter(function(a){return a.status==='reviewed';}).length;
+  var compScore=posted>0?Math.round(reviewed/posted*100):0;
+
+  // ── Pending leaves ────────────────────────────────────────────
+  var pendingLeaves=(DB.leaveRequests||[]).filter(function(l){return l.status==='pending';}).length;
+
+  // ── WHT due ───────────────────────────────────────────────────
+  var wht2114=B['2114']||{cr:0,dr:0};
+  var whtDue=Math.round((wht2114.cr-wht2114.dr)*100)/100;
+
+  // ── KPI Cards ─────────────────────────────────────────────────
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">';
+  var kpis=[
+    {icon:'💵',lbl:'الرصيد النقدي',val:fmt(Math.round(cash))+' ج.م',sub:'يكفي '+Math.min(runway,99)+(runway<99?' شهر':'+')+'',
+     bg:cash<0?'linear-gradient(135deg,#dc2626,#b91c1c)':'linear-gradient(135deg,#059669,#047857)'},
+    {icon:'📊',lbl:'الفائض/العجز',val:(surplus>=0?'+':'')+fmt(Math.round(surplus))+' ج.م',sub:'حتى الآن',
+     bg:surplus>=0?'linear-gradient(135deg,#0D3B6E,#1d4ed8)':'linear-gradient(135deg,#dc2626,#b91c1c)'},
+    {icon:'🗂️',lbl:'الامتثال الوثائقي',val:compScore+'%',sub:reviewed+' من '+posted+' قيد',
+     bg:compScore>=80?'linear-gradient(135deg,#7c3aed,#6d28d9)':'linear-gradient(135deg,#d97706,#b45309)'},
+    {icon:'🏛️',lbl:'ضريبة خصم وتحصيل',val:fmt(whtDue)+' ج.م',sub:'مستحقة ح/2114',
+     bg:whtDue>0?'linear-gradient(135deg,#dc2626,#991b1b)':'linear-gradient(135deg,#059669,#047857)'},
+  ];
+  kpis.forEach(function(k){
+    h+='<div style="background:'+k.bg+';border-radius:14px;padding:14px;color:white;">';
+    h+='<div style="font-size:24px;margin-bottom:6px;">'+k.icon+'</div>';
+    h+='<div style="font-weight:900;font-size:16px;margin-bottom:2px;">'+k.val+'</div>';
+    h+='<div style="font-size:10px;opacity:.75;">'+k.lbl+'</div>';
+    h+='<div style="font-size:9.5px;opacity:.6;margin-top:2px;">'+k.sub+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+
+  // ── Projects Traffic Lights ───────────────────────────────────
+  h+='<div class="sd" style="margin-bottom:8px;">حالة المشروعات</div>';
+  if(!projAlerts.length){
+    h+='<div style="text-align:center;padding:16px;color:var(--g4);">لا توجد مشروعات نشطة</div>';
+  } else {
+    h+='<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px;">';
+    projAlerts.forEach(function(p){
+      h+='<div style="background:white;border-radius:10px;padding:10px 12px;border:1px solid #eee;'
+        +'cursor:pointer;" onclick="viewProject(\''+p.code+'\')">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;">'
+        +'<div style="display:flex;align-items:center;gap:8px;">'
+        +'<span style="font-size:20px;">'+p.light+'</span>'
+        +'<div><div style="font-weight:700;font-size:12px;">'+p.name+'</div>'
+        +'<div style="font-size:10px;color:var(--g4);">'+(p.donor||'')+'</div></div></div>'
+        +'<div style="text-align:left;">'
+        +'<div style="font-weight:900;font-size:14px;color:'+(p.pct>100?'#dc2626':p.pct>85?'#d97706':'#059669')+';">'+p.pct+'%</div>'
+        +'<div style="font-size:10px;color:var(--g4);">'+fmt(Math.round(p.spent))+' / '+fmt(p.budget)+'</div>'
+        +'</div></div>'
+        +'<div style="background:#f0f0f0;border-radius:4px;height:5px;margin-top:6px;">'
+        +'<div style="background:'+(p.pct>100?'#dc2626':p.pct>85?'#d97706':'#059669')+';height:100%;border-radius:4px;width:'+Math.min(p.pct,100)+'%;"></div>'
+        +'</div></div>';
+    });
+    h+='</div>';
+  }
+
+  // ── Alerts ────────────────────────────────────────────────────
+  var alerts=[];
+  if(cash<0) alerts.push({type:'danger',msg:'⚠️ الرصيد النقدي سالب — مطلوب إجراء فوري'});
+  if(runway<3&&runway>=0) alerts.push({type:'danger',msg:'🔴 الرصيد النقدي لا يكفي أكثر من '+runway+' شهر'});
+  if(whtDue>0) alerts.push({type:'warn',msg:'🏛️ ضريبة خصم وتحصيل مستحقة: '+fmt(whtDue)+' ج.م'});
+  if(pendingLeaves>0) alerts.push({type:'info',msg:'🌴 '+pendingLeaves+' طلب إجازة في انتظار الاعتماد'});
+  projAlerts.filter(function(p){return p.light==='🔴';}).forEach(function(p){
+    alerts.push({type:'danger',msg:'📊 '+p.name+' تجاوز الموازنة ('+p.pct+'%)'});
+  });
+  // Expiring contracts
+  var today=new Date().toISOString().slice(0,10);
+  var in30=new Date(Date.now()+30*24*60*60*1000).toISOString().slice(0,10);
+  (DB.contracts||[]).filter(function(c){return c.endDate&&c.endDate>=today&&c.endDate<=in30;}).forEach(function(c){
+    alerts.push({type:'warn',msg:'📋 عقد ينتهي قريباً: '+c.name+' ('+c.endDate+')'});
+  });
+
+  if(alerts.length){
+    h+='<div class="sd" style="margin-bottom:8px;">التنبيهات ('+alerts.length+')</div>';
+    h+='<div style="display:flex;flex-direction:column;gap:6px;">';
+    alerts.forEach(function(a){
+      var bg=a.type==='danger'?'#fff5f5':a.type==='warn'?'#fffbeb':'#eff6ff';
+      var c=a.type==='danger'?'#dc2626':a.type==='warn'?'#d97706':'#1d4ed8';
+      h+='<div style="background:'+bg+';border-radius:8px;padding:9px 12px;font-size:12px;font-weight:600;color:'+c+';">'+a.msg+'</div>';
+    });
+    h+='</div>';
+  } else {
+    h+='<div style="background:#f0fdf4;border-radius:10px;padding:14px;text-align:center;color:#059669;font-weight:700;">✅ لا توجد تنبيهات — الوضع جيد</div>';
+  }
+  return h;
+}
+
 function rInvPage(){
   initInv();
   var h='';
@@ -10507,30 +11406,310 @@ function saveSupplier(id){
     contact:sv("sp-contact"),notes:sv("sp-notes")});
   save();cm();toast("✅ تم إضافة المورد "+id);
 }
+
+// ================================================================
+// SUPPLIERS REGISTRY — سجل الموردين الكامل
+// ================================================================
+
 function rSuppliersPage(){
-  if(!DB.suppliers)DB.suppliers=[];
-  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-  h+='<div class="ph-t">🏭 الموردون</div>';
-  h+='<button class="btn btn-gr btn-sm" onclick="newSupplier()">+ مورد جديد</button></div>';
-  if(!DB.suppliers.length) return h+'<div style="text-align:center;color:var(--g4);padding:30px;">لا يوجد موردون بعد</div>';
-  DB.suppliers.forEach(function(s,i){
-    var typeMap={company:"شركة",individual:"فرد",government:"جهة حكومية"};
-    // count movements for this supplier
-    var mvCount=(DB.invMovements||[]).filter(function(m){return m.supplierId===s.id;}).length;
-    h+='<div class="ec" style="margin-bottom:9px;">';
-    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
-    h+='<div><code style="font-size:10.5px;color:var(--g5);">'+s.id+'</code>';
-    h+='<div style="font-weight:800;font-size:14px;">'+s.name+'</div>';
-    h+='<div style="font-size:11px;color:var(--g4);">'+(typeMap[s.type]||"—")+(s.contact?' · '+s.contact:'')+'</div>';
-    if(s.mobile)h+='<div style="font-size:11px;color:var(--sk);">📞 '+s.mobile+'</div>';
+  if(!DB.thirdParties) DB.thirdParties=[];
+  var today=new Date().toISOString().slice(0,10);
+  var in60=new Date(Date.now()+60*24*60*60*1000).toISOString().slice(0,10);
+
+  // Count alerts
+  var expired=0, expiring=0;
+  DB.thirdParties.forEach(function(tp){
+    ['commercialRegExpiry','taxCardExpiry','vatCertExpiry'].forEach(function(f){
+      if(tp[f]){
+        if(tp[f]<today) expired++;
+        else if(tp[f]<=in60) expiring++;
+      }
+    });
+  });
+
+  var h='';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div><div class="ph-t">🏭 سجل الموردين والأطراف</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+DB.thirdParties.length+' طرف مسجل</div></div>';
+  h+='<button onclick="newSupplierFull()" class="btn btn-gr btn-sm">+ إضافة</button>';
+  h+='</div>';
+
+  // Alerts strip
+  if(expired||expiring){
+    h+='<div style="background:'+(expired?'#fff5f5':'#fffbeb')+';border-radius:10px;padding:10px;margin-bottom:12px;">';
+    if(expired) h+='<div style="font-weight:800;color:#dc2626;margin-bottom:4px;">🔴 '+expired+' مستند منتهي الصلاحية</div>';
+    if(expiring) h+='<div style="font-weight:700;color:#d97706;">🟡 '+expiring+' مستند ينتهي خلال 60 يوم</div>';
     h+='</div>';
+  }
+
+  // Search + filter
+  h+='<div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;">';
+  h+='<input id="sup-search" placeholder="🔍 بحث بالاسم أو الرقم الضريبي..." '
+    +'oninput="filterSuppliers()" '
+    +'style="padding:8px 12px;border-radius:8px;border:1.5px solid #e5e7eb;font-family:Cairo,sans-serif;font-size:12px;">';
+  h+='<select id="sup-filter" onchange="filterSuppliers()" style="padding:8px;border-radius:8px;border:1.5px solid #e5e7eb;font-family:Cairo,sans-serif;">';
+  h+='<option value="all">الكل</option>';
+  h+='<option value="supplier">موردون</option>';
+  h+='<option value="consultant">مستشارون</option>';
+  h+='<option value="customer">عملاء</option>';
+  h+='<option value="expired">⚠️ مستندات منتهية</option>';
+  h+='<optgroup label="حسب التصنيف">';
+  h+='<option value="cat_goods">📦 توريد سلع</option>';
+  h+='<option value="cat_services">🔧 خدمات</option>';
+  h+='<option value="cat_consulting">💼 استشارات</option>';
+  h+='<option value="cat_construction">🏗️ إنشاءات وصيانة</option>';
+  h+='<option value="cat_it">💻 تكنولوجيا</option>';
+  h+='<option value="cat_transport">✈️ نقل وسفر</option>';
+  h+='<option value="cat_media">📺 إعلام وطباعة</option>';
+  h+='<option value="cat_legal">⚖️ قانوني</option>';
+  h+='</optgroup>';
+  h+='</select></div>';
+
+  h+='<div id="sup-list">';
+  h+=buildSuppliersList(DB.thirdParties,'all','');
+  h+='</div>';
+  return h;
+}
+
+function buildSuppliersList(tps, filter, search){
+  var today=new Date().toISOString().slice(0,10);
+  var in60=new Date(Date.now()+60*24*60*60*1000).toISOString().slice(0,10);
+  var typeMap={supplier:'مورد',consultant:'مستشار',customer:'عميل',contractor:'مقاول',other:'أخرى'};
+
+  var filtered=tps.filter(function(tp){
+    if(filter==='expired'){
+      return ['commercialRegExpiry','taxCardExpiry','vatCertExpiry'].some(function(f){
+        return tp[f]&&tp[f]<today;
+      });
+    }
+    if(filter.startsWith('cat_')){
+      var cat=filter.replace('cat_','');
+      if(tp.category!==cat) return false;
+    } else if(filter!=='all'&&tp.type!==filter) return false;
+    if(search){
+      var s=search.toLowerCase();
+      return (tp.name||'').toLowerCase().includes(s)||(tp.taxId||'').includes(s)||
+             (tp.id||'').toLowerCase().includes(s);
+    }
+    return true;
+  });
+
+  if(!filtered.length) return '<div style="text-align:center;padding:20px;color:var(--g4);">لا توجد نتائج</div>';
+  var h='';
+  filtered.forEach(function(tp,i){
+    var realIdx=tps.indexOf(tp);
+    // Check doc status
+    var docStatus='ok'; // ok | warning | expired
+    ['commercialRegExpiry','taxCardExpiry','vatCertExpiry'].forEach(function(f){
+      if(!tp[f]) return;
+      if(tp[f]<today) docStatus='expired';
+      else if(tp[f]<=in60&&docStatus==='ok') docStatus='warning';
+    });
+    var statusColor=docStatus==='expired'?'#dc2626':docStatus==='warning'?'#d97706':'#059669';
+    var statusBg=docStatus==='expired'?'#fff5f5':docStatus==='warning'?'#fffbeb':'#f0fdf4';
+    var statusIcon=docStatus==='expired'?'🔴':docStatus==='warning'?'🟡':'🟢';
+
+    h+='<div style="background:white;border-radius:12px;padding:12px;margin-bottom:8px;'
+      +'border:1.5px solid '+(docStatus!=='ok'?statusColor:'#eee')+';box-shadow:0 1px 6px rgba(0,0,0,.05);">';
+
+    // Header
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+    h+='<div>';
+    h+='<div style="font-weight:800;font-size:13px;color:var(--nd);">'+statusIcon+' '+tp.name+'</div>';
+    h+='<div style="font-size:10.5px;color:var(--g4);margin-top:2px;">';
+    h+=tp.id;
+    if(tp.type) h+=' · <span style="background:#e5e7eb;padding:1px 7px;border-radius:8px;">'+(typeMap[tp.type]||tp.type)+'</span>';
+    var catMap={goods:'توريد سلع',services:'خدمات',consulting:'استشارات',construction:'إنشاءات',it:'تكنولوجيا',transport:'نقل وسفر',media:'إعلام وطباعة',legal:'قانوني',utilities:'مرافق',other:'أخرى'};
+    if(tp.category) h+=' · <span style="background:#dbeafe;color:#1d4ed8;padding:1px 7px;border-radius:8px;">'+catMap[tp.category]+'</span>';
+    if(tp.whtType) h+=' · '+tp.whtType;
+    if(tp.whtRate) h+=' ('+tp.whtRate+'%)';
+    h+='</div></div>';
     h+='<div style="text-align:left;">';
-    h+='<div style="font-size:10px;color:var(--g4);">حركات</div>';
-    h+='<div style="font-weight:900;font-size:18px;color:var(--n);">'+mvCount+'</div>';
-    h+='</div></div></div>';
+    h+='<span style="background:'+statusBg+';color:'+statusColor+';font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;">'
+      +(docStatus==='expired'?'مستندات منتهية':docStatus==='warning'?'تنتهي قريباً':'مستندات سارية')+'</span>';
+    h+='</div></div>';
+
+    // Data grid
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">';
+    var fields=[
+      {lbl:'الرقم الضريبي',val:tp.taxId||'—'},
+      {lbl:'السجل التجاري',val:tp.commercialReg||'—'},
+    ];
+    if(tp.phone) fields.push({lbl:'التليفون',val:tp.phone});
+    if(tp.email) fields.push({lbl:'البريد',val:tp.email});
+    fields.forEach(function(f){
+      h+='<div style="background:#f8f9fa;border-radius:6px;padding:6px 8px;">';
+      h+='<div style="font-size:9.5px;color:var(--g4);">'+f.lbl+'</div>';
+      h+='<div style="font-size:11.5px;font-weight:700;color:var(--nd);">'+f.val+'</div>';
+      h+='</div>';
+    });
+    h+='</div>';
+
+    // Document expiry
+    var docs=[
+      {lbl:'السجل التجاري',key:'commercialRegExpiry'},
+      {lbl:'البطاقة الضريبية',key:'taxCardExpiry'},
+      {lbl:'شهادة ضريبة القيمة المضافة',key:'vatCertExpiry'},
+      {lbl:'شهادة التأمينات',key:'insuranceCertExpiry'},
+    ];
+    var hasDocs=docs.some(function(d){return tp[d.key];});
+    if(hasDocs){
+      h+='<div style="border-top:1px dashed #e5e7eb;padding-top:8px;margin-bottom:8px;">';
+      h+='<div style="font-size:10px;font-weight:700;color:var(--g4);margin-bottom:5px;">📅 انتهاء المستندات</div>';
+      h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">';
+      docs.forEach(function(d){
+        if(!tp[d.key]) return;
+        var exp=tp[d.key];
+        var isExp=exp<today, isWarn=exp<=in60&&!isExp;
+        h+='<div style="background:'+(isExp?'#fff5f5':isWarn?'#fffbeb':'#f0fdf4')+';border-radius:6px;padding:5px 7px;">';
+        h+='<div style="font-size:9px;color:var(--g4);">'+d.lbl+'</div>';
+        h+='<div style="font-size:11px;font-weight:800;color:'+(isExp?'#dc2626':isWarn?'#d97706':'#059669')+';">';
+        h+=(isExp?'🔴 ':'isWarn'?'🟡 ':'✅ ')+exp+'</div>';
+        if(isExp) h+='<div style="font-size:9px;color:#dc2626;">منتهي منذ '+Math.abs(Math.ceil((new Date(exp)-new Date())/(1000*60*60*24)))+' يوم</div>';
+        else if(isWarn) h+='<div style="font-size:9px;color:#d97706;">ينتهي خلال '+Math.ceil((new Date(exp)-new Date())/(1000*60*60*24))+' يوم</div>';
+        h+='</div>';
+      });
+      h+='</div></div>';
+    }
+
+    // Buttons
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">';
+    h+='<button data-idx="'+realIdx+'" onclick="editSupplierFull(this.dataset.idx)" style="background:var(--sk);border:none;color:white;border-radius:7px;padding:5px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">✏️ تعديل</button>';
+    h+='<button data-idx="'+realIdx+'" onclick="viewSupplierLedger(this.dataset.idx)" style="background:var(--nd);border:none;color:white;border-radius:7px;padding:5px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">📒 الأستاذ</button>';
+    h+='<button data-idx="'+realIdx+'" onclick="deleteSupplier(this.dataset.idx)" style="background:#fee2e2;border:none;color:#dc2626;border-radius:7px;padding:5px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">🗑️</button>';
+    h+='</div></div>';
   });
   return h;
 }
+
+function filterSuppliers(){
+  var filter=(document.getElementById('sup-filter')||{}).value||'all';
+  var search=((document.getElementById('sup-search')||{}).value||'').trim();
+  var el=document.getElementById('sup-list');
+  if(el) el.innerHTML=buildSuppliersList(DB.thirdParties||[],filter,search);
+}
+
+function newSupplierFull(){ showSupplierModal(null,null); }
+function editSupplierFull(idx){ showSupplierModal(DB.thirdParties[parseInt(idx)],parseInt(idx)); }
+
+function showSupplierModal(tp,idx){
+  var edit=tp!==null&&tp!==undefined;
+  var h='';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg" style="grid-column:span 2;margin-bottom:0;"><label>الاسم *</label>'
+    +'<input id="tp-name" value="'+(tp?tp.name||'':'')+'"></div>';
+  h+='<div class="fg" style="margin-bottom:0;"><label>الكود *</label>'
+    +'<input id="tp-id" value="'+(tp?tp.id||'':'TP-'+Date.now().toString().slice(-5))+'" '+(edit?'readonly':'')+'></div>';
+  h+='<div class="fg" style="margin-bottom:0;"><label>النوع</label>'
+    +'<select id="tp-type"><option value="supplier"'+(tp&&tp.type==='supplier'?' selected':'')+'>مورد</option>'
+    +'<option value="consultant"'+(tp&&tp.type==='consultant'?' selected':'')+'>مستشار</option>'
+    +'<option value="contractor"'+(tp&&tp.type==='contractor'?' selected':'')+'>مقاول</option>'
+    +'<option value="customer"'+(tp&&tp.type==='customer'?' selected':'')+'>عميل</option>'
+    +'<option value="other"'+(tp&&tp.type==='other'?' selected':'')+'>أخرى</option>'
+    +'</select></div>'
+    +'<div class="fg" style="margin-bottom:0;"><label>التصنيف</label>'
+    +'<select id="tp-category">'
+    +'<option value=""'+(tp&&!tp.category?' selected':'')+'>— اختر —</option>'
+    +'<option value="goods"'+(tp&&tp.category==='goods'?' selected':'')+'>توريد سلع وبضائع</option>'
+    +'<option value="services"'+(tp&&tp.category==='services'?' selected':'')+'>خدمات عامة</option>'
+    +'<option value="consulting"'+(tp&&tp.category==='consulting'?' selected':'')+'>استشارات وتدريب</option>'
+    +'<option value="construction"'+(tp&&tp.category==='construction'?' selected':'')+'>إنشاءات وصيانة</option>'
+    +'<option value="it"'+(tp&&tp.category==='it'?' selected':'')+'>تكنولوجيا المعلومات</option>'
+    +'<option value="transport"'+(tp&&tp.category==='transport'?' selected':'')+'>نقل وسفريات</option>'
+    +'<option value="media"'+(tp&&tp.category==='media'?' selected':'')+'>إعلام ودعاية وطباعة</option>'
+    +'<option value="legal"'+(tp&&tp.category==='legal'?' selected':'')+'>قانوني ومحاسبي</option>'
+    +'<option value="utilities"'+(tp&&tp.category==='utilities'?' selected':'')+'>مرافق (كهرباء/مياه/اتصالات)</option>'
+    +'<option value="other"'+(tp&&tp.category==='other'?' selected':'')+'>أخرى</option>'
+    +'</select></div>';
+  h+='</div>';
+
+  h+='<div class="sd" style="margin:10px 0 6px;">بيانات الاتصال</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg" style="margin-bottom:0;"><label>الرقم الضريبي</label>'
+    +'<input id="tp-taxid" value="'+(tp?tp.taxId||'':'')+'"></div>';
+  h+='<div class="fg" style="margin-bottom:0;"><label>السجل التجاري</label>'
+    +'<input id="tp-creg" value="'+(tp?tp.commercialReg||'':'')+'"></div>';
+  h+='<div class="fg" style="margin-bottom:0;"><label>التليفون</label>'
+    +'<input id="tp-phone" value="'+(tp?tp.phone||'':'')+'"></div>';
+  h+='<div class="fg" style="margin-bottom:0;"><label>البريد الإلكتروني</label>'
+    +'<input id="tp-email" value="'+(tp?tp.email||'':'')+'"></div>';
+  h+='<div class="fg" style="grid-column:span 2;margin-bottom:0;"><label>العنوان</label>'
+    +'<input id="tp-addr" value="'+(tp?tp.address||'':'')+'"></div>';
+  h+='</div>';
+
+  h+='<div class="sd" style="margin:10px 0 6px;">📅 انتهاء المستندات</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  [
+    {id:'tp-cr-exp',lbl:'انتهاء السجل التجاري',key:'commercialRegExpiry'},
+    {id:'tp-tax-exp',lbl:'انتهاء البطاقة الضريبية',key:'taxCardExpiry'},
+    {id:'tp-vat-exp',lbl:'انتهاء شهادة ض.ق.م',key:'vatCertExpiry'},
+    {id:'tp-ins-exp',lbl:'انتهاء شهادة التأمينات',key:'insuranceCertExpiry'},
+  ].forEach(function(f){
+    h+='<div class="fg" style="margin-bottom:0;"><label>'+f.lbl+'</label>'
+      +'<input type="date" id="'+f.id+'" value="'+(tp?tp[f.key]||'':'')+'"></div>';
+  });
+  h+='</div>';
+
+  h+='<div class="sd" style="margin:10px 0 6px;">الخصم الضريبي</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg" style="margin-bottom:0;"><label>طبيعة التعامل</label>'
+    +'<select id="tp-wht-type">';
+  ['','توريدات','خدمات','استشارات','سفريات','إيجار سيارات','إيجار عقارات','دعاية وإعلان','تدريب','مقاولات','طباعة','أخرى'].forEach(function(t){
+    h+='<option value="'+t+'"'+(tp&&tp.whtType===t?' selected':'')+'>'+t+'</option>';
+  });
+  h+='</select></div>';
+  h+='<div class="fg" style="margin-bottom:0;"><label>نسبة الخصم %</label>'
+    +'<input type="number" id="tp-wht-rate" step="0.5" min="0" max="15" value="'+(tp?tp.whtRate||0:0)+'"></div>';
+  h+='</div>';
+
+  h+='<div class="fg" style="margin-top:8px;"><label>ملاحظات</label>'
+    +'<input id="tp-notes" value="'+(tp?tp.notes||'':'')+'"></div>';
+
+  h+='<button onclick="saveSupplierFull('+(edit?idx:'null')+')" class="btn btn-gr" style="width:100%;margin-top:4px;">'+(edit?'💾 تحديث':'+ إضافة')+'</button>';
+  om((edit?'تعديل: '+tp.name:'+ إضافة طرف ثالث'), h);
+}
+
+function saveSupplierFull(idx){
+  if(!DB.thirdParties) DB.thirdParties=[];
+  var g=function(id){return (document.getElementById(id)||{}).value||'';};
+  var tp={
+    id:g('tp-id'), name:g('tp-name'), type:g('tp-type'),
+    taxId:g('tp-taxid'), commercialReg:g('tp-creg'),
+    phone:g('tp-phone'), email:g('tp-email'), address:g('tp-addr'),
+    commercialRegExpiry:g('tp-cr-exp'), taxCardExpiry:g('tp-tax-exp'),
+    vatCertExpiry:g('tp-vat-exp'), insuranceCertExpiry:g('tp-ins-exp'),
+    whtType:g('tp-wht-type'), whtRate:parseFloat(g('tp-wht-rate'))||0,
+    category:g('tp-category'),
+    notes:g('tp-notes'),
+  };
+  if(!tp.id||!tp.name){toast('⚠️ الكود والاسم مطلوبان');return;}
+  if(idx!==null&&idx!==undefined&&!isNaN(idx)){
+    DB.thirdParties[parseInt(idx)]=tp;
+  } else {
+    if(DB.thirdParties.find(function(x){return x.id===tp.id;})){toast('⚠️ الكود موجود');return;}
+    DB.thirdParties.push(tp);
+  }
+  save(); cm();
+  var pg=document.getElementById('pg-more');
+  if(pg) pg.innerHTML='<div style="padding:14px 14px 80px;">'+rSuppliersPage()+'</div>';
+  toast('✅ تم حفظ: '+tp.name);
+}
+
+function deleteSupplier(idx){
+  if(!confirm('حذف هذا الطرف؟')) return;
+  DB.thirdParties.splice(parseInt(idx),1);
+  save();
+  var pg=document.getElementById('pg-more');
+  if(pg) pg.innerHTML='<div style="padding:14px 14px 80px;">'+rSuppliersPage()+'</div>';
+}
+
+function viewSupplierLedger(idx){
+  var tp=DB.thirdParties[parseInt(idx)];
+  if(!tp) return;
+  drillDown({title:'📒 '+tp.name,proj:null,
+    customFilter:function(e,l){return l.tpId===tp.id;}});
+}
+
 
 // ---- UPDATED showInvHistory with party info ----
 function showInvHistory(){
