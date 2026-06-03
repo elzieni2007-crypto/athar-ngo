@@ -1126,7 +1126,43 @@ function sub(n){
     myleaves:"🌴 إجازاتي",
     leaveapproval:"✅ اعتماد الإجازات"
   };
-  if(f[n]){try{om(titles[n]||n, f[n]());if(n==='taxconfig')previewTaxCalc();}catch(e){om(titles[n]||n,'<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>');}}
+  // Pages that should render full-screen vs modal
+  var fullPages=['accounts','trial','balance','income','bva','banks','inventory',
+    'inv_receive','inv_issue','inv_transfer','inv_dispose',
+    'employees','suppliers','invreports','hrreports','tpledger',
+    'importexport','importwizard','reconhist','masterdata','reports',
+    'taxconfig','assets','form41','archive','ai','compliance',
+    'compliancesettings','timesheet','myleaves','leaveapproval'];
+  if(f[n]){
+    try{
+      if(fullPages.indexOf(n)>-1){
+        // Render in pg-more full page
+        nav('more',null);
+        var pgEl=document.getElementById('pg-more');
+        if(pgEl){
+          var result=f[n]();
+          if(typeof result==='string'){
+            pgEl.innerHTML='<div style="padding:14px 14px 80px;">'
+              +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'
+              +'<button onclick="history.back()||rMore()" style="background:var(--g1);border:none;border-radius:8px;padding:7px 12px;cursor:pointer;font-family:Cairo,sans-serif;font-size:13px;">‹ رجوع</button>'
+              +'<div style="font-weight:800;font-size:16px;color:var(--nd);">'+(titles[n]||n)+'</div>'
+              +'</div>'
+              +result+'</div>';
+          }
+        }
+        if(n==='taxconfig') previewTaxCalc();
+      } else {
+        om(titles[n]||n, f[n]());
+        if(n==='taxconfig') previewTaxCalc();
+      }
+    }catch(e){
+      var errHtml='<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>';
+      if(fullPages.indexOf(n)>-1){
+        var pgEl2=document.getElementById('pg-more');
+        if(pgEl2) pgEl2.innerHTML=errHtml;
+      } else { om(titles[n]||n,errHtml); }
+    }
+  }
 }
 
 // DASHBOARD
@@ -1587,6 +1623,59 @@ function collectTP(prefix, lineCount){
 }
 
 // ---- THIRD PARTY LEDGER PAGE ----
+
+// ── Account Ledger (الأستاذ المساعد لحساب) ────────────────────────
+function viewAccLedger(accCode){
+  var acc=DB.accounts.find(function(a){return a.c===accCode;});
+  if(!acc){toast('الحساب غير موجود');return;}
+  var fromDate=window._tbFrom||'';
+  var toDate=window._tbTo||'';
+
+  // Get all entries with this account
+  var entries=(DB.entries||[]).filter(function(e){
+    if(e.status!=='posted') return false;
+    if(fromDate&&e.date<fromDate) return false;
+    if(toDate&&e.date>toDate) return false;
+    return e.lines.some(function(l){return l.acc===accCode;});
+  }).sort(function(a,b){return a.date>b.date?1:-1;});
+
+  var runBal=0;
+  var h='<div style="font-weight:800;font-size:13px;color:var(--nd);margin-bottom:10px;">'
+    +acc.c+' — '+acc.n+'</div>';
+
+  if(!entries.length){
+    h+='<div style="text-align:center;color:var(--g4);padding:20px;">لا توجد حركات</div>';
+    om('📒 '+acc.n, h); return;
+  }
+
+  h+='<div style="overflow-x:auto;"><table style="width:100%;font-size:11px;border-collapse:collapse;">';
+  h+='<thead><tr style="background:var(--nd);color:white;">'
+    +'<th style="padding:6px;text-align:right;">التاريخ</th>'
+    +'<th style="text-align:right;">رقم القيد</th>'
+    +'<th style="text-align:right;">البيان</th>'
+    +'<th style="text-align:left;">مدين</th>'
+    +'<th style="text-align:left;">دائن</th>'
+    +'<th style="text-align:left;">الرصيد</th>'
+    +'</tr></thead><tbody>';
+
+  entries.forEach(function(e){
+    e.lines.forEach(function(l){
+      if(l.acc!==accCode) return;
+      runBal += (acc.nat==='dr') ? (l.dr||0)-(l.cr||0) : (l.cr||0)-(l.dr||0);
+      h+='<tr style="border-bottom:1px solid #f1f5f9;" onclick="viewE(\''+e.id+'\')" style="cursor:pointer;">'
+        +'<td style="padding:5px 6px;">'+e.date+'</td>'
+        +'<td style="color:var(--sk);font-weight:700;cursor:pointer;" onclick="viewE(\''+e.id+'\')">'+e.id+'</td>'
+        +'<td style="color:#475569;">'+e.desc+'</td>'
+        +'<td style="text-align:left;color:#059669;font-weight:700;">'+(l.dr>0?fmt(l.dr):'—')+'</td>'
+        +'<td style="text-align:left;color:#dc2626;font-weight:700;">'+(l.cr>0?fmt(l.cr):'—')+'</td>'
+        +'<td style="text-align:left;font-weight:800;color:'+(runBal>=0?'var(--nd)':'#dc2626')+';">'+fmt(Math.abs(runBal))+'</td>'
+        +'</tr>';
+    });
+  });
+  h+='</tbody></table></div>';
+  om('📒 '+acc.n, h);
+}
+
 function rTPLedger(){
   initTP();
   var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
@@ -3282,7 +3371,8 @@ function netBal(acc, b){
 // ── Trial Balance ─────────────────────────────────────────────────
 function rTrialPage(){
   var sy=DB.org&&DB.org.year?DB.org.year:new Date().getFullYear();
-  var fromDate=sy+'-01-01', toDate=sy+'-12-31';
+  var fromDate=window._tbFrom||(sy+'-01-01');
+  var toDate=window._tbTo||(sy+'-12-31');
 
   var ob=getOpeningBals(fromDate);
   var pb=getPeriodBals(fromDate, toDate);
@@ -3339,7 +3429,7 @@ function rTrialPage(){
       tCBdr+=cbNetDr;tCBcr+=cbNetCr;
 
       h+='<tr style="border-bottom:1px solid #f1f5f9;">'
-        +'<td style="padding:5px 6px;font-size:11px;"><span style="color:var(--g4);margin-left:4px;">'+a.c+'</span>'+a.n+'</td>'
+        +'<td style="padding:5px 6px;font-size:11px;cursor:pointer;" onclick="viewAccLedger(\''+a.c+'\')">'+'<span style="color:var(--sk);margin-left:4px;text-decoration:underline;">'+a.c+'</span>'+a.n+'</td>'
         +'<td style="text-align:left;padding:5px;font-size:11px;">'+(o.dr>0?fmt(o.dr):'—')+'</td>'
         +'<td style="text-align:left;font-size:11px;">'+(o.cr>0?fmt(o.cr):'—')+'</td>'
         +'<td style="text-align:left;padding:5px;font-size:11px;border-left:1px solid #f1f5f9;">'+(p.dr>0?fmt(p.dr):'—')+'</td>'
@@ -3384,7 +3474,7 @@ function rTrialPage(){
       else {if(net>=0)netCr=net;else netDr=-net;}
       tNetDr+=netDr;tNetCr+=netCr;
       h+='<tr style="border-bottom:1px solid #f1f5f9;">'
-        +'<td style="padding:6px;"><span style="color:var(--g4);font-size:10px;margin-left:6px;">'+a.c+'</span>'+a.n+'</td>'
+        +'<td style="padding:6px;cursor:pointer;" onclick="viewAccLedger(\''+a.c+'\')"><span style="color:var(--sk);font-size:10px;margin-left:6px;text-decoration:underline;">'+a.c+'</span>'+a.n+'</td>'
         +'<td style="text-align:center;font-size:10px;color:var(--g4);">'+(a.nat==='dr'?'مدين':'دائن')+'</td>'
         +'<td style="text-align:left;font-weight:700;color:var(--nd);">'+(netDr>0?fmt(netDr):'—')+'</td>'
         +'<td style="text-align:left;font-weight:700;color:var(--nd);">'+(netCr>0?fmt(netCr):'—')+'</td>'
@@ -3407,9 +3497,19 @@ function applyTBFilter(){
   var from=(document.getElementById('tb-from')||{}).value||'';
   var to=(document.getElementById('tb-to')||{}).value||'';
   window._tbFrom=from; window._tbTo=to;
-  // Re-render — find the trial page
-  var el=document.getElementById('sub-content');
-  if(el) el.innerHTML=rTrialPage();
+  // Re-render in pg-more
+  var pgEl=document.getElementById('pg-more');
+  if(pgEl){
+    var inner=pgEl.querySelector('div[style*="padding:14px"]');
+    if(inner){
+      // Replace only the table part
+      var newContent=rTrialPage();
+      inner.innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'
+        +'<button onclick="history.back()||rMore()" style="background:var(--g1);border:none;border-radius:8px;padding:7px 12px;cursor:pointer;font-family:Cairo,sans-serif;font-size:13px;">‹ رجوع</button>'
+        +'<div style="font-weight:800;font-size:16px;color:var(--nd);">⚖️ ميزان المراجعة</div>'
+        +'</div>'+newContent;
+    }
+  }
 }
 
 // ── Balance Sheet ─────────────────────────────────────────────────
@@ -3448,7 +3548,7 @@ function rBalPage(){
     var bal=b.dr-b.cr;
     if(!bal) return;
     h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
-      +'<span style="color:#475569;">'+a.n+'</span>'
+      +'<span style="color:var(--sk);cursor:pointer;text-decoration:underline;" onclick="viewAccLedger(\''+a.c+'\')"  >'+a.n+'</span>'
       +'<span style="font-weight:700;">'+fmt(bal)+'</span></div>';
   });
   h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #0D3B6E;">'
@@ -3463,7 +3563,7 @@ function rBalPage(){
     var bal=b.cr-b.dr;
     if(!bal) return;
     h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
-      +'<span style="color:#475569;">'+a.n+'</span>'
+      +'<span style="color:var(--sk);cursor:pointer;text-decoration:underline;" onclick="viewAccLedger(\''+a.c+'\')"  >'+a.n+'</span>'
       +'<span style="font-weight:700;">'+fmt(bal)+'</span></div>';
   });
   // Add surplus
@@ -3545,7 +3645,7 @@ function rBVAPage(){
     h+='<div class="card" style="margin-bottom:10px;">';
     h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
     h+='<div><span class="badge bb" style="font-size:9.5px;">'+p.code+'</span>';
-    h+='<div style="font-weight:800;font-size:14px;margin-top:3px;">'+p.name+'</div>';
+    h+='<div style="font-weight:800;font-size:14px;margin-top:3px;color:var(--sk);cursor:pointer;text-decoration:underline;" data-code="'+p.code+'" onclick="viewProject(this.dataset.code)">'+p.name+'</div>';
     if(p.donor)h+='<div style="font-size:11px;color:var(--g4);">'+p.donor+'</div>';
     h+='</div>';
     h+='<div style="text-align:left;"><div style="font-size:9px;color:var(--g4);">صُرف</div>';
@@ -11779,7 +11879,7 @@ function buildProjEntriesTab(projCode){
     var dr=e.lines.reduce(function(s,l){return s+(l.dr||0);},0);
     var cr=e.lines.reduce(function(s,l){return s+(l.cr||0);},0);
     var wbsCodes=[...new Set(e.lines.filter(function(l){return l.wbsCode;}).map(function(l){return l.wbsCode;}))];
-    h+='<tr><td style="font-size:11px;white-space:nowrap;">'+e.date+'</td>';
+    h+='<tr data-eid="'+e.id+'" onclick="viewE(this.dataset.eid)" style="cursor:pointer;" onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'\'"><td style="font-size:11px;white-space:nowrap;">'+e.date+'</td>';
     h+='<td style="font-size:11px;color:var(--sk);">'+e.ref+'</td>';
     h+='<td style="font-size:11px;">'+e.desc+'</td>';
     h+='<td>'+(wbsCodes.length?wbsCodes.map(function(c){return'<code style="font-size:10px;background:var(--g1);padding:1px 5px;border-radius:4px;">'+c+'</code>';}).join(' '):'—')+'</td>';
@@ -13947,7 +14047,7 @@ function rptProjectsSummary(){
     h+='<div class="card" style="margin-bottom:10px;">';
     h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
     h+='<div><span class="badge bb" style="font-size:9.5px;">'+p.code+'</span>';
-    h+='<div style="font-weight:800;font-size:14px;margin-top:3px;">'+p.name+'</div>';
+    h+='<div style="font-weight:800;font-size:14px;margin-top:3px;color:var(--sk);cursor:pointer;text-decoration:underline;" data-code="'+p.code+'" onclick="viewProject(this.dataset.code)">'+p.name+'</div>';
     h+='<div style="font-size:11px;color:var(--g4);">'+(p.donor||"—")+' · '+(p.start||"")+(p.end?" → "+p.end:"")+'</div>';
     if(p.thematic){
       var thObj=(DB.masterData&&DB.masterData.thematics||[]).find(function(x){return x.code===p.thematic;});
