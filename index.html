@@ -233,7 +233,34 @@ tbody tr:hover td{background:var(--skp);}
 </nav>
 <div class="mo" id="mo"><div class="mb"><div class="mh"><span class="mt" id="mo-t">–</span><div style="display:flex;gap:5px;"><button onclick="printModal()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:4px 10px;font-size:11px;font-family:Cairo,sans-serif;cursor:pointer;">🖨️</button><button class="mx" onclick="cm()">✕</button></div></div><div class="mbdy" id="mo-b"></div></div></div>
 <div class="toast" id="toast"></div>
-<script>
+<script>function getOpeningBals(fromDate){
+  // Calculate opening balances from entries before fromDate
+  var ob={};
+  DB.accounts.forEach(function(a){ob[a.c]={dr:0,cr:0};});
+  if(fromDate){
+    (DB.entries||[]).filter(function(e){
+      return e.status==='posted' && e.date < fromDate;
+    }).forEach(function(e){
+      (e.lines||[]).forEach(function(l){
+        if(!ob[l.acc]) ob[l.acc]={dr:0,cr:0};
+        ob[l.acc].dr+=(l.dr||0);
+        ob[l.acc].cr+=(l.cr||0);
+      });
+    });
+  }
+  // Add manual opening balances from DB.openingBals
+  if(DB.openingBals){
+    Object.keys(DB.openingBals).forEach(function(acc){
+      if(!ob[acc]) ob[acc]={dr:0,cr:0};
+      var a=DB.accounts.find(function(x){return x.c===acc;});
+      if(a){
+        if(a.nat==='dr') ob[acc].dr+=DB.openingBals[acc];
+        else ob[acc].cr+=DB.openingBals[acc];
+      }
+    });
+  }
+  return ob;
+}
 function rFinancePage(){
   var h='';
   h+='<div style="padding:16px 0 8px;">';
@@ -1288,6 +1315,11 @@ function sub(n){
     try{
       if(fullPages.indexOf(n)>-1){
         // Render in pg-more full page
+        // Render in pg-more full page
+        var finPages=['trial','balance','income','bva','banks','reconhist','tpledger','accounts','openingbals','yearend','donorledger','variance','cashforecast','execdash'];
+        var opsPages=['employees','suppliers','invreports','hrreports','inventory','inv_receive','inv_issue','inv_transfer','inv_dispose','archive','compliance','compliancesettings','form41','assets','timesheet','myleaves','leaveapproval','contracts','provisions'];
+        var backFn=finPages.indexOf(n)>-1?"nav('fin',null)":opsPages.indexOf(n)>-1?"nav('ops',null)":'rMore()';
+        var backLabel=finPages.indexOf(n)>-1?'‹ المالية':opsPages.indexOf(n)>-1?'‹ العمليات':'‹ رجوع';
         nav('more',null);
         var pgEl=document.getElementById('pg-more');
         if(pgEl){
@@ -1295,16 +1327,12 @@ function sub(n){
           if(typeof result==='string'){
             pgEl.innerHTML='<div style="padding:14px 14px 80px;">'
               +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'
-              +'<button onclick="history.back()||rMore()" style="background:var(--g1);border:none;border-radius:8px;padding:7px 12px;cursor:pointer;font-family:Cairo,sans-serif;font-size:13px;">‹ رجوع</button>'
+              +'<button onclick="'+backFn+'" style="background:var(--g1);border:none;border-radius:8px;padding:7px 12px;cursor:pointer;font-family:Cairo,sans-serif;font-size:13px;">'+backLabel+'</button>'
               +'<div style="font-weight:800;font-size:16px;color:var(--nd);">'+(titles[n]||n)+'</div>'
               +'</div>'
               +result+'</div>';
           }
         }
-        if(n==='taxconfig') previewTaxCalc();
-      } else {
-        om(titles[n]||n, f[n]());
-        if(n==='taxconfig') previewTaxCalc();
       }
     }catch(e){
       var errHtml='<div style="text-align:center;color:var(--rd);padding:20px;">⚠️ خطأ: '+e.message+'</div>';
@@ -1677,6 +1705,7 @@ function rDash(){
   h+='</div>';
 
   el("pg-dash").innerHTML=h;
+  return h;
 }
 
 // JOURNAL
@@ -4273,7 +4302,7 @@ function rReconHistory(accCode){
     h+='</tr>';
   });
   h+='</tbody></table></div>';
-  om('📊 سجل التسويات البنكية',h);
+  return h;
 }
 
 
@@ -4707,6 +4736,7 @@ function getLeaveDatesForTs(empId, year, month){
 
 // ── My Leaves Page (for employee) ────────────────────────────────
 function rMyLeavesPage(){
+  if(!DB.leaveRequests)DB.leaveRequests=[];
   initLeaves();
   var cu=getCurrentUser();
   if(!cu){toast('يجب تسجيل الدخول');return;}
@@ -8639,10 +8669,22 @@ function saveOpeningBals(){
 
 // ── Override getOpeningBals to use DB.openingBals ────────────────
 // Patch the existing getOpeningBals to merge DB entries + manual opening bals
-var _origGetOpeningBals=getOpeningBals;
 function getOpeningBals(fromDate){
-  var ob=_origGetOpeningBals(fromDate);
-  // Add manual opening balances
+  // Calculate opening balances from entries before fromDate
+  var ob={};
+  DB.accounts.forEach(function(a){ob[a.c]={dr:0,cr:0};});
+  if(fromDate){
+    (DB.entries||[]).filter(function(e){
+      return e.status==='posted' && e.date < fromDate;
+    }).forEach(function(e){
+      (e.lines||[]).forEach(function(l){
+        if(!ob[l.acc]) ob[l.acc]={dr:0,cr:0};
+        ob[l.acc].dr+=(l.dr||0);
+        ob[l.acc].cr+=(l.cr||0);
+      });
+    });
+  }
+  // Add manual opening balances from DB.openingBals
   if(DB.openingBals){
     Object.keys(DB.openingBals).forEach(function(acc){
       if(!ob[acc]) ob[acc]={dr:0,cr:0};
