@@ -1347,7 +1347,7 @@ function sub(n){
     tpledger:rTPLedger,
     importexport:rImportExport,
     importwizard:rImportWizard,
-    reconhist:rReconHistory,
+    reconhist:function(){var pg=document.getElementById('pg-more');if(pg){pg.innerHTML='<div style="padding:14px 14px 80px;">'+rReconHistory()+'</div>';}},reconhist2:rReconHistory,
     masterdata:rMasterData,
     reports:rReportsPage,
     taxconfig:rTaxConfig,
@@ -2383,6 +2383,10 @@ function newEntry(){
   var h='<div class="fr"><div class="fg"><label>التاريخ *</label><input type="date" id="e-d" value="'+new Date().toISOString().split("T")[0]+'"></div>';
   h+='<div class="fg"><label>المرجع</label><input id="e-r" placeholder="PV-001"></div></div>';
   h+='<div class="fg"><label>البيان *</label><input id="e-ds" placeholder="وصف العملية المالية"></div>';
+  h+='<div class="fg"><label>العقد (اختياري)</label><select id="e-contract">';
+  h+='<option value="">— بدون عقد —</option>';
+  (DB.contracts||[]).forEach(function(ct){h+='<option value="'+ct.name+'">'+ct.name+'</option>';});
+  h+='</select></div>';
   // Project is now per line - no header project selector
   var ccO=getMDOptions('costCenters','code','name');
   var locO=getMDOptions('locations','code','name');
@@ -2504,7 +2508,7 @@ function saveE(){
     id:id,date:dt,ref:sv("e-r")||id,desc:sv("e-ds")||"قيد محاسبي",
     proj:primaryProj,costCenter:sv("e-cc"),location:sv("e-loc"),
     activity:sv("e-act"),docType:sv("e-dt"),payMethod:sv("e-pm"),
-    lines:lines,status:"posted"
+    lines:lines,status:"posted",contractId:sv('e-contract')||''
   });
   save();cm();rJour();rDash();
   toast("✅ تم ترحيل القيد "+id);
@@ -2561,6 +2565,9 @@ function editEntry(id){
   var h='<div class="fr"><div class="fg"><label>التاريخ</label><input type="date" id="e-d" value="'+(e.date||"")+'"></div>';
   h+='<div class="fg"><label>المرجع</label><input id="e-r" value="'+(e.ref||"")+'"></div></div>';
   h+='<div class="fg"><label>البيان</label><input id="e-ds" value="'+(e.desc||"")+'"></div>';
+  var _ctO='<option value="">— بدون عقد —</option>';
+  (DB.contracts||[]).forEach(function(ct){_ctO+='<option value="'+ct.name+'"'+(e.contractId===ct.name?' selected':'')+'>'+ct.name+'</option>';});
+  h+='<div class="fg"><label>العقد</label><select id="e-contract">'+_ctO+'</select></div>';
   h+='<div class="fg"><label>المشروع</label><select id="e-p">'+pO+'</select></div>';
   h+='<div class="sd">سطور القيد</div><div id="els">';
   (e.lines||[]).forEach(function(l,i){
@@ -4112,6 +4119,426 @@ function getAccBalAtDate(accCode, upToDate){
 }
 
 // ---- MAIN BANK PAGE (rebuilt) ----
+// ================================================================
+// BANK RECONCILIATION MODULE — تسوية بنكية احترافية
+// ================================================================
+
+// ── Open Reconciliation ───────────────────────────────────────────
+function openRecon(accCode){
+  var acc=DB.accounts.find(function(a){return a.c===accCode;})||{c:accCode,n:accCode};
+  var today=new Date().toISOString().slice(0,7); // YYYY-MM
+  // Find last closed recon month
+  var lastRecon=(DB.bankRecons||[]).filter(function(r){return r.accCode===accCode&&r.closed;})
+    .sort(function(a,b){return b.month>a.month?1:-1;})[0];
+  var defaultMonth=lastRecon
+    ? (function(){var d=new Date(lastRecon.month+'-01');d.setMonth(d.getMonth()+1);return d.toISOString().slice(0,7);}())
+    : today;
+
+  var h='';
+  h+='<div class="fg"><label>الحساب</label>'
+    +'<div style="font-weight:800;font-size:14px;color:var(--nd);">'+acc.c+' — '+acc.n+'</div></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg"><label>شهر التسوية *</label>'
+    +'<input type="month" id="rc-month" value="'+defaultMonth+'"></div>';
+  h+='<div class="fg"><label>رصيد كشف حساب البنك *</label>'
+    +'<input type="number" id="rc-bank-bal" step="0.01" placeholder="0.00"></div>';
+  h+='</div>';
+  h+='<button onclick="loadReconData(\''+accCode+'\')" class="btn btn-gr" style="width:100%;">📂 تحميل بيانات الشهر</button>';
+  om('🔄 تسوية بنكية — '+acc.n, h);
+}
+
+// ── Load Month Data ───────────────────────────────────────────────
+function loadReconData(accCode){
+  var month=(document.getElementById('rc-month')||{}).value||'';
+  var bankBalInput=parseFloat((document.getElementById('rc-bank-bal')||{}).value)||0;
+  if(!month){toast('⚠️ اختر الشهر أولاً');return;}
+  cm();
+  sub('banks'); // navigate to banks page to show recon
+  // Actually render full-page recon
+  setTimeout(function(){renderReconPage(accCode,month,bankBalInput);},100);
+}
+
+function renderReconPage(accCode,month,bankBal){
+  var acc=DB.accounts.find(function(a){return a.c===accCode;})||{c:accCode,n:accCode};
+  var monthStart=month+'-01';
+  var monthEnd=month+'-31'; // safe upper bound
+
+  // ── Get book balance at start of month (opening) ──────────────
+  var openBal=0;
+  (DB.entries||[]).filter(function(e){
+    return e.status==='posted'&&e.date<monthStart;
+  }).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(l.acc===accCode){openBal+=(l.dr||0)-(l.cr||0);}
+    });
+  });
+
+  // ── Get this month's transactions ─────────────────────────────
+  var txns=[];
+  (DB.entries||[]).filter(function(e){
+    return e.status==='posted'&&e.date>=monthStart&&e.date<=monthEnd;
+  }).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(l.acc!==accCode) return;
+      if((l.dr||0)+(l.cr||0)===0) return;
+      txns.push({
+        entryId:e.id, date:e.date, desc:e.desc,
+        dr:l.dr||0, cr:l.cr||0,
+        cleared:false, // will be set from saved state
+      });
+    });
+  });
+  txns.sort(function(a,b){return a.date>b.date?1:-1;});
+
+  // ── Get pending items from previous months ────────────────────
+  var prevPending=[];
+  var allPrevRecons=(DB.bankRecons||[]).filter(function(r){
+    return r.accCode===accCode&&r.closed&&r.month<month;
+  }).sort(function(a,b){return b.month>a.month?1:-1;});
+
+  if(allPrevRecons.length){
+    // Get uncleared items from last closed recon
+    var lastR=allPrevRecons[0];
+    (lastR.pendingItems||[]).forEach(function(item){
+      prevPending.push(item);
+    });
+  }
+
+  // ── Get saved recon state for this month ─────────────────────
+  var savedRecon=(DB.bankRecons||[]).find(function(r){
+    return r.accCode===accCode&&r.month===month&&!r.closed;
+  });
+  var clearedIds=savedRecon?(savedRecon.clearedIds||[]):[];
+  var manualItems=savedRecon?(savedRecon.manualItems||[]):[];
+  if(bankBal===0&&savedRecon) bankBal=savedRecon.bankBal||0;
+
+  // Apply saved cleared state
+  txns.forEach(function(t){t.cleared=clearedIds.indexOf(t.entryId+t.date)>-1;});
+  prevPending.forEach(function(t){t.cleared=clearedIds.indexOf('PREV_'+t.entryId+t.date)>-1;});
+
+  // ── Render ────────────────────────────────────────────────────
+  var pg=document.getElementById('pg-more');
+  if(!pg) return;
+
+  var h='<div style="padding:14px 14px 80px;">';
+  // Header
+  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">';
+  h+='<button onclick="sub(\'banks\')" style="background:var(--g1);border:none;border-radius:8px;padding:7px 12px;cursor:pointer;font-family:Cairo,sans-serif;font-size:13px;">‹ رجوع</button>';
+  h+='<div><div style="font-weight:800;font-size:15px;color:var(--nd);">🔄 تسوية — '+acc.n+'</div>';
+  h+='<div style="font-size:11px;color:var(--g4);">'+month+'</div></div></div>';
+
+  // Bank balance input
+  h+='<div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid #e5e7eb;">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<div class="fg" style="margin-bottom:0;"><label style="font-size:11px;">رصيد كشف حساب البنك</label>';
+  h+='<input type="number" id="recon-bank-bal" value="'+bankBal+'" step="0.01" onchange="updateReconCalc()" style="font-weight:700;font-size:15px;direction:ltr;text-align:left;"></div>';
+  h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
+  h+='<div style="font-size:10px;color:var(--g4);">الرصيد الدفتري (أول الشهر)</div>';
+  h+='<div style="font-weight:800;font-size:14px;color:var(--nd);">'+fmt(openBal)+'</div></div>';
+  h+='</div></div>';
+
+  // ── Previous pending items ─────────────────────────────────────
+  if(prevPending.length){
+    h+='<div class="sd" style="margin-bottom:8px;">⏳ مبالغ معلقة من شهور سابقة ('+prevPending.length+')</div>';
+    h+='<div style="background:white;border-radius:12px;overflow:hidden;margin-bottom:12px;border:1px solid #fde68a;">';
+    h+='<table style="width:100%;font-size:11px;border-collapse:collapse;">';
+    h+='<thead><tr style="background:#92400e;color:white;">';
+    h+='<th style="padding:7px;width:32px;"></th>';
+    h+='<th style="text-align:right;padding:7px;">التاريخ</th>';
+    h+='<th style="text-align:right;">رقم القيد</th>';
+    h+='<th style="text-align:right;">البيان</th>';
+    h+='<th style="text-align:left;">مدين</th>';
+    h+='<th style="text-align:left;">دائن</th>';
+    h+='</tr></thead><tbody>';
+    prevPending.forEach(function(t){
+      var cid='PREV_'+t.entryId+t.date;
+      var checked=clearedIds.indexOf(cid)>-1;
+      h+='<tr style="border-bottom:1px solid #fef3c7;background:'+(checked?'#f0fdf4':'white')+'" id="row-'+cid+'">';
+      h+='<td style="padding:6px;text-align:center;"><input type="checkbox" data-cid="'+cid+'" '+(checked?'checked':'')+' onchange="toggleCleared(this)" style="width:16px;height:16px;cursor:pointer;"></td>';
+      h+='<td style="padding:6px;">'+t.date+'</td>';
+      h+='<td style="color:var(--sk);font-weight:700;" data-eid="'+t.entryId+'" onclick="viewE(this.dataset.eid)">'+t.entryId+'</td>';
+      h+='<td style="color:#475569;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+t.desc+'</td>';
+      h+='<td style="text-align:left;font-weight:700;color:#059669;">'+(t.dr>0?fmt(t.dr):'—')+'</td>';
+      h+='<td style="text-align:left;font-weight:700;color:#dc2626;">'+(t.cr>0?fmt(t.cr):'—')+'</td>';
+      h+='</tr>';
+    });
+    h+='</tbody></table></div>';
+  }
+
+  // ── This month's transactions ─────────────────────────────────
+  h+='<div class="sd" style="margin-bottom:8px;">📋 حركات الشهر — '+month+' ('+txns.length+' حركة)</div>';
+  h+='<div style="background:white;border-radius:12px;overflow:hidden;margin-bottom:12px;border:1px solid #e5e7eb;">';
+  if(!txns.length){
+    h+='<div style="padding:20px;text-align:center;color:var(--g4);">لا توجد حركات هذا الشهر</div>';
+  } else {
+    h+='<table style="width:100%;font-size:11px;border-collapse:collapse;">';
+    h+='<thead><tr style="background:var(--nd);color:white;">';
+    h+='<th style="padding:7px;width:32px;"><input type="checkbox" id="chk-all" onchange="toggleAllCleared(this)" style="width:16px;height:16px;cursor:pointer;"></th>';
+    h+='<th style="text-align:right;padding:7px;">التاريخ</th>';
+    h+='<th style="text-align:right;">رقم القيد</th>';
+    h+='<th style="text-align:right;">البيان</th>';
+    h+='<th style="text-align:left;">مدين</th>';
+    h+='<th style="text-align:left;">دائن</th>';
+    h+='</tr></thead><tbody id="recon-txns">';
+    txns.forEach(function(t){
+      var cid=t.entryId+t.date;
+      h+='<tr style="border-bottom:1px solid #f1f5f9;background:'+(t.cleared?'#f0fdf4':'white')+'" id="row-'+cid+'">';
+      h+='<td style="padding:6px;text-align:center;"><input type="checkbox" data-cid="'+cid+'" '+(t.cleared?'checked':'')+' onchange="toggleCleared(this)" style="width:16px;height:16px;cursor:pointer;"></td>';
+      h+='<td style="padding:6px;">'+t.date+'</td>';
+      h+='<td style="color:var(--sk);font-weight:700;cursor:pointer;" data-eid="'+t.entryId+'" onclick="viewE(this.dataset.eid)">'+t.entryId+'</td>';
+      h+='<td style="color:#475569;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+t.desc+'</td>';
+      h+='<td style="text-align:left;font-weight:700;color:#059669;">'+(t.dr>0?fmt(t.dr):'—')+'</td>';
+      h+='<td style="text-align:left;font-weight:700;color:#dc2626;">'+(t.cr>0?fmt(t.cr):'—')+'</td>';
+      h+='</tr>';
+    });
+    h+='</tbody></table>';
+  }
+  h+='</div>';
+
+  // ── Manual Adjustments ─────────────────────────────────────────
+  h+='<div class="sd" style="margin-bottom:8px;">✏️ تسويات يدوية (م. بنكية / حركات خاطئة)</div>';
+  h+='<div style="background:white;border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid #e5e7eb;">';
+  h+='<div id="manual-items">';
+  if(manualItems.length){
+    manualItems.forEach(function(mi,i){
+      h+=buildManualItemRow(mi,i);
+    });
+  }
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:8px;">';
+  h+='<input id="mi-desc" placeholder="البيان (م. بنكية، فائدة...)" style="padding:8px;border-radius:7px;border:1px solid #e5e7eb;font-family:Cairo,sans-serif;">';
+  h+='<input id="mi-amt" type="number" placeholder="0.00" step="0.01" style="padding:8px;border-radius:7px;border:1px solid #e5e7eb;direction:ltr;">';
+  h+='<div style="display:flex;gap:4px;">';
+  h+='<button onclick="addManualItem(1)" style="background:#059669;border:none;color:white;border-radius:7px;padding:8px 10px;cursor:pointer;font-size:12px;">+ إضافة</button>';
+  h+='<button onclick="addManualItem(-1)" style="background:#dc2626;border:none;color:white;border-radius:7px;padding:8px 10px;cursor:pointer;font-size:12px;">− خصم</button>';
+  h+='</div></div></div>';
+
+  // ── Summary & Balance ─────────────────────────────────────────
+  h+='<div id="recon-summary" style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid #e5e7eb;">';
+  h+=buildReconSummary(openBal,txns,prevPending,manualItems,bankBal);
+  h+='</div>';
+
+  // Save buttons
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  h+='<button onclick="saveReconDraft(\''+accCode+'\',\''+month+'\')" class="btn btn-gy" style="font-size:12px;">💾 حفظ مسودة</button>';
+  h+='<button onclick="closeRecon(\''+accCode+'\',\''+month+'\')" class="btn btn-gr" style="font-size:12px;">✅ إقفال التسوية</button>';
+  h+='</div>';
+  h+='</div>';
+
+  // Store state in window
+  window._recon={accCode:accCode,month:month,openBal:openBal,txns:txns,prevPending:prevPending,manualItems:manualItems,bankBal:bankBal};
+  pg.innerHTML=h;
+}
+
+function buildManualItemRow(mi,idx){
+  return '<div style="display:flex;justify-content:space-between;align-items:center;'
+    +'background:'+(mi.type>0?'#f0fdf4':'#fff5f5')+';border-radius:7px;padding:7px 10px;margin-bottom:5px;">'
+    +'<span style="font-size:12px;">'+mi.desc+'</span>'
+    +'<div style="display:flex;align-items:center;gap:8px;">'
+    +'<span style="font-weight:700;color:'+(mi.type>0?'#059669':'#dc2626')+';">'
+    +(mi.type>0?'+':'-')+fmt(Math.abs(mi.amt))+'</span>'
+    +'<button data-idx="'+idx+'" onclick="removeManualItem(this.dataset.idx)" '
+    +'style="background:#fee2e2;border:none;border-radius:5px;padding:3px 7px;cursor:pointer;color:#dc2626;font-size:11px;">✕</button>'
+    +'</div></div>';
+}
+
+function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
+  var r=window._recon||{};
+  // Recalculate from checkboxes
+  var clearedDr=0,clearedCr=0,unclearedDr=0,unclearedCr=0;
+  var allTxns=txns.concat(prevPending);
+  allTxns.forEach(function(t){
+    var cid=(t.entryId+t.date);
+    var chk=document.getElementById?document.getElementById('row-'+cid):null;
+    var isCleared=chk&&chk.style&&chk.style.background==='rgb(240, 253, 244)';
+    // Check actual checkbox
+    var cbEl=document.querySelector?document.querySelector('[data-cid="'+cid+'"]'):null;
+    if(cbEl&&cbEl.checked){clearedDr+=t.dr;clearedCr+=t.cr;}
+    else{unclearedDr+=t.dr;unclearedCr+=t.cr;}
+  });
+
+  // Book balance = opening + all month transactions
+  var monthDr=txns.reduce(function(s,t){return s+t.dr;},0);
+  var monthCr=txns.reduce(function(s,t){return s+t.cr;},0);
+  var bookBal=openBal+monthDr-monthCr;
+
+  // Manual adjustments
+  var manualAdj=manualItems.reduce(function(s,mi){return s+mi.type*mi.amt;},0);
+
+  // Pending deposits (uncleared debits = deposits not yet on bank statement)
+  var pendingDeposits=unclearedDr;
+  // Outstanding checks (uncleared credits = checks not yet cleared)
+  var outstandingChecks=unclearedCr;
+
+  // Reconciled balance = bank bal + pending deposits - outstanding checks + manual
+  var reconBal=(bankBal||0)+pendingDeposits-outstandingChecks+manualAdj;
+  var diff=bookBal-reconBal;
+
+  var h='<div style="font-weight:800;color:var(--nd);margin-bottom:10px;font-size:13px;">📊 ملخص التسوية</div>';
+  h+='<div style="display:flex;flex-direction:column;gap:6px;">';
+
+  // Book side
+  h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
+  h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">الرصيد الدفتري</div>';
+  var rows=[
+    {lbl:'رصيد أول الشهر',val:openBal,style:''},
+    {lbl:'+ حركات الشهر (مدين)',val:monthDr,style:'color:#059669'},
+    {lbl:'− حركات الشهر (دائن)',val:monthCr,style:'color:#dc2626'},
+    {lbl:'الرصيد الدفتري',val:bookBal,style:'font-weight:900;border-top:1px solid #e5e7eb;padding-top:6px;'},
+  ];
+  rows.forEach(function(row){
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;'+row.style+'">';
+    h+='<span>'+row.lbl+'</span><span>'+fmt(row.val)+'</span></div>';
+  });
+  h+='</div>';
+
+  // Bank side
+  h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
+  h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">رصيد كشف الحساب المعدّل</div>';
+  var bankBal2=parseFloat((document.getElementById?document.getElementById('recon-bank-bal'):{}||{}).value)||bankBal;
+  var bankRows=[
+    {lbl:'رصيد كشف الحساب',val:bankBal2,style:''},
+    {lbl:'+ إيداعات معلقة',val:pendingDeposits,style:'color:#059669'},
+    {lbl:'− شيكات معلقة',val:outstandingChecks,style:'color:#dc2626'},
+  ];
+  if(manualAdj!==0) bankRows.push({lbl:'± تسويات يدوية',val:manualAdj,style:'color:#d97706'});
+  bankRows.push({lbl:'الرصيد المعدّل',val:reconBal,style:'font-weight:900;border-top:1px solid #e5e7eb;padding-top:6px;'});
+  bankRows.forEach(function(row){
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;'+row.style+'">';
+    h+='<span>'+row.lbl+'</span><span>'+fmt(row.val)+'</span></div>';
+  });
+  h+='</div>';
+
+  // Difference
+  var balanced=Math.abs(diff)<0.01;
+  h+='<div style="background:'+(balanced?'#059669':'#dc2626')+';border-radius:10px;padding:12px;color:white;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div style="font-weight:800;font-size:14px;">'+(balanced?'✅ التسوية متطابقة':'⚠️ فرق')+'</div>';
+  h+='<div style="font-size:'+(balanced?'18':'20')+'px;font-weight:900;">';
+  h+=(balanced?'مطابق ✅':fmt(Math.abs(diff))+' ج.م')+'</div></div>';
+  h+='</div>';
+  return h;
+}
+
+function toggleCleared(cb){
+  var cid=cb.dataset.cid;
+  var row=document.getElementById('row-'+cid);
+  if(row) row.style.background=cb.checked?'#f0fdf4':'white';
+  updateReconCalc();
+}
+
+function toggleAllCleared(masterCb){
+  document.querySelectorAll('#recon-txns input[type="checkbox"]').forEach(function(cb){
+    cb.checked=masterCb.checked;
+    var row=document.getElementById('row-'+cb.dataset.cid);
+    if(row) row.style.background=masterCb.checked?'#f0fdf4':'white';
+  });
+  updateReconCalc();
+}
+
+function updateReconCalc(){
+  if(!window._recon) return;
+  var r=window._recon;
+  var summary=document.getElementById('recon-summary');
+  if(summary) summary.innerHTML=buildReconSummary(r.openBal,r.txns,r.prevPending,r.manualItems,r.bankBal);
+}
+
+function addManualItem(type){
+  var desc=(document.getElementById('mi-desc')||{}).value||'';
+  var amt=parseFloat((document.getElementById('mi-amt')||{}).value)||0;
+  if(!desc||!amt){toast('⚠️ أدخل البيان والمبلغ');return;}
+  if(!window._recon) return;
+  window._recon.manualItems.push({desc:desc,amt:Math.abs(amt),type:type});
+  var container=document.getElementById('manual-items');
+  if(container) container.innerHTML=window._recon.manualItems.map(buildManualItemRow).join('');
+  if(document.getElementById('mi-desc')) document.getElementById('mi-desc').value='';
+  if(document.getElementById('mi-amt')) document.getElementById('mi-amt').value='';
+  updateReconCalc();
+}
+
+function removeManualItem(idx){
+  if(!window._recon) return;
+  window._recon.manualItems.splice(parseInt(idx),1);
+  var container=document.getElementById('manual-items');
+  if(container) container.innerHTML=window._recon.manualItems.map(buildManualItemRow).join('');
+  updateReconCalc();
+}
+
+function getReconState(){
+  if(!window._recon) return null;
+  var r=window._recon;
+  var clearedIds=[];
+  document.querySelectorAll('[data-cid]').forEach(function(cb){
+    if(cb.checked) clearedIds.push(cb.dataset.cid);
+  });
+  var bankBal=parseFloat((document.getElementById('recon-bank-bal')||{}).value)||r.bankBal;
+  // Pending items = unchecked items from this month + prev pending
+  var allTxns=r.txns.concat(r.prevPending);
+  var pendingItems=allTxns.filter(function(t){
+    var cid=t.entryId+t.date;
+    return clearedIds.indexOf(cid)<0&&clearedIds.indexOf('PREV_'+cid)<0;
+  });
+  return {
+    accCode:r.accCode,month:r.month,bankBal:bankBal,
+    clearedIds:clearedIds,manualItems:r.manualItems,
+    pendingItems:pendingItems,
+  };
+}
+
+function saveReconDraft(accCode,month){
+  var state=getReconState();
+  if(!state){toast('⚠️ لا توجد بيانات');return;}
+  initRecon();
+  // Remove existing draft for this month
+  DB.bankRecons=DB.bankRecons.filter(function(r){
+    return !(r.accCode===accCode&&r.month===month&&!r.closed);
+  });
+  DB.bankRecons.push({
+    id:'RC'+Date.now(),accCode:accCode,month:month,
+    bankBal:state.bankBal,clearedIds:state.clearedIds,
+    manualItems:state.manualItems,pendingItems:state.pendingItems,
+    closed:false,createdAt:new Date().toISOString(),
+  });
+  save();
+  toast('✅ تم حفظ المسودة');
+}
+
+function closeRecon(accCode,month){
+  var state=getReconState();
+  if(!state){toast('⚠️ لا توجد بيانات');return;}
+  var r=window._recon;
+  var bankBal=parseFloat((document.getElementById('recon-bank-bal')||{}).value)||0;
+  var monthDr=r.txns.reduce(function(s,t){return s+t.dr;},0);
+  var monthCr=r.txns.reduce(function(s,t){return s+t.cr;},0);
+  var bookBal=r.openBal+monthDr-monthCr;
+  // Quick balance check
+  var pendingDr=r.txns.concat(r.prevPending).filter(function(t){
+    return state.clearedIds.indexOf(t.entryId+t.date)<0&&
+           state.clearedIds.indexOf('PREV_'+t.entryId+t.date)<0;
+  }).reduce(function(s,t){return s+t.dr-t.cr;},0);
+  var manAdj=state.manualItems.reduce(function(s,mi){return s+mi.type*mi.amt;},0);
+  var reconBal=bankBal+pendingDr+manAdj;
+  var diff=Math.abs(bookBal-reconBal);
+
+  if(diff>0.01){
+    if(!confirm('التسوية غير متطابقة — الفرق '+fmt(diff)+' ج.م\nهل تريد الإقفال على أي حال؟')) return;
+  }
+  initRecon();
+  DB.bankRecons=DB.bankRecons.filter(function(r){
+    return !(r.accCode===accCode&&r.month===month);
+  });
+  DB.bankRecons.push({
+    id:'RC'+Date.now(),accCode:accCode,month:month,
+    bankBal:bankBal,bookBal:bookBal,diff:bookBal-reconBal,
+    clearedIds:state.clearedIds,manualItems:state.manualItems,
+    pendingItems:state.pendingItems,
+    closed:true,closedAt:new Date().toISOString(),
+    closedBy:(getCurrentUser()||{}).name||'النظام',
+  });
+  save();
+  toast('✅ تم إقفال تسوية '+month+(diff<0.01?' — متطابقة ✅':' — فرق '+fmt(diff)));
+  sub('banks');
+}
+
 function rBankPage(){
   var banks=getBankAccounts();
   var B=bals();
@@ -4243,59 +4670,7 @@ function exportAccLedgerCSV(accCode){
 }
 
 // ---- BANK RECONCILIATION MODAL ----
-function openRecon(accCode){
-  initRecon();
-  var acc=DB.accounts.find(function(a){return a.c===accCode;})||{n:accCode,c:accCode};
-  var today=new Date().toISOString().split('T')[0];
-  // Suggest last day of previous month
-  var d=new Date();d.setDate(0); // last day of prev month
-  var suggestDate=d.toISOString().split('T')[0];
 
-  // Previous recons
-  var prevRecons=(DB.bankRecons||[]).filter(function(r){return r.accCode===accCode;})
-    .sort(function(a,b){return b.date>a.date?1:-1;}).slice(0,3);
-
-  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:10px;padding:12px;margin-bottom:12px;color:white;">';
-  h+='<code style="font-size:10px;opacity:.7;">'+accCode+'</code>';
-  h+='<div style="font-weight:900;font-size:16px;">'+acc.n+'</div></div>';
-
-  h+='<div class="sd">بيانات التسوية</div>';
-  h+='<div class="fr"><div class="fg"><label>تاريخ التسوية (نهاية الفترة) *</label>';
-  h+='<input type="date" id="rc-date" value="'+suggestDate+'" onchange="calcRecon(\''+accCode+'\')"></div>';
-  h+='<div class="fg"><label>رصيد كشف حساب البنك (ج.م) *</label>';
-  h+='<input type="number" id="rc-bank" placeholder="0.00" step="0.01" oninput="calcRecon(\''+accCode+'\')"></div></div>';
-  h+='<div class="fg"><label>ملاحظات</label><input id="rc-notes" placeholder="رقم كشف الحساب / الفترة ..."></div>';
-
-  h+='<div class="sd">نتيجة التسوية</div>';
-  h+='<div id="rc-result" style="background:var(--g1);border-radius:10px;padding:12px;margin-bottom:12px;">';
-  h+='<div style="color:var(--g4);font-size:12px;">أدخل تاريخ التسوية ورصيد البنك لحساب الفروق</div>';
-  h+='</div>';
-
-  h+='<div style="display:flex;gap:8px;margin-bottom:14px;">';
-  h+='<button class="btn btn-gr" onclick="saveRecon(\''+accCode+'\')" style="flex:1;">✅ حفظ التسوية</button>';
-  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
-
-  if(prevRecons.length){
-    h+='<div class="sd">التسويات السابقة</div>';
-    prevRecons.forEach(function(r){
-      var diff=r.bookBal-r.bankBal;
-      var ok=Math.abs(diff)<0.01;
-      h+='<div style="background:white;border:1px solid var(--g2);border-radius:9px;padding:10px;margin-bottom:7px;">';
-      h+='<div style="display:flex;justify-content:space-between;align-items:center;">';
-      h+='<div><div style="font-weight:700;font-size:12px;">'+r.date+'</div>';
-      h+='<div style="font-size:10.5px;color:var(--g4);">'+(r.notes||'بدون ملاحظات')+'</div></div>';
-      h+='<span class="badge '+(ok?'bg':'br')+'" style="font-size:9.5px;">'+(ok?'✅ متطابق':'⚠️ فرق '+fmt(Math.abs(diff)))+'</span>';
-      h+='</div>';
-      h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:8px;font-size:11px;text-align:center;">';
-      h+='<div style="background:var(--g1);border-radius:6px;padding:6px;"><div style="color:var(--g4);font-size:9.5px;">رصيد الدفاتر</div><div style="font-weight:700;">'+fmt(r.bookBal)+'</div></div>';
-      h+='<div style="background:var(--g1);border-radius:6px;padding:6px;"><div style="color:var(--g4);font-size:9.5px;">رصيد البنك</div><div style="font-weight:700;">'+fmt(r.bankBal)+'</div></div>';
-      h+='<div style="background:'+(ok?'var(--gbg)':'var(--rbg)')+';border-radius:6px;padding:6px;"><div style="color:var(--g4);font-size:9.5px;">الفرق</div><div style="font-weight:800;color:'+(ok?'var(--gr)':'var(--rd)')+';">'+fmt(Math.abs(diff))+'</div></div>';
-      h+='</div></div>';
-    });
-  }
-
-  om('🔄 تسوية بنكية — '+acc.n, h);
-}
 
 function calcRecon(accCode){
   var dateVal=sv('rc-date');
@@ -4366,57 +4741,10 @@ function calcRecon(accCode){
   el2.innerHTML=h;
 }
 
-function saveRecon(accCode){
-  var dateVal=sv('rc-date');
-  var bankBal=parseFloat((document.getElementById('rc-bank')||{}).value);
-  if(!dateVal||isNaN(bankBal)){toast('⚠️ أدخل التاريخ ورصيد البنك');return;}
-  var bookBal=getAccBalAtDate(accCode,dateVal).net;
-  var acc=DB.accounts.find(function(a){return a.c===accCode;})||{n:accCode};
-  initRecon();
-  var recon={
-    id:'RC'+Date.now(),
-    accCode:accCode,accName:acc.n,
-    date:dateVal,
-    bookBal:bookBal,bankBal:bankBal,
-    diff:bookBal-bankBal,
-    notes:sv('rc-notes'),
-    createdAt:new Date().toISOString(),
-    createdBy:(getCurrentUser()||{}).name||'النظام'
-  };
-  DB.bankRecons.push(recon);
-  save();
-  toast('✅ تم حفظ التسوية — '+(Math.abs(recon.diff)<0.01?'متطابق ✅':'فرق '+fmt(Math.abs(recon.diff))+' ج.م'));
-  // Refresh page
-  cm();
-  sub('banks');
-}
+
 
 // ---- RECON HISTORY PAGE ----
-function rReconHistory(accCode){
-  initRecon();
-  var recons=(DB.bankRecons||[]).filter(function(r){return !accCode||r.accCode===accCode;})
-    .sort(function(a,b){return b.date>a.date?1:-1;});
-  var acc=accCode?DB.accounts.find(function(a){return a.c===accCode;}):null;
-  var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px;">📊 سجل التسويات البنكية'+(acc?' — '+acc.n:'')+'</div>';
-  if(!recons.length){om('📊 سجل التسويات','<div style="text-align:center;color:var(--g4);padding:30px;">لا توجد تسويات محفوظة</div>');return;}
-  h+='<div style="overflow-x:auto;"><table><thead><tr>';
-  h+='<th>التاريخ</th><th>الحساب</th><th>رصيد الدفاتر</th><th>رصيد البنك</th><th>الفرق</th><th>الحالة</th><th>المُعد</th>';
-  h+='</tr></thead><tbody>';
-  recons.forEach(function(r){
-    var ok=Math.abs(r.diff)<0.01;
-    h+='<tr>';
-    h+='<td style="font-size:11px;white-space:nowrap;">'+r.date+'</td>';
-    h+='<td style="font-size:11px;"><code style="font-size:10px;background:var(--g1);padding:1px 5px;border-radius:3px;">'+r.accCode+'</code><div style="font-size:10px;color:var(--g4);">'+r.accName+'</div></td>';
-    h+='<td class="tn" style="font-weight:700;">'+fmt(r.bookBal)+'</td>';
-    h+='<td class="tn" style="color:var(--sk);font-weight:700;">'+fmt(r.bankBal)+'</td>';
-    h+='<td class="tn" style="font-weight:800;color:'+(ok?'var(--gr)':'var(--rd)')+';">'+(ok?'0':fmt(Math.abs(r.diff)))+'</td>';
-    h+='<td><span class="badge '+(ok?'bg':'br')+'" style="font-size:9.5px;">'+(ok?'✅ متطابق':'⚠️ فرق')+'</span></td>';
-    h+='<td style="font-size:10.5px;color:var(--g4);">'+(r.createdBy||'—')+'</td>';
-    h+='</tr>';
-  });
-  h+='</tbody></table></div>';
-  return h;
-}
+
 
 
 
@@ -9169,6 +9497,54 @@ function rCashForecastPage(){
 // ================================================================
 
 // ── Contracts Register ────────────────────────────────────────────
+
+function viewContractEntries(idx){
+  var ct=(DB.contracts||[])[parseInt(idx)];
+  if(!ct) return;
+  var entries=(DB.entries||[]).filter(function(e){
+    return e.status==='posted' && e.contractId===ct.name;
+  }).sort(function(a,b){return a.date>b.date?1:-1;});
+
+  var total=0;
+  var h='<div style="font-weight:700;color:var(--nd);margin-bottom:10px;">'+ct.name+'</div>';
+  if(!entries.length){
+    h+='<div style="color:var(--g4);text-align:center;padding:20px;">';
+    h+='لا توجد قيود مرتبطة بهذا العقد<br>';
+    h+='<small>عند إنشاء القيود اختر العقد من حقل "العقد" في نموذج القيد</small></div>';
+  } else {
+    h+='<div style="overflow-x:auto;"><table style="width:100%;font-size:11.5px;border-collapse:collapse;">';
+    h+='<thead><tr style="background:var(--nd);color:white;">'
+      +'<th style="padding:7px;">التاريخ</th>'
+      +'<th>رقم القيد</th><th>البيان</th>'
+      +'<th style="text-align:left;">المبلغ</th></tr></thead><tbody>';
+    entries.forEach(function(e){
+      var amt=e.lines.reduce(function(s,l){return s+(l.dr&&l.acc&&l.acc[0]==='5'?l.dr:0);},0);
+      total+=amt;
+      h+='<tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;" '
+        +'data-eid="'+e.id+'" onclick="viewE(this.dataset.eid)">'
+        +'<td style="padding:6px;">'+e.date+'</td>'
+        +'<td style="color:var(--sk);font-weight:700;">'+e.id+'</td>'
+        +'<td>'+e.desc+'</td>'
+        +'<td style="text-align:left;font-weight:700;">'+fmt(amt)+'</td></tr>';
+    });
+    h+='<tr style="background:var(--nd);color:white;font-weight:900;">'
+      +'<td colspan="3" style="padding:7px;">الإجمالي المنصرف</td>'
+      +'<td style="padding:7px;text-align:left;">'+fmt(total)+'</td></tr>';
+    h+='</tbody></table></div>';
+    var pct=ct.value>0?Math.round(total/ct.value*100):0;
+    var rem=(ct.value||0)-total;
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">';
+    h+='<div style="background:#f0fdf4;border-radius:8px;padding:10px;text-align:center;">';
+    h+='<div style="font-size:10px;color:var(--g4);">المنصرف</div>';
+    h+='<div style="font-weight:900;color:#059669;">'+fmt(total)+' ج.م ('+pct+'%)</div></div>';
+    h+='<div style="background:#fff5f5;border-radius:8px;padding:10px;text-align:center;">';
+    h+='<div style="font-size:10px;color:var(--g4);">المتبقي</div>';
+    h+='<div style="font-weight:900;color:#dc2626;">'+fmt(rem)+' ج.م</div></div>';
+    h+='</div>';
+  }
+  om('📋 قيود العقد — '+ct.name, h);
+}
+
 function rContractsPage(){
   if(!DB.contracts) DB.contracts=[];
   var h='';
@@ -9199,16 +9575,30 @@ function rContractsPage(){
   DB.contracts.forEach(function(ct,i){
     // Calculate actual spending from entries linked to this contract
     var spent=0;
-    var tpId=ct.party||'';
+    // Method 1: entries with contractId matching this contract name
     (DB.entries||[]).filter(function(e){
-      return e.status==='posted' && (e.proj===ct.project||!ct.project);
+      return e.status==='posted' && e.contractId===ct.name;
     }).forEach(function(e){
       (e.lines||[]).forEach(function(l){
-        if(l.dr>0 && l.acc && l.acc[0]==='5' &&
-           (tpId?l.tpId===tpId:true)) spent+=l.dr;
+        if(l.dr>0 && l.acc && l.acc[0]==='5') spent+=l.dr;
       });
     });
-    spent=Math.min(spent,ct.value||0); // cap at contract value
+    // Method 2: if no contractId entries, fall back to tp+project+date range
+    if(spent===0){
+      var tpId=ct.party||'';
+      (DB.entries||[]).filter(function(e){
+        if(e.status!=='posted') return false;
+        if(ct.startDate && e.date < ct.startDate) return false;
+        if(ct.endDate && e.date > ct.endDate) return false;
+        if(ct.project && e.proj!==ct.project && !e.lines.some(function(l){return l.proj===ct.project;})) return false;
+        return true;
+      }).forEach(function(e){
+        (e.lines||[]).forEach(function(l){
+          if(l.dr>0 && l.acc && l.acc[0]==='5' && (tpId?l.tpId===tpId:false)) spent+=l.dr;
+        });
+      });
+    }
+    spent=Math.min(spent,ct.value||0);
     var remaining=(ct.value||0)-spent;
     var daysLeft=ct.endDate?Math.ceil((new Date(ct.endDate)-new Date())/(1000*60*60*24)):null;
     var pct=ct.value>0?Math.round(spent/(ct.value||1)*100):0;
@@ -9235,6 +9625,7 @@ function rContractsPage(){
     h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--g4);margin-bottom:6px;">';
     h+='<span>متبقي: '+fmt(remaining)+' ج.م</span><span>'+fmt(ct.value)+' ج.م</span></div>';
     h+='<div style="display:flex;gap:6px;">';
+    h+='<button data-idx="'+i+'" onclick="viewContractEntries(this.dataset.idx)" style="flex:1;background:#1d4ed8;border:none;color:white;border-radius:7px;padding:6px;font-size:10.5px;cursor:pointer;font-family:Cairo,sans-serif;">📝 قيوده</button>';
     h+='<button data-idx="'+i+'" onclick="editContract(this.dataset.idx)" style="flex:1;background:var(--sk);border:none;color:white;border-radius:7px;padding:5px;font-size:10px;cursor:pointer;font-family:Cairo,sans-serif;">✏️ تعديل</button>';
     h+='<button data-idx="'+i+'" onclick="deleteContract(this.dataset.idx)" style="background:#fee2e2;border:none;color:#dc2626;border-radius:7px;padding:5px 8px;font-size:10px;cursor:pointer;">🗑️</button>';
     h+='</div></div>';
