@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>أثر | للحلول المالية</title>
+<title>أثر v3.1 | للحلول المالية</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&family=Tajawal:wght@700;900&display=swap" rel="stylesheet">
 <style>
@@ -262,8 +262,9 @@ tbody tr:hover td{background:var(--skp);}
   return ob;
 }
 function rFinancePage(){
+  console.log('[أثر] rFinancePage called');
   var h='';
-  h+='<div style="padding:16px 0 8px;">';
+  h+='<div style="padding:14px 14px 80px;min-height:100vh;">';
   h+='<div class="ph-t" style="margin-bottom:4px;">💰 المالية</div>';
   h+='<div style="font-size:11px;color:var(--g4);margin-bottom:16px;">التقارير والبنوك والشيكات</div>';
   h+='</div>';
@@ -329,7 +330,7 @@ function rFinancePage(){
 
 function rOpsPage(){
   var h='';
-  h+='<div style="padding:16px 0 8px;">';
+  h+='<div style="padding:14px 14px 80px;min-height:100vh;">';
   h+='<div class="ph-t" style="margin-bottom:4px;">🎯 العمليات</div>';
   h+='<div style="font-size:11px;color:var(--g4);margin-bottom:16px;">المشروعات · HR · المشتريات · الامتثال</div>';
   h+='</div>';
@@ -971,6 +972,7 @@ function showPage(pg){
 }
 
 function nav(pg,btn){
+  console.log('[أثر] nav called:', pg);
   // update user badge in topbar
   var tbadge=document.getElementById("tb-user-badge");
   if(tbadge){var cu=getCurrentUser();if(cu){var icons={admin:"🔴",accounts_manager:"🟡",accountant:"🟢"};tbadge.textContent=(icons[cu.role]||"👤")+" "+cu.name;}}
@@ -988,6 +990,7 @@ function nav(pg,btn){
   else if(pg==="ops"){var _pgOps=document.getElementById("pg-ops");if(_pgOps)_pgOps.innerHTML=rOpsPage();}
   else if(pg==="more")rMore();
   window.scrollTo(0,0);
+  var ct=document.querySelector('.content');if(ct)ct.scrollTop=0;
 }
 
 function rMore(){
