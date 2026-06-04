@@ -4401,7 +4401,7 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   var outstandingChecks=unclearedCr;
 
   // Reconciled balance = bank bal + pending deposits - outstanding checks + manual
-  var reconBal=(bankBal||0)+pendingDeposits-outstandingChecks+manualAdj;
+  var reconBal=bankBal2+pendingDeposits-outstandingChecks+manualAdj;
   var diff=bookBal-reconBal;
 
   var h='<div style="font-weight:800;color:var(--nd);margin-bottom:10px;font-size:13px;">📊 ملخص التسوية</div>';
@@ -4425,7 +4425,9 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   // Bank side
   h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
   h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">رصيد كشف الحساب المعدّل</div>';
-  var bankBal2=parseFloat((document.getElementById?document.getElementById('recon-bank-bal'):{}||{}).value)||bankBal;
+  var bankInput=document.getElementById?document.getElementById('recon-bank-bal'):null;
+  var bankBal2=bankInput?parseFloat(bankInput.value):parseFloat(bankBal);
+  if(isNaN(bankBal2))bankBal2=bankBal||0;
   var bankRows=[
     {lbl:'رصيد كشف الحساب',val:bankBal2,style:''},
     {lbl:'+ إيداعات معلقة',val:pendingDeposits,style:'color:#059669'},
