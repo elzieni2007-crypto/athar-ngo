@@ -4344,6 +4344,7 @@ function renderReconPage(accCode,month,bankBal){
 
   // Store state in window
   window._recon={accCode:accCode,month:month,openBal:openBal,txns:txns,prevPending:prevPending,manualItems:manualItems,bankBal:bankBal};
+  try{sessionStorage.setItem('_reconState',JSON.stringify({accCode:accCode,month:month,bankBal:bankBal}));}catch(e){}
   // Show pg-recon — create it if missing, always show it independently
   var pgRecon=document.getElementById('pg-recon');
   if(!pgRecon){
@@ -4394,7 +4395,7 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
     if(!cleared){unclearedDr+=t.dr||0;unclearedCr+=t.cr||0;}
   });
 
-  // Book balance = opening + month movements
+  // Book balance
   var monthDr=(txns||[]).reduce(function(s,t){return s+(t.dr||0);},0);
   var monthCr=(txns||[]).reduce(function(s,t){return s+(t.cr||0);},0);
   var bookBal=(openBal||0)+monthDr-monthCr;
@@ -4402,12 +4403,14 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   // Manual adjustments
   var manualAdj=(manualItems||[]).reduce(function(s,mi){return s+mi.type*mi.amt;},0);
 
-  // Standard Egyptian bank recon format:
-  // Adjusted Bank = Bank Statement + Outstanding Checks - Deposits in Transit ± Manual
-  // Outstanding checks (uncleared CR) = add back (bank hasn't paid yet)
-  // Deposits in transit (uncleared DR) = subtract (we recorded, bank hasn't)
-  var outstandingChecks=unclearedCr;   // + to bank
-  var depositsInTransit=unclearedDr;   // - from bank
+  // Reconciliation:
+  // Start with bank statement balance
+  // + outstanding checks (uncleared CR = bank hasn't paid yet)
+  // − deposits in transit (uncleared DR = bank hasn't received yet)
+  // ± manual adjustments
+  // = Adjusted bank balance (should equal book balance)
+  var outstandingChecks=unclearedCr;
+  var depositsInTransit=unclearedDr;
   var reconBal=bankBal2+outstandingChecks-depositsInTransit+manualAdj;
   var diff=bookBal-reconBal;
   var balanced=Math.abs(diff)<0.01;
@@ -4415,7 +4418,7 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   var h='<div style="font-weight:800;color:var(--nd);margin-bottom:10px;font-size:13px;">📊 ملخص التسوية</div>';
   h+='<div style="display:flex;flex-direction:column;gap:6px;">';
 
-  // Book side
+  // ── الرصيد الدفتري ────────────────────────────────────────────
   h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
   h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">الرصيد الدفتري</div>';
   [{lbl:'رصيد أول الشهر',val:openBal||0,style:''},
@@ -4428,23 +4431,24 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   });
   h+='</div>';
 
-  // Bank side — bank statement adjusted to book
+  // ── رصيد كشف الحساب (المعدّل) ─────────────────────────────────
+  // Format: start with bank balance, add/subtract to reach adjusted balance
   h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
-  h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">كشف الحساب المعدّل</div>';
-  var rows=[
+  h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">رصيد كشف الحساب</div>';
+  var bankRows=[
     {lbl:'رصيد كشف الحساب',val:bankBal2,style:''},
-    {lbl:'+ شيكات معلقة (لم تُصرف)',val:outstandingChecks,style:'color:#059669'},
-    {lbl:'− إيداعات معلقة (لم تُضف)',val:depositsInTransit,style:'color:#dc2626'},
   ];
-  if(manualAdj!==0)rows.push({lbl:'± تسويات يدوية',val:manualAdj,style:'color:#d97706'});
-  rows.push({lbl:'الرصيد المعدّل',val:reconBal,style:'font-weight:900;border-top:1px solid #e5e7eb;padding-top:4px;margin-top:4px;'});
-  rows.forEach(function(row){
+  if(outstandingChecks>0)bankRows.push({lbl:'+ شيكات لم تُصرف بعد',val:outstandingChecks,style:'color:#059669'});
+  if(depositsInTransit>0)bankRows.push({lbl:'− إيداعات لم تظهر بعد',val:depositsInTransit,style:'color:#dc2626'});
+  if(manualAdj!==0)bankRows.push({lbl:'± تسويات يدوية',val:manualAdj,style:'color:#d97706'});
+  bankRows.push({lbl:'رصيد كشف الحساب المعدّل',val:reconBal,style:'font-weight:900;border-top:1px solid #e5e7eb;padding-top:4px;margin-top:4px;'});
+  bankRows.forEach(function(row){
     h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;'+row.style+';">';
     h+='<span>'+row.lbl+'</span><span>'+fmt(row.val)+'</span></div>';
   });
   h+='</div>';
 
-  // Result
+  // ── النتيجة ───────────────────────────────────────────────────
   h+='<div style="background:'+(balanced?'#059669':'#dc2626')+';border-radius:10px;padding:12px;color:white;display:flex;justify-content:space-between;align-items:center;">';
   h+='<div style="font-size:'+(balanced?'16':'20')+'px;font-weight:900;">'+(balanced?'مطابق ✅':fmt(Math.abs(diff))+' ج.م')+'</div>';
   h+='<div style="font-weight:800;font-size:14px;">'+(balanced?'✅ التسوية متطابقة':'⚠️ فرق')+'</div>';
@@ -4521,6 +4525,10 @@ function getReconState(){
 }
 
 function saveReconDraft(accCode,month){
+  // Ensure _recon is set (sometimes lost after page interaction)
+  if(!window._recon){
+    toast('⚠️ البيانات غير محملة — أعد تحميل شهر التسوية');return;
+  }
   var state=getReconState();
   if(!state){toast('⚠️ لا توجد بيانات');return;}
   initRecon();
@@ -4539,6 +4547,9 @@ function saveReconDraft(accCode,month){
 }
 
 function closeRecon(accCode,month){
+  if(!window._recon){
+    toast('⚠️ البيانات غير محملة — أعد تحميل شهر التسوية');return;
+  }
   var state=getReconState();
   if(!state){toast('⚠️ لا توجد بيانات');return;}
   var r=window._recon;
