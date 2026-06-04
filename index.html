@@ -4170,7 +4170,9 @@ function loadReconData(accCode){
   var bankBalInput=parseFloat((document.getElementById('rc-bank-bal')||{}).value)||0;
   if(!month){toast('⚠️ اختر الشهر أولاً');return;}
   cm();
-  renderReconPage(accCode,month,bankBalInput);
+  setTimeout(function(){
+    renderReconPage(accCode,month,bankBalInput);
+  },50);
 }
 
 function renderReconPage(accCode,month,bankBal){
@@ -4342,11 +4344,19 @@ function renderReconPage(accCode,month,bankBal){
 
   // Store state in window
   window._recon={accCode:accCode,month:month,openBal:openBal,txns:txns,prevPending:prevPending,manualItems:manualItems,bankBal:bankBal};
-  // Show pg-recon with recon content (dedicated page, avoids pg-more conflict)
+  // Show pg-recon — create it if missing, always show it independently
+  var pgRecon=document.getElementById('pg-recon');
+  if(!pgRecon){
+    pgRecon=document.createElement('div');
+    pgRecon.id='pg-recon';
+    pgRecon.className='pg';
+    var ct=document.querySelector('.content');
+    if(ct)ct.appendChild(pgRecon);
+  }
   document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
   document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
-  var pgRecon=document.getElementById('pg-recon');
-  if(pgRecon){pgRecon.classList.add('on');pgRecon.innerHTML=h;}
+  pgRecon.innerHTML=h;
+  pgRecon.classList.add('on');
   window.scrollTo(0,0);
 }
 
