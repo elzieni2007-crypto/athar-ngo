@@ -7308,6 +7308,41 @@ function globalSearch(query){
     }
   });
 
+
+  // 5. Navigation / Screens
+  var navItems=[
+    {q:['قيد','قيود','يومية','ترحيل'],label:'📝 القيود اليومية',action:{type:'nav',pg:'jour'}},
+    {q:['مرتب','مرتبات','رواتب','مسير'],label:'💳 مسير المرتبات',action:{type:'pg',pg:'pay'}},
+    {q:['مشروع','مشروعات','bva','موازنة'],label:'🎯 المشروعات',action:{type:'pg',pg:'proj'}},
+    {q:['موظف','موظفين','hr','بشرية'],label:'🏢 الموظفين',action:{type:'sub',pg:'employees'}},
+    {q:['مورد','موردين','مشتريات'],label:'🏭 الموردون',action:{type:'sub',pg:'suppliers'}},
+    {q:['عقد','عقود'],label:'📋 سجل العقود',action:{type:'sub',pg:'contracts'}},
+    {q:['بنك','بنوك','تسوية'],label:'🏦 البنوك والتسوية',action:{type:'sub',pg:'banks'}},
+    {q:['ميزان','مراجعة','trial'],label:'⚖️ ميزان المراجعة',action:{type:'sub',pg:'trial'}},
+    {q:['ميزانية','balance'],label:'📈 الميزانية العمومية',action:{type:'sub',pg:'balance'}},
+    {q:['دخل','income','إيراد','إيرادات'],label:'💰 قائمة الدخل',action:{type:'sub',pg:'income'}},
+    {q:['شيك','شيكات','طباعة شيك'],label:'🖊️ طباعة الشيكات',action:{type:'nav',pg:'checks'}},
+    {q:['أصول','أصل','ثابتة'],label:'🏢 الأصول الثابتة',action:{type:'sub',pg:'assets'}},
+    {q:['مخزن','مخازن','مخزون'],label:'📦 المخازن',action:{type:'sub',pg:'inventory'}},
+    {q:['إجازة','إجازات','أجازة'],label:'🌴 الإجازات',action:{type:'sub',pg:'myleaves'}},
+    {q:['timesheet','حضور','انصراف','ساعات'],label:'⏱️ Timesheet',action:{type:'sub',pg:'timesheet'}},
+    {q:['أرشيف','مستندات','archive'],label:'🗂️ الأرشيف الإلكتروني',action:{type:'sub',pg:'archive'}},
+    {q:['امتثال','compliance','مانحين'],label:'✅ الامتثال',action:{type:'sub',pg:'compliance'}},
+    {q:['نموذج 41','form41','خصم مصدر'],label:'📋 نموذج 41',action:{type:'sub',pg:'form41'}},
+    {q:['أستاذ','ledger','tpledger'],label:'📒 الأستاذ المساعد',action:{type:'sub',pg:'tpledger'}},
+    {q:['ذكاء','ai','مساعد'],label:'🤖 المساعد الذكي',action:{type:'sub',pg:'ai'}},
+    {q:['إعداد','إعدادات','settings'],label:'⚙️ الإعدادات',action:{type:'sub',pg:'settings'}},
+    {q:['تدفق نقدي','cashflow','forecast'],label:'💵 التدفق النقدي',action:{type:'sub',pg:'cashforecast'}},
+    {q:['مانح','مانحين','donorledger'],label:'🌍 دفتر المانحين',action:{type:'sub',pg:'donorledger'}},
+    {q:['حزمة','مراجعة','audit'],label:'📦 حزمة المراجعة',action:{type:'sub',pg:'audit'}},
+    {q:['بحث','search'],label:'🔍 البحث الشامل',action:{type:'sub',pg:'search'}},
+  ];
+  navItems.forEach(function(item){
+    var matched=item.q.some(function(kw){return kw.includes(q)||q.includes(kw);});
+    if(matched) results.unshift({type:'nav',score:15,matches:['شاشة: '+item.label],
+      id:'nav-'+item.label,label:item.label,action:item.action,desc:'انتقل إلى الشاشة'});
+  });
+
   // Sort by score
   results.sort(function(a,b){return b.score-a.score;});
   return results.slice(0,50);
@@ -7318,8 +7353,8 @@ function rSearchResults(query){
   var results=globalSearch(query);
   if(!results.length) return '<div style="text-align:center;padding:30px;color:var(--g4);">لا نتائج لـ "'+query+'"</div>';
 
-  var typeIcons={entry:'📝',contract:'📋',supplier:'🏭',project:'🎯'};
-  var typeNames={entry:'قيد محاسبي',contract:'عقد',supplier:'مورد/طرف ثالث',project:'مشروع'};
+  var typeIcons={entry:'📝',contract:'📋',supplier:'🏭',project:'🎯',nav:'🗺️'};
+  var typeNames={entry:'قيد محاسبي',contract:'عقد',supplier:'مورد/طرف ثالث',project:'مشروع',nav:'شاشة / قائمة'};
   var statusColors={'archived':'#059669','pending':'#d97706','missing':'#dc2626','approved':'#1d4ed8'};
   var statusLabels={'archived':'✅ مؤرشف','pending':'⏳ قيد','missing':'❌ ناقص','approved':'✔️ معتمد'};
 
@@ -7331,6 +7366,12 @@ function rSearchResults(query){
     else if(r.type==='contract') h+='onclick="sub(\'contracts\')"';
     else if(r.type==='supplier') h+='onclick="sub(\'suppliers\')"';
     else if(r.type==='project') h+='onclick="showPage(\'proj\')"';
+    else if(r.type==='nav'){
+      var a=r.action;
+      if(a.type==='nav') h+='onclick="nav(\''+a.pg+'\',null)"';
+      else if(a.type==='pg') h+='onclick="showPage(\''+a.pg+'\')"';
+      else h+='data-sub="'+a.pg+'"';
+    }
     h+='>';
     // Header row
     h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
@@ -7346,7 +7387,9 @@ function rSearchResults(query){
     h+='</div></div>';
     // Right side
     h+='<div style="text-align:left;">';
-    if(r.type==='entry'){
+    if(r.type==='nav'){
+      h+='<div style="font-size:20px;">›</div>';
+    } else if(r.type==='entry'){
       h+='<div style="font-weight:700;font-size:13px;">'+fmt(r.amount)+'</div>';
       h+='<div style="font-size:10px;background:'+(statusColors[r.status]||'#6b7280')+';color:white;border-radius:4px;padding:1px 6px;">'+
         (statusLabels[r.status]||r.status)+'</div>';
@@ -7432,8 +7475,8 @@ function generateAuditPackage(){
   var entries=(DB.entries||[]).filter(function(e){
     if(e.status!=='posted') return false;
     if(fromDate&&e.date<fromDate) return false;
-    if(e.date>toDate) return false;
-    if(proj&&e.proj!==proj) return false;
+    if(toDate&&e.date>toDate) return false;
+    if(proj&&proj!==''&&e.proj!==proj) return false;
     var st=(DB.archiveLog[e.id]||{}).status||'pending';
     if(type==='archived'&&st!=='archived') return false;
     if(type==='missing'&&st!=='missing') return false;
@@ -7486,7 +7529,10 @@ function generateAuditPackage(){
   h+='</tbody></table></div>';
 
   // Print button
-  h+='<button onclick="printAuditPackage()" class="btn btn-gr" style="width:100%;margin-bottom:8px;">🖨️ طباعة / PDF</button>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">';
+  h+='<button onclick="printAuditPackage()" class="btn btn-gr" style="font-size:11px;">🖨️ طباعة / PDF</button>';
+  h+='<button onclick="exportAuditHTML()" class="btn" style="font-size:11px;background:#1d4ed8;color:white;">💾 تحميل HTML</button>';
+  h+='</div>';
   if(missing>0){
     h+='<div style="background:#fff5f5;border-radius:8px;padding:10px;border:1px solid #fca5a5;">';
     h+='<div style="font-weight:700;color:#dc2626;font-size:12px;margin-bottom:6px;">⚠️ قيود بمستندات ناقصة ('+missing+')</div>';
@@ -7497,6 +7543,39 @@ function generateAuditPackage(){
   }
 
   preview.innerHTML=h;
+}
+
+
+function exportAuditHTML(){
+  var preview=document.getElementById('audit-preview');
+  if(!preview||!preview.innerHTML){toast('⚠️ أنشئ الحزمة أولاً');return;}
+  var fromDate=(document.getElementById('aud-from')||{}).value||'كل التواريخ';
+  var toDate=(document.getElementById('aud-to')||{}).value||'';
+  var proj=(document.getElementById('aud-proj')||{}).value||'كل المشروعات';
+  var title='حزمة المراجعة — '+proj+' — '+fromDate+(toDate?' إلى '+toDate:'');
+
+  var html='<!DOCTYPE html><html dir="rtl" lang="ar"><head>'
+    +'<meta charset="UTF-8"><title>'+title+'</title>'
+    +'<style>body{font-family:Cairo,sans-serif;font-size:12px;direction:rtl;padding:20px;}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:20px;}'
+    +'th{background:#0D3B6E;color:white;padding:8px;text-align:right;}'
+    +'td{padding:6px 8px;border-bottom:1px solid #e5e7eb;}'
+    +'tr:nth-child(even){background:#f9fafb;}'
+    +'.header{background:#0D3B6E;color:white;padding:16px;margin-bottom:20px;border-radius:8px;}'
+    +'h1{margin:0;font-size:18px;} .meta{font-size:11px;opacity:.8;margin-top:4px;}'
+    +'@media print{.no-print{display:none;}}</style></head><body>';
+  html+='<div class="header"><h1>📦 '+title+'</h1>';
+  html+='<div class="meta">تاريخ الإصدار: '+new Date().toLocaleDateString('ar-EG')+'</div></div>';
+  html+=preview.innerHTML;
+  html+='</body></html>';
+
+  var blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download='audit-package-'+fromDate+'.html';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast('✅ تم تحميل الحزمة');
 }
 
 function printAuditPackage(){
