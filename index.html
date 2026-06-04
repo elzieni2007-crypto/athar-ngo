@@ -224,6 +224,7 @@ button,input,select,textarea,a{pointer-events:auto !important;}
   <div id="pg-checks" class="pg"></div>
   <div id="pg-fin" class="pg"></div>
   <div id="pg-ops" class="pg"></div>
+  <div id="pg-recon" class="pg"></div>
 </div>
 <nav class="bnav">
   <div class="bn on" data-nav="dash"><div class="bn-i">🏠</div>الرئيسية</div>
@@ -233,8 +234,7 @@ button,input,select,textarea,a{pointer-events:auto !important;}
   <div class="bn" data-nav="more"><div class="bn-i">☰</div>المزيد</div>
 </nav>
 <div class="mo" id="mo"><div class="mb"><div class="mh"><span class="mt" id="mo-t">–</span><div style="display:flex;gap:5px;"><button onclick="printModal()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:4px 10px;font-size:11px;font-family:Cairo,sans-serif;cursor:pointer;">🖨️</button><button class="mx" onclick="cm()">✕</button></div></div><div class="mbdy" id="mo-b"></div></div></div>
-<div class="toast" id="toast"></div>
-<script>function getOpeningBals(fromDate){
+<div cfunction getOpeningBals(fromDate){
   // Calculate opening balances from entries before fromDate
   var ob={};
   DB.accounts.forEach(function(a){ob[a.c]={dr:0,cr:0};});
@@ -4340,11 +4340,11 @@ function renderReconPage(accCode,month,bankBal){
 
   // Store state in window
   window._recon={accCode:accCode,month:month,openBal:openBal,txns:txns,prevPending:prevPending,manualItems:manualItems,bankBal:bankBal};
-  // Show pg-more with recon content
+  // Show pg-recon with recon content (dedicated page, avoids pg-more conflict)
   document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
   document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
-  var pgEl=document.getElementById('pg-more');
-  if(pgEl){pgEl.classList.add('on');pgEl.innerHTML=h;}
+  var pgRecon=document.getElementById('pg-recon');
+  if(pgRecon){pgRecon.classList.add('on');pgRecon.innerHTML=h;}
   window.scrollTo(0,0);
 }
 
@@ -16478,6 +16478,8 @@ document.addEventListener("DOMContentLoaded", function(){
     loadSeedData();
   }
   nav("dash", document.querySelector('[data-nav="dash"]'));
+});
+erySelector('[data-nav="dash"]'));
 });
 </script>
 </body>
