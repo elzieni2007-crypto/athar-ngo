@@ -1467,7 +1467,7 @@ function sub(n){
     'employees','suppliers','invreports','hrreports','tpledger',
     'importexport','importwizard','reconhist','masterdata','reports',
     'taxconfig','assets','form41','archive','ai','compliance',
-    'compliancesettings','timesheet','myleaves','leaveapproval','knowledge','settings','permissions','approvals'];
+    'compliancesettings','timesheet','myleaves','leaveapproval','knowledge','settings','permissions','approvals','grantfiles','projtxn','accledger'];
   if(f[n]){
     try{
       if(fullPages.indexOf(n)>-1){
@@ -1475,7 +1475,7 @@ function sub(n){
         // Render in pg-more full page
         var finPages=['trial','balance','income','bva','banks','reconhist','tpledger','accounts','openingbals','yearend','donorledger','variance','cashforecast','execdash','accledger'];
         var opsPages=['employees','suppliers','invreports','hrreports','inventory','inv_receive','inv_issue','inv_transfer','inv_dispose','archive','compliance','compliancesettings','form41','assets','timesheet','myleaves','leaveapproval','contracts','provisions','grantfiles','projtxn'];
-        var morePages=['search','audit','ai','masterdata','reports','importexport','importwizard','knowledge','settings','taxconfig'];
+        var morePages=['search','audit','ai','masterdata','reports','importexport','importwizard','knowledge','settings','taxconfig','permissions','approvals'];
         var backFn=finPages.indexOf(n)>-1?"nav('fin',null)":opsPages.indexOf(n)>-1?"nav('ops',null)":morePages.indexOf(n)>-1?'rMore()':'sub(\'dash\')';
         var backLabel=finPages.indexOf(n)>-1?'‹ المالية':opsPages.indexOf(n)>-1?'‹ العمليات':morePages.indexOf(n)>-1?'‹ المزيد':'‹ الرئيسية';
         nav('more',null);
@@ -1489,6 +1489,7 @@ function sub(n){
               +'<div style="font-weight:800;font-size:16px;color:var(--nd);">'+(titles[n]||n)+'</div>'
               +'</div>'
               +result+'</div>';
+          showTbBack({type:'fn',pg:backFn});
           }
         }
       }
