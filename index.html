@@ -4373,7 +4373,6 @@ function buildManualItemRow(mi,idx){
 }
 
 function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
-  // Read current bank balance from input if available
   var bankInput=document.getElementById?document.getElementById('recon-bank-bal'):null;
   var bankBal2=bankInput?parseFloat(bankInput.value)||bankBal:bankBal||0;
   if(isNaN(bankBal2))bankBal2=bankBal||0;
@@ -4386,7 +4385,7 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
     });
   }
 
-  // Split transactions into cleared/uncleared
+  // Split into cleared/uncleared
   var allTxns=(txns||[]).concat(prevPending||[]);
   var unclearedDr=0,unclearedCr=0;
   allTxns.forEach(function(t){
@@ -4395,7 +4394,7 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
     if(!cleared){unclearedDr+=t.dr||0;unclearedCr+=t.cr||0;}
   });
 
-  // Book balance
+  // Book balance = opening + month movements
   var monthDr=(txns||[]).reduce(function(s,t){return s+(t.dr||0);},0);
   var monthCr=(txns||[]).reduce(function(s,t){return s+(t.cr||0);},0);
   var bookBal=(openBal||0)+monthDr-monthCr;
@@ -4403,12 +4402,13 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   // Manual adjustments
   var manualAdj=(manualItems||[]).reduce(function(s,mi){return s+mi.type*mi.amt;},0);
 
-  // Pending: uncleared deposits (+) and uncleared checks (-)
-  var pendingDeposits=unclearedDr;
-  var outstandingChecks=unclearedCr;
-
-  // Reconciled bank side
-  var reconBal=bankBal2+pendingDeposits-outstandingChecks+manualAdj;
+  // Standard Egyptian bank recon format:
+  // Adjusted Bank = Bank Statement + Outstanding Checks - Deposits in Transit ± Manual
+  // Outstanding checks (uncleared CR) = add back (bank hasn't paid yet)
+  // Deposits in transit (uncleared DR) = subtract (we recorded, bank hasn't)
+  var outstandingChecks=unclearedCr;   // + to bank
+  var depositsInTransit=unclearedDr;   // - from bank
+  var reconBal=bankBal2+outstandingChecks-depositsInTransit+manualAdj;
   var diff=bookBal-reconBal;
   var balanced=Math.abs(diff)<0.01;
 
@@ -4418,37 +4418,36 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   // Book side
   h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
   h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">الرصيد الدفتري</div>';
-  [
-    {lbl:'رصيد أول الشهر',val:openBal||0,style:''},
-    {lbl:'+ حركات الشهر (مدين)',val:monthDr,style:'color:#059669'},
-    {lbl:'− حركات الشهر (دائن)',val:monthCr,style:'color:#dc2626'},
-    {lbl:'الرصيد الدفتري',val:bookBal,style:'font-weight:900;border-top:1px solid #e5e7eb;padding-top:4px;margin-top:4px;'},
+  [{lbl:'رصيد أول الشهر',val:openBal||0,style:''},
+   {lbl:'+ حركات مدينة',val:monthDr,style:'color:#059669'},
+   {lbl:'− حركات دائنة',val:monthCr,style:'color:#dc2626'},
+   {lbl:'الرصيد الدفتري',val:bookBal,style:'font-weight:900;border-top:1px solid #e5e7eb;padding-top:4px;margin-top:4px;'},
   ].forEach(function(row){
-    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;'+row.style+'">';
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;'+row.style+';">';
     h+='<span>'+row.lbl+'</span><span>'+fmt(row.val)+'</span></div>';
   });
   h+='</div>';
 
-  // Bank side — show bank balance LAST as required
+  // Bank side — bank statement adjusted to book
   h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
-  h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">رصيد كشف الحساب المعدّل</div>';
-  var bankRows=[
-    {lbl:'+ إيداعات معلقة',val:pendingDeposits,style:'color:#059669'},
-    {lbl:'− شيكات معلقة',val:outstandingChecks,style:'color:#dc2626'},
+  h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">كشف الحساب المعدّل</div>';
+  var rows=[
+    {lbl:'رصيد كشف الحساب',val:bankBal2,style:''},
+    {lbl:'+ شيكات معلقة (لم تُصرف)',val:outstandingChecks,style:'color:#059669'},
+    {lbl:'− إيداعات معلقة (لم تُضف)',val:depositsInTransit,style:'color:#dc2626'},
   ];
-  if(manualAdj!==0)bankRows.push({lbl:'± تسويات يدوية',val:manualAdj,style:'color:#d97706'});
-  bankRows.push({lbl:'رصيد كشف الحساب',val:bankBal2,style:''});
-  bankRows.push({lbl:'الرصيد المعدّل',val:reconBal,style:'font-weight:900;border-top:1px solid #e5e7eb;padding-top:4px;margin-top:4px;'});
-  bankRows.forEach(function(row){
-    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;'+row.style+'">';
+  if(manualAdj!==0)rows.push({lbl:'± تسويات يدوية',val:manualAdj,style:'color:#d97706'});
+  rows.push({lbl:'الرصيد المعدّل',val:reconBal,style:'font-weight:900;border-top:1px solid #e5e7eb;padding-top:4px;margin-top:4px;'});
+  rows.forEach(function(row){
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;'+row.style+';">';
     h+='<span>'+row.lbl+'</span><span>'+fmt(row.val)+'</span></div>';
   });
   h+='</div>';
 
   // Result
   h+='<div style="background:'+(balanced?'#059669':'#dc2626')+';border-radius:10px;padding:12px;color:white;display:flex;justify-content:space-between;align-items:center;">';
-  h+='<div style="font-weight:800;font-size:14px;">'+(balanced?'✅ التسوية متطابقة':'⚠️ فرق')+'</div>';
   h+='<div style="font-size:'+(balanced?'16':'20')+'px;font-weight:900;">'+(balanced?'مطابق ✅':fmt(Math.abs(diff))+' ج.م')+'</div>';
+  h+='<div style="font-weight:800;font-size:14px;">'+(balanced?'✅ التسوية متطابقة':'⚠️ فرق')+'</div>';
   h+='</div>';
   h+='</div>';
   return h;
@@ -4473,8 +4472,10 @@ function toggleAllCleared(masterCb){
 function updateReconCalc(){
   if(!window._recon) return;
   var r=window._recon;
+  var bankInput=document.getElementById('recon-bank-bal');
+  var currentBankBal=bankInput?parseFloat(bankInput.value)||r.bankBal:r.bankBal;
   var summary=document.getElementById('recon-summary');
-  if(summary) summary.innerHTML=buildReconSummary(r.openBal,r.txns,r.prevPending,r.manualItems,r.bankBal);
+  if(summary) summary.innerHTML=buildReconSummary(r.openBal,r.txns,r.prevPending,r.manualItems,currentBankBal);
 }
 
 function addManualItem(type){
