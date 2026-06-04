@@ -7452,7 +7452,7 @@ function rAuditPackagePage(){
   h+='</div>';
   h+='<div class="fg" style="margin-bottom:8px;"><label style="font-size:11px;">المشروع (اختياري)</label>';
   h+='<select id="aud-proj" style="font-size:12px;"><option value="">كل المشروعات</option>';
-  (DB.projects||[]).forEach(function(pr){h+='<option value="'+pr.name+'">'+pr.name+'</option>';});
+  (DB.projects||[]).forEach(function(pr){var v=pr.code||pr.name;h+='<option value="'+v+'">'+pr.name+'</option>';});
   h+='</select></div>';
   h+='<div class="fg" style="margin-bottom:10px;"><label style="font-size:11px;">نوع المستندات</label>';
   h+='<select id="aud-type" style="font-size:12px;">';
@@ -7476,7 +7476,11 @@ function generateAuditPackage(){
     if(e.status!=='posted') return false;
     if(fromDate&&e.date<fromDate) return false;
     if(toDate&&e.date>toDate) return false;
-    if(proj&&proj!==''&&e.proj!==proj) return false;
+    if(proj&&proj!==''){
+      var pr=( DB.projects||[]).find(function(p){return p.code===proj||p.name===proj;});
+      var match=e.proj===proj||(pr&&(e.proj===pr.code||e.proj===pr.name));
+      if(!match) return false;
+    }
     var st=(DB.archiveLog[e.id]||{}).status||'pending';
     if(type==='archived'&&st!=='archived') return false;
     if(type==='missing'&&st!=='missing') return false;
@@ -7569,13 +7573,20 @@ function exportAuditHTML(){
   html+=preview.innerHTML;
   html+='</body></html>';
 
-  var blob=new Blob([html],{type:'text/html;charset=utf-8'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
-  a.href=url; a.download='audit-package-'+fromDate+'.html';
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
-  toast('✅ تم تحميل الحزمة');
+  // Try download, fallback to print
+  try{
+    var blob=new Blob([html],{type:'text/html;charset=utf-8'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download='audit-package-'+fromDate+'.html';
+    a.style.display='none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+    toast('✅ تم تحميل الحزمة');
+  }catch(e){
+    // Fallback: open in print window
+    printContent('حزمة المراجعة',document.getElementById('audit-preview').innerHTML,false);
+  }
 }
 
 function printAuditPackage(){
