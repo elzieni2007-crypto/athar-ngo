@@ -4378,7 +4378,6 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   var stmtBal=bankInput?parseFloat(bankInput.value)||bankBal:bankBal||0;
   if(isNaN(stmtBal))stmtBal=bankBal||0;
 
-  // Read cleared checkboxes
   var clearedIds=[];
   if(document.querySelectorAll){
     document.querySelectorAll('[data-cid]').forEach(function(cb){
@@ -4386,7 +4385,6 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
     });
   }
 
-  // Split into cleared/uncleared
   var allTxns=(txns||[]).concat(prevPending||[]);
   var unclearedItems=[];
   allTxns.forEach(function(t){
@@ -4395,29 +4393,20 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
     if(!cleared)unclearedItems.push(t);
   });
 
-  // Deposits in transit = uncleared DR (we recorded, bank hasn't)
   var deposits=unclearedItems.filter(function(t){return (t.dr||0)>0;});
   var totalDeposits=deposits.reduce(function(s,t){return s+(t.dr||0);},0);
-
-  // Outstanding checks = uncleared CR (bank hasn't paid yet)
   var checks=unclearedItems.filter(function(t){return (t.cr||0)>0;});
   var totalChecks=checks.reduce(function(s,t){return s+(t.cr||0);},0);
-
-  // Manual adjustments
   var manualAdj=(manualItems||[]).reduce(function(s,mi){return s+mi.type*mi.amt;},0);
 
-  // Book balance
   var monthDr=(txns||[]).reduce(function(s,t){return s+(t.dr||0);},0);
   var monthCr=(txns||[]).reduce(function(s,t){return s+(t.cr||0);},0);
   var bookBal=(openBal||0)+monthDr-monthCr;
 
-  // Adjusted bank = Book − deposits in transit + outstanding checks ± manual
-  // Or equivalently: start from book, subtract uncleared deposits, add uncleared checks
-  // Then compare with statement balance
-  // Standard: Adjusted Bank = Stmt + Outstanding Checks − Deposits in Transit
-  // We compare: bookBal vs adjustedBank
-  var adjustedBank=stmtBal+totalChecks-totalDeposits+manualAdj;
-  var diff=bookBal-adjustedBank;
+  // رصيد كشف الحساب المعدّل = الرصيد الدفتري − إيداعات لم تظهر + شيكات لم تُصرف
+  var adjustedBank=bookBal-totalDeposits+totalChecks+manualAdj;
+  // المطابقة: رصيد كشف الحساب المعدّل vs رصيد كشف الحساب (stmtBal)
+  var diff=adjustedBank-stmtBal;
   var balanced=Math.abs(diff)<0.01;
 
   var h='<div style="font-weight:800;color:var(--nd);margin-bottom:10px;font-size:13px;">📊 ملخص التسوية</div>';
@@ -4436,71 +4425,73 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   });
   h+='</div>';
 
-  // ── تفاصيل التسوية ────────────────────────────────────────────
-  // إيداعات لم تظهر بعد (تُخصم من الرصيد الدفتري)
+  // ── إيداعات لم تظهر (بالتفاصيل) ─────────────────────────────
   if(deposits.length){
     h+='<div style="background:#fff5f5;border-radius:8px;padding:10px;border:1px solid #fca5a5;">';
     h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#dc2626;">− إيداعات لم تظهر في كشف الحساب</div>';
     deposits.forEach(function(t){
       h+='<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;color:#475569;">';
-      h+='<span>'+t.date+' · '+t.desc+'</span>';
-      h+='<span style="color:#dc2626;">'+fmt(t.dr)+'</span></div>';
+      h+='<span>'+t.date+' · '+t.desc+'</span><span style="color:#dc2626;">'+fmt(t.dr)+'</span></div>';
     });
     h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;padding-top:4px;margin-top:4px;border-top:1px solid #fca5a5;color:#dc2626;">';
     h+='<span>الإجمالي</span><span>'+fmt(totalDeposits)+'</span></div>';
     h+='</div>';
   }
 
-  // شيكات لم تُصرف بعد (تُضاف للرصيد)
+  // ── شيكات لم تُصرف (بالتفاصيل) ──────────────────────────────
   if(checks.length){
     h+='<div style="background:#f0fdf4;border-radius:8px;padding:10px;border:1px solid #86efac;">';
     h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#059669;">+ شيكات لم تُصرف من كشف الحساب</div>';
     checks.forEach(function(t){
       h+='<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;color:#475569;">';
-      h+='<span>'+t.date+' · '+t.desc+'</span>';
-      h+='<span style="color:#059669;">'+fmt(t.cr)+'</span></div>';
+      h+='<span>'+t.date+' · '+t.desc+'</span><span style="color:#059669;">'+fmt(t.cr)+'</span></div>';
     });
     h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;padding-top:4px;margin-top:4px;border-top:1px solid #86efac;color:#059669;">';
     h+='<span>الإجمالي</span><span>'+fmt(totalChecks)+'</span></div>';
     h+='</div>';
   }
 
-  // تسويات يدوية
+  // ── تسويات يدوية ──────────────────────────────────────────────
   if((manualItems||[]).length){
     h+='<div style="background:#fffbeb;border-radius:8px;padding:10px;border:1px solid #fde68a;">';
     h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#d97706;">± تسويات يدوية</div>';
     manualItems.forEach(function(mi){
-      h+='<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;color:#475569;">';
+      h+='<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;">';
       h+='<span>'+(mi.type>0?'+ ':' − ')+mi.desc+'</span>';
       h+='<span style="color:'+(mi.type>0?'#059669':'#dc2626')+';">'+fmt(mi.amt)+'</span></div>';
     });
     h+='</div>';
   }
 
-  // ── المطابقة النهائية ─────────────────────────────────────────
+  // ── رصيد كشف الحساب المعدّل ──────────────────────────────────
   h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
-  h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">المطابقة</div>';
-  // رصيد كشف الحساب المعدّل = كشف الحساب − إيداعات + شيكات
+  h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">رصيد كشف الحساب المعدّل</div>';
   h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;">';
-  h+='<span>رصيد كشف الحساب</span><span>'+fmt(stmtBal)+'</span></div>';
-  if(totalDeposits>0){h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#dc2626;">';
-  h+='<span>− إيداعات لم تظهر</span><span>'+fmt(totalDeposits)+'</span></div>';}
-  if(totalChecks>0){h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#059669;">';
-  h+='<span>+ شيكات لم تُصرف</span><span>'+fmt(totalChecks)+'</span></div>';}
-  if(manualAdj!==0){h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#d97706;">';
-  h+='<span>± تسويات يدوية</span><span>'+fmt(manualAdj)+'</span></div>';}
-  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:900;padding-top:4px;margin-top:4px;border-top:1px solid #e5e7eb;">';
+  h+='<span>الرصيد الدفتري</span><span>'+fmt(bookBal)+'</span></div>';
+  if(totalDeposits>0){
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#dc2626;">';
+    h+='<span>− إيداعات لم تظهر</span><span>'+fmt(totalDeposits)+'</span></div>';
+  }
+  if(totalChecks>0){
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#059669;">';
+    h+='<span>+ شيكات لم تُصرف</span><span>'+fmt(totalChecks)+'</span></div>';
+  }
+  if(manualAdj!==0){
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#d97706;">';
+    h+='<span>± تسويات يدوية</span><span>'+fmt(manualAdj)+'</span></div>';
+  }
+  h+='<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:900;padding-top:4px;margin-top:4px;border-top:2px solid #e5e7eb;">';
   h+='<span>رصيد كشف الحساب المعدّل</span><span>'+fmt(adjustedBank)+'</span></div>';
   h+='</div>';
-  // النتيجة: مقارنة الرصيد الدفتري بكشف الحساب المعدّل
-  h+='<div style="background:'+(balanced?'#059669':'#dc2626')+';border-radius:10px;padding:10px;color:white;margin-top:6px;">';
-  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px;opacity:.85;">';
-  h+='<span>الرصيد الدفتري</span><span>'+fmt(bookBal)+'</span></div>';
-  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px;opacity:.85;">';
-  h+='<span>كشف الحساب المعدّل</span><span>'+fmt(adjustedBank)+'</span></div>';
-  h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:14px;padding-top:4px;border-top:1px solid rgba(255,255,255,.3);">';
-  h+='<div>'+(balanced?'✅ التسوية متطابقة':'⚠️ الفرق: '+fmt(Math.abs(diff)))+'</div>';
-  h+='<div>'+(balanced?'مطابق ✅':'')+'</div>';
+
+  // ── النتيجة: المعدّل vs كشف الحساب ───────────────────────────
+  h+='<div style="background:'+(balanced?'#059669':'#dc2626')+';border-radius:10px;padding:12px;color:white;">';
+  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;opacity:.85;margin-bottom:3px;">';
+  h+='<span>رصيد كشف الحساب المعدّل</span><span>'+fmt(adjustedBank)+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;opacity:.85;margin-bottom:6px;">';
+  h+='<span>رصيد كشف الحساب</span><span>'+fmt(stmtBal)+'</span></div>';
+  h+='<div style="font-weight:900;font-size:15px;text-align:center;border-top:1px solid rgba(255,255,255,.3);padding-top:8px;">';
+  h+=(balanced?'✅ التسوية متطابقة':'⚠️ الفرق: '+fmt(Math.abs(diff))+' ج.م');
   h+='</div></div>';
 
   h+='</div>';
