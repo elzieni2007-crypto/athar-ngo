@@ -1043,6 +1043,8 @@ function rMore(){
     ]},
     {header:"⚙️ الإعدادات", items:[
       {i:"⚙️",t:"الإعدادات",n:"settings",admin:true},
+      {i:"🔐",t:"الصلاحيات والأدوار",n:"permissions",admin:true},
+      {i:"📥",t:"صندوق الاعتماد",n:"approvals"},
       {i:"🗂️",t:"البيانات الرئيسية",n:"masterdata",admin:true},
       {i:"🧮",t:"إعداد الضريبة",n:"taxconfig",admin:true},
       {i:"📂",t:"الأرصدة الافتتاحية",n:"openingbals",admin:true},
@@ -1412,7 +1414,10 @@ function sub(n){
     knowledge:rKnowledgePage,
     fin:rFinanceHub,
     ops:rOperationsHub,
-    settings:rSetPage
+    settings:rSetPage,
+    permissions:rPermissionsPage,
+    approvals:rApprovalInbox,
+    grantfiles:rGrantFiles
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
