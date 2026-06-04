@@ -4480,13 +4480,28 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   // ── المطابقة النهائية ─────────────────────────────────────────
   h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
   h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">المطابقة</div>';
+  // رصيد كشف الحساب المعدّل = كشف الحساب − إيداعات + شيكات
   h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;">';
-  h+='<span>الرصيد الدفتري</span><span style="font-weight:700;">'+fmt(bookBal)+'</span></div>';
-  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;">';
-  h+='<span>رصيد كشف الحساب المعدّل</span><span style="font-weight:700;">'+fmt(adjustedBank)+'</span></div>';
-  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:900;padding-top:4px;margin-top:4px;border-top:1px solid #e5e7eb;color:'+(balanced?'#059669':'#dc2626')+'">';
-  h+='<span>'+(balanced?'✅ متطابق':'⚠️ الفرق')+'</span><span>'+(balanced?'—':fmt(Math.abs(diff)))+'</span></div>';
+  h+='<span>رصيد كشف الحساب</span><span>'+fmt(stmtBal)+'</span></div>';
+  if(totalDeposits>0){h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#dc2626;">';
+  h+='<span>− إيداعات لم تظهر</span><span>'+fmt(totalDeposits)+'</span></div>';}
+  if(totalChecks>0){h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#059669;">';
+  h+='<span>+ شيكات لم تُصرف</span><span>'+fmt(totalChecks)+'</span></div>';}
+  if(manualAdj!==0){h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#d97706;">';
+  h+='<span>± تسويات يدوية</span><span>'+fmt(manualAdj)+'</span></div>';}
+  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:900;padding-top:4px;margin-top:4px;border-top:1px solid #e5e7eb;">';
+  h+='<span>رصيد كشف الحساب المعدّل</span><span>'+fmt(adjustedBank)+'</span></div>';
   h+='</div>';
+  // النتيجة: مقارنة الرصيد الدفتري بكشف الحساب المعدّل
+  h+='<div style="background:'+(balanced?'#059669':'#dc2626')+';border-radius:10px;padding:10px;color:white;margin-top:6px;">';
+  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px;opacity:.85;">';
+  h+='<span>الرصيد الدفتري</span><span>'+fmt(bookBal)+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px;opacity:.85;">';
+  h+='<span>كشف الحساب المعدّل</span><span>'+fmt(adjustedBank)+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:14px;padding-top:4px;border-top:1px solid rgba(255,255,255,.3);">';
+  h+='<div>'+(balanced?'✅ التسوية متطابقة':'⚠️ الفرق: '+fmt(Math.abs(diff)))+'</div>';
+  h+='<div>'+(balanced?'مطابق ✅':'')+'</div>';
+  h+='</div></div>';
 
   h+='</div>';
   return h;
