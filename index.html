@@ -1298,6 +1298,7 @@ function rFinanceHub(){
     {title:'📚 دفاتر الأستاذ',items:[
       {i:'📒',t:'الأستاذ المساعد',n:'tpledger'},
       {i:'🌳',t:'شجرة الحسابات',n:'accounts'},
+      {i:'📒',t:'كشف حساب',n:'accledger'},
       {i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'},
     ]},
     {title:'📊 تقارير الإدارة',items:[
@@ -1329,6 +1330,7 @@ function rOperationsHub(){
   var sections=[
     {title:'🎯 المشروعات والممولين',items:[
       {i:'🎯',t:'المشروعات',n:'proj',pg:true},
+      {i:'📋',t:'حركات المشروع',n:'projtxn'},
       {i:'📉',t:'متابعة BVA',n:'bva'},
       {i:'🌍',t:'دفتر المانحين',n:'donorledger'},
     ]},
@@ -1417,7 +1419,9 @@ function sub(n){
     settings:rSetPage,
     permissions:rPermissionsPage,
     approvals:rApprovalInbox,
-    grantfiles:rGrantFiles
+    grantfiles:rGrantFiles,
+    projtxn:rProjectTxnReport,
+    accledger:rAccLedgerReport
   };
   var titles={
     accounts:"🌳 شجرة الحسابات",trial:"⚖️ ميزان المراجعة",
@@ -1469,8 +1473,8 @@ function sub(n){
       if(fullPages.indexOf(n)>-1){
         // Render in pg-more full page
         // Render in pg-more full page
-        var finPages=['trial','balance','income','bva','banks','reconhist','tpledger','accounts','openingbals','yearend','donorledger','variance','cashforecast','execdash'];
-        var opsPages=['employees','suppliers','invreports','hrreports','inventory','inv_receive','inv_issue','inv_transfer','inv_dispose','archive','compliance','compliancesettings','form41','assets','timesheet','myleaves','leaveapproval','contracts','provisions','grantfiles'];
+        var finPages=['trial','balance','income','bva','banks','reconhist','tpledger','accounts','openingbals','yearend','donorledger','variance','cashforecast','execdash','accledger'];
+        var opsPages=['employees','suppliers','invreports','hrreports','inventory','inv_receive','inv_issue','inv_transfer','inv_dispose','archive','compliance','compliancesettings','form41','assets','timesheet','myleaves','leaveapproval','contracts','provisions','grantfiles','projtxn'];
         var morePages=['search','audit','ai','masterdata','reports','importexport','importwizard','knowledge','settings','taxconfig'];
         var backFn=finPages.indexOf(n)>-1?"nav('fin',null)":opsPages.indexOf(n)>-1?"nav('ops',null)":morePages.indexOf(n)>-1?'rMore()':'sub(\'dash\')';
         var backLabel=finPages.indexOf(n)>-1?'‹ المالية':opsPages.indexOf(n)>-1?'‹ العمليات':morePages.indexOf(n)>-1?'‹ المزيد':'‹ الرئيسية';
@@ -3648,6 +3652,347 @@ function rptPayrollReport(){
 
 
 // SUB PAGES
+// ================================================================
+// REPORTS: Project Transaction List + Account Ledger with Date Range
+// ================================================================
+
+// ── 1. Project Transaction Report ────────────────────────────────
+function rProjectTxnReport(){
+  var projs=DB.projects||[];
+  var h='<div class="ph-t" style="margin-bottom:14px;">📊 تقرير حركات المشروع</div>';
+
+  // Filter form
+  h+='<div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid #e5e7eb;">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">';
+  // Project select
+  h+='<div class="fg" style="margin:0;grid-column:1/-1"><label style="font-size:11px;">المشروع *</label>';
+  h+='<select id="rpt-proj" onchange="updateWBSOptions()" style="font-size:12px;">';
+  h+='<option value="">-- اختر مشروع --</option>';
+  projs.forEach(function(pr){
+    h+='<option value="'+pr.code+'">'+pr.name+'</option>';
+  });
+  h+='</select></div>';
+  // WBS
+  h+='<div class="fg" style="margin:0;grid-column:1/-1"><label style="font-size:11px;">بند WBS (اختياري)</label>';
+  h+='<select id="rpt-wbs" style="font-size:12px;"><option value="">كل البنود</option></select></div>';
+  // Date range
+  h+='<div class="fg" style="margin:0"><label style="font-size:11px;">من تاريخ</label>';
+  h+='<input type="date" id="rpt-from" style="font-size:12px;"></div>';
+  h+='<div class="fg" style="margin:0"><label style="font-size:11px;">إلى تاريخ</label>';
+  h+='<input type="date" id="rpt-to" style="font-size:12px;"></div>';
+  h+='</div>';
+  h+='<button onclick="generateProjectTxnReport()" class="btn btn-gr" style="width:100%;">📋 عرض التقرير</button>';
+  h+='</div>';
+  h+='<div id="proj-txn-result"></div>';
+  return h;
+}
+
+function updateWBSOptions(){
+  var projCode=(document.getElementById('rpt-proj')||{}).value||'';
+  var sel=document.getElementById('rpt-wbs');
+  if(!sel) return;
+  sel.innerHTML='<option value="">كل البنود</option>';
+  if(!projCode) return;
+  var pr=(DB.projects||[]).find(function(p){return p.code===projCode;});
+  if(!pr||!pr.wbs) return;
+  (pr.wbs||[]).forEach(function(w){
+    sel.innerHTML+='<option value="'+w.code+'">'+w.code+' — '+w.name+'</option>';
+  });
+}
+
+function generateProjectTxnReport(){
+  var projCode=(document.getElementById('rpt-proj')||{}).value||'';
+  var wbsCode=(document.getElementById('rpt-wbs')||{}).value||'';
+  var fromDate=(document.getElementById('rpt-from')||{}).value||'';
+  var toDate=(document.getElementById('rpt-to')||{}).value||'9999-12-31';
+  var el=document.getElementById('proj-txn-result');
+  if(!el) return;
+  if(!projCode){toast('⚠️ اختر مشروعاً');return;}
+
+  var pr=(DB.projects||[]).find(function(p){return p.code===projCode;});
+  if(!pr){el.innerHTML='<div style="color:#dc2626;">المشروع غير موجود</div>';return;}
+
+  // Filter entries
+  var entries=(DB.entries||[]).filter(function(e){
+    if(e.status!=='posted') return false;
+    if(e.proj!==projCode) return false;
+    if(fromDate&&e.date<fromDate) return false;
+    if(toDate&&e.date>toDate) return false;
+    return true;
+  }).sort(function(a,b){return a.date>b.date?1:-1;});
+
+  // If WBS filter -- filter lines
+  if(wbsCode){
+    entries=entries.filter(function(e){
+      return (e.lines||[]).some(function(l){return l.wbs===wbsCode||l.cc===wbsCode;});
+    });
+  }
+
+  if(!entries.length){
+    el.innerHTML='<div style="text-align:center;padding:30px;color:var(--g4);">لا توجد قيود في النطاق المحدد</div>';
+    return;
+  }
+
+  // Calculate totals
+  var totalDr=0,totalCr=0;
+  entries.forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(!wbsCode||l.wbs===wbsCode||l.cc===wbsCode){
+        totalDr+=l.dr||0; totalCr+=l.cr||0;
+      }
+    });
+  });
+
+  var wbsLabel=wbsCode?(pr.wbs||[]).find(function(w){return w.code===wbsCode;}):'';
+  var h='';
+
+  // Header card
+  h+='<div style="background:var(--nd);color:white;border-radius:12px;padding:14px;margin-bottom:12px;">';
+  h+='<div style="font-weight:800;font-size:14px;margin-bottom:4px;">'+pr.name+'</div>';
+  if(wbsLabel) h+='<div style="font-size:11px;opacity:.8;">📂 '+wbsLabel.code+' — '+wbsLabel.name+'</div>';
+  h+='<div style="font-size:11px;opacity:.7;">'+(fromDate||'البداية')+' → '+(toDate==='9999-12-31'?'اليوم':toDate)+'</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;">';
+  h+='<div style="text-align:center;"><div style="font-weight:900;font-size:16px;">'+entries.length+'</div><div style="font-size:9px;opacity:.7;">قيد</div></div>';
+  h+='<div style="text-align:center;"><div style="font-weight:900;font-size:13px;">'+fmt(totalDr)+'</div><div style="font-size:9px;opacity:.7;">إجمالي مدين</div></div>';
+  h+='<div style="text-align:center;"><div style="font-weight:900;font-size:13px;">'+fmt(totalCr)+'</div><div style="font-size:9px;opacity:.7;">إجمالي دائن</div></div>';
+  h+='</div></div>';
+
+  // Print button
+  h+='<div style="display:flex;gap:8px;margin-bottom:10px;">';
+  h+='<button onclick="printProjectTxnReport()" class="btn btn-gr" style="flex:1;font-size:11px;">🖨️ طباعة</button>';
+  h+='</div>';
+
+  // Transactions table
+  h+='<div style="background:white;border-radius:12px;overflow:hidden;">';
+  h+='<table style="width:100%;font-size:11px;border-collapse:collapse;">';
+  h+='<thead><tr style="background:var(--nd);color:white;">';
+  h+='<th style="padding:8px;text-align:right;">التاريخ</th>';
+  h+='<th>رقم القيد</th><th>البيان</th><th>المرجع</th>';
+  h+='<th style="text-align:left;">مدين</th>';
+  h+='<th style="text-align:left;">دائن</th>';
+  h+='</tr></thead><tbody>';
+
+  var runningBal=0;
+  entries.forEach(function(e,idx){
+    var eDr=0,eCr=0;
+    (e.lines||[]).forEach(function(l){
+      if(!wbsCode||l.wbs===wbsCode||l.cc===wbsCode){
+        eDr+=l.dr||0; eCr+=l.cr||0;
+      }
+    });
+    runningBal+=eDr-eCr;
+    var bg=idx%2===0?'white':'#f9fafb';
+    h+='<tr style="border-bottom:1px solid #f1f5f9;background:'+bg+';cursor:pointer;" data-eid="'+e.id+'" onclick="viewE(this.dataset.eid)">';
+    h+='<td style="padding:7px;white-space:nowrap;">'+e.date+'</td>';
+    h+='<td style="color:var(--sk);font-weight:700;">'+e.id+'</td>';
+    h+='<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+e.desc+'</td>';
+    h+='<td style="color:var(--g4);font-size:10px;">'+( e.ref||'—')+'</td>';
+    h+='<td style="text-align:left;font-weight:700;color:#059669;">'+(eDr>0?fmt(eDr):'—')+'</td>';
+    h+='<td style="text-align:left;font-weight:700;color:#dc2626;">'+(eCr>0?fmt(eCr):'—')+'</td>';
+    h+='</tr>';
+  });
+
+  // Totals row
+  h+='<tr style="background:var(--nd);color:white;font-weight:900;">';
+  h+='<td colspan="4" style="padding:8px;">الإجمالي</td>';
+  h+='<td style="text-align:left;padding:8px;">'+fmt(totalDr)+'</td>';
+  h+='<td style="text-align:left;padding:8px;">'+fmt(totalCr)+'</td>';
+  h+='</tr>';
+  h+='</tbody></table></div>';
+
+  el.innerHTML=h;
+  // Store for print
+  window._lastProjReport={html:h,name:pr.name,from:fromDate,to:toDate};
+}
+
+function printProjectTxnReport(){
+  if(!window._lastProjReport){toast('⚠️ أنشئ التقرير أولاً');return;}
+  printContent('تقرير حركات المشروع — '+window._lastProjReport.name,
+    window._lastProjReport.html, false);
+}
+
+// ── 2. Account Ledger with Date Range ────────────────────────────
+function rAccLedgerReport(){
+  var h='<div class="ph-t" style="margin-bottom:14px;">📒 كشف حساب — دفتر الأستاذ</div>';
+
+  h+='<div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid #e5e7eb;">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">';
+
+  // Account selector with search
+  h+='<div class="fg" style="margin:0;grid-column:1/-1"><label style="font-size:11px;">الحساب *</label>';
+  h+='<input id="ledger-acc-search" placeholder="🔍 ابحث بالكود أو الاسم..." oninput="filterAccLedgerList(this.value)" style="font-size:12px;margin-bottom:4px;">';
+  h+='<select id="ledger-acc" size="4" style="font-size:12px;height:80px;width:100%;">';
+  // Group by type
+  var groups={'1':'أصول','2':'خصوم','3':'حقوق','4':'إيرادات','5':'مصروفات'};
+  var prevGroup='';
+  (DB.accounts||[]).sort(function(a,b){return a.c>b.c?1:-1;}).forEach(function(acc){
+    var grp=acc.c[0];
+    if(grp!==prevGroup){
+      h+='<option disabled style="background:#f1f5f9;font-weight:700;">── '+(groups[grp]||grp)+' ──</option>';
+      prevGroup=grp;
+    }
+    h+='<option value="'+acc.c+'">'+acc.c+' — '+acc.n+'</option>';
+  });
+  h+='</select></div>';
+
+  // Date range
+  h+='<div class="fg" style="margin:0"><label style="font-size:11px;">من تاريخ</label>';
+  h+='<input type="date" id="ledger-from" style="font-size:12px;"></div>';
+  h+='<div class="fg" style="margin:0"><label style="font-size:11px;">إلى تاريخ</label>';
+  h+='<input type="date" id="ledger-to" style="font-size:12px;"></div>';
+  h+='</div>';
+
+  h+='<button onclick="generateAccLedger()" class="btn btn-gr" style="width:100%;">📒 عرض الكشف</button>';
+  h+='</div>';
+  h+='<div id="ledger-result"></div>';
+  return h;
+}
+
+function filterAccLedgerList(q){
+  var sel=document.getElementById('ledger-acc');
+  if(!sel) return;
+  q=q.toLowerCase().trim();
+  Array.from(sel.options).forEach(function(opt){
+    if(opt.disabled) return;
+    opt.style.display=(!q||opt.value.includes(q)||opt.text.toLowerCase().includes(q))?'':'none';
+  });
+}
+
+function generateAccLedger(){
+  var sel=document.getElementById('ledger-acc');
+  var accCode=sel?sel.value:'';
+  var fromDate=(document.getElementById('ledger-from')||{}).value||'';
+  var toDate=(document.getElementById('ledger-to')||{}).value||'9999-12-31';
+  var el=document.getElementById('ledger-result');
+  if(!el) return;
+  if(!accCode){toast('⚠️ اختر حساباً');return;}
+
+  var acc=(DB.accounts||[]).find(function(a){return a.c===accCode;});
+  if(!acc){toast('⚠️ الحساب غير موجود');return;}
+
+  // Opening balance (before fromDate)
+  var openDr=0,openCr=0;
+  if(fromDate){
+    (DB.entries||[]).filter(function(e){return e.status==='posted'&&e.date<fromDate;}).forEach(function(e){
+      (e.lines||[]).forEach(function(l){
+        if(l.acc===accCode){openDr+=l.dr||0;openCr+=l.cr||0;}
+      });
+    });
+  }
+  var openBal=openDr-openCr;
+
+  // Transactions in range
+  var txns=[];
+  (DB.entries||[]).filter(function(e){
+    return e.status==='posted'&&
+      (!fromDate||e.date>=fromDate)&&e.date<=toDate;
+  }).forEach(function(e){
+    (e.lines||[]).forEach(function(l){
+      if(l.acc!==accCode) return;
+      if((l.dr||0)+(l.cr||0)===0) return;
+      // Get counterpart accounts
+      var contra=(e.lines||[]).filter(function(x){return x.acc!==accCode;})
+        .map(function(x){
+          var ca=(DB.accounts||[]).find(function(a){return a.c===x.acc;});
+          return ca?ca.n:x.acc;
+        }).join(' / ');
+      txns.push({
+        date:e.date,id:e.id,desc:e.desc,ref:e.ref||'',
+        dr:l.dr||0,cr:l.cr||0,
+        tp:l.tpName||'',contra:contra,proj:e.proj||'',
+        entryId:e.id
+      });
+    });
+  });
+  txns.sort(function(a,b){return a.date>b.date?1:-1;});
+
+  if(!txns.length&&!fromDate){
+    el.innerHTML='<div style="text-align:center;padding:30px;color:var(--g4);">لا توجد حركات لهذا الحساب</div>';
+    return;
+  }
+
+  var totalDr=txns.reduce(function(s,t){return s+t.dr;},0);
+  var totalCr=txns.reduce(function(s,t){return s+t.cr;},0);
+  var closingBal=openBal+totalDr-totalCr;
+
+  var h='';
+
+  // Header
+  h+='<div style="background:var(--nd);color:white;border-radius:12px;padding:14px;margin-bottom:12px;">';
+  h+='<div style="font-weight:900;font-size:15px;">'+acc.c+' — '+acc.n+'</div>';
+  h+='<div style="font-size:11px;opacity:.7;margin-top:2px;">'+(fromDate||'البداية')+' → '+(toDate==='9999-12-31'?'اليوم':toDate)+'</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;">';
+  h+='<div style="text-align:center;background:rgba(255,255,255,.1);border-radius:7px;padding:7px;">';
+  h+='<div style="font-size:9px;opacity:.7;">رصيد أول المدة</div>';
+  h+='<div style="font-weight:900;font-size:13px;">'+fmt(openBal)+'</div></div>';
+  h+='<div style="text-align:center;background:rgba(255,255,255,.1);border-radius:7px;padding:7px;">';
+  h+='<div style="font-size:9px;opacity:.7;">صافي الحركة</div>';
+  h+='<div style="font-weight:900;font-size:13px;">'+fmt(totalDr-totalCr)+'</div></div>';
+  h+='<div style="text-align:center;background:rgba(255,255,255,.1);border-radius:7px;padding:7px;">';
+  h+='<div style="font-size:9px;opacity:.7;">رصيد آخر المدة</div>';
+  h+='<div style="font-weight:900;font-size:14px;">'+fmt(closingBal)+'</div></div>';
+  h+='</div></div>';
+
+  // Print button
+  h+='<button onclick="printAccLedger()" class="btn btn-gr" style="width:100%;margin-bottom:10px;font-size:11px;">🖨️ طباعة الكشف</button>';
+
+  // Ledger table
+  h+='<div style="background:white;border-radius:12px;overflow:hidden;">';
+  h+='<table style="width:100%;font-size:10.5px;border-collapse:collapse;">';
+  h+='<thead><tr style="background:var(--nd);color:white;">';
+  h+='<th style="padding:7px;text-align:right;">التاريخ</th>';
+  h+='<th>رقم القيد</th><th>البيان</th>';
+  h+='<th>الحسابات المقابلة</th>';
+  h+='<th style="text-align:left;">مدين</th>';
+  h+='<th style="text-align:left;">دائن</th>';
+  h+='<th style="text-align:left;">الرصيد</th>';
+  h+='</tr></thead><tbody>';
+
+  // Opening balance row
+  if(fromDate&&openBal!==0){
+    h+='<tr style="background:#f0f9ff;font-weight:700;">';
+    h+='<td style="padding:6px;">'+fromDate+'</td>';
+    h+='<td colspan="3" style="color:var(--sk);">رصيد أول المدة</td>';
+    h+='<td style="text-align:left;">'+( openBal>0?fmt(openBal):'—')+'</td>';
+    h+='<td style="text-align:left;">'+( openBal<0?fmt(Math.abs(openBal)):'—')+'</td>';
+    h+='<td style="text-align:left;font-weight:900;">'+fmt(openBal)+'</td>';
+    h+='</tr>';
+  }
+
+  var runBal=openBal;
+  txns.forEach(function(t,i){
+    runBal+=t.dr-t.cr;
+    var bg=i%2===0?'white':'#f9fafb';
+    var balColor=runBal<0?'#dc2626':runBal>0?'#059669':'#6b7280';
+    h+='<tr style="border-bottom:1px solid #f1f5f9;background:'+bg+';cursor:pointer;" data-eid="'+t.entryId+'" onclick="viewE(this.dataset.eid)">';
+    h+='<td style="padding:6px;white-space:nowrap;">'+t.date+'</td>';
+    h+='<td style="color:var(--sk);font-weight:700;">'+t.id+'</td>';
+    h+='<td style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(t.tp||t.desc)+'</td>';
+    h+='<td style="max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--g4);font-size:10px;">'+t.contra+'</td>';
+    h+='<td style="text-align:left;color:#059669;">'+(t.dr>0?fmt(t.dr):'—')+'</td>';
+    h+='<td style="text-align:left;color:#dc2626;">'+(t.cr>0?fmt(t.cr):'—')+'</td>';
+    h+='<td style="text-align:left;font-weight:700;color:'+balColor+';">'+fmt(runBal)+'</td>';
+    h+='</tr>';
+  });
+
+  // Closing balance row
+  h+='<tr style="background:var(--nd);color:white;font-weight:900;">';
+  h+='<td colspan="4" style="padding:8px;">رصيد آخر المدة</td>';
+  h+='<td style="text-align:left;padding:8px;">'+fmt(totalDr)+'</td>';
+  h+='<td style="text-align:left;padding:8px;">'+fmt(totalCr)+'</td>';
+  h+='<td style="text-align:left;padding:8px;">'+fmt(closingBal)+'</td>';
+  h+='</tr>';
+  h+='</tbody></table></div>';
+
+  el.innerHTML=h;
+  window._lastLedger={html:h,name:acc.c+' — '+acc.n};
+}
+
+function printAccLedger(){
+  if(!window._lastLedger){toast('⚠️ أنشئ الكشف أولاً');return;}
+  printContent('كشف حساب — '+window._lastLedger.name, window._lastLedger.html, false);
+}
+
 function rAccPage(){
   // COA hierarchy definitions
   var groups=[
