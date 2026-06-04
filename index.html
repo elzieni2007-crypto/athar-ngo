@@ -234,7 +234,9 @@ button,input,select,textarea,a{pointer-events:auto !important;}
   <div class="bn" data-nav="more"><div class="bn-i">☰</div>المزيد</div>
 </nav>
 <div class="mo" id="mo"><div class="mb"><div class="mh"><span class="mt" id="mo-t">–</span><div style="display:flex;gap:5px;"><button onclick="printModal()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:4px 10px;font-size:11px;font-family:Cairo,sans-serif;cursor:pointer;">🖨️</button><button class="mx" onclick="cm()">✕</button></div></div><div class="mbdy" id="mo-b"></div></div></div>
-<div cfunction getOpeningBals(fromDate){
+
+<script>
+function getOpeningBals(fromDate){
   // Calculate opening balances from entries before fromDate
   var ob={};
   DB.accounts.forEach(function(a){ob[a.c]={dr:0,cr:0};});
@@ -11873,7 +11875,7 @@ function newUser(){
   h+='<div style="font-weight:800;font-size:11.5px;margin-bottom:8px;">📋 ملخص الصلاحيات:</div>';
   h+='<div id="nu-perms-preview">'+renderPermPreview("accountant")+'</div></div>';
   // live preview on role change
-  h+='<script>document.getElementById("nu-role").onchange=function(){document.getElementById("nu-perms-preview").innerHTML=renderPermPreview(this.value);};<\/script>';
+  h+='<'+'script>document.getElementById("nu-role").onchange=function(){document.getElementById("nu-perms-preview").innerHTML=renderPermPreview(this.value);};<\/script>';
   h+='<div style="display:flex;gap:8px;margin-top:8px;">';
   h+='<button class="btn btn-gr" onclick="saveUser(\''+id+'\')" style="flex:1;">✅ إضافة المستخدم</button>';
   h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
@@ -16272,7 +16274,7 @@ function printContent(title, htmlContent, landscape){
   win.document.write('<div><h1>'+title+'</h1><div class="subtitle">'+(org?org+' · ':'')+now+'</div></div>');
   win.document.write('<div style="font-size:10px;color:#9ca3af;text-align:left;">أثر للحلول المالية</div></div>');
   win.document.write(htmlContent);
-  win.document.write('<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};}<\/script>');
+  win.document.write('<'+'script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};}<\/script>');
   win.document.write('</body></html>');
   win.document.close();
 }
@@ -16478,8 +16480,6 @@ document.addEventListener("DOMContentLoaded", function(){
     loadSeedData();
   }
   nav("dash", document.querySelector('[data-nav="dash"]'));
-});
-erySelector('[data-nav="dash"]'));
 });
 </script>
 </body>
