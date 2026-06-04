@@ -1344,6 +1344,7 @@ function rOperationsHub(){
       {i:'📤',t:'إذن صرف',n:'inv_issue'},
     ]},
     {title:'✅ الامتثال والأرشفة',items:[
+      {i:'📁',t:'ملفات المنح',n:'grantfiles'},
       {i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive'},
       {i:'✅',t:'امتثال المستندات',n:'compliance'},
       {i:'🔍',t:'البحث الشامل',n:'search'},
@@ -1457,7 +1458,7 @@ function sub(n){
     'employees','suppliers','invreports','hrreports','tpledger',
     'importexport','importwizard','reconhist','masterdata','reports',
     'taxconfig','assets','form41','archive','ai','compliance',
-    'compliancesettings','timesheet','myleaves','leaveapproval','knowledge','settings'];
+    'compliancesettings','timesheet','myleaves','leaveapproval','knowledge','settings','permissions','approvals'];
   if(f[n]){
     try{
       if(fullPages.indexOf(n)>-1){
@@ -1576,6 +1577,10 @@ function getSmartAlerts(){
 
 function renderAlertsBar(){
   var alerts=getSmartAlerts();
+  var pendingAp=getPendingApprovalsCount();
+  if(pendingAp>0) alerts.unshift({level:'danger',icon:'📥',
+    msg:'طلبات تنتظر اعتمادك: '+pendingAp,
+    sub:'اضغط للمراجعة',action:"sub('approvals')"});
   if(!alerts.length) return '';
   var colors={danger:'#fee2e2',warning:'#fef3c7',info:'#dbeafe'};
   var textColors={danger:'#dc2626',warning:'#d97706',info:'#1d4ed8'};
@@ -4216,6 +4221,8 @@ function rBVAPage(){
 // ============================================================
 // BANK RECONCILIATION SYSTEM — التسوية البنكية
 // ============================================================
+
+function initApprovals(){if(!DB.approvals)DB.approvals=[];}
 
 function initRecon(){
   if(!DB.bankRecons)DB.bankRecons=[];
@@ -12399,35 +12406,7 @@ function saveEmpStatus(i){
 
 // ---- permission matrix ----
 // roles: admin | accounts_manager | accountant
-var PERMS = {
-  admin: {
-    canEditEntries:true, canDeleteEntries:true,
-    canEditSalaries:true, canEditEmployees:true,
-    canEditInventory:true, canEditProjects:true,
-    canEditAccounts:true, canManageUsers:true,
-    canLockPeriod:true, canExportData:true,
-    canResetData:true, canViewReports:true,
-    canEditSettings:true
-  },
-  accounts_manager: {
-    canEditEntries:true, canDeleteEntries:false,
-    canEditSalaries:true, canEditEmployees:false,
-    canEditInventory:true, canEditProjects:true,
-    canEditAccounts:false, canManageUsers:false,
-    canLockPeriod:false, canExportData:true,
-    canResetData:false, canViewReports:true,
-    canEditSettings:false
-  },
-  accountant: {
-    canEditEntries:false, canDeleteEntries:false,
-    canEditSalaries:false, canEditEmployees:false,
-    canEditInventory:false, canEditProjects:false,
-    canEditAccounts:false, canManageUsers:false,
-    canLockPeriod:false, canExportData:false,
-    canResetData:false, canViewReports:true,
-    canEditSettings:false
-  }
-};
+;
 
 var ROLE_LABELS = {admin:"مدير النظام",accounts_manager:"مدير حسابات",accountant:"محاسب"};
 var ROLE_ICONS  = {admin:"🔴",accounts_manager:"🟡",accountant:"🟢"};
@@ -12551,6 +12530,532 @@ function doLogout(){
 }
 
 // ---- SETTINGS PAGE (full rebuild) ----
+// ================================================================
+// WORKFLOW, APPROVAL & PERMISSIONS MODULE
+// ================================================================
+
+// ── Extended Roles & Permissions ─────────────────────────────────
+var ROLES = {
+  admin:            { label:'مدير النظام',       icon:'🔴', color:'#dc2626' },
+  director:         { label:'المدير التنفيذي',    icon:'🟣', color:'#7c3aed' },
+  accounts_manager: { label:'مدير الحسابات',      icon:'🟡', color:'#d97706' },
+  accountant:       { label:'محاسب',              icon:'🟢', color:'#059669' },
+  procurement:      { label:'مسؤول مشتريات',      icon:'🔵', color:'#1d4ed8' },
+  hr:               { label:'مسؤول HR',            icon:'🟤', color:'#92400e' },
+  auditor:          { label:'مراجع داخلي',         icon:'⚫', color:'#374151' },
+  viewer:           { label:'مشاهد فقط',           icon:'⚪', color:'#6b7280' },
+};
+
+var PERMS = {
+  admin: {
+    // القيود
+    canViewEntries:true, canAddEntries:true, canEditEntries:true, canDeleteEntries:true,
+    canApproveEntries:true, canPostEntries:true,
+    // المالية
+    canViewReports:true, canViewBanks:true, canViewTrial:true,
+    canViewBalance:true, canViewIncome:true,
+    // الموازنة
+    canViewBVA:true, canEditBudget:true,
+    // HR & مرتبات
+    canViewPayroll:true, canEditPayroll:true, canApprovePayroll:true,
+    canViewEmployees:true, canEditEmployees:true,
+    canApproveLeaves:true,
+    // مشتريات
+    canViewProcurement:true, canAddPO:true, canApprovePO:true,
+    canViewContracts:true, canEditContracts:true,
+    // مخازن
+    canViewInventory:true, canEditInventory:true,
+    // مشروعات
+    canViewProjects:true, canEditProjects:true,
+    // نظام
+    canManageUsers:true, canEditSettings:true, canExportData:true,
+    canResetData:true, canViewAudit:true, canLockPeriod:true,
+    canViewGrantFiles:true, canEditGrantFiles:true,
+  },
+  director: {
+    canViewEntries:true, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
+    canApproveEntries:true, canPostEntries:false,
+    canViewReports:true, canViewBanks:true, canViewTrial:true,
+    canViewBalance:true, canViewIncome:true,
+    canViewBVA:true, canEditBudget:false,
+    canViewPayroll:true, canEditPayroll:false, canApprovePayroll:true,
+    canViewEmployees:true, canEditEmployees:false,
+    canApproveLeaves:true,
+    canViewProcurement:true, canAddPO:false, canApprovePO:true,
+    canViewContracts:true, canEditContracts:false,
+    canViewInventory:true, canEditInventory:false,
+    canViewProjects:true, canEditProjects:false,
+    canManageUsers:false, canEditSettings:false, canExportData:true,
+    canResetData:false, canViewAudit:true, canLockPeriod:false,
+    canViewGrantFiles:true, canEditGrantFiles:false,
+  },
+  accounts_manager: {
+    canViewEntries:true, canAddEntries:true, canEditEntries:true, canDeleteEntries:false,
+    canApproveEntries:true, canPostEntries:true,
+    canViewReports:true, canViewBanks:true, canViewTrial:true,
+    canViewBalance:true, canViewIncome:true,
+    canViewBVA:true, canEditBudget:false,
+    canViewPayroll:true, canEditPayroll:true, canApprovePayroll:false,
+    canViewEmployees:true, canEditEmployees:false,
+    canApproveLeaves:false,
+    canViewProcurement:true, canAddPO:true, canApprovePO:false,
+    canViewContracts:true, canEditContracts:true,
+    canViewInventory:true, canEditInventory:true,
+    canViewProjects:true, canEditProjects:true,
+    canManageUsers:false, canEditSettings:false, canExportData:true,
+    canResetData:false, canViewAudit:true, canLockPeriod:false,
+    canViewGrantFiles:true, canEditGrantFiles:true,
+  },
+  accountant: {
+    canViewEntries:true, canAddEntries:true, canEditEntries:false, canDeleteEntries:false,
+    canApproveEntries:false, canPostEntries:false,
+    canViewReports:true, canViewBanks:false, canViewTrial:true,
+    canViewBalance:false, canViewIncome:false,
+    canViewBVA:true, canEditBudget:false,
+    canViewPayroll:false, canEditPayroll:false, canApprovePayroll:false,
+    canViewEmployees:false, canEditEmployees:false,
+    canApproveLeaves:false,
+    canViewProcurement:true, canAddPO:false, canApprovePO:false,
+    canViewContracts:false, canEditContracts:false,
+    canViewInventory:true, canEditInventory:false,
+    canViewProjects:true, canEditProjects:false,
+    canManageUsers:false, canEditSettings:false, canExportData:false,
+    canResetData:false, canViewAudit:false, canLockPeriod:false,
+    canViewGrantFiles:false, canEditGrantFiles:false,
+  },
+  procurement: {
+    canViewEntries:false, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
+    canApproveEntries:false, canPostEntries:false,
+    canViewReports:false, canViewBanks:false, canViewTrial:false,
+    canViewBalance:false, canViewIncome:false,
+    canViewBVA:true, canEditBudget:false,
+    canViewPayroll:false, canEditPayroll:false, canApprovePayroll:false,
+    canViewEmployees:false, canEditEmployees:false,
+    canApproveLeaves:false,
+    canViewProcurement:true, canAddPO:true, canApprovePO:false,
+    canViewContracts:true, canEditContracts:true,
+    canViewInventory:true, canEditInventory:true,
+    canViewProjects:true, canEditProjects:false,
+    canManageUsers:false, canEditSettings:false, canExportData:false,
+    canResetData:false, canViewAudit:false, canLockPeriod:false,
+    canViewGrantFiles:true, canEditGrantFiles:false,
+  },
+  hr: {
+    canViewEntries:false, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
+    canApproveEntries:false, canPostEntries:false,
+    canViewReports:false, canViewBanks:false, canViewTrial:false,
+    canViewBalance:false, canViewIncome:false,
+    canViewBVA:false, canEditBudget:false,
+    canViewPayroll:true, canEditPayroll:true, canApprovePayroll:false,
+    canViewEmployees:true, canEditEmployees:true,
+    canApproveLeaves:true,
+    canViewProcurement:false, canAddPO:false, canApprovePO:false,
+    canViewContracts:false, canEditContracts:false,
+    canViewInventory:false, canEditInventory:false,
+    canViewProjects:false, canEditProjects:false,
+    canManageUsers:false, canEditSettings:false, canExportData:false,
+    canResetData:false, canViewAudit:false, canLockPeriod:false,
+    canViewGrantFiles:false, canEditGrantFiles:false,
+  },
+  auditor: {
+    canViewEntries:true, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
+    canApproveEntries:false, canPostEntries:false,
+    canViewReports:true, canViewBanks:true, canViewTrial:true,
+    canViewBalance:true, canViewIncome:true,
+    canViewBVA:true, canEditBudget:false,
+    canViewPayroll:true, canEditPayroll:false, canApprovePayroll:false,
+    canViewEmployees:true, canEditEmployees:false,
+    canApproveLeaves:false,
+    canViewProcurement:true, canAddPO:false, canApprovePO:false,
+    canViewContracts:true, canEditContracts:false,
+    canViewInventory:true, canEditInventory:false,
+    canViewProjects:true, canEditProjects:false,
+    canManageUsers:false, canEditSettings:false, canExportData:true,
+    canResetData:false, canViewAudit:true, canLockPeriod:false,
+    canViewGrantFiles:true, canEditGrantFiles:false,
+  },
+  viewer: {
+    canViewEntries:true, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
+    canApproveEntries:false, canPostEntries:false,
+    canViewReports:true, canViewBanks:false, canViewTrial:true,
+    canViewBalance:false, canViewIncome:false,
+    canViewBVA:true, canEditBudget:false,
+    canViewPayroll:false, canEditPayroll:false, canApprovePayroll:false,
+    canViewEmployees:false, canEditEmployees:false,
+    canApproveLeaves:false,
+    canViewProcurement:false, canAddPO:false, canApprovePO:false,
+    canViewContracts:false, canEditContracts:false,
+    canViewInventory:false, canEditInventory:false,
+    canViewProjects:true, canEditProjects:false,
+    canManageUsers:false, canEditSettings:false, canExportData:false,
+    canResetData:false, canViewAudit:false, canLockPeriod:false,
+    canViewGrantFiles:false, canEditGrantFiles:false,
+  },
+};
+
+// ── Permission Check ──────────────────────────────────────────────
+function hasPerm(perm){
+  var u=getCurrentUser();
+  if(!u) return false;
+  var role=u.role||'viewer';
+  // Check custom user permissions first
+  var usr=(DB.users||[]).find(function(x){return x.id===u.id;});
+  if(usr&&usr.customPerms&&usr.customPerms[perm]!==undefined) return usr.customPerms[perm];
+  var p=PERMS[role]||PERMS.viewer;
+  return p[perm]===true;
+}
+
+function requirePerm(perm){
+  if(!hasPerm(perm)){
+    toast('⛔ ليس لديك صلاحية لهذه العملية');
+    return false;
+  }
+  return true;
+}
+
+// ── Workflow Definitions ──────────────────────────────────────────
+var WORKFLOWS = {
+  entry: {
+    label:'قيد محاسبي',
+    steps:[
+      {key:'draft',    label:'مسودة',      icon:'📝', color:'#6b7280'},
+      {key:'pending',  label:'في الانتظار', icon:'⏳', color:'#d97706'},
+      {key:'approved', label:'معتمد',       icon:'✅', color:'#059669'},
+      {key:'posted',   label:'مرحّل',       icon:'📮', color:'#1d4ed8'},
+      {key:'rejected', label:'مرفوض',       icon:'❌', color:'#dc2626'},
+    ],
+    canApprove: 'canApproveEntries',
+    canPost:    'canPostEntries',
+  },
+  leave: {
+    label:'طلب إجازة',
+    steps:[
+      {key:'pending',  label:'في الانتظار', icon:'⏳', color:'#d97706'},
+      {key:'approved', label:'معتمد',       icon:'✅', color:'#059669'},
+      {key:'rejected', label:'مرفوض',       icon:'❌', color:'#dc2626'},
+    ],
+    canApprove: 'canApproveLeaves',
+  },
+  purchase: {
+    label:'طلب شراء / PO',
+    steps:[
+      {key:'draft',    label:'مسودة',      icon:'📝', color:'#6b7280'},
+      {key:'pending',  label:'في الانتظار', icon:'⏳', color:'#d97706'},
+      {key:'approved', label:'معتمد',       icon:'✅', color:'#059669'},
+      {key:'rejected', label:'مرفوض',       icon:'❌', color:'#dc2626'},
+    ],
+    canApprove: 'canApprovePO',
+  },
+  payroll: {
+    label:'مسير المرتبات',
+    steps:[
+      {key:'draft',    label:'مسودة',      icon:'📝', color:'#6b7280'},
+      {key:'pending',  label:'في الانتظار', icon:'⏳', color:'#d97706'},
+      {key:'approved', label:'معتمد',       icon:'✅', color:'#059669'},
+    ],
+    canApprove: 'canApprovePayroll',
+  },
+};
+
+// ── Approval Actions ──────────────────────────────────────────────
+function submitForApproval(type, itemId){
+  var u=getCurrentUser();
+  if(!u) return;
+  if(!DB.approvals) DB.approvals=[];
+  // Check if already pending
+  var existing=DB.approvals.find(function(a){return a.type===type&&a.itemId===itemId&&a.status==='pending';});
+  if(existing){toast('⚠️ الطلب مقدم مسبقاً للاعتماد');return;}
+  DB.approvals.push({
+    id:'AP'+Date.now(), type:type, itemId:itemId,
+    requestedBy:u.id, requestedByName:u.name,
+    requestedAt:new Date().toISOString(),
+    status:'pending', notes:'',
+  });
+  // Update item status
+  if(type==='entry'){
+    var e=(DB.entries||[]).find(function(x){return x.id===itemId;});
+    if(e) e.wfStatus='pending';
+  }
+  save();
+  toast('✅ تم تقديم الطلب للاعتماد');
+}
+
+function approveItem(approvalId, notes){
+  if(!requirePerm('canApproveEntries')&&!requirePerm('canApproveLeaves')&&
+     !requirePerm('canApprovePO')&&!requirePerm('canApprovePayroll')) return;
+  var u=getCurrentUser();
+  var ap=(DB.approvals||[]).find(function(a){return a.id===approvalId;});
+  if(!ap){toast('⚠️ الطلب غير موجود');return;}
+  ap.status='approved';
+  ap.approvedBy=u.id;
+  ap.approvedByName=u.name;
+  ap.approvedAt=new Date().toISOString();
+  ap.notes=notes||'';
+  // Update item
+  if(ap.type==='entry'){
+    var e=(DB.entries||[]).find(function(x){return x.id===ap.itemId;});
+    if(e) e.wfStatus='approved';
+  } else if(ap.type==='leave'){
+    var lr=(DB.leaveRequests||[]).find(function(x){return x.id===ap.itemId;});
+    if(lr) lr.status='approved';
+  }
+  save();
+  toast('✅ تم الاعتماد');
+  rApprovalInbox();
+}
+
+function rejectItem(approvalId, reason){
+  var u=getCurrentUser();
+  var ap=(DB.approvals||[]).find(function(a){return a.id===approvalId;});
+  if(!ap) return;
+  ap.status='rejected';
+  ap.rejectedBy=u.id;
+  ap.rejectedByName=u.name;
+  ap.rejectedAt=new Date().toISOString();
+  ap.reason=reason||'';
+  if(ap.type==='entry'){
+    var e=(DB.entries||[]).find(function(x){return x.id===ap.itemId;});
+    if(e) e.wfStatus='rejected';
+  } else if(ap.type==='leave'){
+    var lr=(DB.leaveRequests||[]).find(function(x){return x.id===ap.itemId;});
+    if(lr) lr.status='rejected';
+  }
+  save();
+  toast('❌ تم الرفض');
+  rApprovalInbox();
+}
+
+// ── Approval Inbox ────────────────────────────────────────────────
+function rApprovalInbox(){
+  if(!DB.approvals) DB.approvals=[];
+  var u=getCurrentUser();
+  var isApprover=hasPerm('canApproveEntries')||hasPerm('canApproveLeaves')||
+                 hasPerm('canApprovePO')||hasPerm('canApprovePayroll');
+
+  var pending=(DB.approvals||[]).filter(function(a){return a.status==='pending';});
+  var recent=(DB.approvals||[]).filter(function(a){return a.status!=='pending';})
+    .sort(function(a,b){return b.approvedAt>a.approvedAt?1:-1;}).slice(0,10);
+
+  var h='<div class="ph-t" style="margin-bottom:14px;">📥 صندوق الاعتماد</div>';
+
+  if(!isApprover&&!pending.length){
+    h+='<div style="text-align:center;padding:30px;color:var(--g4);">لا توجد طلبات معلقة</div>';
+    return setPgMore(h);
+  }
+
+  // Pending count badge
+  if(pending.length){
+    h+='<div style="background:#dc2626;color:white;border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">';
+    h+='<div><div style="font-weight:800;font-size:15px;">⏳ طلبات تنتظر الاعتماد</div>';
+    h+='<div style="font-size:11px;opacity:.85;">'+pending.length+' طلب</div></div>';
+    h+='<div style="font-size:36px;font-weight:900;">'+pending.length+'</div>';
+    h+='</div>';
+
+    pending.forEach(function(ap){
+      var wf=WORKFLOWS[ap.type]||{label:ap.type,steps:[]};
+      var typeColors={entry:'#dbeafe',leave:'#d1fae5',purchase:'#fef3c7',payroll:'#ede9fe'};
+      h+='<div style="background:white;border-radius:12px;padding:13px;margin-bottom:8px;border:1px solid #e5e7eb;">';
+      h+='<div style="display:flex;justify-content:space-between;margin-bottom:8px;">';
+      h+='<div>';
+      h+='<span style="background:'+(typeColors[ap.type]||'#f1f5f9')+';border-radius:5px;padding:2px 8px;font-size:10px;font-weight:700;">'+wf.label+'</span>';
+      h+=' <span style="font-size:12px;font-weight:700;color:var(--nd);">'+ap.itemId+'</span>';
+      h+='</div>';
+      h+='<div style="font-size:10px;color:var(--g4);">'+ap.requestedByName+'</div>';
+      h+='</div>';
+      h+='<div style="font-size:11px;color:var(--g4);margin-bottom:10px;">'+
+         new Date(ap.requestedAt).toLocaleDateString('ar-EG')+'</div>';
+
+      if(isApprover){
+        h+='<div id="reject-form-'+ap.id+'" style="display:none;margin-bottom:8px;">';
+        h+='<input id="reject-reason-'+ap.id+'" placeholder="سبب الرفض..." style="width:100%;padding:7px;border-radius:7px;border:1px solid #fca5a5;font-family:Cairo,sans-serif;box-sizing:border-box;font-size:11px;">';
+        h+='</div>';
+        h+='<div style="display:flex;gap:6px;">';
+        h+='<button data-aid="'+ap.id+'" onclick="approveItem(this.dataset.aid,\'\')" '
+          +'class="btn btn-gr" style="flex:1;font-size:11px;">✅ اعتماد</button>';
+        h+='<button data-aid="'+ap.id+'" onclick="toggleRejectForm(this.dataset.aid)" '
+          +'class="btn" style="flex:1;font-size:11px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;cursor:pointer;font-family:Cairo,sans-serif;">❌ رفض</button>';
+        h+='<button data-aid="'+ap.id+'" onclick="submitReject(this.dataset.aid)" '
+          +'id="confirm-reject-'+ap.id+'" style="display:none;flex:1;font-size:11px;background:#dc2626;color:white;border:none;border-radius:8px;cursor:pointer;font-family:Cairo,sans-serif;">تأكيد الرفض</button>';
+        h+='</div>';
+      }
+      h+='</div>';
+    });
+  }
+
+  // Recent decisions
+  if(recent.length){
+    h+='<div class="sd" style="margin:14px 0 8px;">📋 آخر القرارات</div>';
+    recent.forEach(function(ap){
+      var icon=ap.status==='approved'?'✅':'❌';
+      var color=ap.status==='approved'?'#059669':'#dc2626';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;'
+        +'padding:8px 12px;background:white;border-radius:8px;margin-bottom:5px;border:1px solid #e5e7eb;">';
+      h+='<div style="flex:1;">';
+      h+='<span style="font-size:14px;">'+icon+'</span> ';
+      h+='<span style="font-size:12px;font-weight:700;">'+ap.itemId+'</span>';
+      h+='<div style="font-size:10px;color:var(--g4);">'+(ap.approvedByName||ap.rejectedByName||'')+'</div>';
+      h+='</div>';
+      h+='<div style="font-size:10px;color:'+color+';font-weight:700;">'+
+         (ap.status==='approved'?'معتمد':'مرفوض')+'</div>';
+      h+='</div>';
+    });
+  }
+
+  setPgMore(h);
+}
+
+function setPgMore(h){
+  var pg=document.getElementById('pg-more');
+  if(pg) pg.innerHTML='<div style="padding:14px 14px 80px;">'+h+'</div>';
+}
+
+function toggleRejectForm(aid){
+  var form=document.getElementById('reject-form-'+aid);
+  var btn=document.getElementById('confirm-reject-'+aid);
+  if(form){form.style.display=form.style.display==='none'?'block':'none';}
+  if(btn){btn.style.display=btn.style.display==='none'?'block':'none';}
+}
+
+function submitReject(aid){
+  var reason=(document.getElementById('reject-reason-'+aid)||{}).value||'';
+  rejectItem(aid,reason);
+}
+
+// ── Permissions Settings Page ─────────────────────────────────────
+function rPermissionsPage(){
+  var u=getCurrentUser();
+  var isAdmin=u&&(u.role==='admin');
+  if(!isAdmin){
+    return '<div style="text-align:center;padding:40px;color:#dc2626;"><div style="font-size:40px;">⛔</div><div style="font-weight:700;margin-top:8px;">الصلاحيات للمدير فقط</div></div>';
+  }
+
+  var h='<div class="ph-t" style="margin-bottom:14px;">🔐 إدارة الصلاحيات والأدوار</div>';
+
+  // Roles summary cards
+  h+='<div style="margin-bottom:16px;">';
+  h+='<div style="font-weight:700;font-size:12px;color:var(--g4);margin-bottom:8px;">الأدوار المتاحة</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  Object.keys(ROLES).forEach(function(roleKey){
+    var role=ROLES[roleKey];
+    var count=(DB.users||[]).filter(function(u){return u.role===roleKey;}).length;
+    h+='<div style="background:white;border-radius:10px;padding:10px;border:2px solid '
+      +(count?role.color:'#e5e7eb')+';">';
+    h+='<div style="font-size:18px;">'+role.icon+'</div>';
+    h+='<div style="font-weight:700;font-size:12px;">'+role.label+'</div>';
+    h+='<div style="font-size:10px;color:var(--g4);">'+count+' مستخدم</div>';
+    h+='</div>';
+  });
+  h+='</div></div>';
+
+  // Users table
+  h+='<div style="background:white;border-radius:12px;overflow:hidden;margin-bottom:14px;">';
+  h+='<div style="background:var(--nd);color:white;padding:10px 12px;font-weight:700;font-size:12px;">👥 المستخدمون والأدوار</div>';
+  (DB.users||[]).forEach(function(usr,i){
+    var role=ROLES[usr.role]||{label:usr.role,icon:'👤',color:'#6b7280'};
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #f1f5f9;">';
+    h+='<div style="font-size:22px;">'+role.icon+'</div>';
+    h+='<div style="flex:1;">';
+    h+='<div style="font-weight:700;font-size:13px;">'+usr.name+'</div>';
+    h+='<div style="font-size:10px;color:var(--g4);">@'+usr.username+'</div>';
+    h+='</div>';
+    h+='<select data-uid="'+usr.id+'" onchange="changeUserRole(this)" style="font-size:11px;padding:5px 8px;border-radius:7px;border:2px solid '+role.color+';color:'+role.color+';font-weight:700;font-family:Cairo,sans-serif;">';
+    Object.keys(ROLES).forEach(function(rk){
+      var rl=ROLES[rk];
+      h+='<option value="'+rk+'"'+(usr.role===rk?' selected':'')+'>'+rl.icon+' '+rl.label+'</option>';
+    });
+    h+='</select>';
+    h+='</div>';
+  });
+  h+='</div>';
+
+  // Permissions matrix
+  h+='<div style="background:white;border-radius:12px;padding:14px;margin-bottom:14px;">';
+  h+='<div style="font-weight:700;font-size:13px;color:var(--nd);margin-bottom:10px;">📊 مصفوفة الصلاحيات</div>';
+
+  var permGroups=[
+    {label:'القيود',perms:['canViewEntries','canAddEntries','canEditEntries','canDeleteEntries','canApproveEntries','canPostEntries']},
+    {label:'التقارير المالية',perms:['canViewReports','canViewBanks','canViewTrial','canViewBalance','canViewBVA']},
+    {label:'HR والمرتبات',perms:['canViewPayroll','canEditPayroll','canApprovePayroll','canViewEmployees','canApproveLeaves']},
+    {label:'المشتريات',perms:['canViewProcurement','canAddPO','canApprovePO','canViewContracts']},
+    {label:'النظام',perms:['canManageUsers','canEditSettings','canExportData','canViewAudit']},
+  ];
+
+  var permLabels={
+    canViewEntries:'عرض قيود',canAddEntries:'إضافة قيود',canEditEntries:'تعديل قيود',
+    canDeleteEntries:'حذف قيود',canApproveEntries:'اعتماد قيود',canPostEntries:'ترحيل قيود',
+    canViewReports:'عرض تقارير',canViewBanks:'عرض بنوك',canViewTrial:'ميزان مراجعة',
+    canViewBalance:'ميزانية',canViewBVA:'BVA',
+    canViewPayroll:'عرض مرتبات',canEditPayroll:'تعديل مرتبات',canApprovePayroll:'اعتماد مرتبات',
+    canViewEmployees:'عرض موظفين',canApproveLeaves:'اعتماد إجازات',
+    canViewProcurement:'عرض مشتريات',canAddPO:'إضافة PO',canApprovePO:'اعتماد PO',canViewContracts:'عرض عقود',
+    canManageUsers:'إدارة مستخدمين',canEditSettings:'إعدادات النظام',canExportData:'تصدير بيانات',canViewAudit:'مراجعة',
+  };
+
+  var roleKeys=Object.keys(ROLES);
+  permGroups.forEach(function(grp){
+    h+='<div style="margin-bottom:12px;">';
+    h+='<div style="font-size:11px;font-weight:800;color:var(--g4);margin-bottom:6px;">'+grp.label+'</div>';
+    h+='<div style="overflow-x:auto;">';
+    h+='<table style="width:100%;font-size:10px;border-collapse:collapse;">';
+    h+='<thead><tr style="background:#f8fafc;">';
+    h+='<th style="padding:5px 8px;text-align:right;min-width:100px;">الصلاحية</th>';
+    roleKeys.forEach(function(rk){h+='<th style="padding:5px;text-align:center;width:36px;">'+ROLES[rk].icon+'</th>';});
+    h+='</tr></thead><tbody>';
+    grp.perms.forEach(function(perm){
+      h+='<tr style="border-bottom:1px solid #f1f5f9;">';
+      h+='<td style="padding:5px 8px;font-size:10.5px;">'+permLabels[perm]+'</td>';
+      roleKeys.forEach(function(rk){
+        var has=PERMS[rk]&&PERMS[rk][perm];
+        h+='<td style="text-align:center;padding:4px;">'+(has?'✅':'—')+'</td>';
+      });
+      h+='</tr>';
+    });
+    h+='</tbody></table></div></div>';
+  });
+  h+='</div>';
+  return h;
+}
+
+function changeUserRole(select){
+  var uid=select.dataset.uid;
+  var newRole=select.value;
+  var usr=(DB.users||[]).find(function(u){return u.id===uid;});
+  if(!usr){toast('⚠️ المستخدم غير موجود');return;}
+  var u=getCurrentUser();
+  if(u&&u.id===uid&&newRole!=='admin'){
+    if(!confirm('هل تريد تغيير دورك الحالي؟ ستحتاج لإعادة تسجيل الدخول')){
+      select.value=usr.role; return;
+    }
+  }
+  usr.role=newRole;
+  save();
+  toast('✅ تم تحديث الدور: '+ROLES[newRole].label);
+  // Update badge color
+  select.style.borderColor=ROLES[newRole].color;
+  select.style.color=ROLES[newRole].color;
+}
+
+// ── Updated renderPermPreview ─────────────────────────────────────
+function renderPermPreview(roleKey){
+  var p=PERMS[roleKey]||PERMS.viewer;
+  var role=ROLES[roleKey]||{label:roleKey,icon:'👤',color:'#6b7280'};
+  var permsOn=Object.keys(p).filter(function(k){return p[k]===true;});
+  var permsOff=Object.keys(p).filter(function(k){return p[k]===false;});
+  var h='<div style="background:'+role.color+'15;border:2px solid '+role.color+';border-radius:8px;padding:10px;">';
+  h+='<div style="font-weight:700;color:'+role.color+';">'+role.icon+' '+role.label+'</div>';
+  h+='<div style="margin-top:6px;font-size:10.5px;color:#059669;">✅ يستطيع: '+permsOn.length+' صلاحية</div>';
+  h+='<div style="font-size:10.5px;color:#dc2626;">⛔ لا يستطيع: '+permsOff.length+' صلاحية</div>';
+  h+='</div>';
+  return h;
+}
+
+// ── Pending Approvals Count (for dashboard badge) ─────────────────
+function getPendingApprovalsCount(){
+  if(!hasPerm('canApproveEntries')&&!hasPerm('canApproveLeaves')&&
+     !hasPerm('canApprovePO')&&!hasPerm('canApprovePayroll')) return 0;
+  return (DB.approvals||[]).filter(function(a){return a.status==='pending';}).length;
+}
+
 function rSetPage(){
   var u=getCurrentUser();
   var org=DB.org||{};
@@ -12981,25 +13486,7 @@ function newUser(){
   h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button></div>';
   om("👤 مستخدم جديد",h);
 }
-function renderPermPreview(role){
-  var p=PERMS[role]||{};
-  var items=[
-    {k:"canEditEntries",l:"إدخال القيود"},
-    {k:"canDeleteEntries",l:"حذف القيود"},
-    {k:"canEditSalaries",l:"تعديل المرتبات"},
-    {k:"canEditEmployees",l:"تعديل الموظفين"},
-    {k:"canEditInventory",l:"تعديل المخازن"},
-    {k:"canManageUsers",l:"إدارة المستخدمين"},
-    {k:"canLockPeriod",l:"إغلاق الفترات"},
-    {k:"canExportData",l:"تصدير البيانات"},
-    {k:"canViewReports",l:"عرض التقارير"}
-  ];
-  return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">'+
-    items.map(function(x){
-      var ok=!!p[x.k];
-      return '<div style="font-size:11px;">'+(ok?'<span style="color:var(--gr);">✅</span>':'<span style="color:var(--g4);">❌</span>')+' '+x.l+'</div>';
-    }).join("")+'</div>';
-}
+
 function saveUser(id){
   var name=sv("nu-name"),uname=sv("nu-user"),pass=sv("nu-pass"),role=sv("nu-role");
   if(!name||!uname||!pass){alert("جميع الحقول مطلوبة");return;}
