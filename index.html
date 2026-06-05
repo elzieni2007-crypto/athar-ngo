@@ -1479,6 +1479,7 @@ function sub(n){
         var backFn=finPages.indexOf(n)>-1?"nav('fin',null)":opsPages.indexOf(n)>-1?"nav('ops',null)":morePages.indexOf(n)>-1?'rMore()':'sub(\'dash\')';
         var backLabel=finPages.indexOf(n)>-1?'‹ المالية':opsPages.indexOf(n)>-1?'‹ العمليات':morePages.indexOf(n)>-1?'‹ المزيد':'‹ الرئيسية';
         nav('more',null);
+        history.pushState({pg:'more',back:"nav('dash',null)"} ,'',null);
         var pgEl=document.getElementById('pg-more');
         if(pgEl){
           var result=f[n]();
@@ -1489,7 +1490,8 @@ function sub(n){
               +'<div style="font-weight:800;font-size:16px;color:var(--nd);">'+(titles[n]||n)+'</div>'
               +'</div>'
               +result+'</div>';
-          showTbBack({type:'fn',pg:backFn});
+            showTbBack({type:'fn',pg:backFn});
+            history.pushState({pg:n,back:backFn},'',null);
           }
         }
       }
@@ -8297,7 +8299,7 @@ function calcAuditReadiness(gf){
   var totalSlots=0,filled=0;
   GRANT_SECTIONS.forEach(function(sec){
     var docs=gf.sections[sec.key]||[];
-    var _allDocs=getSecDocs(tabKey||secKey);
+    var _allDocs=getSecDocs(sec.key);
   _allDocs.forEach(function(docName){
       totalSlots++;
       if(docs.some(function(d){return d.label===docName&&d.file;})) filled++;
@@ -18965,6 +18967,22 @@ document.addEventListener("DOMContentLoaded", function(){
     loadSeedData();
   }
   nav("dash", document.querySelector('[data-nav="dash"]'));
+
+  // Handle phone back button
+  window.addEventListener('popstate',function(e){
+    if(e.state&&e.state.back){
+      // User pressed phone back — go to parent page
+      try{ eval(e.state.back); }catch(err){ nav('dash',null); }
+    } else {
+      // No state — we're at root, go to dash
+      nav('dash',null);
+    }
+    // Prevent browser from actually navigating away
+    history.pushState(null,'',null);
+  });
+
+  // Push initial state to catch first back press
+  history.pushState(null,'',null);
 });
 
 </script>
