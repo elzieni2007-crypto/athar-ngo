@@ -1567,6 +1567,26 @@ function getSmartAlerts(){
       msg:'تحذير موازنة: '+pr.name,sub:'صرف '+pct+'% من الموازنة'});
   });
 
+  // 5b. مواعيد تقارير المنح
+  (DB.grantFiles||[]).forEach(function(gf){
+    (gf.deadlines||[]).forEach(function(dl){
+      if(dl.submitted||!dl.dueDate) return;
+      var daysLeft=Math.round((new Date(dl.dueDate).getTime()-todayMs)/86400000);
+      if(daysLeft<0) alerts.push({level:'danger',icon:'📅',
+        msg:'موعد تقرير متأخر: '+dl.label,
+        sub:gf.projName+' — متأخر '+Math.abs(daysLeft)+' يوم',
+        action:"sub('grantfiles')"});
+      else if(daysLeft<=14) alerts.push({level:'danger',icon:'📋',
+        msg:'موعد تقرير عاجل: '+dl.label,
+        sub:gf.projName+' — متبقي '+daysLeft+' يوم',
+        action:"sub('grantfiles')"});
+      else if(daysLeft<=30) alerts.push({level:'warning',icon:'📋',
+        msg:'موعد تقرير قادم: '+dl.label,
+        sub:gf.projName+' — متبقي '+daysLeft+' يوم',
+        action:"sub('grantfiles')"});
+    });
+  });
+
   // 6. تسوية بنكية متأخرة (آخر تسوية أكثر من 35 يوم)
   var bankAccs=getBankAccounts();
   bankAccs.forEach(function(acc){
@@ -1661,6 +1681,9 @@ function rDash(){
 
   var h='';
   h+=renderAlertsBar();
+
+  // === GRANT DEADLINES WIDGET ===
+  h+=renderGrantDeadlinesDash();
 
   // === DATE + ORG HEADER ===
   var _d=new Date();
@@ -8001,6 +8024,249 @@ function initGrantFiles(){
   if(!DB.grantFiles) DB.grantFiles=[];
 }
 
+// ══════════════════════════════════════════════════════════
+// GRANT DEADLINES ENGINE — مواعيد التقارير
+// ══════════════════════════════════════════════════════════
+
+var GRANT_DL_TYPES=[
+  {key:'financial',  label:'تقرير مالي',     icon:'💰'},
+  {key:'narrative',  label:'تقرير فني/سردي', icon:'📝'},
+  {key:'audit',      label:'مراجعة حسابية',  icon:'🔍'},
+  {key:'procurement',label:'تقرير مشتريات',  icon:'🛒'},
+  {key:'interim',    label:'تقرير مرحلي',    icon:'📊'},
+  {key:'final',      label:'تقرير ختامي',    icon:'🏁'},
+  {key:'other',      label:'موعد آخر',       icon:'📅'},
+];
+
+function gDlTypeInfo(key){
+  return GRANT_DL_TYPES.find(function(t){return t.key===key;})||GRANT_DL_TYPES[GRANT_DL_TYPES.length-1];
+}
+
+function gDlStatus(dl){
+  if(dl.submitted) return 'submitted';
+  var todayMs=new Date().setHours(0,0,0,0);
+  var dueMs=new Date(dl.dueDate).getTime();
+  var diff=Math.round((dueMs-todayMs)/86400000);
+  if(diff<0)  return 'overdue';
+  if(diff<=14) return 'urgent';
+  if(diff<=30) return 'warning';
+  return 'upcoming';
+}
+
+function gDlDaysLabel(dl){
+  if(dl.submitted) return '✅ تم التقديم';
+  var todayMs=new Date().setHours(0,0,0,0);
+  var diff=Math.round((new Date(dl.dueDate).getTime()-todayMs)/86400000);
+  if(diff<0)  return 'متأخر '+Math.abs(diff)+' يوم';
+  if(diff===0) return 'اليوم!';
+  if(diff===1) return 'غداً!';
+  return diff+' يوم';
+}
+
+function gDlBadgeStyle(dl){
+  var s=gDlStatus(dl);
+  if(s==='submitted') return 'background:#D1FAE5;color:#059669;';
+  if(s==='overdue'||s==='urgent') return 'background:#FEE2E2;color:#DC2626;';
+  if(s==='warning') return 'background:#FEF3C7;color:#92400E;';
+  return 'background:#E0F2FE;color:#0369A1;';
+}
+
+// Get all deadlines across all grant files
+function getAllGrantDeadlines(daysAhead){
+  var grantFiles=DB.grantFiles||[];
+  var todayMs=new Date().setHours(0,0,0,0);
+  var cutoffMs=daysAhead?todayMs+daysAhead*86400000:null;
+  var results=[];
+  grantFiles.forEach(function(gf,gi){
+    (gf.deadlines||[]).forEach(function(dl,di){
+      if(!dl.dueDate) return;
+      var dueMs=new Date(dl.dueDate).getTime();
+      if(dl.submitted) return; // skip submitted
+      // Include overdue always + upcoming within cutoff
+      var isOverdue=dueMs<todayMs;
+      var inWindow=cutoffMs?dueMs<=cutoffMs:true;
+      if(isOverdue||inWindow){
+        results.push({dl:dl,grantIdx:gi,dlIdx:di,grantName:gf.projName,donor:gf.donor||''});
+      }
+    });
+  });
+  results.sort(function(a,b){return new Date(a.dl.dueDate)-new Date(b.dl.dueDate);});
+  return results;
+}
+
+// Dashboard deadlines widget
+function renderGrantDeadlinesDash(){
+  var upcoming=getAllGrantDeadlines(60);
+  if(!upcoming.length) return '';
+  var shown=upcoming.slice(0,5);
+  var h='<div style="background:white;border-radius:14px;padding:14px;margin-bottom:12px;border:1px solid #e5e7eb;">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+  h+='<div style="font-weight:800;font-size:13px;color:var(--nd);">📅 مواعيد التقارير</div>';
+  h+='<button onclick="openAllGrantDeadlines()" style="font-size:11px;color:#0891B2;font-weight:700;background:none;border:none;cursor:pointer;font-family:Cairo,sans-serif;">عرض الكل ›</button>';
+  h+='</div>';
+  shown.forEach(function(r){
+    var ti=gDlTypeInfo(r.dl.type);
+    var bs=gDlBadgeStyle(r.dl);
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;">';
+    h+='<div style="font-size:18px;">'+ti.icon+'</div>';
+    h+='<div style="flex:1;min-width:0;">';
+    h+='<div style="font-size:12.5px;font-weight:700;color:var(--nd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+r.dl.label+'</div>';
+    h+='<div style="font-size:10.5px;color:var(--g4);">'+r.grantName+(r.donor?' · '+r.donor:'')+' · '+r.dl.dueDate+'</div>';
+    h+='</div>';
+    h+='<span style="font-size:10px;font-weight:800;padding:4px 9px;border-radius:8px;flex-shrink:0;'+bs+'">'+gDlDaysLabel(r.dl)+'</span>';
+    h+='</div>';
+  });
+  if(upcoming.length>5){
+    h+='<div style="text-align:center;font-size:11px;color:var(--g4);margin-top:6px;cursor:pointer;" onclick="openAllGrantDeadlines()">+ '+(upcoming.length-5)+' مواعيد أخرى</div>';
+  }
+  h+='</div>';
+  return h;
+}
+
+function openAllGrantDeadlines(){
+  var all=getAllGrantDeadlines(null);
+  // Also include upcoming beyond 60d
+  var allIncl=[];
+  (DB.grantFiles||[]).forEach(function(gf,gi){
+    (gf.deadlines||[]).forEach(function(dl,di){
+      if(!dl.dueDate) return;
+      allIncl.push({dl:dl,grantIdx:gi,dlIdx:di,grantName:gf.projName,donor:gf.donor||''});
+    });
+  });
+  allIncl.sort(function(a,b){
+    if(a.dl.submitted&&!b.dl.submitted) return 1;
+    if(!a.dl.submitted&&b.dl.submitted) return -1;
+    return new Date(a.dl.dueDate)-new Date(b.dl.dueDate);
+  });
+
+  var groups={overdue:[],urgent:[],warning:[],upcoming:[],submitted:[]};
+  allIncl.forEach(function(r){ var s=gDlStatus(r.dl); if(groups[s]) groups[s].push(r); });
+
+  var grpLabels={overdue:'⛔ متأخر',urgent:'🚨 خلال 14 يوم',warning:'⚠️ خلال 30 يوم',upcoming:'📅 قادم',submitted:'✅ تم التقديم'};
+
+  var h='';
+  if(!allIncl.length){
+    h='<div style="text-align:center;padding:30px;color:var(--g4);font-size:13px;">لا توجد مواعيد مسجلة</div>';
+    om('📅 مواعيد التقارير',h); return;
+  }
+
+  ['overdue','urgent','warning','upcoming','submitted'].forEach(function(gk){
+    var list=groups[gk];
+    if(!list.length) return;
+    h+='<div style="font-size:10.5px;font-weight:800;color:var(--g4);letter-spacing:.3px;margin:12px 0 6px;">'+grpLabels[gk]+' ('+list.length+')</div>';
+    list.forEach(function(r){
+      var ti=gDlTypeInfo(r.dl.type);
+      var bs=gDlBadgeStyle(r.dl);
+      h+='<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="sub(\'grantfiles\')">';
+      h+='<div style="font-size:18px;">'+ti.icon+'</div>';
+      h+='<div style="flex:1;min-width:0;">';
+      h+='<div style="font-size:12.5px;font-weight:700;color:var(--nd);">'+r.dl.label+'</div>';
+      h+='<div style="font-size:10.5px;color:var(--g4);">'+r.grantName+' · '+r.dl.dueDate+'</div>';
+      h+='</div>';
+      h+='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">';
+      h+='<span style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:7px;'+bs+'">'+gDlDaysLabel(r.dl)+'</span>';
+      if(!r.dl.submitted){
+        h+='<button class="btn btn-sm" style="background:#D1FAE5;color:#059669;padding:3px 8px;font-size:10px;" onclick="event.stopPropagation();markGrantDlSubmitted('+r.grantIdx+','+r.dlIdx+')">✓ تم</button>';
+      }
+      h+='</div></div>';
+    });
+  });
+  om('📅 مواعيد التقارير',h);
+}
+
+function markGrantDlSubmitted(gi,di){
+  var gf=DB.grantFiles[gi];
+  if(!gf||!gf.deadlines||!gf.deadlines[di]) return;
+  gf.deadlines[di].submitted=true;
+  gf.deadlines[di].submittedDate=new Date().toISOString().slice(0,10);
+  save(); toast('✅ تم تسجيل التقديم');
+  openAllGrantDeadlines();
+  sub('dash');
+}
+
+function openAddGrantDeadline(gfIdx){
+  var today=new Date().toISOString().slice(0,10);
+  var h='<div class="fg"><label>نوع التقرير</label><select id="gdl-type">';
+  GRANT_DL_TYPES.forEach(function(t){
+    h+='<option value="'+t.key+'">'+t.icon+' '+t.label+'</option>';
+  });
+  h+='</select></div>';
+  h+='<div class="fg"><label>الوصف</label><input id="gdl-label" placeholder="مثال: التقرير المالي Q1 2026"></div>';
+  h+='<div class="fg"><label>تاريخ الاستحقاق *</label><input type="date" id="gdl-date" value="'+today+'"></div>';
+  h+='<div class="fg"><label>ملاحظات</label><input id="gdl-notes" placeholder="أي تفاصيل..."></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button>';
+  h+='<button class="btn btn-gr" onclick="saveGrantDeadline('+gfIdx+')">إضافة الموعد</button>';
+  h+='</div>';
+  om('📅 إضافة موعد تقرير',h);
+}
+
+function saveGrantDeadline(gi){
+  var gf=DB.grantFiles[gi]; if(!gf) return;
+  var type=(document.getElementById('gdl-type')||{}).value||'other';
+  var label=((document.getElementById('gdl-label')||{}).value||'').trim();
+  var dueDate=(document.getElementById('gdl-date')||{}).value||'';
+  var notes=((document.getElementById('gdl-notes')||{}).value||'').trim();
+  if(!label){toast('⚠️ أدخل وصف الموعد');return;}
+  if(!dueDate){toast('⚠️ اختر تاريخ الاستحقاق');return;}
+  if(!gf.deadlines) gf.deadlines=[];
+  gf.deadlines.push({id:'DL'+Date.now(),type:type,label:label,
+    dueDate:dueDate,notes:notes,submitted:false,
+    createdAt:new Date().toISOString()});
+  save(); cm();
+  toast('✅ تم إضافة الموعد');
+  renderGrantFilePage(gi);
+}
+
+function deleteGrantDeadline(gi,di){
+  if(!confirm('حذف هذا الموعد؟')) return;
+  var gf=DB.grantFiles[gi]; if(!gf||!gf.deadlines) return;
+  gf.deadlines.splice(di,1);
+  save(); renderGrantFilePage(gi);
+}
+
+function quickMarkGrantDl(gi,di){
+  var gf=DB.grantFiles[gi]; if(!gf||!gf.deadlines||!gf.deadlines[di]) return;
+  gf.deadlines[di].submitted=true;
+  gf.deadlines[di].submittedDate=new Date().toISOString().slice(0,10);
+  save(); toast('✅ تم التقديم'); renderGrantFilePage(gi);
+}
+
+function renderGrantDeadlinesTab(gf,gi){
+  var deadlines=gf.deadlines||[];
+  var h='<div style="background:white;border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid #e5e7eb;">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+  h+='<div style="font-weight:800;font-size:13px;color:var(--nd);">📅 مواعيد التقارير</div>';
+  h+='<button class="btn btn-gr" style="font-size:11px;" onclick="openAddGrantDeadline('+gi+')">+ موعد</button>';
+  h+='</div>';
+  if(!deadlines.length){
+    h+='<div style="text-align:center;padding:16px;color:var(--g4);font-size:12px;">لا توجد مواعيد — اضغط + لإضافة موعد تقرير</div>';
+  } else {
+    deadlines.forEach(function(dl,di){
+      var ti=gDlTypeInfo(dl.type);
+      var bs=gDlBadgeStyle(dl);
+      h+='<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f8fafc;">';
+      h+='<div style="font-size:18px;">'+ti.icon+'</div>';
+      h+='<div style="flex:1;min-width:0;">';
+      h+='<div style="font-size:12.5px;font-weight:700;">'+dl.label+'</div>';
+      h+='<div style="font-size:10.5px;color:var(--g4);">'+dl.dueDate+(dl.notes?' · '+dl.notes:'')+'</div>';
+      h+='</div>';
+      h+='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">';
+      h+='<span style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:7px;flex-shrink:0;'+bs+'">'+gDlDaysLabel(dl)+'</span>';
+      h+='<div style="display:flex;gap:3px;">';
+      if(!dl.submitted){
+        h+='<button data-gi="'+gi+'" data-di="'+di+'" onclick="quickMarkGrantDl(this.dataset.gi,this.dataset.di)" style="background:#D1FAE5;border:none;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:10px;font-weight:700;color:#059669;font-family:Cairo,sans-serif;">✓ تم</button>';
+      }
+      h+='<button data-gi="'+gi+'" data-di="'+di+'" onclick="deleteGrantDeadline(this.dataset.gi,this.dataset.di)" style="background:#FEE2E2;border:none;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:10px;color:#DC2626;font-family:Cairo,sans-serif;">✕</button>';
+      h+='</div></div></div>';
+    });
+  }
+  h+='</div>';
+  return h;
+}
+
+
+
 // ── Section definitions ───────────────────────────────────────────
 var GRANT_SECTIONS=[
   {key:'proposal',num:'01',label:'المقترح والتصميم',icon:'📋',
@@ -8031,7 +8297,8 @@ function calcAuditReadiness(gf){
   var totalSlots=0,filled=0;
   GRANT_SECTIONS.forEach(function(sec){
     var docs=gf.sections[sec.key]||[];
-    sec.docs.forEach(function(docName){
+    var _allDocs=getSecDocs(tabKey||secKey);
+  _allDocs.forEach(function(docName){
       totalSlots++;
       if(docs.some(function(d){return d.label===docName&&d.file;})) filled++;
     });
@@ -8051,6 +8318,7 @@ function rGrantFilesPage(){
   var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">';
   h+='<div class="ph-t">📁 ملفات المنح</div>';
   h+='<button class="btn btn-gr" onclick="openNewGrantFile()" style="font-size:11px;">+ ملف منحة جديد</button>';
+  h+='<button class="btn btn-sm" onclick="openAdminGrantPanel()" style="background:'+(window._isAdmin?'#d1fae5':'#f1f5f9')+';color:'+(window._isAdmin?'#059669':'var(--g4)')+';font-size:11px;">'+(window._isAdmin?'🔓 مدير':'🔐')+'</button>';
   h+='</div>';
 
   if(!DB.grantFiles.length){
@@ -8209,7 +8477,7 @@ function renderGrantFilePage(idx){
 
   // Tabs scrollable
   h+='<div style="display:flex;gap:4px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch;">';
-  GRANT_SECTIONS.forEach(function(sec){
+  GRANT_SECTIONS.filter(function(sec){return canViewGrantSection(sec.key);}).forEach(function(sec){
     var active=_activeGrantTab===sec.key;
     var hasDocs=(gf.sections[sec.key]||[]).length>0;
     h+='<div onclick="switchGrantTab('+idx+',\''+sec.key+'\')" style="flex-shrink:0;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:10.5px;white-space:nowrap;';
@@ -8218,6 +8486,14 @@ function renderGrantFilePage(idx){
     h+=sec.icon+' '+sec.num+(hasDocs?' ●':'');
     h+='</div>';
   });
+  // Deadlines tab
+  var dlActive=_activeGrantTab==='deadlines';
+  var dlCount=(gf.deadlines||[]).length;
+  h+='<div onclick="switchGrantTab('+idx+',\'deadlines\')" style="flex-shrink:0;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:10.5px;white-space:nowrap;';
+  h+='background:'+(dlActive?'rgba(255,255,255,.25)':'rgba(255,255,255,.08)')+';';
+  h+='color:white;font-weight:'+(dlActive?'800':'400')+';">';
+  h+='📅 مواعيد'+(dlCount?' ('+dlCount+')':'');
+  h+='</div>';
   h+='</div></div>';
 
   // ── Tab Content ───────────────────────────────────────────────
@@ -8236,6 +8512,8 @@ function switchGrantTab(idx,tabKey){
 
 // ── Render Single Tab ─────────────────────────────────────────────
 function renderGrantTab(gf,idx,tabKey){
+  // Deadlines tab
+  if(tabKey==='deadlines') return renderGrantDeadlinesTab(gf,idx);
   var sec=GRANT_SECTIONS.find(function(s){return s.key===tabKey;});
   if(!sec) return '';
   var docs=gf.sections[tabKey]||[];
@@ -8503,6 +8781,275 @@ function rGrantAuditReport(gfIdx){
     h+='</div></div>';
   });
   return h;
+}
+
+
+// ================================================================
+// GRANT FILE ADMIN SETTINGS + PERMISSIONS MODULE
+// ================================================================
+
+var _isAdmin = false;
+
+function initAdminDB(){
+  if(!DB.grantAdmin) DB.grantAdmin={
+    password:'1234',
+    customDocs:{},
+    removedDocs:{},
+    userRole:'director',
+    roles:['program','finance','director'],
+    roleLabels:{program:'مسؤول البرنامج',finance:'محاسب',director:'المدير'},
+    permissions:{
+      program: {proposal:true,agreement:true,startup:true,implementation:true,
+                procurement:false,finance:false,reports:true,communication:true,audit:false,closeout:false},
+      finance:  {proposal:true,agreement:true,startup:true,implementation:false,
+                 procurement:true,finance:true,reports:true,communication:false,audit:true,closeout:true},
+      director: {proposal:true,agreement:true,startup:true,implementation:true,
+                 procurement:true,finance:true,reports:true,communication:true,audit:true,closeout:true},
+    },
+  };
+}
+
+function getSecDocs(secKey){
+  initAdminDB();
+  var sec=GRANT_SECTIONS.find(function(s){return s.key===secKey;});
+  var base=sec?sec.docs.slice():[];
+  var custom=DB.grantAdmin.customDocs[secKey]||[];
+  var removed=DB.grantAdmin.removedDocs[secKey]||[];
+  return base.concat(custom).filter(function(d){return removed.indexOf(d)===-1;});
+}
+
+function canViewGrantSection(secKey){
+  if(_isAdmin) return true;
+  initAdminDB();
+  var role=DB.grantAdmin.userRole||'director';
+  var perms=DB.grantAdmin.permissions[role];
+  if(!perms) return true;
+  return perms[secKey]!==false;
+}
+
+function openAdminGrantPanel(){
+  if(_isAdmin){renderAdminGrantPanel();return;}
+  var h='<div style="text-align:center;padding:10px 0 14px;">';
+  h+='<div style="font-size:36px;margin-bottom:8px;">🔐</div>';
+  h+='<div style="font-weight:800;font-size:15px;color:var(--nd);margin-bottom:16px;">دخول مدير ملفات المنح</div>';
+  h+='</div>';
+  h+='<div class="fg"><label>كلمة المرور</label>';
+  h+='<input type="password" id="gad-pass" placeholder="****" style="text-align:center;font-size:20px;letter-spacing:6px;"></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">';
+  h+='<button class="btn btn-gy" onclick="cm()">إلغاء</button>';
+  h+='<button class="btn btn-gr" onclick="loginAdminGrant()">دخول</button>';
+  h+='</div>';
+  om('🔐 إدارة ملفات المنح',h);
+  setTimeout(function(){var el=document.getElementById('gad-pass');if(el)el.focus();},100);
+}
+
+function loginAdminGrant(){
+  initAdminDB();
+  var pass=(document.getElementById('gad-pass')||{}).value||'';
+  if(pass===DB.grantAdmin.password){
+    _isAdmin=true; cm();
+    toast('✅ وضع المدير — ملفات المنح');
+    renderAdminGrantPanel();
+  } else { toast('⚠️ كلمة مرور خاطئة'); }
+}
+
+function logoutAdminGrant(){
+  _isAdmin=false;
+  toast('تم الخروج');
+  sub('grantfiles');
+}
+
+function renderAdminGrantPanel(){
+  if(!window._gadTab) window._gadTab='sections';
+  var tabs=[['sections','📋 بنود الأقسام'],['permissions','👥 الصلاحيات'],['password','🔑 كلمة المرور']];
+  var h='<div style="display:flex;gap:6px;margin-bottom:14px;">';
+  tabs.forEach(function(t){
+    h+='<button onclick="gadTab(\''+t[0]+'\')" style="flex:1;padding:7px;border-radius:8px;border:none;cursor:pointer;font-family:Cairo,sans-serif;font-size:10.5px;font-weight:700;';
+    h+='background:'+(window._gadTab===t[0]?'var(--nd)':'#f1f5f9')+';color:'+(window._gadTab===t[0]?'white':'var(--g3)')+';">'+t[1]+'</button>';
+  });
+  h+='</div><div id="gad-content">'+renderGadTab(window._gadTab)+'</div>';
+  om('🔐 إدارة ملفات المنح',h);
+}
+
+function gadTab(tab){
+  window._gadTab=tab;
+  var el=document.getElementById('gad-content');
+  if(el) el.innerHTML=renderGadTab(tab);
+  // update button styles
+  var parent=el&&el.previousElementSibling;
+  if(parent){
+    Array.from(parent.children).forEach(function(btn,i){
+      var t=['sections','permissions','password'][i];
+      btn.style.background=t===tab?'var(--nd)':'#f1f5f9';
+      btn.style.color=t===tab?'white':'var(--g3)';
+    });
+  }
+}
+
+function renderGadTab(tab){
+  if(tab==='sections') return renderGadSections();
+  if(tab==='permissions') return renderGadPermissions();
+  if(tab==='password') return renderGadPassword();
+  return '';
+}
+
+function renderGadSections(){
+  initAdminDB();
+  var h='<div class="fg"><label>القسم</label><select id="gad-sec" onchange="reloadGadSec()" style="font-size:12px;">';
+  GRANT_SECTIONS.forEach(function(sec){h+='<option value="'+sec.key+'">'+sec.num+' — '+sec.label+'</option>';});
+  h+='</select></div>';
+  h+='<div id="gad-sec-docs">'+renderGadSecDocs('proposal')+'</div>';
+  return h;
+}
+
+function reloadGadSec(){
+  var sel=document.getElementById('gad-sec');
+  var el=document.getElementById('gad-sec-docs');
+  if(sel&&el) el.innerHTML=renderGadSecDocs(sel.value);
+}
+
+function renderGadSecDocs(secKey){
+  initAdminDB();
+  var sec=GRANT_SECTIONS.find(function(s){return s.key===secKey;});
+  if(!sec) return '';
+  var removed=DB.grantAdmin.removedDocs[secKey]||[];
+  var custom=DB.grantAdmin.customDocs[secKey]||[];
+  var h='<div style="font-size:11px;font-weight:700;color:var(--g4);margin-bottom:6px;">البنود الأصلية</div>';
+  sec.docs.forEach(function(d){
+    var isRm=removed.indexOf(d)>-1;
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f8fafc;">';
+    h+='<span>'+(isRm?'❌':'✅')+'</span>';
+    h+='<span style="flex:1;font-size:12px;color:'+(isRm?'#94a3b8':'var(--nd)')+';text-decoration:'+(isRm?'line-through':'none')+';">'+d+'</span>';
+    h+='<button data-sec="'+secKey+'" data-doc="'+d+'" onclick="toggleGadDoc(this)" style="font-size:10px;padding:4px 9px;border-radius:6px;border:none;cursor:pointer;background:'+(isRm?'#d1fae5':'#fee2e2')+';color:'+(isRm?'#059669':'#dc2626')+';font-family:Cairo,sans-serif;font-weight:700;">'+(isRm?'إعادة':'إزالة')+'</button>';
+    h+='</div>';
+  });
+  if(custom.length){
+    h+='<div style="font-size:11px;font-weight:700;color:var(--g4);margin:10px 0 6px;">بنود مضافة</div>';
+    custom.forEach(function(d,i){
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f8fafc;">';
+      h+='<span>📌</span><span style="flex:1;font-size:12px;">'+d+'</span>';
+      h+='<button data-sec="'+secKey+'" data-idx="'+i+'" onclick="deleteGadDoc(this)" style="font-size:10px;padding:4px 9px;border-radius:6px;border:none;cursor:pointer;background:#fee2e2;color:#dc2626;font-family:Cairo,sans-serif;font-weight:700;">حذف</button>';
+      h+='</div>';
+    });
+  }
+  h+='<div style="display:flex;gap:8px;margin-top:12px;">';
+  h+='<input id="gad-new-doc" placeholder="اسم البند الجديد..." style="flex:1;padding:8px 10px;border-radius:8px;border:1.5px solid #e5e7eb;font-family:Cairo,sans-serif;font-size:12px;">';
+  h+='<button data-sec="'+secKey+'" onclick="addGadDoc(this)" class="btn btn-gr btn-sm">إضافة</button>';
+  h+='</div>';
+  return h;
+}
+
+function toggleGadDoc(btn){
+  initAdminDB();
+  var secKey=btn.dataset.sec, docName=btn.dataset.doc;
+  if(!DB.grantAdmin.removedDocs[secKey]) DB.grantAdmin.removedDocs[secKey]=[];
+  var arr=DB.grantAdmin.removedDocs[secKey];
+  var idx=arr.indexOf(docName);
+  if(idx>-1) arr.splice(idx,1); else arr.push(docName);
+  save();
+  var el=document.getElementById('gad-sec-docs');
+  var sel=document.getElementById('gad-sec');
+  if(el) el.innerHTML=renderGadSecDocs(sel?sel.value:secKey);
+}
+
+function addGadDoc(btn){
+  initAdminDB();
+  var secKey=btn.dataset.sec;
+  var inp=document.getElementById('gad-new-doc');
+  var name=(inp&&inp.value||'').trim();
+  if(!name){toast('⚠️ أدخل اسم البند');return;}
+  if(!DB.grantAdmin.customDocs[secKey]) DB.grantAdmin.customDocs[secKey]=[];
+  if(DB.grantAdmin.customDocs[secKey].indexOf(name)>-1){toast('⚠️ البند موجود');return;}
+  DB.grantAdmin.customDocs[secKey].push(name);
+  save(); toast('✅ تم الإضافة');
+  if(inp) inp.value='';
+  var el=document.getElementById('gad-sec-docs');
+  if(el) el.innerHTML=renderGadSecDocs(secKey);
+}
+
+function deleteGadDoc(btn){
+  initAdminDB();
+  var secKey=btn.dataset.sec, idx=parseInt(btn.dataset.idx);
+  if(!DB.grantAdmin.customDocs[secKey]) return;
+  var name=DB.grantAdmin.customDocs[secKey][idx];
+  if(!confirm('حذف "'+name+'"؟')) return;
+  DB.grantAdmin.customDocs[secKey].splice(idx,1);
+  save(); toast('✅ تم الحذف');
+  var el=document.getElementById('gad-sec-docs');
+  if(el) el.innerHTML=renderGadSecDocs(secKey);
+}
+
+function renderGadPermissions(){
+  initAdminDB();
+  var s=DB.grantAdmin;
+  var h='<div style="background:#f0f9ff;border-radius:10px;padding:10px;margin-bottom:12px;">';
+  h+='<div style="font-size:11px;font-weight:700;color:var(--g4);margin-bottom:6px;">دور المستخدم الحالي</div>';
+  h+='<div style="display:flex;gap:6px;">';
+  s.roles.forEach(function(role){
+    var active=s.userRole===role;
+    h+='<button data-role="'+role+'" onclick="setGrantRole(this)" style="flex:1;padding:7px;border-radius:8px;border:2px solid '+(active?'var(--nd)':'#e5e7eb')+';background:'+(active?'var(--nd)':'white')+';color:'+(active?'white':'var(--g3)')+';cursor:pointer;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;">'+s.roleLabels[role]+'</button>';
+  });
+  h+='</div></div>';
+  h+='<div style="font-size:12px;font-weight:800;color:var(--nd);margin-bottom:8px;">مصفوفة الصلاحيات</div>';
+  h+='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:10.5px;">';
+  h+='<thead><tr style="background:var(--nd);color:white;">';
+  h+='<th style="padding:7px 8px;text-align:right;">القسم</th>';
+  s.roles.forEach(function(role){h+='<th style="padding:7px;text-align:center;min-width:65px;">'+s.roleLabels[role]+'</th>';});
+  h+='</tr></thead><tbody>';
+  GRANT_SECTIONS.forEach(function(sec,i){
+    h+='<tr style="background:'+(i%2===0?'white':'#f8fafc')+';border-bottom:1px solid #f1f5f9;">';
+    h+='<td style="padding:7px 8px;font-weight:700;color:var(--nd);">'+sec.num+' '+sec.label+'</td>';
+    s.roles.forEach(function(role){
+      var perms=s.permissions[role]||{};
+      var checked=perms[sec.key]!==false;
+      h+='<td style="text-align:center;padding:7px;">';
+      h+='<input type="checkbox" data-role="'+role+'" data-sec="'+sec.key+'" '+(checked?'checked':'')+' onchange="toggleGrantPerm(this)" style="width:16px;height:16px;cursor:pointer;">';
+      h+='</td>';
+    });
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<div style="font-size:10px;color:var(--g4);margin-top:10px;background:#f8fafc;border-radius:8px;padding:8px;">';
+  h+='✅ = يمكن رؤية هذا القسم  ·  ☐ = مخفي عن هذا الدور (فيما عدا المدير)';
+  h+='</div>';
+  return h;
+}
+
+function setGrantRole(btn){
+  initAdminDB();
+  DB.grantAdmin.userRole=btn.dataset.role;
+  save(); toast('✅ '+DB.grantAdmin.roleLabels[btn.dataset.role]);
+  var el=document.getElementById('gad-content');
+  if(el) el.innerHTML=renderGadTab('permissions');
+  gadTab('permissions');
+}
+
+function toggleGrantPerm(cb){
+  initAdminDB();
+  var role=cb.dataset.role, secKey=cb.dataset.sec;
+  if(!DB.grantAdmin.permissions[role]) DB.grantAdmin.permissions[role]={};
+  DB.grantAdmin.permissions[role][secKey]=cb.checked;
+  save();
+}
+
+function renderGadPassword(){
+  var h='<div class="fg"><label>كلمة المرور الحالية</label><input type="password" id="gp-old" placeholder="****"></div>';
+  h+='<div class="fg"><label>كلمة المرور الجديدة</label><input type="password" id="gp-new" placeholder="****"></div>';
+  h+='<div class="fg"><label>تأكيد</label><input type="password" id="gp-con" placeholder="****"></div>';
+  h+='<button class="btn btn-gr" style="width:100%;" onclick="changeGrantPass()">تغيير</button>';
+  return h;
+}
+
+function changeGrantPass(){
+  initAdminDB();
+  var old=(document.getElementById('gp-old')||{}).value||'';
+  var nw=(document.getElementById('gp-new')||{}).value||'';
+  var con=(document.getElementById('gp-con')||{}).value||'';
+  if(old!==DB.grantAdmin.password){toast('⚠️ كلمة المرور خاطئة');return;}
+  if(!nw){toast('⚠️ أدخل الجديدة');return;}
+  if(nw!==con){toast('⚠️ غير متطابقة');return;}
+  DB.grantAdmin.password=nw;
+  save(); toast('✅ تم تغيير كلمة المرور');
 }
 
 function rArchivePage(){
