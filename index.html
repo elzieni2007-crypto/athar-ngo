@@ -239,7 +239,7 @@ button,input,select,textarea,a{pointer-events:auto !important;}
   <div class="bn" data-nav="more"><div class="bn-i">☰</div>المزيد</div>
 </nav>
 <div class="mo" id="mo"><div class="mb"><div class="mh"><span class="mt" id="mo-t">–</span><div style="display:flex;gap:5px;"><button onclick="printModal()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;cursor:pointer;font-family:Cairo,sans-serif;font-size:11px;">🖨️</button><button class="mx" onclick="cm()">✕</button></div></div><div class="mbdy" id="mo-b"></div></div></div></div>
-<!-- Fire<script>
+<script>
 // Firebase config
 var _fbConfig={
   apiKey:"AIzaSyAsCP8zqAsw4I4t64Y06n3OWqhXJGtK5CA",
@@ -261,7 +261,6 @@ function initFirebase(){
   }catch(e){ console.warn('[أثر] Firebase init error:',e); }
 }
 
-<script>
 function getOpeningBals(fromDate){
   // Calculate opening balances from entries before fromDate
   var ob={};
@@ -1049,14 +1048,15 @@ function goBack(){
 }
 function showTbBack(target){
   window._backTarget=target;
-  var btn=document.getElementById('tb-back');
-  if(btn) btn.style.display='block';
+  var btn=document.getElementById("tb-back");
+  if(btn){btn.style.cssText="display:block!important;visibility:visible!important;opacity:1!important;";}
 }
 function hideTbBack(){
   window._backTarget=null;
-  var btn=document.getElementById('tb-back');
-  if(btn) btn.style.display='none';
+  var btn=document.getElementById("tb-back");
+  if(btn) btn.style.display="none";
 }
+
 
 function nav(pg,btn){
   console.log('[أثر] nav called:', pg);
@@ -23323,60 +23323,62 @@ function fbLogout(){
   });
 }
 
-document.addEventListener("DOMContentLoaded", function(){
-  initFirebase();
-  initAuth();
-  initMD();
-  initSupplierMDPatches();
+document.addEventListener("DOMContentLoaded",function(){
+  // Init basics first
+  try{var s=localStorage.getItem("athar");if(s)Object.assign(DB,JSON.parse(s));}catch(e){}
+  initAuth(); initMD(); initSupplierMDPatches();
 
-  // ── Firebase Auth State ──────────────────────────────────────────
-  _auth.onAuthStateChanged(function(firebaseUser){
-    if(firebaseUser){
-      // Load org data from Firestore
-      loadFromFirestore(firebaseUser.uid, function(){
-        initMD();
-        initSupplierMDPatches();
-        initAuth();
-        var cu=getCurrentUser();
-        if(!cu){
-          // Set default admin user for this org
+  function startApp(){
+    if(!DB.entries.length&&!DB.projects.length&&!DB.suppliers.length) loadSeedData();
+    nav("dash",document.querySelector('[data-nav="dash"]'));
+    history.pushState(null,"",null);
+  }
+
+  // Firebase Auth — with full fallback
+  if(typeof firebase!=="undefined"&&_auth&&_auth.onAuthStateChanged){
+    _auth.onAuthStateChanged(function(firebaseUser){
+      if(firebaseUser){
+        loadFromFirestore(firebaseUser.uid,function(){
+          initMD(); initSupplierMDPatches(); initAuth();
           if(!DB.users||!DB.users.length){
-            DB.users=[{id:'U001',name:firebaseUser.displayName||'المدير',
-              username:firebaseUser.email,role:'admin',active:true,
+            DB.users=[{id:"U001",name:firebaseUser.displayName||"المدير",
+              username:firebaseUser.email,role:"admin",active:true,
               createdAt:new Date().toISOString().slice(0,10)}];
-            DB.currentUser='U001';
+            DB.currentUser="U001";
           }
-        }
-        if(!DB.sysSettings) DB.sysSettings={};
-        DB.sysSettings.firebaseUid=firebaseUser.uid;
-        DB.sysSettings.email=firebaseUser.email;
-        showAppChrome();
-        if(!DB.entries.length&&!DB.projects.length){
-          loadSeedData();
-        }
-        nav("dash", document.querySelector('[data-nav="dash"]'));
-      });
-    } else {
-      // Not logged in — show Firebase login
-      showFirebaseLogin();
-    }
-  });
+          if(!DB.sysSettings) DB.sysSettings={};
+          DB.sysSettings.firebaseUid=firebaseUser.uid;
+          DB.sysSettings.email=firebaseUser.email;
+          showAppChrome();
+          startApp();
+        });
+      } else {
+        showFirebaseLogin();
+      }
+    });
+  } else {
+    // No Firebase — run from localStorage
+    showAppChrome();
+    startApp();
+  }
 
-  // Handle phone back button
-  window.addEventListener('popstate',function(e){
-    if(e.state&&e.state.back){
-      // User pressed phone back — go to parent page
-      try{ eval(e.state.back); }catch(err){ nav('dash',null); }
+  // Phone back button
+  window.addEventListener("popstate",function(e){
+    if(window._backTarget){
+      var t=window._backTarget;
+      window._backTarget=null;
+      hideTbBack();
+      if(t.type==="nav") nav(t.pg,null);
+      else if(t.type==="sub") sub(t.pg);
+      else if(t.type==="fn"){
+        var pg=t.pg&&t.pg.match&&t.pg.match(/nav\('(\w+)'/);
+        if(pg) nav(pg[1],null); else nav("dash",null);
+      }
     } else {
-      // No state — we're at root, go to dash
-      nav('dash',null);
+      nav("dash",null);
     }
-    // Prevent browser from actually navigating away
-    history.pushState(null,'',null);
+    history.pushState(null,"",null);
   });
-
-  // Push initial state to catch first back press
-  history.pushState(null,'',null);
 });
 
 </script>
