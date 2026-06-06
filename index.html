@@ -21140,5 +21140,133 @@ function seedLoansData(){ if(!DB.loans) DB.loans=[]; }
 </script>
 
 
+
+<script>
+/* ================= ATHAR V25 STABLE PATCH =================
+   Source: V23 stable. Only changes:
+   1) Clear mobile-friendly dashboard chart
+   2) Restore BVA shortcut under projects/operations
+   3) Remove full-month review shortcut/button
+=========================================================== */
+(function(){
+  function A(id){return document.getElementById(id);} 
+  function N(v){ v=parseFloat(v||0); return isNaN(v)?0:v; }
+  function F(v){ try{return typeof fmt==='function'?fmt(v):String(Math.round(v||0));}catch(e){return String(Math.round(v||0));} }
+  function M(i){ var arr=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر']; return arr[i]||''; }
+  function PB(p){ try{return typeof projectBudget==='function'?projectBudget(p):N(p.budget||p.amount);}catch(e){return N(p.budget||p.amount);} }
+  function PS(code){ try{return typeof calcPostedSpent==='function'?calcPostedSpent(code):0;}catch(e){return 0;} }
+
+  window.rDash=function(){
+    var projects=(DB&&DB.projects)||[], entries=(DB&&DB.entries)||[], users=(DB&&DB.users)||[], contracts=(DB&&DB.contracts)||[], loans=(DB&&DB.loans)||[];
+    var totalBudget=projects.reduce(function(s,p){return s+PB(p);},0);
+    var spent=projects.length?projects.reduce(function(s,p){return s+PS(p.code||p.id||p.name);},0):PS('');
+    var burn=totalBudget?Math.round((spent/totalBudget)*100):0;
+    var activeGrants=projects.filter(function(p){return (p.status||'active')==='active';}).length;
+    var activeLoans=loans.filter(function(l){return (l.status||'active')==='active';});
+    var loanPortfolio=activeLoans.reduce(function(s,l){return s+N(l.principal||l.amount);},0);
+    var dueSoon=(contracts||[]).filter(function(c){
+      if(!c.endDate&&!c.end) return false;
+      var d=new Date(c.endDate||c.end); var days=(d-new Date())/86400000;
+      return days>=0&&days<=30;
+    }).length;
+    var missingDocs=entries.filter(function(e){return !(e.attachments&&e.attachments.length) && !(e.docs&&e.docs.length);}).length;
+
+    var months=[], now=new Date();
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:M(d.getMonth()),v:0}); }
+    entries.forEach(function(e){
+      var d=new Date(e.date||e.dt||Date.now()); var key=M(d.getMonth());
+      var row=months.find(function(x){return x.m===key;}); if(!row) return;
+      (e.lines||[]).forEach(function(l){
+        var acc=String(l.acc||l.account||'');
+        if(acc.charAt(0)==='5'||acc.charAt(0)==='6') row.v+=N(l.debit||l.dr||0);
+      });
+    });
+    var max=Math.max.apply(null,months.map(function(x){return x.v;})); if(!max) max=1;
+
+    var h='<div class="dash-clean dash-v25" dir="rtl">';
+    h+='<div class="hero-clean"><div><div class="ey">أثر للحلول المالية</div><div class="ttl">مركز التحكم المالي والتشغيلي</div><div class="sub">مؤشرات من القيود والمشروعات والقروض — عرض مبسط للموبايل.</div></div><div class="score"><b>'+burn+'%</b><span>نسبة الصرف</span></div></div>';
+    h+='<div class="kpi-grid">';
+    var cards=[['🏦','محفظة القروض',F(loanPortfolio),'القروض النشطة'],['📁','المنح النشطة',activeGrants,'مشروعات فعالة'],['📊','الصرف الكلي',F(spent),'من '+F(totalBudget)],['📎','مستندات ناقصة',missingDocs,'تحتاج مراجعة'],['🔔','عقود قريبة',dueSoon,'خلال 30 يوم'],['👥','المستخدمون',users.length,'حسب الصلاحيات']];
+    cards.forEach(function(c){h+='<div class="kpi"><div class="ico">'+c[0]+'</div><div><div class="v">'+c[2]+'</div><div class="n">'+c[1]+'</div><div class="s">'+c[3]+'</div></div></div>';});
+    h+='</div>';
+
+    h+='<div class="panel v25-chart-panel"><div class="p-title">مصروفات آخر 6 شهور</div><div class="v25-chart-list">';
+    months.forEach(function(x){
+      var pct=Math.min(100,Math.round((x.v/max)*100));
+      h+='<div class="v25-chart-line"><div class="v25-chart-head"><b>'+x.m+'</b><span>'+F(x.v)+' ج.م</span></div><div class="v25-track"><i style="width:'+pct+'%"></i></div></div>';
+    });
+    h+='</div></div>';
+
+    h+='<div class="panel"><div class="p-title">تنبيهات العقود والموردين والتشغيل</div>';
+    h+='<div class="alert-row yellow">🔔 عقود وموردون يحتاجون متابعة: '+dueSoon+'</div>';
+    h+='<div class="alert-row red">📎 قيود بدون مستندات: '+missingDocs+'</div>';
+    h+='<div class="alert-row blue">💵 قروض نشطة: '+activeLoans.length+'</div>';
+    h+='</div></div>';
+    return h;
+  };
+
+  window.rOperationsHub=function(){
+    var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">🎯 العمليات</div>';
+    var sections=[
+      {title:'🎯 المشروعات والممولين',items:[
+        {i:'🎯',t:'المشروعات',n:'proj',pg:true},
+        {i:'📉',t:'متابعة BVA',n:'bva'},
+        {i:'📋',t:'حركات المشروع',n:'projtxn'},
+        {i:'🌍',t:'دفتر المانحين',n:'donorledger'}
+      ]},
+      {title:'👥 الموارد البشرية',items:[
+        {i:'🏢',t:'الموظفين',n:'employees'},
+        {i:'💳',t:'إعداد مرتب',n:'pay',pg:true},
+        {i:'⏱️',t:'Timesheet',n:'timesheet'},
+        {i:'🌴',t:'الإجازات',n:'myleaves'}
+      ]},
+      {title:'🛒 المشتريات والمخازن',items:[
+        {i:'🏭',t:'الموردون',n:'suppliers'},
+        {i:'📋',t:'سجل العقود',n:'contracts'},
+        {i:'📦',t:'المخازن',n:'inventory'}
+      ]},
+      {title:'💵 القروض الصغيرة',items:[
+        {i:'💵',t:'إدارة القروض',n:'loans'}
+      ]},
+      {title:'✅ الامتثال والأرشفة',items:[
+        {i:'📁',t:'ملفات المنح',n:'grantfiles'},
+        {i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive'},
+        {i:'✅',t:'امتثال المستندات',n:'compliance'},
+        {i:'🔍',t:'البحث الشامل',n:'search'},
+        {i:'📦',t:'حزمة المراجعة',n:'audit'},
+        {i:'📋',t:'نموذج 41',n:'form41'},
+        {i:'🏢',t:'الأصول الثابتة',n:'assets'}
+      ]}
+    ];
+    sections.forEach(function(sec){
+      h+='<div style="margin-bottom:16px;">';
+      h+='<div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div>';
+      h+='<div class="mg">';
+      sec.items.forEach(function(item){
+        var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';
+        h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';
+      });
+      h+='</div></div>';
+    });
+    h+='</div>';
+    return h;
+  };
+
+  var css='.dash-v25 .v25-chart-panel{overflow:hidden!important}.dash-v25 .v25-chart-list{display:flex;flex-direction:column;gap:10px}.dash-v25 .v25-chart-line{background:#f8fafc;border:1px solid #e8eef6;border-radius:14px;padding:10px}.dash-v25 .v25-chart-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.dash-v25 .v25-chart-head b{font-size:12px;color:#1e3a6e}.dash-v25 .v25-chart-head span{font-size:11px;color:#64748b;font-weight:800;direction:rtl;white-space:nowrap}.dash-v25 .v25-track{height:10px;background:#e8f1f8;border-radius:999px;overflow:hidden}.dash-v25 .v25-track i{display:block;height:100%;background:linear-gradient(90deg,#29abe2,#1e3a6e);border-radius:999px}.mi[data-sub="finance_review"]{display:none!important}@media(max-width:430px){.dash-v25 .hero-clean{gap:8px}.dash-v25 .score{min-width:68px}.dash-v25 .v25-chart-line{padding:9px}.dash-v25 .v25-chart-head b{font-size:11px}.dash-v25 .v25-chart-head span{font-size:10px}}';
+  var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
+
+  function refreshIfDash(){
+    try{
+      var dash=A('pg-dash');
+      if(dash && dash.classList.contains('on')) dash.innerHTML=window.rDash();
+      document.querySelectorAll('[data-sub="finance_review"]').forEach(function(x){x.style.display='none';});
+    }catch(e){console.error('V25 refresh error',e);}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(refreshIfDash,200);});
+  else setTimeout(refreshIfDash,200);
+})();
+/* ================= END ATHAR V25 STABLE PATCH ================= */
+</script>
+
 </body>
 </html>
