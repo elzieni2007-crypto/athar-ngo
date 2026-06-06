@@ -155,7 +155,10 @@ function saveAssetTransfer(idx,printIt){
 }
 function printAssetPermit(a,m){
   function esc(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
-  var html='<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>'+esc(m.type)+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Tahoma,sans-serif;color:#111}.head{display:flex;justify-content:space-between;border-bottom:2px solid #0d3b6e;padding-bottom:12px;margin-bottom:18px}.brand{font-weight:900;color:#0d3b6e;font-size:22px}.title{text-align:center;font-size:24px;font-weight:900;margin:12px 0;color:#0d3b6e}.box{border:1px solid #d8e2ef;border-radius:10px;padding:12px;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lbl{color:#64748b;font-size:12px}.val{font-size:15px;font-weight:800;margin-top:3px}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:46px}.sg{height:86px;border-top:1px solid #111;text-align:center;padding-top:8px;font-weight:800}</style></head><body><div class="head"><div class="brand">أثر للحلول المالية</div><div>تاريخ الطباعة: '+new Date().toLocaleDateString('ar-EG')+'</div></div><div class="title">'+esc(m.type)+'</div><div class="box"><div class="grid"><div><div class="lbl">اسم الأصل</div><div class="val">'+esc(a.name)+'</div></div><div><div class="lbl">الرقم التسلسلي</div><div class="val">'+esc(a.serial||'—')+'</div></div><div><div class="lbl">تاريخ الحركة</div><div class="val">'+esc(m.date||'—')+'</div></div><div><div class="lbl">حالة الأصل</div><div class="val">'+esc(m.condition||'—')+'</div></div><div><div class="lbl">من</div><div class="val">'+esc(m.from||'—')+'</div></div><div><div class="lbl">إلى</div><div class="val">'+esc(m.to||'—')+'</div></div></div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+esc(m.notes||'لا توجد')+'</div></div><div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div></body></html>';
+  var html='<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>'+esc(m.type)+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Tahoma,sans-serif;color:#111}.head{display:flex;justify-content:space-between;border-bottom:2px solid #0d3b6e;padding-bottom:12px;margin-bottom:18px}.brand{font-weight:900;color:#0d3b6e;font-size:22px}.title{text-align:center;font-size:24px;font-weight:900;margin:12px 0;color:#0d3b6e}.box{border:1px solid #d8e2ef;border-radius:10px;padding:12px;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lbl{color:#64748b;font-size:12px}.val{font-size:15px;font-weight:800;margin-top:3px}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:46px}.sg{height:86px;border-top:1px solid #111;text-align:center;padding-top:8px;font-weight:800}</style>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>try{emailjs.init("rDGGadB5Kv6SSx3uZ");}catch(e){console.warn("EmailJS init failed",e);}</script>
+</head><body><div class="head"><div class="brand">أثر للحلول المالية</div><div>تاريخ الطباعة: '+new Date().toLocaleDateString('ar-EG')+'</div></div><div class="title">'+esc(m.type)+'</div><div class="box"><div class="grid"><div><div class="lbl">اسم الأصل</div><div class="val">'+esc(a.name)+'</div></div><div><div class="lbl">الرقم التسلسلي</div><div class="val">'+esc(a.serial||'—')+'</div></div><div><div class="lbl">تاريخ الحركة</div><div class="val">'+esc(m.date||'—')+'</div></div><div><div class="lbl">حالة الأصل</div><div class="val">'+esc(m.condition||'—')+'</div></div><div><div class="lbl">من</div><div class="val">'+esc(m.from||'—')+'</div></div><div><div class="lbl">إلى</div><div class="val">'+esc(m.to||'—')+'</div></div></div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+esc(m.notes||'لا توجد')+'</div></div><div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div></body></html>';
   var w=window.open('','_blank'); if(w){w.document.open();w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},400);} else toast('⚠️ اسمح بفتح النوافذ المنبثقة للطباعة');
 }
 
@@ -13777,6 +13780,201 @@ function checkPeriodLock(dateStr){
   return true;
 }
 
+
+// ================================================================
+// OTP / EMAIL VERIFICATION MODULE - EmailJS
+// ================================================================
+var _otpCode = '';
+var _otpEmail = '';
+var _otpPurpose = '';
+var _otpExpiry = 0;
+
+function generateOTP(){
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function isValidEmail(email){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email||'').trim());
+}
+
+function sendOTP(email, purpose, cb){
+  email = String(email||'').trim();
+  if(!isValidEmail(email)){ cb('البريد الإلكتروني غير صحيح'); return; }
+  if(typeof emailjs === 'undefined'){
+    cb('خدمة إرسال البريد غير متاحة — تأكد من الاتصال بالإنترنت');
+    return;
+  }
+  _otpCode = generateOTP();
+  _otpEmail = email;
+  _otpPurpose = purpose;
+  _otpExpiry = Date.now() + 10 * 60 * 1000;
+  var templateParams = {
+    to_email: email,
+    otp_code: _otpCode,
+    purpose: purpose === 'register' ? 'تفعيل الحساب' : 'استعادة كلمة المرور',
+    app_name: 'أثر',
+    expiry: '10 دقائق'
+  };
+  emailjs.send('service_j1hs2ap', 'template_l15xags', templateParams)
+    .then(function(){ cb(null); })
+    .catch(function(err){
+      console.error('EmailJS error:', err);
+      cb((err && (err.text || err.message)) || 'فشل إرسال البريد');
+    });
+}
+
+function verifyOTP(code){
+  if(!_otpCode || !_otpExpiry) return 'wrong';
+  if(Date.now() > _otpExpiry) return 'expired';
+  if(String(code||'').trim() === _otpCode) return 'ok';
+  return 'wrong';
+}
+
+function showRegister(){
+  initAuth();
+  var overlay = document.getElementById('login-overlay');
+  if(!overlay){ showLogin(); overlay = document.getElementById('login-overlay'); }
+  if(!overlay) return;
+  overlay.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a5f,#0e7490);padding:20px;">'
+    + '<div style="background:white;border-radius:18px;padding:28px 22px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
+    + '<div style="text-align:center;margin-bottom:22px;">'
+    + '<div style="font-size:44px;">📊</div>'
+    + '<div style="font-weight:900;font-size:22px;color:#1e3a5f;">أثر</div>'
+    + '<div style="font-size:12px;color:#6b7280;">إنشاء حساب جديد</div>'
+    + '</div>'
+    + '<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">اسم المؤسسة</label>'
+    + '<input id="reg-org" placeholder="اسم الجمعية أو المؤسسة" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>'
+    + '<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">البريد الإلكتروني</label>'
+    + '<input id="reg-email" type="email" placeholder="info@ngo.org" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>'
+    + '<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">كلمة المرور</label>'
+    + '<input id="reg-pass" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;" onkeydown="if(event.key===\'Enter\')doRegisterStep1()"></div>'
+    + '<div id="reg-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>'
+    + '<button onclick="doRegisterStep1()" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">إرسال كود التحقق ←</button>'
+    + '<div style="text-align:center;margin-top:14px;font-size:12px;color:#6b7280;">لديك حساب؟ <a href="#" onclick="showLogin();return false;" style="color:#0e7490;font-weight:700;">تسجيل الدخول</a></div>'
+    + '</div></div>';
+}
+
+function doRegisterStep1(){
+  initAuth();
+  var org = ((document.getElementById('reg-org')||{}).value||'').trim();
+  var email = ((document.getElementById('reg-email')||{}).value||'').trim();
+  var pass = ((document.getElementById('reg-pass')||{}).value||'');
+  var err = document.getElementById('reg-err');
+  if(!org || !email || !pass){ if(err) err.textContent='أكمل جميع البيانات'; return; }
+  if(!isValidEmail(email)){ if(err) err.textContent='البريد الإلكتروني غير صحيح'; return; }
+  if(pass.length < 6){ if(err) err.textContent='كلمة المرور 6 أحرف على الأقل'; return; }
+  if((DB.users||[]).some(function(u){return u.username===email || u.email===email;})){
+    if(err) err.textContent='هذا البريد مسجل بالفعل';
+    return;
+  }
+  window._regData = {org:org, email:email, pass:pass};
+  if(err) err.textContent='⏳ جاري إرسال الكود...';
+  sendOTP(email, 'register', function(error){
+    if(error){ if(err) err.textContent='⚠️ '+error; return; }
+    showOTPScreen('register');
+  });
+}
+
+function showForgotPass(){
+  initAuth();
+  var overlay = document.getElementById('login-overlay');
+  if(!overlay){ showLogin(); overlay = document.getElementById('login-overlay'); }
+  if(!overlay) return;
+  overlay.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a5f,#0e7490);padding:20px;">'
+    + '<div style="background:white;border-radius:18px;padding:28px 22px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
+    + '<div style="text-align:center;margin-bottom:22px;">'
+    + '<div style="font-size:44px;">🔑</div>'
+    + '<div style="font-weight:900;font-size:22px;color:#1e3a5f;">استعادة كلمة المرور</div>'
+    + '<div style="font-size:12px;color:#6b7280;">سنرسل كود التحقق على بريدك</div>'
+    + '</div>'
+    + '<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">البريد الإلكتروني</label>'
+    + '<input id="fp-email" type="email" placeholder="info@ngo.org" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;" onkeydown="if(event.key===\'Enter\')doForgotStep1()"></div>'
+    + '<div id="fp-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>'
+    + '<button onclick="doForgotStep1()" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">إرسال كود التحقق ←</button>'
+    + '<div style="text-align:center;margin-top:14px;font-size:12px;color:#6b7280;"><a href="#" onclick="showLogin();return false;" style="color:#0e7490;font-weight:700;">← العودة لتسجيل الدخول</a></div>'
+    + '</div></div>';
+}
+
+function doForgotStep1(){
+  initAuth();
+  var email = ((document.getElementById('fp-email')||{}).value||'').trim();
+  var err = document.getElementById('fp-err');
+  if(!email){ if(err) err.textContent='أدخل البريد الإلكتروني'; return; }
+  if(!isValidEmail(email)){ if(err) err.textContent='البريد الإلكتروني غير صحيح'; return; }
+  var user = (DB.users||[]).find(function(u){ return u.username===email || u.email===email; });
+  if(!user){ if(err) err.textContent='⚠️ البريد غير مسجل في النظام'; return; }
+  window._resetUser = user;
+  if(err) err.textContent='⏳ جاري إرسال الكود...';
+  sendOTP(email, 'reset', function(error){
+    if(error){ if(err) err.textContent='⚠️ '+error; return; }
+    showOTPScreen('reset');
+  });
+}
+
+function showOTPScreen(purpose){
+  var overlay = document.getElementById('login-overlay');
+  if(!overlay) return;
+  var title = purpose === 'register' ? 'تفعيل الحساب' : 'استعادة كلمة المرور';
+  overlay.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a5f,#0e7490);padding:20px;">'
+    + '<div style="background:white;border-radius:18px;padding:28px 22px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
+    + '<div style="text-align:center;margin-bottom:22px;">'
+    + '<div style="font-size:44px;">✉️</div>'
+    + '<div style="font-weight:900;font-size:20px;color:#1e3a5f;">'+title+'</div>'
+    + '<div style="font-size:12px;color:#6b7280;margin-top:6px;">أرسلنا الكود إلى '+esc(_otpEmail)+'</div>'
+    + '</div>'
+    + '<div style="margin-bottom:16px;">'
+    + '<input id="otp-input" inputmode="numeric" type="number" placeholder="000000" style="width:100%;padding:16px;border:2px solid #e5e7eb;border-radius:12px;font-size:28px;font-family:Cairo,sans-serif;box-sizing:border-box;text-align:center;letter-spacing:8px;" oninput="if(this.value.length>6)this.value=this.value.slice(0,6)">'
+    + '</div>'
+    + (purpose==='reset' ? '<div style="margin-bottom:12px;"><input id="new-pass" type="password" placeholder="كلمة المرور الجديدة" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>' : '')
+    + '<div id="otp-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>'
+    + '<button onclick="verifyOTPAction(\''+purpose+'\')" style="width:100%;padding:13px;background:linear-gradient(135deg,#059669,#10b981);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">✓ تحقق ومتابعة</button>'
+    + '<div style="text-align:center;margin-top:12px;font-size:12px;color:#6b7280;">لم يصلك الكود؟ <a href="#" onclick="resendOTP(\''+purpose+'\');return false;" style="color:#0e7490;font-weight:700;">إعادة الإرسال</a></div>'
+    + '<div style="text-align:center;margin-top:8px;font-size:12px;color:#6b7280;"><a href="#" onclick="showLogin();return false;" style="color:#6b7280;font-weight:700;">إلغاء</a></div>'
+    + '</div></div>';
+  setTimeout(function(){ var inp=document.getElementById('otp-input'); if(inp) inp.focus(); }, 200);
+}
+
+function resendOTP(purpose){
+  var err = document.getElementById('otp-err');
+  if(err) err.textContent='⏳ جاري إعادة الإرسال...';
+  sendOTP(_otpEmail, purpose, function(error){
+    if(err) err.textContent = error ? '⚠️ '+error : '✅ تم إرسال كود جديد';
+  });
+}
+
+function verifyOTPAction(purpose){
+  initAuth();
+  var code = ((document.getElementById('otp-input')||{}).value||'').trim();
+  var err = document.getElementById('otp-err');
+  if(!code || code.length !== 6){ if(err) err.textContent='أدخل الكود المكون من 6 أرقام'; return; }
+  var result = verifyOTP(code);
+  if(result === 'expired'){ if(err) err.textContent='⚠️ انتهت صلاحية الكود — أعد الإرسال'; return; }
+  if(result === 'wrong'){ if(err) err.textContent='⚠️ الكود غير صحيح'; return; }
+  if(purpose === 'register'){
+    var d = window._regData || {};
+    if(!d.org || !d.email){ if(err) err.textContent='⚠️ خطأ في البيانات'; return; }
+    DB.users = [{id:'U'+Date.now(), name:'المدير', username:d.email, email:d.email,
+      password:d.pass, role:'admin', active:true, createdAt:new Date().toISOString().slice(0,10)}];
+    if(!DB.org) DB.org = {};
+    DB.org.name = d.org;
+    DB.org.email = d.email;
+    setCurrentUser({id:DB.users[0].id, name:DB.users[0].name, username:DB.users[0].username, role:DB.users[0].role});
+    save();
+    var ov = document.getElementById('login-overlay'); if(ov) ov.remove();
+    location.reload();
+  } else if(purpose === 'reset'){
+    var np = ((document.getElementById('new-pass')||{}).value||'');
+    if(!np || np.length < 6){ if(err) err.textContent='أدخل كلمة مرور جديدة (6 أحرف+)'; return; }
+    var user = window._resetUser;
+    if(!user){ if(err) err.textContent='⚠️ خطأ — أعد المحاولة'; return; }
+    var uidx = (DB.users||[]).findIndex(function(u){ return u.id === user.id; });
+    if(uidx > -1) DB.users[uidx].password = np;
+    save();
+    showLogin();
+    toast('✅ تم تغيير كلمة المرور — سجل الدخول');
+  }
+}
+
 // ---- LOGIN SCREEN ----
 function showLogin(){
   initAuth();
@@ -13789,6 +13987,7 @@ function showLogin(){
   if(ct)ct.style.display='none';
   if(bn)bn.style.display='none';
   if(mo)mo.style.display='none';
+  var oldOverlay=document.getElementById('login-overlay'); if(oldOverlay) oldOverlay.remove();
   // Create login overlay
   var overlay=document.createElement('div');
   overlay.id='login-overlay';
@@ -13813,6 +14012,8 @@ function showLogin(){
   h+='</div>';
   h+='<div id="lg-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>';
   h+='<button onclick="doLogin()" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">تسجيل الدخول ←</button>';
+  h+='<div style="text-align:center;margin-top:14px;font-size:12px;color:#6b7280;">نسيت كلمة المرور؟ <a href="#" onclick="showForgotPass();return false;" style="color:#0e7490;font-weight:700;">استعادة</a></div>';
+  h+='<div style="text-align:center;margin-top:8px;font-size:12px;color:#6b7280;">مؤسسة جديدة؟ <a href="#" onclick="showRegister();return false;" style="color:#059669;font-weight:700;">إنشاء حساب</a></div>';
   h+='</div></div>';
   overlay.innerHTML=h;
   document.body.appendChild(overlay);
@@ -20670,6 +20871,395 @@ function rDash(){
     },80);
   };
   setTimeout(function(){try{initBudgetEngine();save();}catch(e){console.error(e);}},500);
+})();
+
+
+// ================================================================
+// V13 — نماذج رفع الموازنة بالأكواد + استيراد شامل محسن
+// ================================================================
+(function(){
+  function _asNum(v){ var n=parseFloat(v); return isNaN(n)?0:n; }
+  function _cell(v){ return String(v==null?'':v).trim(); }
+  function _findProj(code){ return (DB.projects||[]).find(function(p){return String(p.code||p.id||'')===String(code||'');}); }
+  function _isChildOf(child,parent){ return String(child||'').indexOf(String(parent||'')+'.')===0; }
+  function _leafBudgetTotal(lines){
+    lines=lines||[];
+    return lines.filter(function(x){return !lines.some(function(y){return y.code!==x.code && _isChildOf(y.code,x.code);});})
+      .reduce(function(s,x){return s+_asNum(x.budget||x.amount);},0);
+  }
+
+  // نموذج واحد عملي: مشروعات + بنود موازنة + باقي البيانات المهمة
+  window.downloadImportTemplate = function(){
+    loadSheetJS(function(){
+      var wb=XLSX.utils.book_new();
+      function addSheet(name, headers, sample, widths){
+        var ws=XLSX.utils.aoa_to_sheet([headers].concat(sample||[]));
+        ws['!cols']=(widths||headers.map(function(h){return Math.max(14,String(h).length+3);})).map(function(w){return {wch:w};});
+        XLSX.utils.book_append_sheet(wb,ws,name);
+      }
+      addSheet('المشروعات',[
+        'كود المشروع*','اسم المشروع*','المانح','الموازنة الكلية اختيارية','تاريخ البداية','تاريخ النهاية','الحالة'
+      ],[
+        ['P001','مشروع التمكين الاقتصادي','USAID','', '2026-01-01','2026-12-31','نشط'],
+        ['P002','برنامج الحماية','UNICEF','', '2026-02-01','2026-11-30','نشط']
+      ],[16,28,20,22,16,16,12]);
+
+      addSheet('بنود الموازنة',[
+        'كود المشروع*','كود البند*','اسم البند*','الكود الأب','الموازنة المعتمدة*','نوع البند','كود الممول','ملاحظات'
+      ],[
+        ['P001','1','الموارد البشرية','',0,'رئيسي','','لا تضع موازنة على البند الرئيسي إذا له بنود فرعية'],
+        ['P001','1.1','رواتب فريق المشروع','1',420000,'موارد بشرية','HR-01',''],
+        ['P001','1.2','تأمينات وضرائب','1',85000,'موارد بشرية','HR-02',''],
+        ['P001','2','الأنشطة','',0,'رئيسي','',''],
+        ['P001','2.1','تدريبات وورش','2',250000,'أنشطة','ACT-01',''],
+        ['P001','2.2','انتقالات ومواصلات','2',90000,'أنشطة','ACT-02',''],
+        ['P001','3','إدارة وتشغيل','',0,'رئيسي','',''],
+        ['P001','3.1','إيجار وقاعات','3',70000,'تشغيل','ADM-01',''],
+        ['P001','3.2','مستلزمات مكتبية','3',35000,'تشغيل','ADM-02','']
+      ],[16,16,28,14,18,16,16,35]);
+
+      addSheet('القيود اليومية',[
+        'رقم القيد*','التاريخ*','البيان*','المرجع','كود الحساب*','مدين','دائن','كود المشروع','كود بند الموازنة','مركز التكلفة','كود الطرف الثالث'
+      ],[
+        ['J2026-001','2026-01-15','مصروف تدريب','PV-001','5241',12000,0,'P001','2.1','CC01','TP001'],
+        ['J2026-001','2026-01-15','مصروف تدريب','PV-001','1112',0,12000,'P001','2.1','CC01','TP001']
+      ],[16,14,24,14,14,12,12,14,18,14,18]);
+
+      addSheet('الموظفين',[
+        'كود الموظف*','الاسم*','المسمى الوظيفي','القسم','الأجر الأساسي*','بدل طبيعة عمل','بدل انتقال','بدل سكن','تاريخ التعيين','نوع العقد','الحالة'
+      ],[
+        ['E001','أحمد محمد','محاسب','المالية',8000,500,300,0,'2024-01-01','محدد','نشط']
+      ],[14,24,18,16,16,16,14,14,16,14,12]);
+
+      addSheet('الموردين والأطراف',[
+        'كود الطرف*','الاسم*','النوع','الرقم الضريبي','طبيعة التعامل','نسبة الخصم %','العنوان','تاريخ انتهاء العقد','ملاحظات'
+      ],[
+        ['TP001','شركة النور للتوريدات','مورد','100-200-300','توريدات',1,'القاهرة','2026-12-31','']
+      ],[14,26,14,18,18,14,20,18,24]);
+
+      addSheet('الأصول الثابتة',[
+        'كود الأصل*','اسم الأصل*','فئة الأصل','الرقم التسلسلي','تاريخ الشراء','تاريخ بدء الإهلاك','العمر الإنتاجي بالسنوات','التكلفة*','القيمة التخريدية','الموقع','المكان التفصيلي','كود الموظف العهدة','الممول','ملاحظات'
+      ],[
+        ['AST001','لاب توب ديل','IT','SN-001','2026-01-10','2026-01-10',3,35000,0,'المقر الرئيسي','مكتب الحسابات','E001','USAID','']
+      ],[14,24,14,18,16,18,20,14,16,18,22,18,16,24]);
+
+      addSheet('حسابات جديدة',[
+        'كود الحساب*','اسم الحساب*','طبيعة الحساب dr/cr*','ملاحظة'
+      ],[
+        ['5317','مصروفات تدريب وتأهيل','dr',''],['4121','إيرادات منح','cr','']
+      ],[16,28,22,24]);
+
+      addSheet('تعليمات',[
+        'البند','التوضيح'
+      ],[
+        ['بنود الموازنة','استخدم كود المشروع + كود البند. مثال 1 ثم 1.1 ثم 1.2. النظام يجمع البنود الفرعية تلقائيًا.'],
+        ['الموازنة الكلية للمشروع','لو تركتها فارغة سيتم حسابها من إجمالي البنود النهائية في ورقة بنود الموازنة.'],
+        ['القيود اليومية','استخدم كود بند الموازنة لربط المصروف بالبند الصحيح في BVA ونسب الصرف.'],
+        ['الأصول','يمكن رفع الأصول دفعة واحدة بدل إدخال أصل أصل.'],
+        ['مهم','لا تغيّر أسماء الأوراق أو ترتيب الأعمدة الأساسية.']
+      ],[24,80]);
+
+      downloadXLSX(wb,'نموذج_استيراد_أثر_الشامل_بالموازنة.xlsx');
+      toast('✅ تم تحميل نموذج الاستيراد الشامل');
+    });
+  };
+
+  window.parseBudgetLinesSheet = function(wb){
+    var rows=sheetToRows(wb,'بنود الموازنة');
+    if(!rows) return {valid:0,errors:[],data:[]};
+    var data=[],errors=[];
+    rows.forEach(function(r,i){
+      var projectCode=_cell(r[0]), code=_cell(r[1]), name=_cell(r[2]), parent=_cell(r[3]), budget=_asNum(r[4]);
+      if(!projectCode||!code||!name){errors.push('بنود الموازنة سطر '+(i+2)+': كود المشروع أو كود البند أو اسم البند ناقص');return;}
+      data.push({projectCode:projectCode,code:code,name:name,parent:parent,budget:budget,type:_cell(r[5]),donorCode:_cell(r[6]),notes:_cell(r[7])});
+    });
+    return {valid:data.length,errors:errors,data:data};
+  };
+
+  window.parseAssetsImportSheet = function(wb){
+    var rows=sheetToRows(wb,'الأصول الثابتة');
+    if(!rows) return {valid:0,errors:[],data:[]};
+    var data=[],errors=[];
+    rows.forEach(function(r,i){
+      var id=_cell(r[0]), name=_cell(r[1]), cost=_asNum(r[7]);
+      if(!id||!name||!cost){errors.push('الأصول سطر '+(i+2)+': كود الأصل أو الاسم أو التكلفة ناقصة');return;}
+      data.push({id:id,name:name,category:_cell(r[2])||'general',serial:_cell(r[3])||id,purchaseDate:_cell(r[4]),startDate:_cell(r[5])||_cell(r[4]),lifeYears:parseInt(r[6]||5,10)||5,cost:cost,residualValue:_asNum(r[8]),location:_cell(r[9]),room:_cell(r[10]),custodianId:_cell(r[11]),donor:_cell(r[12]),note:_cell(r[13]),status:'active'});
+    });
+    return {valid:data.length,errors:errors,data:data};
+  };
+
+  var oldParseProjects=window.parseProjectsSheet;
+  window.parseProjectsSheet=function(wb){
+    var r=oldParseProjects?oldParseProjects(wb):{valid:0,errors:[],data:[]};
+    var rows=sheetToRows(wb,'المشروعات');
+    if(rows){
+      var data=[],errors=[];
+      rows.forEach(function(x,i){
+        var code=_cell(x[0]), name=_cell(x[1]);
+        if(!code||!name){errors.push('مشروع سطر '+(i+2)+': كود أو اسم ناقص');return;}
+        data.push({code:code,name:name,donor:_cell(x[2]),budget:_asNum(x[3]),start:_cell(x[4]),end:_cell(x[5]),status:_cell(x[6])||'نشط',spent:0});
+      });
+      return {valid:data.length,errors:errors,data:data};
+    }
+    return r;
+  };
+
+  var oldParseCOA=window.parseCOASheet;
+  window.parseCOASheet=function(wb){
+    var rows=sheetToRows(wb,'حسابات جديدة') || sheetToRows(wb,'حسابات جديدة (إضافة فقط)');
+    if(!rows) return oldParseCOA?oldParseCOA(wb):{valid:0,errors:[],data:[]};
+    var data=[],errors=[];
+    rows.forEach(function(r,i){
+      var code=_cell(r[0]),name=_cell(r[1]),nat=_cell(r[2]).toLowerCase();
+      if(!code||!name){errors.push('حساب سطر '+(i+2)+': كود أو اسم ناقص');return;}
+      if(nat!=='dr'&&nat!=='cr'){errors.push('حساب '+code+': طبيعة الحساب يجب dr أو cr');return;}
+      if((DB.accounts||[]).find(function(a){return a.c===code;})){errors.push('حساب '+code+' موجود بالفعل — سيتم تجاهله');return;}
+      data.push({c:code,n:name,nat:nat});
+    });
+    return {valid:data.length,errors:errors,data:data};
+  };
+
+  window.showImportPreview=function(wb){
+    var preview=document.getElementById('import-preview'); if(!preview)return;
+    var results={
+      entries:parseEntriesSheet(wb),
+      projects:parseProjectsSheet(wb),
+      budgetLines:parseBudgetLinesSheet(wb),
+      employees:parseEmployeesSheet(wb),
+      thirdParties:parseTPSheet(wb),
+      assets:parseAssetsImportSheet(wb),
+      accounts:parseCOASheet(wb)
+    };
+    var totalValid=Object.values(results).reduce(function(s,r){return s+(r?r.valid:0);},0);
+    var allErrors=[];Object.values(results).forEach(function(r){if(r)allErrors=allErrors.concat(r.errors||[]);});
+    var sections=[
+      ['entries','📝','قيود'],['projects','🎯','مشروعات'],['budgetLines','🧩','بنود موازنة'],['employees','👥','موظفين'],['thirdParties','🏭','موردين'],['assets','🏢','أصول'],['accounts','🌳','حسابات']
+    ];
+    var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:12px;padding:14px;margin-bottom:12px;color:white"><div style="font-weight:900;font-size:15px;margin-bottom:8px">📋 ملخص الاستيراد</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">';
+    sections.forEach(function(s){var r=results[s[0]];h+='<div style="background:rgba(255,255,255,.12);border-radius:8px;padding:8px;text-align:center"><div style="font-size:18px">'+s[1]+'</div><div style="font-weight:900;font-size:16px">'+(r?r.valid:0)+'</div><div style="font-size:9.5px;opacity:.75">'+s[2]+'</div></div>';});
+    h+='</div></div>';
+    if(allErrors.length){h+='<div style="background:#fff5f5;border-radius:11px;padding:12px;margin-bottom:12px"><div style="font-weight:800;color:#c0392b;margin-bottom:8px">⚠️ تحذيرات ('+allErrors.length+')</div>';allErrors.slice(0,8).forEach(function(e){h+='<div style="font-size:11px;color:#c0392b;margin-bottom:4px">• '+e+'</div>';});if(allErrors.length>8)h+='<div style="font-size:11px;color:#c0392b">... و'+(allErrors.length-8)+' تحذير آخر</div>';h+='</div>';}
+    if(totalValid>0)h+='<button onclick="executeImport()" class="btn btn-gr" style="width:100%;padding:14px;font-size:15px;margin-bottom:8px">✅ استيراد '+totalValid+' سجل</button>';
+    h+='<button onclick="document.getElementById(\'import-file\').click()" class="btn btn-gy" style="width:100%;font-size:12px">📂 اختيار ملف آخر</button>';
+    window._importData=results; preview.innerHTML=h;
+  };
+
+  window.executeImport=function(){
+    var d=window._importData; if(!d){toast('لا توجد بيانات للاستيراد');return;}
+    var stats={entries:0,projects:0,budgetLines:0,employees:0,thirdParties:0,assets:0,accounts:0};
+    if(!DB.projects)DB.projects=[]; if(!DB.employees)DB.employees=[]; if(!DB.thirdParties)DB.thirdParties=[]; if(!DB.accounts)DB.accounts=[]; if(!DB.entries)DB.entries=[]; if(!DB.assets)DB.assets=[];
+
+    (d.projects&&d.projects.data||[]).forEach(function(p){
+      var ex=_findProj(p.code);
+      if(!ex){DB.projects.push(p);stats.projects++;}
+      else{ex.name=p.name||ex.name;ex.donor=p.donor||ex.donor;ex.start=p.start||ex.start;ex.end=p.end||ex.end;if(p.budget)ex.budget=p.budget;}
+    });
+
+    (d.budgetLines&&d.budgetLines.data||[]).forEach(function(l){
+      var p=_findProj(l.projectCode);
+      if(!p){p={code:l.projectCode,name:'مشروع '+l.projectCode,budget:0,status:'نشط',wbs:[],budgetLines:[]};DB.projects.push(p);stats.projects++;}
+      if(!p.wbs)p.wbs=[]; if(!p.budgetLines)p.budgetLines=[];
+      var ex=p.wbs.find(function(x){return x.code===l.code;});
+      var obj={code:l.code,name:l.name,parent:l.parent,budget:l.budget,type:l.type,donorCode:l.donorCode,notes:l.notes};
+      if(ex){Object.assign(ex,obj);} else {p.wbs.push(obj);stats.budgetLines++;}
+      var bl=p.budgetLines.find(function(x){return x.code===l.code;});
+      if(bl){Object.assign(bl,obj);} else {p.budgetLines.push(Object.assign({},obj));}
+    });
+    (DB.projects||[]).forEach(function(p){
+      if((p.wbs||[]).length){var total=_leafBudgetTotal(p.wbs);if(total>0)p.budget=total;}
+    });
+
+    (d.employees&&d.employees.data||[]).forEach(function(e){if(!DB.employees.find(function(x){return x.id===e.id;})){DB.employees.push(e);stats.employees++;}});
+    (d.thirdParties&&d.thirdParties.data||[]).forEach(function(tp){if(!DB.thirdParties.find(function(x){return x.id===tp.id;})){DB.thirdParties.push(tp);stats.thirdParties++;}});
+    (d.assets&&d.assets.data||[]).forEach(function(a){if(!DB.assets.find(function(x){return String(x.id)===String(a.id);})){DB.assets.push(a);stats.assets++;}});
+    (d.accounts&&d.accounts.data||[]).forEach(function(a){if(!DB.accounts.find(function(x){return x.c===a.c;})){DB.accounts.push(a);stats.accounts++;}});DB.accounts.sort(function(a,b){return a.c<b.c?-1:1;});
+
+    if(d.entries&&d.entries.data.length){
+      var accMap={};DB.accounts.forEach(function(a){accMap[a.c]=a.n;});var tpMap={};(DB.thirdParties||[]).forEach(function(t){tpMap[t.id]=t;});
+      d.entries.data.forEach(function(e){if(!DB.entries.find(function(x){return x.id===e.id;})){e.lines.forEach(function(l){l.an=accMap[l.acc]||l.acc;if(l.tpId&&tpMap[l.tpId]){l.tpName=tpMap[l.tpId].name;l.tpType=tpMap[l.tpId].type;}});DB.entries.push(e);stats.entries++;}});
+      DB.entries.sort(function(a,b){return a.date>b.date?-1:1;});
+    }
+    save(); window._importData=null; var p=document.getElementById('import-preview'); if(p)p.innerHTML='';
+    var msg='✅ تم الاستيراد بنجاح:\n'+
+      (stats.projects?' • '+stats.projects+' مشروع\n':'')+
+      (stats.budgetLines?' • '+stats.budgetLines+' بند موازنة\n':'')+
+      (stats.entries?' • '+stats.entries+' قيد\n':'')+
+      (stats.employees?' • '+stats.employees+' موظف\n':'')+
+      (stats.thirdParties?' • '+stats.thirdParties+' مورد/طرف ثالث\n':'')+
+      (stats.assets?' • '+stats.assets+' أصل ثابت\n':'')+
+      (stats.accounts?' • '+stats.accounts+' حساب جديد\n':'');
+    toast(msg||'✅ تم الاستيراد'); setTimeout(function(){sub('importexport');rDash();},500);
+  };
+
+  window.rImportWizard=function(){
+    var h='';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap"><div><div class="ph-t">📥 استيراد البيانات</div><div style="font-size:11px;color:var(--g4)">موازنة بالأكواد · قيود · موظفين · موردين · أصول · حسابات</div></div><button class="btn btn-sm" onclick="downloadImportTemplate()" style="background:var(--gr);font-size:10.5px">📥 تحميل النموذج الشامل</button></div>';
+    h+='<div style="background:#fff;border:1px solid var(--g2);border-radius:12px;padding:12px;margin-bottom:12px"><b style="color:var(--n)">ميزة مهمة:</b><div style="font-size:12px;color:var(--g5);line-height:1.8;margin-top:5px">ارفع بنود الموازنة كاملة بالأكواد من Excel بدل إدخال بند بند. استخدم كود المشروع وكود البند، والنظام سيحسب إجمالي موازنة المشروع من البنود النهائية تلقائيًا.</div></div>';
+    h+='<div id="import-drop" onclick="document.getElementById(\'import-file\').click()" style="border:2.5px dashed #29abe2;border-radius:14px;padding:32px;text-align:center;cursor:pointer;background:#f0f9ff;margin-bottom:14px" ondragover="event.preventDefault();this.style.background=\'#dbeafe\';" ondragleave="this.style.background=\'#f0f9ff\';" ondrop="event.preventDefault();handleImportDrop(event.dataTransfer.files[0]);"><div style="font-size:36px;margin-bottom:8px">📊</div><div style="font-weight:800;font-size:14px;color:var(--nd);margin-bottom:4px">اسحب ملف Excel هنا أو اضغط للاختيار</div><div style="font-size:11.5px;color:var(--g4)">النموذج الرسمي لأثر — يدعم رفع الموازنة بالأكواد</div><input type="file" id="import-file" accept=".xlsx,.xls" style="display:none" onchange="handleImportFile(this.files[0])"></div><div id="import-preview"></div>';
+    return h;
+  };
+})();
+
+
+
+// ================================================================
+// V14 — مركز الاستيراد والتصدير: نماذج مستقلة لكل نوع بيانات
+// ================================================================
+(function(){
+  function n(v){var x=parseFloat(v);return isNaN(x)?0:x;}
+  function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function addSheetToWb(wb,name,headers,rows,widths){
+    rows=rows||[]; widths=widths||headers.map(function(h){return Math.max(14,String(h).length+4);});
+    var ws=XLSX.utils.aoa_to_sheet([headers].concat(rows));
+    ws['!cols']=widths.map(function(w){return {wch:w};});
+    try{
+      headers.forEach(function(h,i){var cell=XLSX.utils.encode_cell({r:0,c:i}); if(ws[cell]) ws[cell].s={font:{bold:true},fill:{fgColor:{rgb:'E8F6FD'}}};});
+    }catch(e){}
+    XLSX.utils.book_append_sheet(wb,ws,name);
+  }
+  function addInstructions(wb,typeTitle,points){
+    addSheetToWb(wb,'تعليمات',['النقطة','الشرح'],[
+      ['الغرض من النموذج',typeTitle],
+      ['الحقول الإلزامية','أي عمود عليه علامة * يجب تعبئته قبل الرفع.'],
+      ['الأكواد','استخدم نفس الأكواد بدون مسافات زائدة حتى يتم الربط الصحيح داخل النظام.'],
+      ['المعاينة قبل الحفظ','النظام يعرض ملخص وأخطاء قبل تنفيذ الاستيراد.']
+    ].concat(points||[]),[24,85]);
+  }
+  var importTypes=[
+    {key:'projects',icon:'🎯',title:'نموذج المشروعات',desc:'رفع المشاريع الأساسية وأكوادها والمانحين'},
+    {key:'budgetLines',icon:'🧩',title:'نموذج الموازنات بالأكواد',desc:'رفع بنود الموازنة مرة واحدة بدل بند بند'},
+    {key:'entries',icon:'📝',title:'نموذج القيود اليومية',desc:'رفع قيود مجمعة وربطها بالمشروعات وبنود الموازنة'},
+    {key:'employees',icon:'👥',title:'نموذج الموظفين',desc:'رفع بيانات الموظفين والمرتبات الأساسية'},
+    {key:'thirdParties',icon:'🏭',title:'نموذج الموردين والأطراف',desc:'موردين، استشاريين، جهات تعامل، بيانات ضريبية'},
+    {key:'assets',icon:'🏢',title:'نموذج الأصول الثابتة',desc:'رفع الأصول والعهدة والموقع والتكلفة'},
+    {key:'accounts',icon:'🌳',title:'نموذج الحسابات',desc:'إضافة حسابات جديدة إلى شجرة الحسابات'},
+    {key:'all',icon:'📦',title:'النموذج الشامل',desc:'كل الأوراق السابقة في ملف واحد'}
+  ];
+  window._atharImportType='all';
+  window.downloadImportTemplateByType=function(type){
+    type=type||'all';
+    loadSheetJS(function(){
+      var wb=XLSX.utils.book_new();
+      function projects(){addSheetToWb(wb,'المشروعات',['كود المشروع*','اسم المشروع*','المانح','الموازنة الكلية اختيارية','تاريخ البداية','تاريخ النهاية','الحالة'],[
+        ['P001','مشروع التمكين الاقتصادي','USAID','', '2026-01-01','2026-12-31','نشط'],
+        ['P002','برنامج الحماية','UNICEF','', '2026-02-01','2026-11-30','نشط']
+      ],[16,30,20,24,16,16,12]); addInstructions(wb,'رفع المشروعات الأساسية',[['ملاحظة','يمكن ترك الموازنة الكلية فارغة إذا سيتم رفع بنود الموازنة التفصيلية.']]);}
+      function budgetLines(){addSheetToWb(wb,'بنود الموازنة',['كود المشروع*','كود البند*','اسم البند*','الكود الأب','الموازنة المعتمدة*','نوع البند','كود الممول','ملاحظات'],[
+        ['P001','1','الموارد البشرية','',0,'رئيسي','','البند الرئيسي قيمته صفر إذا له فروع'],
+        ['P001','1.1','رواتب فريق المشروع','1',420000,'موارد بشرية','HR-01',''],
+        ['P001','1.2','تأمينات وضرائب','1',85000,'موارد بشرية','HR-02',''],
+        ['P001','2','الأنشطة','',0,'رئيسي','',''],
+        ['P001','2.1','تدريبات وورش','2',250000,'أنشطة','ACT-01',''],
+        ['P001','2.2','انتقالات ومواصلات','2',90000,'أنشطة','ACT-02',''],
+        ['P001','3','إدارة وتشغيل','',0,'رئيسي','',''],
+        ['P001','3.1','إيجار وقاعات','3',70000,'تشغيل','ADM-01',''],
+        ['P001','3.2','مستلزمات مكتبية','3',35000,'تشغيل','ADM-02','']
+      ],[16,16,30,14,20,16,16,42]); addInstructions(wb,'رفع موازنة المشروع بالأكواد',[['مثال الأكواد','1 ثم 1.1 و 1.2. النظام يجمع البنود النهائية فقط.'],['مهم','لا تدخل موازنة على البند الأب لو له بنود فرعية لتجنب التكرار.']]);}
+      function entries(){addSheetToWb(wb,'القيود اليومية',['رقم القيد*','التاريخ*','البيان*','المرجع','كود الحساب*','مدين','دائن','كود المشروع','كود بند الموازنة','مركز التكلفة','كود الطرف الثالث'],[
+        ['J2026-001','2026-01-15','مصروف تدريب','PV-001','5241',12000,0,'P001','2.1','CC01','TP001'],
+        ['J2026-001','2026-01-15','مصروف تدريب','PV-001','1112',0,12000,'P001','2.1','CC01','TP001']
+      ],[16,14,28,14,14,12,12,14,18,14,18]); addInstructions(wb,'رفع القيود اليومية',[['توازن القيد','كل رقم قيد يجب أن يكون مجموع المدين فيه مساويًا لمجموع الدائن.'],['ربط الموازنة','استخدم كود بند الموازنة لحساب نسب الصرف بشكل صحيح.']]);}
+      function employees(){addSheetToWb(wb,'الموظفين',['كود الموظف*','الاسم*','المسمى الوظيفي','القسم','الأجر الأساسي*','بدل طبيعة عمل','بدل انتقال','بدل سكن','تاريخ التعيين','نوع العقد','الحالة'],[
+        ['E001','أحمد محمد','محاسب','المالية',8000,500,300,0,'2024-01-01','محدد','نشط']
+      ],[14,26,18,16,16,16,14,14,16,14,12]); addInstructions(wb,'رفع بيانات الموظفين',[['المرتب','الأجر الأساسي مطلوب، والبدلات اختيارية.']]);}
+      function thirdParties(){addSheetToWb(wb,'الموردين والأطراف',['كود الطرف*','الاسم*','النوع','الرقم الضريبي','طبيعة التعامل','نسبة الخصم %','العنوان','تاريخ انتهاء العقد','ملاحظات'],[
+        ['TP001','شركة النور للتوريدات','مورد','100-200-300','توريدات',1,'القاهرة','2026-12-31','']
+      ],[14,28,14,18,18,14,22,18,28]); addInstructions(wb,'رفع الموردين والأطراف',[['تنبيهات العقود','تاريخ انتهاء العقد يستخدم في تنبيهات الموردين والعقود.']]);}
+      function assets(){addSheetToWb(wb,'الأصول الثابتة',['كود الأصل*','اسم الأصل*','فئة الأصل','الرقم التسلسلي','تاريخ الشراء','تاريخ بدء الإهلاك','العمر الإنتاجي بالسنوات','التكلفة*','القيمة التخريدية','الموقع','المكان التفصيلي','كود الموظف العهدة','الممول','ملاحظات'],[
+        ['AST001','لاب توب ديل','IT','SN-001','2026-01-10','2026-01-10',3,35000,0,'المقر الرئيسي','مكتب الحسابات','E001','USAID','']
+      ],[14,26,14,18,16,18,22,14,16,18,22,18,16,28]); addInstructions(wb,'رفع الأصول الثابتة',[['العهدة','استخدم كود الموظف في خانة العهدة لربط الأصل بالموظف.']]);}
+      function accounts(){addSheetToWb(wb,'حسابات جديدة',['كود الحساب*','اسم الحساب*','طبيعة الحساب dr/cr*','ملاحظة'],[
+        ['5317','مصروفات تدريب وتأهيل','dr',''],['4121','إيرادات منح','cr','']
+      ],[16,30,22,28]); addInstructions(wb,'إضافة حسابات جديدة',[['طبيعة الحساب','اكتب dr للحساب المدين أو cr للحساب الدائن.']]);}
+      if(type==='all'){projects();budgetLines();entries();employees();thirdParties();assets();accounts();}
+      if(type==='projects')projects();
+      if(type==='budgetLines')budgetLines();
+      if(type==='entries')entries();
+      if(type==='employees')employees();
+      if(type==='thirdParties')thirdParties();
+      if(type==='assets')assets();
+      if(type==='accounts')accounts();
+      var names={projects:'نموذج_المشروعات.xlsx',budgetLines:'نموذج_الموازنات_بالاكواد.xlsx',entries:'نموذج_القيود_اليومية.xlsx',employees:'نموذج_الموظفين.xlsx',thirdParties:'نموذج_الموردين_والأطراف.xlsx',assets:'نموذج_الأصول_الثابتة.xlsx',accounts:'نموذج_الحسابات.xlsx',all:'نموذج_استيراد_أثر_الشامل.xlsx'};
+      downloadXLSX(wb,names[type]||'نموذج_استيراد_أثر.xlsx');
+      toast('✅ تم تحميل '+(importTypes.find(function(x){return x.key===type;})||{}).title);
+    });
+  };
+  window.downloadImportTemplate=function(){downloadImportTemplateByType('all');};
+  function emptyResult(){return {valid:0,errors:[],data:[]};}
+  function parseByType(wb,type){
+    var r={entries:emptyResult(),projects:emptyResult(),budgetLines:emptyResult(),employees:emptyResult(),thirdParties:emptyResult(),assets:emptyResult(),accounts:emptyResult()};
+    if(type==='all'||type==='entries')r.entries=parseEntriesSheet(wb);
+    if(type==='all'||type==='projects')r.projects=parseProjectsSheet(wb);
+    if(type==='all'||type==='budgetLines')r.budgetLines=parseBudgetLinesSheet(wb);
+    if(type==='all'||type==='employees')r.employees=parseEmployeesSheet(wb);
+    if(type==='all'||type==='thirdParties')r.thirdParties=parseTPSheet(wb);
+    if(type==='all'||type==='assets')r.assets=parseAssetsImportSheet(wb);
+    if(type==='all'||type==='accounts')r.accounts=parseCOASheet(wb);
+    return r;
+  }
+  window.startImportType=function(type){
+    window._atharImportType=type||'all';
+    var inp=document.getElementById('import-file');
+    if(inp){inp.value='';inp.click();}
+  };
+  window.processImportFile=function(file){
+    loadSheetJS(function(){
+      var reader=new FileReader();
+      reader.onload=function(e){
+        try{
+          var wb=XLSX.read(e.target.result,{type:'binary'});
+          showImportPreviewByType(wb,window._atharImportType||'all');
+        }catch(err){toast('❌ خطأ في قراءة الملف: '+err.message);}
+      };
+      reader.readAsBinaryString(file);
+    });
+  };
+  window.handleImportFile=function(file){if(file)processImportFile(file);};
+  window.handleImportDrop=function(file){if(file)processImportFile(file);};
+  window.showImportPreviewByType=function(wb,type){
+    var preview=document.getElementById('import-preview'); if(!preview)return;
+    var results=parseByType(wb,type);
+    var totalValid=Object.keys(results).reduce(function(s,k){return s+(results[k]?results[k].valid:0);},0);
+    var allErrors=[];Object.keys(results).forEach(function(k){var rr=results[k]; if(rr)allErrors=allErrors.concat(rr.errors||[]);});
+    var sections=[['entries','📝','قيود'],['projects','🎯','مشروعات'],['budgetLines','🧩','بنود موازنة'],['employees','👥','موظفين'],['thirdParties','🏭','موردين'],['assets','🏢','أصول'],['accounts','🌳','حسابات']];
+    var typeTitle=(importTypes.find(function(x){return x.key===type;})||{}).title||'استيراد';
+    var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));border-radius:14px;padding:14px;margin:12px 0;color:white"><div style="font-weight:900;font-size:16px;margin-bottom:8px">📋 معاينة '+esc(typeTitle)+'</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">';
+    sections.forEach(function(s){var rr=results[s[0]];if(type!=='all'&&s[0]!==type)return;h+='<div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px;text-align:center"><div style="font-size:18px">'+s[1]+'</div><div style="font-weight:900;font-size:17px">'+(rr?rr.valid:0)+'</div><div style="font-size:10px;opacity:.8">'+s[2]+'</div></div>';});
+    h+='</div></div>';
+    if(allErrors.length){h+='<div style="background:#fff5f5;border:1px solid #fecaca;border-radius:12px;padding:12px;margin-bottom:12px"><div style="font-weight:900;color:#b91c1c;margin-bottom:8px">⚠️ ملاحظات قبل الاستيراد ('+allErrors.length+')</div>';allErrors.slice(0,10).forEach(function(e){h+='<div style="font-size:11px;color:#b91c1c;margin-bottom:4px">• '+esc(e)+'</div>';});if(allErrors.length>10)h+='<div style="font-size:11px;color:#b91c1c">... و'+(allErrors.length-10)+' ملاحظة أخرى</div>';h+='</div>';}
+    if(totalValid>0)h+='<button onclick="executeImport()" class="btn btn-gr" style="width:100%;padding:14px;font-size:15px;margin-bottom:8px">✅ استيراد '+totalValid+' سجل</button>';
+    h+='<button onclick="startImportType(\''+type+'\')" class="btn btn-gy" style="width:100%;font-size:12px">📂 اختيار ملف آخر</button>';
+    window._importData=results; preview.innerHTML=h;
+  };
+  window.rImportWizard=function(){
+    var h='';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap"><div><div class="ph-t">📥 مركز الاستيراد الذكي</div><div style="font-size:11px;color:var(--g4)">اختر نوع البيانات، حمّل النموذج، ثم ارفع الملف للمعاينة قبل الحفظ</div></div><button class="btn btn-sm" onclick="downloadImportTemplateByType(\'all\')" style="background:var(--gr);font-size:10.5px">📦 تحميل النموذج الشامل</button></div>';
+    h+='<div style="background:#f0f9ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;color:#0f3a5a;line-height:1.8"><b>💡 مهم:</b> الموازنة تترفع من ملف Excel بالأكواد مرة واحدة بدل إدخال بند بند. كل نموذج مستقل ومخصص لنوع بيانات واحد.</div>';
+    h+='<input type="file" id="import-file" accept=".xlsx,.xls" style="display:none" onchange="handleImportFile(this.files[0])"><div id="import-template-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px">';
+    importTypes.forEach(function(t){
+      h+='<div class="card" style="margin:0;padding:13px;border-radius:14px"><div style="display:flex;gap:9px;align-items:flex-start;margin-bottom:8px"><div style="width:42px;height:42px;border-radius:12px;background:var(--skp);display:flex;align-items:center;justify-content:center;font-size:22px">'+t.icon+'</div><div style="flex:1"><div style="font-weight:900;color:var(--n);font-size:13px">'+t.title+'</div><div style="font-size:10.5px;color:var(--g5);line-height:1.5">'+t.desc+'</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><button class="btn btn-sm" onclick="downloadImportTemplateByType(\''+t.key+'\')" style="font-size:10.5px;background:var(--n)">📥 تحميل</button><button class="btn btn-sm btn-sky" onclick="startImportType(\''+t.key+'\')" style="font-size:10.5px">📤 رفع</button></div></div>';
+    });
+    h+='</div><div id="import-preview"></div>';
+    return h;
+  };
+  var oldRImportExport=window.rImportExport;
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div style="background:linear-gradient(135deg,#0f3a5a,#1e3a6e);border-radius:16px;padding:14px;color:white;margin-bottom:12px"><div style="font-size:17px;font-weight:900;margin-bottom:4px">نماذج رفع مستقلة لكل جزء في النظام</div><div style="font-size:11.5px;opacity:.8">بدل نموذج واحد ضخم، حمّل النموذج المناسب وارفعه مباشرة مع معاينة وأخطاء قبل الحفظ.</div></div>';
+    h+=rImportWizard();
+    h+='<div class="sd">📤 تصدير ونسخ احتياطي</div><div class="mg">';
+    var exportCards=[
+      {icon:'💾',label:'نسخة احتياطية كاملة',sub:'JSON',fn:'exportBackup()'},
+      {icon:'📒',label:'تصدير القيود',sub:'CSV',fn:'exportEntriesCSV()'},
+      {icon:'📊',label:'ميزان المراجعة',sub:'CSV',fn:'exportTrialCSV()'},
+      {icon:'👥',label:'بيانات الموظفين',sub:'CSV',fn:'exportEmployeesCSV()'},
+      {icon:'🏢',label:'الأصول الثابتة',sub:'Excel',fn:'exportAssetsExcel()'},
+      {icon:'📦',label:'تقرير شامل',sub:'Excel',fn:'exportFullExcel()'}
+    ];
+    exportCards.forEach(function(c){h+='<div class="mi" onclick="'+c.fn+'"><div class="mi-i">'+c.icon+'</div><div class="mi-t">'+c.label+'</div><div style="font-size:10px;color:var(--g4);margin-top:3px">'+c.sub+'</div></div>';});
+    h+='</div>';
+    return h;
+  };
 })();
 </script>
 </body>
