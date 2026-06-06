@@ -167,7 +167,141 @@ function printAssetPermit(a,m){
     +'<div><div class="lbl">من</div><div class="val">'+escp(m.from||'—')+'</div></div>'
     +'<div><div class="lbl">إلى</div><div class="val">'+escp(m.to||'—')+'</div></div>'
     +'</div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+escp(m.notes||'لا توجد')+'</div></div>'
-    +'<div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div></body></html>';
+    +'<div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div>
+<script>
+/* ATHAR V20 targeted stable fixes: import duplication, dashboard chart, monthly review */
+(function(){
+  'use strict';
+  function A(v){return Array.isArray(v)?v:[];}
+  function N(v){v=Number(v);return isFinite(v)?v:0;}
+  function M(v){return Math.round(N(v)).toLocaleString('ar-EG')+' ج';}
+  function P(v){v=N(v);return (Math.round(v*10)/10).toLocaleString('ar-EG')+'%';}
+  function E(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
+  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function isPosted(e){return !e.status || e.status==='posted' || e.posted===true || e.approved===true || e.stage==='posted';}
+  function entryLines(e){return A(e.lines||e.details||e.items);}
+  function lineProject(l,e){return l.project||l.projectCode||l.proj||e.project||e.projectCode||e.proj||'';}
+  function lineBudget(l,e){return l.budgetLine||l.budgetCode||l.lineCode||e.budgetLine||e.budgetCode||e.lineCode||'';}
+  function lineDebit(l){return N(l.debit||l.dr||l.amountDebit||0);}
+  function lineCredit(l){return N(l.credit||l.cr||l.amountCredit||0);}
+  function lineAmount(l){var d=lineDebit(l),c=lineCredit(l); return d>0?d:Math.max(0,c);}
+  function getProjectCode(p){return p.code||p.id||p.projectCode||p.name||'';}
+  function projectBudget(p){
+    var direct=N(p.budget||p.amount||p.totalBudget||p.revisedBudget);
+    var lines=A(p.budgetLines||p.lines||p.budgetItems);
+    var sum=lines.reduce(function(s,l){return s+N(l.amount||l.budget||l.revised||l.value);},0);
+    return sum||direct;
+  }
+  function projectSpent(code){
+    var total=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ if(String(lineProject(l,e))===String(code)) total+=lineDebit(l); }); });
+    return total;
+  }
+  function calcProjects(){
+    return A(window.DB&&DB.projects).map(function(p){
+      var code=getProjectCode(p), b=projectBudget(p), s=projectSpent(code), pct=b?Math.min(999,(s/b*100)):0;
+      return {code:code,name:p.name||p.title||code||'مشروع',budget:b,spent:s,pct:pct};
+    });
+  }
+  function bankBalance(){
+    var bal=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('11')===0||/bank|بنك|خزنة/i.test(acc)){ bal+=lineDebit(l)-lineCredit(l); } }); });
+    return bal;
+  }
+  function missingDocs(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ var has=e.attachment||e.attachments||e.docs||e.file||e.document; if(!has && isPosted(e))n++; }); return n;
+  }
+  function pendingApprovals(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ if(e.status==='draft'||e.status==='pending'||e.approvalStatus==='pending')n++; });
+    A(window.DB&&DB.purchaseRequests).forEach(function(x){ if(!x.status||x.status==='pending')n++; });
+    return n;
+  }
+  function monthlyExpenseBars(){
+    var now=new Date(); var months=[];
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:d.toLocaleDateString('ar-EG',{month:'short'}),y:d.getFullYear(),mo:d.getMonth(),v:0}); }
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; var d=new Date(e.date||e.entryDate||todayISO()); if(isNaN(d))return; months.forEach(function(x){ if(d.getFullYear()===x.y&&d.getMonth()===x.mo){ entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('5')===0||/مصروف|expense/i.test(acc)) x.v+=lineDebit(l); }); } }); });
+    var max=Math.max(1); months.forEach(function(x){if(x.v>max)max=x.v;});
+    return {data:months,max:max};
+  }
+
+  var css='\n.athar-v20-wrap{padding:0 0 86px;overflow-x:hidden}.athar-v20-hero{background:linear-gradient(135deg,#132f5f,#0ea5c6);border-radius:22px;padding:18px;color:#fff;margin:0 0 14px;box-shadow:0 18px 40px rgba(19,47,95,.18)}.athar-v20-title{font-size:22px;font-weight:900;line-height:1.35}.athar-v20-sub{font-size:12px;opacity:.85;line-height:1.8;margin-top:6px}.athar-v20-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.athar-v20-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,42,80,.07);min-width:0}.athar-v20-kval{font-size:18px;font-weight:900;color:#13345f;white-space:normal;word-break:break-word}.athar-v20-klbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}.athar-v20-chart{height:190px;display:flex;align-items:flex-end;gap:8px;padding:12px 4px 4px;border-bottom:1px solid #e2e8f0;direction:rtl}.athar-v20-barbox{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.athar-v20-bar{width:100%;max-width:34px;min-height:8px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#20c4f4,#143b70);box-shadow:0 10px 18px rgba(32,196,244,.25)}.athar-v20-barlbl{font-size:10px;color:#64748b;margin-top:7px;white-space:nowrap}.athar-v20-barval{font-size:9px;color:#94a3b8;margin-top:2px;white-space:nowrap}.athar-v20-list{display:flex;flex-direction:column;gap:9px}.athar-v20-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:12px}.athar-v20-pct{font-weight:900;border-radius:999px;padding:4px 8px;background:#e0f2fe;color:#075985;min-width:54px;text-align:center}.athar-v20-line{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.athar-v20-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea5e9,#1e3a6e)}@media(max-width:520px){.athar-v20-wrap{padding-inline:10px}.athar-v20-title{font-size:20px}.athar-v20-kpis{grid-template-columns:1fr 1fr}.athar-v20-card{padding:12px;border-radius:16px}.athar-v20-chart{height:170px;gap:6px}.athar-v20-kval{font-size:15px}.athar-v20-row{grid-template-columns:1fr;gap:5px}.athar-v20-pct{width:max-content}}\n';
+  try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(_e){}
+
+  window.rDash=function(){
+    try{
+      if(!window.DB) window.DB={}; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
+      var root=document.getElementById('pg-dash'); if(!root) return;
+      var ps=calcProjects(), budget=ps.reduce(function(s,p){return s+p.budget;},0), spent=ps.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
+      var activeLoans=A(DB.loans).filter(function(l){return l.status==='active'||!l.status;}).length;
+      var bars=monthlyExpenseBars();
+      var h='<div class="athar-v20-wrap">';
+      h+='<div class="athar-v20-hero"><div class="athar-v20-title">مركز التحكم المالي والتشغيلي</div><div class="athar-v20-sub">ملخص سريع من البيانات الفعلية: أرصدة، مشروعات، صرف، مستندات، موافقات، وقروض.</div></div>';
+      var k=[['🏦',M(bankBalance()),'رصيد البنك والخزينة'],['📁',ps.length,'منح ومشروعات نشطة'],['📊',P(burn),'نسبة الصرف الكلية'],['📎',missingDocs(),'قيود بدون مرفقات'],['📥',pendingApprovals(),'موافقات معلقة'],['💳',activeLoans,'قروض نشطة']];
+      h+='<div class="athar-v20-kpis">';
+      k.forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+E(x[1])+'</div><div class="athar-v20-klbl">'+E(x[2])+'</div></div>';});
+      h+='</div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:4px">📈 مصروفات آخر 6 شهور</div><div style="font-size:11px;color:#94a3b8">محسوبة من القيود المرحلة فقط</div><div class="athar-v20-chart">';
+      bars.data.forEach(function(x){var ht=Math.max(8,Math.round((x.v/bars.max)*130)); h+='<div class="athar-v20-barbox"><div class="athar-v20-bar" style="height:'+ht+'px"></div><div class="athar-v20-barlbl">'+E(x.m)+'</div><div class="athar-v20-barval">'+E(M(x.v).replace(' ج',''))+'</div></div>';});
+      h+='</div></div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:10px">📂 أعلى المشروعات من حيث الصرف</div><div class="athar-v20-list">';
+      ps.sort(function(a,b){return b.pct-a.pct;}).slice(0,5).forEach(function(p){var pct=Math.min(100,p.pct); h+='<div class="athar-v20-row"><div style="font-weight:800;color:#13345f">'+E(p.name)+'</div><div class="athar-v20-line"><div class="athar-v20-fill" style="width:'+Math.max(1,pct)+'%"></div></div><div class="athar-v20-pct">'+E(P(p.pct))+'</div></div>';});
+      if(!ps.length) h+='<div style="font-size:12px;color:#94a3b8">لا توجد مشروعات مسجلة بعد.</div>';
+      h+='</div></div></div>';
+      root.innerHTML=h;
+    }catch(err){
+      var root2=document.getElementById('pg-dash'); if(root2) root2.innerHTML='<div class="card">تعذر تحميل لوحة التحكم: '+E(err.message)+'</div>';
+    }
+  };
+
+  window.rFinanceDirectorMonthlyReview=function(){
+    var entries=A(window.DB&&DB.entries), projects=A(window.DB&&DB.projects), emps=A(window.DB&&DB.employees), loans=A(window.DB&&DB.loans);
+    var unbalanced=0, noDoc=0, noProj=0;
+    entries.forEach(function(e){ var d=0,c=0; entryLines(e).forEach(function(l){d+=lineDebit(l);c+=lineCredit(l);}); if(Math.abs(d-c)>0.5)unbalanced++; if(!e.attachment&&!e.attachments&&!e.docs&&isPosted(e))noDoc++; if(isPosted(e)&&entryLines(e).some(function(l){return lineDebit(l)>0&&!lineProject(l,e);}))noProj++; });
+    var overBudget=calcProjects().filter(function(p){return p.pct>100;}).length;
+    var h='<div class="athar-v20-wrap"><div class="ph-t" style="margin-bottom:12px">🧭 مراجعة شهر كامل — مدير مالي</div>';
+    h+='<div class="athar-v20-kpis">';
+    [['⚖️',unbalanced,'قيود غير متوازنة'],['📎',noDoc,'قيود مرحلة بدون مستند'],['📁',noProj,'مصروفات بدون مشروع'],['🚨',overBudget,'مشروعات متجاوزة الموازنة'],['👥',emps.length,'موظفون مسجلون'],['💳',loans.length,'قروض مسجلة']].forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+x[1]+'</div><div class="athar-v20-klbl">'+x[2]+'</div></div>';});
+    h+='</div><div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:8px">تعليقات المدير المالي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px">';
+    var notes=[];
+    if(unbalanced) notes.push('يوجد قيود غير متوازنة؛ يجب منع الترحيل قبل تساوي المدين والدائن.');
+    if(noDoc) notes.push('يوجد قيود مرحلة بدون مستندات؛ يجب تحويلها إلى مسودة أو طلب استكمال مرفقات.');
+    if(noProj) notes.push('يوجد مصروفات بدون مشروع/بند موازنة؛ هذا يؤثر على BVA وملف المنحة.');
+    if(overBudget) notes.push('يوجد مشروعات تخطت الموازنة؛ يجب تفعيل منع الحفظ أو طلب تجاوز إداري.');
+    notes.push('ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد ومستند وتعديل موازنة.');
+    notes.push('سجل التسويات يجب أن يعرض التسويات البنكية المعتمدة فقط وليس شاشة البنوك.');
+    notes.forEach(function(n){h+='<li>'+E(n)+'</li>';});
+    h+='</ol></div></div>';
+    return h;
+  };
+
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div class="card"><div class="ct">📥 الاستيراد</div><p style="font-size:12px;color:#64748b;line-height:1.8;margin:8px 0">شاشة واحدة فقط للاستيراد والتصدير لتجنب التكرار. استخدم النموذج الموحد أو نماذج الأقسام حسب الحاجة.</p>';
+    h+='<button class="btn btn-sky btn-bl" onclick="if(typeof downloadImportTemplate===\'function\')downloadImportTemplate();else alert(\'النموذج غير متاح\')">تحميل نموذج الاستيراد Excel</button>';
+    h+='<button class="btn btn-gr btn-bl" onclick="if(typeof openImportWizard===\'function\')openImportWizard();else if(typeof importEntriesCSV===\'function\')importEntriesCSV();else if(typeof sub===\'function\')sub(\'importwizard\')">رفع ملف ومعاينة البيانات</button></div>';
+    h+='<div class="card"><div class="ct">📤 التصدير</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">';
+    var ex=[['نموذج 41','exportForm41Excel'],['ميزان المراجعة','exportTrialBalanceExcel'],['القيود اليومية','exportEntriesExcel'],['تقرير شامل','exportAllReportsExcel'],['الأصول','exportAssetsExcel'],['BVA المشروعات','exportBVAExcel']];
+    ex.forEach(function(x){h+='<button class="btn btn-sm" style="background:#f8fafc;color:#1e3a6e;border:1px solid #e2e8f0" onclick="if(typeof '+x[1]+'===\'function\')'+x[1]+'();else alert(\'التصدير غير متاح حاليًا\')">'+x[0]+'</button>';});
+    h+='</div></div>';
+    return h;
+  };
+
+  var oldMore=window.rMore;
+  window.rMore=function(){
+    var h='';
+    if(typeof oldMore==='function') h=oldMore();
+    // remove the duplicated standalone import wizard card from the generated HTML
+    h=h.replace(/<div class="mi" data-sub="importwizard">[\s\S]*?<\/div><\/div>/g,'');
+    h=h.replace(/\{i:"📥",t:"استيراد Excel"[\s\S]*?\},/g,'');
+    return h;
+  };
+
+  // If the duplicate route is still called from old buttons, redirect it to the single center.
+  window.rImportWizard=function(){return window.rImportExport();};
+})();
+
+</script>
+</body></html>';
   var w=window.open('','_blank');
   if(w){w.document.open();w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},400);} else toast('⚠️ اسمح بفتح النوافذ المنبثقة للطباعة');
 }
@@ -6880,7 +7014,141 @@ function printTimesheetPDF(allocId){
     +'<td style="width:4%;"></td>'
     +'<td style="text-align:center;width:33%;padding-top:40px;border-top:1px solid #333;">توقيع المدير المالي</td>'
     +'</tr></table>'
-    +'</body></html>';
+    +'
+<script>
+/* ATHAR V20 targeted stable fixes: import duplication, dashboard chart, monthly review */
+(function(){
+  'use strict';
+  function A(v){return Array.isArray(v)?v:[];}
+  function N(v){v=Number(v);return isFinite(v)?v:0;}
+  function M(v){return Math.round(N(v)).toLocaleString('ar-EG')+' ج';}
+  function P(v){v=N(v);return (Math.round(v*10)/10).toLocaleString('ar-EG')+'%';}
+  function E(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
+  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function isPosted(e){return !e.status || e.status==='posted' || e.posted===true || e.approved===true || e.stage==='posted';}
+  function entryLines(e){return A(e.lines||e.details||e.items);}
+  function lineProject(l,e){return l.project||l.projectCode||l.proj||e.project||e.projectCode||e.proj||'';}
+  function lineBudget(l,e){return l.budgetLine||l.budgetCode||l.lineCode||e.budgetLine||e.budgetCode||e.lineCode||'';}
+  function lineDebit(l){return N(l.debit||l.dr||l.amountDebit||0);}
+  function lineCredit(l){return N(l.credit||l.cr||l.amountCredit||0);}
+  function lineAmount(l){var d=lineDebit(l),c=lineCredit(l); return d>0?d:Math.max(0,c);}
+  function getProjectCode(p){return p.code||p.id||p.projectCode||p.name||'';}
+  function projectBudget(p){
+    var direct=N(p.budget||p.amount||p.totalBudget||p.revisedBudget);
+    var lines=A(p.budgetLines||p.lines||p.budgetItems);
+    var sum=lines.reduce(function(s,l){return s+N(l.amount||l.budget||l.revised||l.value);},0);
+    return sum||direct;
+  }
+  function projectSpent(code){
+    var total=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ if(String(lineProject(l,e))===String(code)) total+=lineDebit(l); }); });
+    return total;
+  }
+  function calcProjects(){
+    return A(window.DB&&DB.projects).map(function(p){
+      var code=getProjectCode(p), b=projectBudget(p), s=projectSpent(code), pct=b?Math.min(999,(s/b*100)):0;
+      return {code:code,name:p.name||p.title||code||'مشروع',budget:b,spent:s,pct:pct};
+    });
+  }
+  function bankBalance(){
+    var bal=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('11')===0||/bank|بنك|خزنة/i.test(acc)){ bal+=lineDebit(l)-lineCredit(l); } }); });
+    return bal;
+  }
+  function missingDocs(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ var has=e.attachment||e.attachments||e.docs||e.file||e.document; if(!has && isPosted(e))n++; }); return n;
+  }
+  function pendingApprovals(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ if(e.status==='draft'||e.status==='pending'||e.approvalStatus==='pending')n++; });
+    A(window.DB&&DB.purchaseRequests).forEach(function(x){ if(!x.status||x.status==='pending')n++; });
+    return n;
+  }
+  function monthlyExpenseBars(){
+    var now=new Date(); var months=[];
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:d.toLocaleDateString('ar-EG',{month:'short'}),y:d.getFullYear(),mo:d.getMonth(),v:0}); }
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; var d=new Date(e.date||e.entryDate||todayISO()); if(isNaN(d))return; months.forEach(function(x){ if(d.getFullYear()===x.y&&d.getMonth()===x.mo){ entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('5')===0||/مصروف|expense/i.test(acc)) x.v+=lineDebit(l); }); } }); });
+    var max=Math.max(1); months.forEach(function(x){if(x.v>max)max=x.v;});
+    return {data:months,max:max};
+  }
+
+  var css='\n.athar-v20-wrap{padding:0 0 86px;overflow-x:hidden}.athar-v20-hero{background:linear-gradient(135deg,#132f5f,#0ea5c6);border-radius:22px;padding:18px;color:#fff;margin:0 0 14px;box-shadow:0 18px 40px rgba(19,47,95,.18)}.athar-v20-title{font-size:22px;font-weight:900;line-height:1.35}.athar-v20-sub{font-size:12px;opacity:.85;line-height:1.8;margin-top:6px}.athar-v20-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.athar-v20-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,42,80,.07);min-width:0}.athar-v20-kval{font-size:18px;font-weight:900;color:#13345f;white-space:normal;word-break:break-word}.athar-v20-klbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}.athar-v20-chart{height:190px;display:flex;align-items:flex-end;gap:8px;padding:12px 4px 4px;border-bottom:1px solid #e2e8f0;direction:rtl}.athar-v20-barbox{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.athar-v20-bar{width:100%;max-width:34px;min-height:8px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#20c4f4,#143b70);box-shadow:0 10px 18px rgba(32,196,244,.25)}.athar-v20-barlbl{font-size:10px;color:#64748b;margin-top:7px;white-space:nowrap}.athar-v20-barval{font-size:9px;color:#94a3b8;margin-top:2px;white-space:nowrap}.athar-v20-list{display:flex;flex-direction:column;gap:9px}.athar-v20-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:12px}.athar-v20-pct{font-weight:900;border-radius:999px;padding:4px 8px;background:#e0f2fe;color:#075985;min-width:54px;text-align:center}.athar-v20-line{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.athar-v20-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea5e9,#1e3a6e)}@media(max-width:520px){.athar-v20-wrap{padding-inline:10px}.athar-v20-title{font-size:20px}.athar-v20-kpis{grid-template-columns:1fr 1fr}.athar-v20-card{padding:12px;border-radius:16px}.athar-v20-chart{height:170px;gap:6px}.athar-v20-kval{font-size:15px}.athar-v20-row{grid-template-columns:1fr;gap:5px}.athar-v20-pct{width:max-content}}\n';
+  try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(_e){}
+
+  window.rDash=function(){
+    try{
+      if(!window.DB) window.DB={}; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
+      var root=document.getElementById('pg-dash'); if(!root) return;
+      var ps=calcProjects(), budget=ps.reduce(function(s,p){return s+p.budget;},0), spent=ps.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
+      var activeLoans=A(DB.loans).filter(function(l){return l.status==='active'||!l.status;}).length;
+      var bars=monthlyExpenseBars();
+      var h='<div class="athar-v20-wrap">';
+      h+='<div class="athar-v20-hero"><div class="athar-v20-title">مركز التحكم المالي والتشغيلي</div><div class="athar-v20-sub">ملخص سريع من البيانات الفعلية: أرصدة، مشروعات، صرف، مستندات، موافقات، وقروض.</div></div>';
+      var k=[['🏦',M(bankBalance()),'رصيد البنك والخزينة'],['📁',ps.length,'منح ومشروعات نشطة'],['📊',P(burn),'نسبة الصرف الكلية'],['📎',missingDocs(),'قيود بدون مرفقات'],['📥',pendingApprovals(),'موافقات معلقة'],['💳',activeLoans,'قروض نشطة']];
+      h+='<div class="athar-v20-kpis">';
+      k.forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+E(x[1])+'</div><div class="athar-v20-klbl">'+E(x[2])+'</div></div>';});
+      h+='</div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:4px">📈 مصروفات آخر 6 شهور</div><div style="font-size:11px;color:#94a3b8">محسوبة من القيود المرحلة فقط</div><div class="athar-v20-chart">';
+      bars.data.forEach(function(x){var ht=Math.max(8,Math.round((x.v/bars.max)*130)); h+='<div class="athar-v20-barbox"><div class="athar-v20-bar" style="height:'+ht+'px"></div><div class="athar-v20-barlbl">'+E(x.m)+'</div><div class="athar-v20-barval">'+E(M(x.v).replace(' ج',''))+'</div></div>';});
+      h+='</div></div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:10px">📂 أعلى المشروعات من حيث الصرف</div><div class="athar-v20-list">';
+      ps.sort(function(a,b){return b.pct-a.pct;}).slice(0,5).forEach(function(p){var pct=Math.min(100,p.pct); h+='<div class="athar-v20-row"><div style="font-weight:800;color:#13345f">'+E(p.name)+'</div><div class="athar-v20-line"><div class="athar-v20-fill" style="width:'+Math.max(1,pct)+'%"></div></div><div class="athar-v20-pct">'+E(P(p.pct))+'</div></div>';});
+      if(!ps.length) h+='<div style="font-size:12px;color:#94a3b8">لا توجد مشروعات مسجلة بعد.</div>';
+      h+='</div></div></div>';
+      root.innerHTML=h;
+    }catch(err){
+      var root2=document.getElementById('pg-dash'); if(root2) root2.innerHTML='<div class="card">تعذر تحميل لوحة التحكم: '+E(err.message)+'</div>';
+    }
+  };
+
+  window.rFinanceDirectorMonthlyReview=function(){
+    var entries=A(window.DB&&DB.entries), projects=A(window.DB&&DB.projects), emps=A(window.DB&&DB.employees), loans=A(window.DB&&DB.loans);
+    var unbalanced=0, noDoc=0, noProj=0;
+    entries.forEach(function(e){ var d=0,c=0; entryLines(e).forEach(function(l){d+=lineDebit(l);c+=lineCredit(l);}); if(Math.abs(d-c)>0.5)unbalanced++; if(!e.attachment&&!e.attachments&&!e.docs&&isPosted(e))noDoc++; if(isPosted(e)&&entryLines(e).some(function(l){return lineDebit(l)>0&&!lineProject(l,e);}))noProj++; });
+    var overBudget=calcProjects().filter(function(p){return p.pct>100;}).length;
+    var h='<div class="athar-v20-wrap"><div class="ph-t" style="margin-bottom:12px">🧭 مراجعة شهر كامل — مدير مالي</div>';
+    h+='<div class="athar-v20-kpis">';
+    [['⚖️',unbalanced,'قيود غير متوازنة'],['📎',noDoc,'قيود مرحلة بدون مستند'],['📁',noProj,'مصروفات بدون مشروع'],['🚨',overBudget,'مشروعات متجاوزة الموازنة'],['👥',emps.length,'موظفون مسجلون'],['💳',loans.length,'قروض مسجلة']].forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+x[1]+'</div><div class="athar-v20-klbl">'+x[2]+'</div></div>';});
+    h+='</div><div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:8px">تعليقات المدير المالي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px">';
+    var notes=[];
+    if(unbalanced) notes.push('يوجد قيود غير متوازنة؛ يجب منع الترحيل قبل تساوي المدين والدائن.');
+    if(noDoc) notes.push('يوجد قيود مرحلة بدون مستندات؛ يجب تحويلها إلى مسودة أو طلب استكمال مرفقات.');
+    if(noProj) notes.push('يوجد مصروفات بدون مشروع/بند موازنة؛ هذا يؤثر على BVA وملف المنحة.');
+    if(overBudget) notes.push('يوجد مشروعات تخطت الموازنة؛ يجب تفعيل منع الحفظ أو طلب تجاوز إداري.');
+    notes.push('ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد ومستند وتعديل موازنة.');
+    notes.push('سجل التسويات يجب أن يعرض التسويات البنكية المعتمدة فقط وليس شاشة البنوك.');
+    notes.forEach(function(n){h+='<li>'+E(n)+'</li>';});
+    h+='</ol></div></div>';
+    return h;
+  };
+
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div class="card"><div class="ct">📥 الاستيراد</div><p style="font-size:12px;color:#64748b;line-height:1.8;margin:8px 0">شاشة واحدة فقط للاستيراد والتصدير لتجنب التكرار. استخدم النموذج الموحد أو نماذج الأقسام حسب الحاجة.</p>';
+    h+='<button class="btn btn-sky btn-bl" onclick="if(typeof downloadImportTemplate===\'function\')downloadImportTemplate();else alert(\'النموذج غير متاح\')">تحميل نموذج الاستيراد Excel</button>';
+    h+='<button class="btn btn-gr btn-bl" onclick="if(typeof openImportWizard===\'function\')openImportWizard();else if(typeof importEntriesCSV===\'function\')importEntriesCSV();else if(typeof sub===\'function\')sub(\'importwizard\')">رفع ملف ومعاينة البيانات</button></div>';
+    h+='<div class="card"><div class="ct">📤 التصدير</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">';
+    var ex=[['نموذج 41','exportForm41Excel'],['ميزان المراجعة','exportTrialBalanceExcel'],['القيود اليومية','exportEntriesExcel'],['تقرير شامل','exportAllReportsExcel'],['الأصول','exportAssetsExcel'],['BVA المشروعات','exportBVAExcel']];
+    ex.forEach(function(x){h+='<button class="btn btn-sm" style="background:#f8fafc;color:#1e3a6e;border:1px solid #e2e8f0" onclick="if(typeof '+x[1]+'===\'function\')'+x[1]+'();else alert(\'التصدير غير متاح حاليًا\')">'+x[0]+'</button>';});
+    h+='</div></div>';
+    return h;
+  };
+
+  var oldMore=window.rMore;
+  window.rMore=function(){
+    var h='';
+    if(typeof oldMore==='function') h=oldMore();
+    // remove the duplicated standalone import wizard card from the generated HTML
+    h=h.replace(/<div class="mi" data-sub="importwizard">[\s\S]*?<\/div><\/div>/g,'');
+    h=h.replace(/\{i:"📥",t:"استيراد Excel"[\s\S]*?\},/g,'');
+    return h;
+  };
+
+  // If the duplicate route is still called from old buttons, redirect it to the single center.
+  window.rImportWizard=function(){return window.rImportExport();};
+})();
+
+</script>
+</body></html>';
 
   printContent('Timesheet — '+emp.name+' — '+mName, html);
 }
@@ -7339,7 +7607,141 @@ function printForm41(formId){
     +'<div class="sig-box">الموظف المختص</div>'
     +'<div class="sig-box">رئيس جهة العمل</div>'
     +'</div>'
-    +'</body></html>';
+    +'
+<script>
+/* ATHAR V20 targeted stable fixes: import duplication, dashboard chart, monthly review */
+(function(){
+  'use strict';
+  function A(v){return Array.isArray(v)?v:[];}
+  function N(v){v=Number(v);return isFinite(v)?v:0;}
+  function M(v){return Math.round(N(v)).toLocaleString('ar-EG')+' ج';}
+  function P(v){v=N(v);return (Math.round(v*10)/10).toLocaleString('ar-EG')+'%';}
+  function E(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
+  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function isPosted(e){return !e.status || e.status==='posted' || e.posted===true || e.approved===true || e.stage==='posted';}
+  function entryLines(e){return A(e.lines||e.details||e.items);}
+  function lineProject(l,e){return l.project||l.projectCode||l.proj||e.project||e.projectCode||e.proj||'';}
+  function lineBudget(l,e){return l.budgetLine||l.budgetCode||l.lineCode||e.budgetLine||e.budgetCode||e.lineCode||'';}
+  function lineDebit(l){return N(l.debit||l.dr||l.amountDebit||0);}
+  function lineCredit(l){return N(l.credit||l.cr||l.amountCredit||0);}
+  function lineAmount(l){var d=lineDebit(l),c=lineCredit(l); return d>0?d:Math.max(0,c);}
+  function getProjectCode(p){return p.code||p.id||p.projectCode||p.name||'';}
+  function projectBudget(p){
+    var direct=N(p.budget||p.amount||p.totalBudget||p.revisedBudget);
+    var lines=A(p.budgetLines||p.lines||p.budgetItems);
+    var sum=lines.reduce(function(s,l){return s+N(l.amount||l.budget||l.revised||l.value);},0);
+    return sum||direct;
+  }
+  function projectSpent(code){
+    var total=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ if(String(lineProject(l,e))===String(code)) total+=lineDebit(l); }); });
+    return total;
+  }
+  function calcProjects(){
+    return A(window.DB&&DB.projects).map(function(p){
+      var code=getProjectCode(p), b=projectBudget(p), s=projectSpent(code), pct=b?Math.min(999,(s/b*100)):0;
+      return {code:code,name:p.name||p.title||code||'مشروع',budget:b,spent:s,pct:pct};
+    });
+  }
+  function bankBalance(){
+    var bal=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('11')===0||/bank|بنك|خزنة/i.test(acc)){ bal+=lineDebit(l)-lineCredit(l); } }); });
+    return bal;
+  }
+  function missingDocs(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ var has=e.attachment||e.attachments||e.docs||e.file||e.document; if(!has && isPosted(e))n++; }); return n;
+  }
+  function pendingApprovals(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ if(e.status==='draft'||e.status==='pending'||e.approvalStatus==='pending')n++; });
+    A(window.DB&&DB.purchaseRequests).forEach(function(x){ if(!x.status||x.status==='pending')n++; });
+    return n;
+  }
+  function monthlyExpenseBars(){
+    var now=new Date(); var months=[];
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:d.toLocaleDateString('ar-EG',{month:'short'}),y:d.getFullYear(),mo:d.getMonth(),v:0}); }
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; var d=new Date(e.date||e.entryDate||todayISO()); if(isNaN(d))return; months.forEach(function(x){ if(d.getFullYear()===x.y&&d.getMonth()===x.mo){ entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('5')===0||/مصروف|expense/i.test(acc)) x.v+=lineDebit(l); }); } }); });
+    var max=Math.max(1); months.forEach(function(x){if(x.v>max)max=x.v;});
+    return {data:months,max:max};
+  }
+
+  var css='\n.athar-v20-wrap{padding:0 0 86px;overflow-x:hidden}.athar-v20-hero{background:linear-gradient(135deg,#132f5f,#0ea5c6);border-radius:22px;padding:18px;color:#fff;margin:0 0 14px;box-shadow:0 18px 40px rgba(19,47,95,.18)}.athar-v20-title{font-size:22px;font-weight:900;line-height:1.35}.athar-v20-sub{font-size:12px;opacity:.85;line-height:1.8;margin-top:6px}.athar-v20-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.athar-v20-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,42,80,.07);min-width:0}.athar-v20-kval{font-size:18px;font-weight:900;color:#13345f;white-space:normal;word-break:break-word}.athar-v20-klbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}.athar-v20-chart{height:190px;display:flex;align-items:flex-end;gap:8px;padding:12px 4px 4px;border-bottom:1px solid #e2e8f0;direction:rtl}.athar-v20-barbox{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.athar-v20-bar{width:100%;max-width:34px;min-height:8px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#20c4f4,#143b70);box-shadow:0 10px 18px rgba(32,196,244,.25)}.athar-v20-barlbl{font-size:10px;color:#64748b;margin-top:7px;white-space:nowrap}.athar-v20-barval{font-size:9px;color:#94a3b8;margin-top:2px;white-space:nowrap}.athar-v20-list{display:flex;flex-direction:column;gap:9px}.athar-v20-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:12px}.athar-v20-pct{font-weight:900;border-radius:999px;padding:4px 8px;background:#e0f2fe;color:#075985;min-width:54px;text-align:center}.athar-v20-line{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.athar-v20-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea5e9,#1e3a6e)}@media(max-width:520px){.athar-v20-wrap{padding-inline:10px}.athar-v20-title{font-size:20px}.athar-v20-kpis{grid-template-columns:1fr 1fr}.athar-v20-card{padding:12px;border-radius:16px}.athar-v20-chart{height:170px;gap:6px}.athar-v20-kval{font-size:15px}.athar-v20-row{grid-template-columns:1fr;gap:5px}.athar-v20-pct{width:max-content}}\n';
+  try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(_e){}
+
+  window.rDash=function(){
+    try{
+      if(!window.DB) window.DB={}; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
+      var root=document.getElementById('pg-dash'); if(!root) return;
+      var ps=calcProjects(), budget=ps.reduce(function(s,p){return s+p.budget;},0), spent=ps.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
+      var activeLoans=A(DB.loans).filter(function(l){return l.status==='active'||!l.status;}).length;
+      var bars=monthlyExpenseBars();
+      var h='<div class="athar-v20-wrap">';
+      h+='<div class="athar-v20-hero"><div class="athar-v20-title">مركز التحكم المالي والتشغيلي</div><div class="athar-v20-sub">ملخص سريع من البيانات الفعلية: أرصدة، مشروعات، صرف، مستندات، موافقات، وقروض.</div></div>';
+      var k=[['🏦',M(bankBalance()),'رصيد البنك والخزينة'],['📁',ps.length,'منح ومشروعات نشطة'],['📊',P(burn),'نسبة الصرف الكلية'],['📎',missingDocs(),'قيود بدون مرفقات'],['📥',pendingApprovals(),'موافقات معلقة'],['💳',activeLoans,'قروض نشطة']];
+      h+='<div class="athar-v20-kpis">';
+      k.forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+E(x[1])+'</div><div class="athar-v20-klbl">'+E(x[2])+'</div></div>';});
+      h+='</div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:4px">📈 مصروفات آخر 6 شهور</div><div style="font-size:11px;color:#94a3b8">محسوبة من القيود المرحلة فقط</div><div class="athar-v20-chart">';
+      bars.data.forEach(function(x){var ht=Math.max(8,Math.round((x.v/bars.max)*130)); h+='<div class="athar-v20-barbox"><div class="athar-v20-bar" style="height:'+ht+'px"></div><div class="athar-v20-barlbl">'+E(x.m)+'</div><div class="athar-v20-barval">'+E(M(x.v).replace(' ج',''))+'</div></div>';});
+      h+='</div></div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:10px">📂 أعلى المشروعات من حيث الصرف</div><div class="athar-v20-list">';
+      ps.sort(function(a,b){return b.pct-a.pct;}).slice(0,5).forEach(function(p){var pct=Math.min(100,p.pct); h+='<div class="athar-v20-row"><div style="font-weight:800;color:#13345f">'+E(p.name)+'</div><div class="athar-v20-line"><div class="athar-v20-fill" style="width:'+Math.max(1,pct)+'%"></div></div><div class="athar-v20-pct">'+E(P(p.pct))+'</div></div>';});
+      if(!ps.length) h+='<div style="font-size:12px;color:#94a3b8">لا توجد مشروعات مسجلة بعد.</div>';
+      h+='</div></div></div>';
+      root.innerHTML=h;
+    }catch(err){
+      var root2=document.getElementById('pg-dash'); if(root2) root2.innerHTML='<div class="card">تعذر تحميل لوحة التحكم: '+E(err.message)+'</div>';
+    }
+  };
+
+  window.rFinanceDirectorMonthlyReview=function(){
+    var entries=A(window.DB&&DB.entries), projects=A(window.DB&&DB.projects), emps=A(window.DB&&DB.employees), loans=A(window.DB&&DB.loans);
+    var unbalanced=0, noDoc=0, noProj=0;
+    entries.forEach(function(e){ var d=0,c=0; entryLines(e).forEach(function(l){d+=lineDebit(l);c+=lineCredit(l);}); if(Math.abs(d-c)>0.5)unbalanced++; if(!e.attachment&&!e.attachments&&!e.docs&&isPosted(e))noDoc++; if(isPosted(e)&&entryLines(e).some(function(l){return lineDebit(l)>0&&!lineProject(l,e);}))noProj++; });
+    var overBudget=calcProjects().filter(function(p){return p.pct>100;}).length;
+    var h='<div class="athar-v20-wrap"><div class="ph-t" style="margin-bottom:12px">🧭 مراجعة شهر كامل — مدير مالي</div>';
+    h+='<div class="athar-v20-kpis">';
+    [['⚖️',unbalanced,'قيود غير متوازنة'],['📎',noDoc,'قيود مرحلة بدون مستند'],['📁',noProj,'مصروفات بدون مشروع'],['🚨',overBudget,'مشروعات متجاوزة الموازنة'],['👥',emps.length,'موظفون مسجلون'],['💳',loans.length,'قروض مسجلة']].forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+x[1]+'</div><div class="athar-v20-klbl">'+x[2]+'</div></div>';});
+    h+='</div><div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:8px">تعليقات المدير المالي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px">';
+    var notes=[];
+    if(unbalanced) notes.push('يوجد قيود غير متوازنة؛ يجب منع الترحيل قبل تساوي المدين والدائن.');
+    if(noDoc) notes.push('يوجد قيود مرحلة بدون مستندات؛ يجب تحويلها إلى مسودة أو طلب استكمال مرفقات.');
+    if(noProj) notes.push('يوجد مصروفات بدون مشروع/بند موازنة؛ هذا يؤثر على BVA وملف المنحة.');
+    if(overBudget) notes.push('يوجد مشروعات تخطت الموازنة؛ يجب تفعيل منع الحفظ أو طلب تجاوز إداري.');
+    notes.push('ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد ومستند وتعديل موازنة.');
+    notes.push('سجل التسويات يجب أن يعرض التسويات البنكية المعتمدة فقط وليس شاشة البنوك.');
+    notes.forEach(function(n){h+='<li>'+E(n)+'</li>';});
+    h+='</ol></div></div>';
+    return h;
+  };
+
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div class="card"><div class="ct">📥 الاستيراد</div><p style="font-size:12px;color:#64748b;line-height:1.8;margin:8px 0">شاشة واحدة فقط للاستيراد والتصدير لتجنب التكرار. استخدم النموذج الموحد أو نماذج الأقسام حسب الحاجة.</p>';
+    h+='<button class="btn btn-sky btn-bl" onclick="if(typeof downloadImportTemplate===\'function\')downloadImportTemplate();else alert(\'النموذج غير متاح\')">تحميل نموذج الاستيراد Excel</button>';
+    h+='<button class="btn btn-gr btn-bl" onclick="if(typeof openImportWizard===\'function\')openImportWizard();else if(typeof importEntriesCSV===\'function\')importEntriesCSV();else if(typeof sub===\'function\')sub(\'importwizard\')">رفع ملف ومعاينة البيانات</button></div>';
+    h+='<div class="card"><div class="ct">📤 التصدير</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">';
+    var ex=[['نموذج 41','exportForm41Excel'],['ميزان المراجعة','exportTrialBalanceExcel'],['القيود اليومية','exportEntriesExcel'],['تقرير شامل','exportAllReportsExcel'],['الأصول','exportAssetsExcel'],['BVA المشروعات','exportBVAExcel']];
+    ex.forEach(function(x){h+='<button class="btn btn-sm" style="background:#f8fafc;color:#1e3a6e;border:1px solid #e2e8f0" onclick="if(typeof '+x[1]+'===\'function\')'+x[1]+'();else alert(\'التصدير غير متاح حاليًا\')">'+x[0]+'</button>';});
+    h+='</div></div>';
+    return h;
+  };
+
+  var oldMore=window.rMore;
+  window.rMore=function(){
+    var h='';
+    if(typeof oldMore==='function') h=oldMore();
+    // remove the duplicated standalone import wizard card from the generated HTML
+    h=h.replace(/<div class="mi" data-sub="importwizard">[\s\S]*?<\/div><\/div>/g,'');
+    h=h.replace(/\{i:"📥",t:"استيراد Excel"[\s\S]*?\},/g,'');
+    return h;
+  };
+
+  // If the duplicate route is still called from old buttons, redirect it to the single center.
+  window.rImportWizard=function(){return window.rImportExport();};
+})();
+
+</script>
+</body></html>';
 
   printContent('نموذج 41 — '+form.year+' — الربع '+qNames[form.quarter-1], html);
 }
@@ -8176,7 +8578,141 @@ function exportمراجعةHTML(){
   html+='<div class="header"><h1>📦 '+title+'</h1>';
   html+='<div class="meta">تاريخ الإصدار: '+new Date().toLocaleDateString('ar-EG')+'</div></div>';
   html+=preview.innerHTML;
-  html+='</body></html>';
+  html+='
+<script>
+/* ATHAR V20 targeted stable fixes: import duplication, dashboard chart, monthly review */
+(function(){
+  'use strict';
+  function A(v){return Array.isArray(v)?v:[];}
+  function N(v){v=Number(v);return isFinite(v)?v:0;}
+  function M(v){return Math.round(N(v)).toLocaleString('ar-EG')+' ج';}
+  function P(v){v=N(v);return (Math.round(v*10)/10).toLocaleString('ar-EG')+'%';}
+  function E(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
+  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function isPosted(e){return !e.status || e.status==='posted' || e.posted===true || e.approved===true || e.stage==='posted';}
+  function entryLines(e){return A(e.lines||e.details||e.items);}
+  function lineProject(l,e){return l.project||l.projectCode||l.proj||e.project||e.projectCode||e.proj||'';}
+  function lineBudget(l,e){return l.budgetLine||l.budgetCode||l.lineCode||e.budgetLine||e.budgetCode||e.lineCode||'';}
+  function lineDebit(l){return N(l.debit||l.dr||l.amountDebit||0);}
+  function lineCredit(l){return N(l.credit||l.cr||l.amountCredit||0);}
+  function lineAmount(l){var d=lineDebit(l),c=lineCredit(l); return d>0?d:Math.max(0,c);}
+  function getProjectCode(p){return p.code||p.id||p.projectCode||p.name||'';}
+  function projectBudget(p){
+    var direct=N(p.budget||p.amount||p.totalBudget||p.revisedBudget);
+    var lines=A(p.budgetLines||p.lines||p.budgetItems);
+    var sum=lines.reduce(function(s,l){return s+N(l.amount||l.budget||l.revised||l.value);},0);
+    return sum||direct;
+  }
+  function projectSpent(code){
+    var total=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ if(String(lineProject(l,e))===String(code)) total+=lineDebit(l); }); });
+    return total;
+  }
+  function calcProjects(){
+    return A(window.DB&&DB.projects).map(function(p){
+      var code=getProjectCode(p), b=projectBudget(p), s=projectSpent(code), pct=b?Math.min(999,(s/b*100)):0;
+      return {code:code,name:p.name||p.title||code||'مشروع',budget:b,spent:s,pct:pct};
+    });
+  }
+  function bankBalance(){
+    var bal=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('11')===0||/bank|بنك|خزنة/i.test(acc)){ bal+=lineDebit(l)-lineCredit(l); } }); });
+    return bal;
+  }
+  function missingDocs(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ var has=e.attachment||e.attachments||e.docs||e.file||e.document; if(!has && isPosted(e))n++; }); return n;
+  }
+  function pendingApprovals(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ if(e.status==='draft'||e.status==='pending'||e.approvalStatus==='pending')n++; });
+    A(window.DB&&DB.purchaseRequests).forEach(function(x){ if(!x.status||x.status==='pending')n++; });
+    return n;
+  }
+  function monthlyExpenseBars(){
+    var now=new Date(); var months=[];
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:d.toLocaleDateString('ar-EG',{month:'short'}),y:d.getFullYear(),mo:d.getMonth(),v:0}); }
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; var d=new Date(e.date||e.entryDate||todayISO()); if(isNaN(d))return; months.forEach(function(x){ if(d.getFullYear()===x.y&&d.getMonth()===x.mo){ entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('5')===0||/مصروف|expense/i.test(acc)) x.v+=lineDebit(l); }); } }); });
+    var max=Math.max(1); months.forEach(function(x){if(x.v>max)max=x.v;});
+    return {data:months,max:max};
+  }
+
+  var css='\n.athar-v20-wrap{padding:0 0 86px;overflow-x:hidden}.athar-v20-hero{background:linear-gradient(135deg,#132f5f,#0ea5c6);border-radius:22px;padding:18px;color:#fff;margin:0 0 14px;box-shadow:0 18px 40px rgba(19,47,95,.18)}.athar-v20-title{font-size:22px;font-weight:900;line-height:1.35}.athar-v20-sub{font-size:12px;opacity:.85;line-height:1.8;margin-top:6px}.athar-v20-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.athar-v20-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,42,80,.07);min-width:0}.athar-v20-kval{font-size:18px;font-weight:900;color:#13345f;white-space:normal;word-break:break-word}.athar-v20-klbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}.athar-v20-chart{height:190px;display:flex;align-items:flex-end;gap:8px;padding:12px 4px 4px;border-bottom:1px solid #e2e8f0;direction:rtl}.athar-v20-barbox{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.athar-v20-bar{width:100%;max-width:34px;min-height:8px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#20c4f4,#143b70);box-shadow:0 10px 18px rgba(32,196,244,.25)}.athar-v20-barlbl{font-size:10px;color:#64748b;margin-top:7px;white-space:nowrap}.athar-v20-barval{font-size:9px;color:#94a3b8;margin-top:2px;white-space:nowrap}.athar-v20-list{display:flex;flex-direction:column;gap:9px}.athar-v20-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:12px}.athar-v20-pct{font-weight:900;border-radius:999px;padding:4px 8px;background:#e0f2fe;color:#075985;min-width:54px;text-align:center}.athar-v20-line{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.athar-v20-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea5e9,#1e3a6e)}@media(max-width:520px){.athar-v20-wrap{padding-inline:10px}.athar-v20-title{font-size:20px}.athar-v20-kpis{grid-template-columns:1fr 1fr}.athar-v20-card{padding:12px;border-radius:16px}.athar-v20-chart{height:170px;gap:6px}.athar-v20-kval{font-size:15px}.athar-v20-row{grid-template-columns:1fr;gap:5px}.athar-v20-pct{width:max-content}}\n';
+  try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(_e){}
+
+  window.rDash=function(){
+    try{
+      if(!window.DB) window.DB={}; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
+      var root=document.getElementById('pg-dash'); if(!root) return;
+      var ps=calcProjects(), budget=ps.reduce(function(s,p){return s+p.budget;},0), spent=ps.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
+      var activeLoans=A(DB.loans).filter(function(l){return l.status==='active'||!l.status;}).length;
+      var bars=monthlyExpenseBars();
+      var h='<div class="athar-v20-wrap">';
+      h+='<div class="athar-v20-hero"><div class="athar-v20-title">مركز التحكم المالي والتشغيلي</div><div class="athar-v20-sub">ملخص سريع من البيانات الفعلية: أرصدة، مشروعات، صرف، مستندات، موافقات، وقروض.</div></div>';
+      var k=[['🏦',M(bankBalance()),'رصيد البنك والخزينة'],['📁',ps.length,'منح ومشروعات نشطة'],['📊',P(burn),'نسبة الصرف الكلية'],['📎',missingDocs(),'قيود بدون مرفقات'],['📥',pendingApprovals(),'موافقات معلقة'],['💳',activeLoans,'قروض نشطة']];
+      h+='<div class="athar-v20-kpis">';
+      k.forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+E(x[1])+'</div><div class="athar-v20-klbl">'+E(x[2])+'</div></div>';});
+      h+='</div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:4px">📈 مصروفات آخر 6 شهور</div><div style="font-size:11px;color:#94a3b8">محسوبة من القيود المرحلة فقط</div><div class="athar-v20-chart">';
+      bars.data.forEach(function(x){var ht=Math.max(8,Math.round((x.v/bars.max)*130)); h+='<div class="athar-v20-barbox"><div class="athar-v20-bar" style="height:'+ht+'px"></div><div class="athar-v20-barlbl">'+E(x.m)+'</div><div class="athar-v20-barval">'+E(M(x.v).replace(' ج',''))+'</div></div>';});
+      h+='</div></div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:10px">📂 أعلى المشروعات من حيث الصرف</div><div class="athar-v20-list">';
+      ps.sort(function(a,b){return b.pct-a.pct;}).slice(0,5).forEach(function(p){var pct=Math.min(100,p.pct); h+='<div class="athar-v20-row"><div style="font-weight:800;color:#13345f">'+E(p.name)+'</div><div class="athar-v20-line"><div class="athar-v20-fill" style="width:'+Math.max(1,pct)+'%"></div></div><div class="athar-v20-pct">'+E(P(p.pct))+'</div></div>';});
+      if(!ps.length) h+='<div style="font-size:12px;color:#94a3b8">لا توجد مشروعات مسجلة بعد.</div>';
+      h+='</div></div></div>';
+      root.innerHTML=h;
+    }catch(err){
+      var root2=document.getElementById('pg-dash'); if(root2) root2.innerHTML='<div class="card">تعذر تحميل لوحة التحكم: '+E(err.message)+'</div>';
+    }
+  };
+
+  window.rFinanceDirectorMonthlyReview=function(){
+    var entries=A(window.DB&&DB.entries), projects=A(window.DB&&DB.projects), emps=A(window.DB&&DB.employees), loans=A(window.DB&&DB.loans);
+    var unbalanced=0, noDoc=0, noProj=0;
+    entries.forEach(function(e){ var d=0,c=0; entryLines(e).forEach(function(l){d+=lineDebit(l);c+=lineCredit(l);}); if(Math.abs(d-c)>0.5)unbalanced++; if(!e.attachment&&!e.attachments&&!e.docs&&isPosted(e))noDoc++; if(isPosted(e)&&entryLines(e).some(function(l){return lineDebit(l)>0&&!lineProject(l,e);}))noProj++; });
+    var overBudget=calcProjects().filter(function(p){return p.pct>100;}).length;
+    var h='<div class="athar-v20-wrap"><div class="ph-t" style="margin-bottom:12px">🧭 مراجعة شهر كامل — مدير مالي</div>';
+    h+='<div class="athar-v20-kpis">';
+    [['⚖️',unbalanced,'قيود غير متوازنة'],['📎',noDoc,'قيود مرحلة بدون مستند'],['📁',noProj,'مصروفات بدون مشروع'],['🚨',overBudget,'مشروعات متجاوزة الموازنة'],['👥',emps.length,'موظفون مسجلون'],['💳',loans.length,'قروض مسجلة']].forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+x[1]+'</div><div class="athar-v20-klbl">'+x[2]+'</div></div>';});
+    h+='</div><div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:8px">تعليقات المدير المالي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px">';
+    var notes=[];
+    if(unbalanced) notes.push('يوجد قيود غير متوازنة؛ يجب منع الترحيل قبل تساوي المدين والدائن.');
+    if(noDoc) notes.push('يوجد قيود مرحلة بدون مستندات؛ يجب تحويلها إلى مسودة أو طلب استكمال مرفقات.');
+    if(noProj) notes.push('يوجد مصروفات بدون مشروع/بند موازنة؛ هذا يؤثر على BVA وملف المنحة.');
+    if(overBudget) notes.push('يوجد مشروعات تخطت الموازنة؛ يجب تفعيل منع الحفظ أو طلب تجاوز إداري.');
+    notes.push('ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد ومستند وتعديل موازنة.');
+    notes.push('سجل التسويات يجب أن يعرض التسويات البنكية المعتمدة فقط وليس شاشة البنوك.');
+    notes.forEach(function(n){h+='<li>'+E(n)+'</li>';});
+    h+='</ol></div></div>';
+    return h;
+  };
+
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div class="card"><div class="ct">📥 الاستيراد</div><p style="font-size:12px;color:#64748b;line-height:1.8;margin:8px 0">شاشة واحدة فقط للاستيراد والتصدير لتجنب التكرار. استخدم النموذج الموحد أو نماذج الأقسام حسب الحاجة.</p>';
+    h+='<button class="btn btn-sky btn-bl" onclick="if(typeof downloadImportTemplate===\'function\')downloadImportTemplate();else alert(\'النموذج غير متاح\')">تحميل نموذج الاستيراد Excel</button>';
+    h+='<button class="btn btn-gr btn-bl" onclick="if(typeof openImportWizard===\'function\')openImportWizard();else if(typeof importEntriesCSV===\'function\')importEntriesCSV();else if(typeof sub===\'function\')sub(\'importwizard\')">رفع ملف ومعاينة البيانات</button></div>';
+    h+='<div class="card"><div class="ct">📤 التصدير</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">';
+    var ex=[['نموذج 41','exportForm41Excel'],['ميزان المراجعة','exportTrialBalanceExcel'],['القيود اليومية','exportEntriesExcel'],['تقرير شامل','exportAllReportsExcel'],['الأصول','exportAssetsExcel'],['BVA المشروعات','exportBVAExcel']];
+    ex.forEach(function(x){h+='<button class="btn btn-sm" style="background:#f8fafc;color:#1e3a6e;border:1px solid #e2e8f0" onclick="if(typeof '+x[1]+'===\'function\')'+x[1]+'();else alert(\'التصدير غير متاح حاليًا\')">'+x[0]+'</button>';});
+    h+='</div></div>';
+    return h;
+  };
+
+  var oldMore=window.rMore;
+  window.rMore=function(){
+    var h='';
+    if(typeof oldMore==='function') h=oldMore();
+    // remove the duplicated standalone import wizard card from the generated HTML
+    h=h.replace(/<div class="mi" data-sub="importwizard">[\s\S]*?<\/div><\/div>/g,'');
+    h=h.replace(/\{i:"📥",t:"استيراد Excel"[\s\S]*?\},/g,'');
+    return h;
+  };
+
+  // If the duplicate route is still called from old buttons, redirect it to the single center.
+  window.rImportWizard=function(){return window.rImportExport();};
+})();
+
+</script>
+</body></html>';
 
   // Try download, fallback to print
   try{
@@ -9295,11 +9831,279 @@ function viewDoc(entryId, idx){
   if(doc.type&&doc.type.includes('image')){
     w.document.write('<html><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;">'
       +'<img src="'+doc.data+'" style="max-width:100%;max-height:100vh;object-fit:contain;">'
-      +'</body></html>');
+      +'
+<script>
+/* ATHAR V20 targeted stable fixes: import duplication, dashboard chart, monthly review */
+(function(){
+  'use strict';
+  function A(v){return Array.isArray(v)?v:[];}
+  function N(v){v=Number(v);return isFinite(v)?v:0;}
+  function M(v){return Math.round(N(v)).toLocaleString('ar-EG')+' ج';}
+  function P(v){v=N(v);return (Math.round(v*10)/10).toLocaleString('ar-EG')+'%';}
+  function E(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
+  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function isPosted(e){return !e.status || e.status==='posted' || e.posted===true || e.approved===true || e.stage==='posted';}
+  function entryLines(e){return A(e.lines||e.details||e.items);}
+  function lineProject(l,e){return l.project||l.projectCode||l.proj||e.project||e.projectCode||e.proj||'';}
+  function lineBudget(l,e){return l.budgetLine||l.budgetCode||l.lineCode||e.budgetLine||e.budgetCode||e.lineCode||'';}
+  function lineDebit(l){return N(l.debit||l.dr||l.amountDebit||0);}
+  function lineCredit(l){return N(l.credit||l.cr||l.amountCredit||0);}
+  function lineAmount(l){var d=lineDebit(l),c=lineCredit(l); return d>0?d:Math.max(0,c);}
+  function getProjectCode(p){return p.code||p.id||p.projectCode||p.name||'';}
+  function projectBudget(p){
+    var direct=N(p.budget||p.amount||p.totalBudget||p.revisedBudget);
+    var lines=A(p.budgetLines||p.lines||p.budgetItems);
+    var sum=lines.reduce(function(s,l){return s+N(l.amount||l.budget||l.revised||l.value);},0);
+    return sum||direct;
+  }
+  function projectSpent(code){
+    var total=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ if(String(lineProject(l,e))===String(code)) total+=lineDebit(l); }); });
+    return total;
+  }
+  function calcProjects(){
+    return A(window.DB&&DB.projects).map(function(p){
+      var code=getProjectCode(p), b=projectBudget(p), s=projectSpent(code), pct=b?Math.min(999,(s/b*100)):0;
+      return {code:code,name:p.name||p.title||code||'مشروع',budget:b,spent:s,pct:pct};
+    });
+  }
+  function bankBalance(){
+    var bal=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('11')===0||/bank|بنك|خزنة/i.test(acc)){ bal+=lineDebit(l)-lineCredit(l); } }); });
+    return bal;
+  }
+  function missingDocs(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ var has=e.attachment||e.attachments||e.docs||e.file||e.document; if(!has && isPosted(e))n++; }); return n;
+  }
+  function pendingApprovals(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ if(e.status==='draft'||e.status==='pending'||e.approvalStatus==='pending')n++; });
+    A(window.DB&&DB.purchaseRequests).forEach(function(x){ if(!x.status||x.status==='pending')n++; });
+    return n;
+  }
+  function monthlyExpenseBars(){
+    var now=new Date(); var months=[];
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:d.toLocaleDateString('ar-EG',{month:'short'}),y:d.getFullYear(),mo:d.getMonth(),v:0}); }
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; var d=new Date(e.date||e.entryDate||todayISO()); if(isNaN(d))return; months.forEach(function(x){ if(d.getFullYear()===x.y&&d.getMonth()===x.mo){ entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('5')===0||/مصروف|expense/i.test(acc)) x.v+=lineDebit(l); }); } }); });
+    var max=Math.max(1); months.forEach(function(x){if(x.v>max)max=x.v;});
+    return {data:months,max:max};
+  }
+
+  var css='\n.athar-v20-wrap{padding:0 0 86px;overflow-x:hidden}.athar-v20-hero{background:linear-gradient(135deg,#132f5f,#0ea5c6);border-radius:22px;padding:18px;color:#fff;margin:0 0 14px;box-shadow:0 18px 40px rgba(19,47,95,.18)}.athar-v20-title{font-size:22px;font-weight:900;line-height:1.35}.athar-v20-sub{font-size:12px;opacity:.85;line-height:1.8;margin-top:6px}.athar-v20-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.athar-v20-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,42,80,.07);min-width:0}.athar-v20-kval{font-size:18px;font-weight:900;color:#13345f;white-space:normal;word-break:break-word}.athar-v20-klbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}.athar-v20-chart{height:190px;display:flex;align-items:flex-end;gap:8px;padding:12px 4px 4px;border-bottom:1px solid #e2e8f0;direction:rtl}.athar-v20-barbox{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.athar-v20-bar{width:100%;max-width:34px;min-height:8px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#20c4f4,#143b70);box-shadow:0 10px 18px rgba(32,196,244,.25)}.athar-v20-barlbl{font-size:10px;color:#64748b;margin-top:7px;white-space:nowrap}.athar-v20-barval{font-size:9px;color:#94a3b8;margin-top:2px;white-space:nowrap}.athar-v20-list{display:flex;flex-direction:column;gap:9px}.athar-v20-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:12px}.athar-v20-pct{font-weight:900;border-radius:999px;padding:4px 8px;background:#e0f2fe;color:#075985;min-width:54px;text-align:center}.athar-v20-line{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.athar-v20-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea5e9,#1e3a6e)}@media(max-width:520px){.athar-v20-wrap{padding-inline:10px}.athar-v20-title{font-size:20px}.athar-v20-kpis{grid-template-columns:1fr 1fr}.athar-v20-card{padding:12px;border-radius:16px}.athar-v20-chart{height:170px;gap:6px}.athar-v20-kval{font-size:15px}.athar-v20-row{grid-template-columns:1fr;gap:5px}.athar-v20-pct{width:max-content}}\n';
+  try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(_e){}
+
+  window.rDash=function(){
+    try{
+      if(!window.DB) window.DB={}; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
+      var root=document.getElementById('pg-dash'); if(!root) return;
+      var ps=calcProjects(), budget=ps.reduce(function(s,p){return s+p.budget;},0), spent=ps.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
+      var activeLoans=A(DB.loans).filter(function(l){return l.status==='active'||!l.status;}).length;
+      var bars=monthlyExpenseBars();
+      var h='<div class="athar-v20-wrap">';
+      h+='<div class="athar-v20-hero"><div class="athar-v20-title">مركز التحكم المالي والتشغيلي</div><div class="athar-v20-sub">ملخص سريع من البيانات الفعلية: أرصدة، مشروعات، صرف، مستندات، موافقات، وقروض.</div></div>';
+      var k=[['🏦',M(bankBalance()),'رصيد البنك والخزينة'],['📁',ps.length,'منح ومشروعات نشطة'],['📊',P(burn),'نسبة الصرف الكلية'],['📎',missingDocs(),'قيود بدون مرفقات'],['📥',pendingApprovals(),'موافقات معلقة'],['💳',activeLoans,'قروض نشطة']];
+      h+='<div class="athar-v20-kpis">';
+      k.forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+E(x[1])+'</div><div class="athar-v20-klbl">'+E(x[2])+'</div></div>';});
+      h+='</div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:4px">📈 مصروفات آخر 6 شهور</div><div style="font-size:11px;color:#94a3b8">محسوبة من القيود المرحلة فقط</div><div class="athar-v20-chart">';
+      bars.data.forEach(function(x){var ht=Math.max(8,Math.round((x.v/bars.max)*130)); h+='<div class="athar-v20-barbox"><div class="athar-v20-bar" style="height:'+ht+'px"></div><div class="athar-v20-barlbl">'+E(x.m)+'</div><div class="athar-v20-barval">'+E(M(x.v).replace(' ج',''))+'</div></div>';});
+      h+='</div></div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:10px">📂 أعلى المشروعات من حيث الصرف</div><div class="athar-v20-list">';
+      ps.sort(function(a,b){return b.pct-a.pct;}).slice(0,5).forEach(function(p){var pct=Math.min(100,p.pct); h+='<div class="athar-v20-row"><div style="font-weight:800;color:#13345f">'+E(p.name)+'</div><div class="athar-v20-line"><div class="athar-v20-fill" style="width:'+Math.max(1,pct)+'%"></div></div><div class="athar-v20-pct">'+E(P(p.pct))+'</div></div>';});
+      if(!ps.length) h+='<div style="font-size:12px;color:#94a3b8">لا توجد مشروعات مسجلة بعد.</div>';
+      h+='</div></div></div>';
+      root.innerHTML=h;
+    }catch(err){
+      var root2=document.getElementById('pg-dash'); if(root2) root2.innerHTML='<div class="card">تعذر تحميل لوحة التحكم: '+E(err.message)+'</div>';
+    }
+  };
+
+  window.rFinanceDirectorMonthlyReview=function(){
+    var entries=A(window.DB&&DB.entries), projects=A(window.DB&&DB.projects), emps=A(window.DB&&DB.employees), loans=A(window.DB&&DB.loans);
+    var unbalanced=0, noDoc=0, noProj=0;
+    entries.forEach(function(e){ var d=0,c=0; entryLines(e).forEach(function(l){d+=lineDebit(l);c+=lineCredit(l);}); if(Math.abs(d-c)>0.5)unbalanced++; if(!e.attachment&&!e.attachments&&!e.docs&&isPosted(e))noDoc++; if(isPosted(e)&&entryLines(e).some(function(l){return lineDebit(l)>0&&!lineProject(l,e);}))noProj++; });
+    var overBudget=calcProjects().filter(function(p){return p.pct>100;}).length;
+    var h='<div class="athar-v20-wrap"><div class="ph-t" style="margin-bottom:12px">🧭 مراجعة شهر كامل — مدير مالي</div>';
+    h+='<div class="athar-v20-kpis">';
+    [['⚖️',unbalanced,'قيود غير متوازنة'],['📎',noDoc,'قيود مرحلة بدون مستند'],['📁',noProj,'مصروفات بدون مشروع'],['🚨',overBudget,'مشروعات متجاوزة الموازنة'],['👥',emps.length,'موظفون مسجلون'],['💳',loans.length,'قروض مسجلة']].forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+x[1]+'</div><div class="athar-v20-klbl">'+x[2]+'</div></div>';});
+    h+='</div><div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:8px">تعليقات المدير المالي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px">';
+    var notes=[];
+    if(unbalanced) notes.push('يوجد قيود غير متوازنة؛ يجب منع الترحيل قبل تساوي المدين والدائن.');
+    if(noDoc) notes.push('يوجد قيود مرحلة بدون مستندات؛ يجب تحويلها إلى مسودة أو طلب استكمال مرفقات.');
+    if(noProj) notes.push('يوجد مصروفات بدون مشروع/بند موازنة؛ هذا يؤثر على BVA وملف المنحة.');
+    if(overBudget) notes.push('يوجد مشروعات تخطت الموازنة؛ يجب تفعيل منع الحفظ أو طلب تجاوز إداري.');
+    notes.push('ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد ومستند وتعديل موازنة.');
+    notes.push('سجل التسويات يجب أن يعرض التسويات البنكية المعتمدة فقط وليس شاشة البنوك.');
+    notes.forEach(function(n){h+='<li>'+E(n)+'</li>';});
+    h+='</ol></div></div>';
+    return h;
+  };
+
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div class="card"><div class="ct">📥 الاستيراد</div><p style="font-size:12px;color:#64748b;line-height:1.8;margin:8px 0">شاشة واحدة فقط للاستيراد والتصدير لتجنب التكرار. استخدم النموذج الموحد أو نماذج الأقسام حسب الحاجة.</p>';
+    h+='<button class="btn btn-sky btn-bl" onclick="if(typeof downloadImportTemplate===\'function\')downloadImportTemplate();else alert(\'النموذج غير متاح\')">تحميل نموذج الاستيراد Excel</button>';
+    h+='<button class="btn btn-gr btn-bl" onclick="if(typeof openImportWizard===\'function\')openImportWizard();else if(typeof importEntriesCSV===\'function\')importEntriesCSV();else if(typeof sub===\'function\')sub(\'importwizard\')">رفع ملف ومعاينة البيانات</button></div>';
+    h+='<div class="card"><div class="ct">📤 التصدير</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">';
+    var ex=[['نموذج 41','exportForm41Excel'],['ميزان المراجعة','exportTrialBalanceExcel'],['القيود اليومية','exportEntriesExcel'],['تقرير شامل','exportAllReportsExcel'],['الأصول','exportAssetsExcel'],['BVA المشروعات','exportBVAExcel']];
+    ex.forEach(function(x){h+='<button class="btn btn-sm" style="background:#f8fafc;color:#1e3a6e;border:1px solid #e2e8f0" onclick="if(typeof '+x[1]+'===\'function\')'+x[1]+'();else alert(\'التصدير غير متاح حاليًا\')">'+x[0]+'</button>';});
+    h+='</div></div>';
+    return h;
+  };
+
+  var oldMore=window.rMore;
+  window.rMore=function(){
+    var h='';
+    if(typeof oldMore==='function') h=oldMore();
+    // remove the duplicated standalone import wizard card from the generated HTML
+    h=h.replace(/<div class="mi" data-sub="importwizard">[\s\S]*?<\/div><\/div>/g,'');
+    h=h.replace(/\{i:"📥",t:"استيراد Excel"[\s\S]*?\},/g,'');
+    return h;
+  };
+
+  // If the duplicate route is still called from old buttons, redirect it to the single center.
+  window.rImportWizard=function(){return window.rImportExport();};
+})();
+
+</script>
+</body></html>');
   } else {
     w.document.write('<html><body style="margin:0;height:100vh;">'
       +'<iframe src="'+doc.data+'" style="width:100%;height:100%;border:none;"></iframe>'
-      +'</body></html>');
+      +'
+<script>
+/* ATHAR V20 targeted stable fixes: import duplication, dashboard chart, monthly review */
+(function(){
+  'use strict';
+  function A(v){return Array.isArray(v)?v:[];}
+  function N(v){v=Number(v);return isFinite(v)?v:0;}
+  function M(v){return Math.round(N(v)).toLocaleString('ar-EG')+' ج';}
+  function P(v){v=N(v);return (Math.round(v*10)/10).toLocaleString('ar-EG')+'%';}
+  function E(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
+  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function isPosted(e){return !e.status || e.status==='posted' || e.posted===true || e.approved===true || e.stage==='posted';}
+  function entryLines(e){return A(e.lines||e.details||e.items);}
+  function lineProject(l,e){return l.project||l.projectCode||l.proj||e.project||e.projectCode||e.proj||'';}
+  function lineBudget(l,e){return l.budgetLine||l.budgetCode||l.lineCode||e.budgetLine||e.budgetCode||e.lineCode||'';}
+  function lineDebit(l){return N(l.debit||l.dr||l.amountDebit||0);}
+  function lineCredit(l){return N(l.credit||l.cr||l.amountCredit||0);}
+  function lineAmount(l){var d=lineDebit(l),c=lineCredit(l); return d>0?d:Math.max(0,c);}
+  function getProjectCode(p){return p.code||p.id||p.projectCode||p.name||'';}
+  function projectBudget(p){
+    var direct=N(p.budget||p.amount||p.totalBudget||p.revisedBudget);
+    var lines=A(p.budgetLines||p.lines||p.budgetItems);
+    var sum=lines.reduce(function(s,l){return s+N(l.amount||l.budget||l.revised||l.value);},0);
+    return sum||direct;
+  }
+  function projectSpent(code){
+    var total=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ if(String(lineProject(l,e))===String(code)) total+=lineDebit(l); }); });
+    return total;
+  }
+  function calcProjects(){
+    return A(window.DB&&DB.projects).map(function(p){
+      var code=getProjectCode(p), b=projectBudget(p), s=projectSpent(code), pct=b?Math.min(999,(s/b*100)):0;
+      return {code:code,name:p.name||p.title||code||'مشروع',budget:b,spent:s,pct:pct};
+    });
+  }
+  function bankBalance(){
+    var bal=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('11')===0||/bank|بنك|خزنة/i.test(acc)){ bal+=lineDebit(l)-lineCredit(l); } }); });
+    return bal;
+  }
+  function missingDocs(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ var has=e.attachment||e.attachments||e.docs||e.file||e.document; if(!has && isPosted(e))n++; }); return n;
+  }
+  function pendingApprovals(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ if(e.status==='draft'||e.status==='pending'||e.approvalStatus==='pending')n++; });
+    A(window.DB&&DB.purchaseRequests).forEach(function(x){ if(!x.status||x.status==='pending')n++; });
+    return n;
+  }
+  function monthlyExpenseBars(){
+    var now=new Date(); var months=[];
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:d.toLocaleDateString('ar-EG',{month:'short'}),y:d.getFullYear(),mo:d.getMonth(),v:0}); }
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; var d=new Date(e.date||e.entryDate||todayISO()); if(isNaN(d))return; months.forEach(function(x){ if(d.getFullYear()===x.y&&d.getMonth()===x.mo){ entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('5')===0||/مصروف|expense/i.test(acc)) x.v+=lineDebit(l); }); } }); });
+    var max=Math.max(1); months.forEach(function(x){if(x.v>max)max=x.v;});
+    return {data:months,max:max};
+  }
+
+  var css='\n.athar-v20-wrap{padding:0 0 86px;overflow-x:hidden}.athar-v20-hero{background:linear-gradient(135deg,#132f5f,#0ea5c6);border-radius:22px;padding:18px;color:#fff;margin:0 0 14px;box-shadow:0 18px 40px rgba(19,47,95,.18)}.athar-v20-title{font-size:22px;font-weight:900;line-height:1.35}.athar-v20-sub{font-size:12px;opacity:.85;line-height:1.8;margin-top:6px}.athar-v20-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.athar-v20-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,42,80,.07);min-width:0}.athar-v20-kval{font-size:18px;font-weight:900;color:#13345f;white-space:normal;word-break:break-word}.athar-v20-klbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}.athar-v20-chart{height:190px;display:flex;align-items:flex-end;gap:8px;padding:12px 4px 4px;border-bottom:1px solid #e2e8f0;direction:rtl}.athar-v20-barbox{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.athar-v20-bar{width:100%;max-width:34px;min-height:8px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#20c4f4,#143b70);box-shadow:0 10px 18px rgba(32,196,244,.25)}.athar-v20-barlbl{font-size:10px;color:#64748b;margin-top:7px;white-space:nowrap}.athar-v20-barval{font-size:9px;color:#94a3b8;margin-top:2px;white-space:nowrap}.athar-v20-list{display:flex;flex-direction:column;gap:9px}.athar-v20-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:12px}.athar-v20-pct{font-weight:900;border-radius:999px;padding:4px 8px;background:#e0f2fe;color:#075985;min-width:54px;text-align:center}.athar-v20-line{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.athar-v20-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea5e9,#1e3a6e)}@media(max-width:520px){.athar-v20-wrap{padding-inline:10px}.athar-v20-title{font-size:20px}.athar-v20-kpis{grid-template-columns:1fr 1fr}.athar-v20-card{padding:12px;border-radius:16px}.athar-v20-chart{height:170px;gap:6px}.athar-v20-kval{font-size:15px}.athar-v20-row{grid-template-columns:1fr;gap:5px}.athar-v20-pct{width:max-content}}\n';
+  try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(_e){}
+
+  window.rDash=function(){
+    try{
+      if(!window.DB) window.DB={}; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
+      var root=document.getElementById('pg-dash'); if(!root) return;
+      var ps=calcProjects(), budget=ps.reduce(function(s,p){return s+p.budget;},0), spent=ps.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
+      var activeLoans=A(DB.loans).filter(function(l){return l.status==='active'||!l.status;}).length;
+      var bars=monthlyExpenseBars();
+      var h='<div class="athar-v20-wrap">';
+      h+='<div class="athar-v20-hero"><div class="athar-v20-title">مركز التحكم المالي والتشغيلي</div><div class="athar-v20-sub">ملخص سريع من البيانات الفعلية: أرصدة، مشروعات، صرف، مستندات، موافقات، وقروض.</div></div>';
+      var k=[['🏦',M(bankBalance()),'رصيد البنك والخزينة'],['📁',ps.length,'منح ومشروعات نشطة'],['📊',P(burn),'نسبة الصرف الكلية'],['📎',missingDocs(),'قيود بدون مرفقات'],['📥',pendingApprovals(),'موافقات معلقة'],['💳',activeLoans,'قروض نشطة']];
+      h+='<div class="athar-v20-kpis">';
+      k.forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+E(x[1])+'</div><div class="athar-v20-klbl">'+E(x[2])+'</div></div>';});
+      h+='</div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:4px">📈 مصروفات آخر 6 شهور</div><div style="font-size:11px;color:#94a3b8">محسوبة من القيود المرحلة فقط</div><div class="athar-v20-chart">';
+      bars.data.forEach(function(x){var ht=Math.max(8,Math.round((x.v/bars.max)*130)); h+='<div class="athar-v20-barbox"><div class="athar-v20-bar" style="height:'+ht+'px"></div><div class="athar-v20-barlbl">'+E(x.m)+'</div><div class="athar-v20-barval">'+E(M(x.v).replace(' ج',''))+'</div></div>';});
+      h+='</div></div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:10px">📂 أعلى المشروعات من حيث الصرف</div><div class="athar-v20-list">';
+      ps.sort(function(a,b){return b.pct-a.pct;}).slice(0,5).forEach(function(p){var pct=Math.min(100,p.pct); h+='<div class="athar-v20-row"><div style="font-weight:800;color:#13345f">'+E(p.name)+'</div><div class="athar-v20-line"><div class="athar-v20-fill" style="width:'+Math.max(1,pct)+'%"></div></div><div class="athar-v20-pct">'+E(P(p.pct))+'</div></div>';});
+      if(!ps.length) h+='<div style="font-size:12px;color:#94a3b8">لا توجد مشروعات مسجلة بعد.</div>';
+      h+='</div></div></div>';
+      root.innerHTML=h;
+    }catch(err){
+      var root2=document.getElementById('pg-dash'); if(root2) root2.innerHTML='<div class="card">تعذر تحميل لوحة التحكم: '+E(err.message)+'</div>';
+    }
+  };
+
+  window.rFinanceDirectorMonthlyReview=function(){
+    var entries=A(window.DB&&DB.entries), projects=A(window.DB&&DB.projects), emps=A(window.DB&&DB.employees), loans=A(window.DB&&DB.loans);
+    var unbalanced=0, noDoc=0, noProj=0;
+    entries.forEach(function(e){ var d=0,c=0; entryLines(e).forEach(function(l){d+=lineDebit(l);c+=lineCredit(l);}); if(Math.abs(d-c)>0.5)unbalanced++; if(!e.attachment&&!e.attachments&&!e.docs&&isPosted(e))noDoc++; if(isPosted(e)&&entryLines(e).some(function(l){return lineDebit(l)>0&&!lineProject(l,e);}))noProj++; });
+    var overBudget=calcProjects().filter(function(p){return p.pct>100;}).length;
+    var h='<div class="athar-v20-wrap"><div class="ph-t" style="margin-bottom:12px">🧭 مراجعة شهر كامل — مدير مالي</div>';
+    h+='<div class="athar-v20-kpis">';
+    [['⚖️',unbalanced,'قيود غير متوازنة'],['📎',noDoc,'قيود مرحلة بدون مستند'],['📁',noProj,'مصروفات بدون مشروع'],['🚨',overBudget,'مشروعات متجاوزة الموازنة'],['👥',emps.length,'موظفون مسجلون'],['💳',loans.length,'قروض مسجلة']].forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+x[1]+'</div><div class="athar-v20-klbl">'+x[2]+'</div></div>';});
+    h+='</div><div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:8px">تعليقات المدير المالي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px">';
+    var notes=[];
+    if(unbalanced) notes.push('يوجد قيود غير متوازنة؛ يجب منع الترحيل قبل تساوي المدين والدائن.');
+    if(noDoc) notes.push('يوجد قيود مرحلة بدون مستندات؛ يجب تحويلها إلى مسودة أو طلب استكمال مرفقات.');
+    if(noProj) notes.push('يوجد مصروفات بدون مشروع/بند موازنة؛ هذا يؤثر على BVA وملف المنحة.');
+    if(overBudget) notes.push('يوجد مشروعات تخطت الموازنة؛ يجب تفعيل منع الحفظ أو طلب تجاوز إداري.');
+    notes.push('ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد ومستند وتعديل موازنة.');
+    notes.push('سجل التسويات يجب أن يعرض التسويات البنكية المعتمدة فقط وليس شاشة البنوك.');
+    notes.forEach(function(n){h+='<li>'+E(n)+'</li>';});
+    h+='</ol></div></div>';
+    return h;
+  };
+
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div class="card"><div class="ct">📥 الاستيراد</div><p style="font-size:12px;color:#64748b;line-height:1.8;margin:8px 0">شاشة واحدة فقط للاستيراد والتصدير لتجنب التكرار. استخدم النموذج الموحد أو نماذج الأقسام حسب الحاجة.</p>';
+    h+='<button class="btn btn-sky btn-bl" onclick="if(typeof downloadImportTemplate===\'function\')downloadImportTemplate();else alert(\'النموذج غير متاح\')">تحميل نموذج الاستيراد Excel</button>';
+    h+='<button class="btn btn-gr btn-bl" onclick="if(typeof openImportWizard===\'function\')openImportWizard();else if(typeof importEntriesCSV===\'function\')importEntriesCSV();else if(typeof sub===\'function\')sub(\'importwizard\')">رفع ملف ومعاينة البيانات</button></div>';
+    h+='<div class="card"><div class="ct">📤 التصدير</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">';
+    var ex=[['نموذج 41','exportForm41Excel'],['ميزان المراجعة','exportTrialBalanceExcel'],['القيود اليومية','exportEntriesExcel'],['تقرير شامل','exportAllReportsExcel'],['الأصول','exportAssetsExcel'],['BVA المشروعات','exportBVAExcel']];
+    ex.forEach(function(x){h+='<button class="btn btn-sm" style="background:#f8fafc;color:#1e3a6e;border:1px solid #e2e8f0" onclick="if(typeof '+x[1]+'===\'function\')'+x[1]+'();else alert(\'التصدير غير متاح حاليًا\')">'+x[0]+'</button>';});
+    h+='</div></div>';
+    return h;
+  };
+
+  var oldMore=window.rMore;
+  window.rMore=function(){
+    var h='';
+    if(typeof oldMore==='function') h=oldMore();
+    // remove the duplicated standalone import wizard card from the generated HTML
+    h=h.replace(/<div class="mi" data-sub="importwizard">[\s\S]*?<\/div><\/div>/g,'');
+    h=h.replace(/\{i:"📥",t:"استيراد Excel"[\s\S]*?\},/g,'');
+    return h;
+  };
+
+  // If the duplicate route is still called from old buttons, redirect it to the single center.
+  window.rImportWizard=function(){return window.rImportExport();};
+})();
+
+</script>
+</body></html>');
   }
 }
 
@@ -10529,7 +11333,141 @@ function printBankCheck(){
     +'<div class="f date" style="top:'+pDate+'mm;left:32mm;">'+esc(mm)+'</div>'
     +'<div class="f date" style="top:'+pDate+'mm;left:8mm;">'+esc(yyyy)+'</div>'
     +(nameEn?'<div class="f" style="top:'+(pName+6)+'mm;right:44mm;font-size:9.5px;direction:ltr;max-width:120mm;overflow:hidden;text-overflow:ellipsis;">'+esc(nameEn)+'</div>':'')
-    +'</body></html>';
+    +'
+<script>
+/* ATHAR V20 targeted stable fixes: import duplication, dashboard chart, monthly review */
+(function(){
+  'use strict';
+  function A(v){return Array.isArray(v)?v:[];}
+  function N(v){v=Number(v);return isFinite(v)?v:0;}
+  function M(v){return Math.round(N(v)).toLocaleString('ar-EG')+' ج';}
+  function P(v){v=N(v);return (Math.round(v*10)/10).toLocaleString('ar-EG')+'%';}
+  function E(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
+  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function isPosted(e){return !e.status || e.status==='posted' || e.posted===true || e.approved===true || e.stage==='posted';}
+  function entryLines(e){return A(e.lines||e.details||e.items);}
+  function lineProject(l,e){return l.project||l.projectCode||l.proj||e.project||e.projectCode||e.proj||'';}
+  function lineBudget(l,e){return l.budgetLine||l.budgetCode||l.lineCode||e.budgetLine||e.budgetCode||e.lineCode||'';}
+  function lineDebit(l){return N(l.debit||l.dr||l.amountDebit||0);}
+  function lineCredit(l){return N(l.credit||l.cr||l.amountCredit||0);}
+  function lineAmount(l){var d=lineDebit(l),c=lineCredit(l); return d>0?d:Math.max(0,c);}
+  function getProjectCode(p){return p.code||p.id||p.projectCode||p.name||'';}
+  function projectBudget(p){
+    var direct=N(p.budget||p.amount||p.totalBudget||p.revisedBudget);
+    var lines=A(p.budgetLines||p.lines||p.budgetItems);
+    var sum=lines.reduce(function(s,l){return s+N(l.amount||l.budget||l.revised||l.value);},0);
+    return sum||direct;
+  }
+  function projectSpent(code){
+    var total=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ if(String(lineProject(l,e))===String(code)) total+=lineDebit(l); }); });
+    return total;
+  }
+  function calcProjects(){
+    return A(window.DB&&DB.projects).map(function(p){
+      var code=getProjectCode(p), b=projectBudget(p), s=projectSpent(code), pct=b?Math.min(999,(s/b*100)):0;
+      return {code:code,name:p.name||p.title||code||'مشروع',budget:b,spent:s,pct:pct};
+    });
+  }
+  function bankBalance(){
+    var bal=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('11')===0||/bank|بنك|خزنة/i.test(acc)){ bal+=lineDebit(l)-lineCredit(l); } }); });
+    return bal;
+  }
+  function missingDocs(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ var has=e.attachment||e.attachments||e.docs||e.file||e.document; if(!has && isPosted(e))n++; }); return n;
+  }
+  function pendingApprovals(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ if(e.status==='draft'||e.status==='pending'||e.approvalStatus==='pending')n++; });
+    A(window.DB&&DB.purchaseRequests).forEach(function(x){ if(!x.status||x.status==='pending')n++; });
+    return n;
+  }
+  function monthlyExpenseBars(){
+    var now=new Date(); var months=[];
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:d.toLocaleDateString('ar-EG',{month:'short'}),y:d.getFullYear(),mo:d.getMonth(),v:0}); }
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; var d=new Date(e.date||e.entryDate||todayISO()); if(isNaN(d))return; months.forEach(function(x){ if(d.getFullYear()===x.y&&d.getMonth()===x.mo){ entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('5')===0||/مصروف|expense/i.test(acc)) x.v+=lineDebit(l); }); } }); });
+    var max=Math.max(1); months.forEach(function(x){if(x.v>max)max=x.v;});
+    return {data:months,max:max};
+  }
+
+  var css='\n.athar-v20-wrap{padding:0 0 86px;overflow-x:hidden}.athar-v20-hero{background:linear-gradient(135deg,#132f5f,#0ea5c6);border-radius:22px;padding:18px;color:#fff;margin:0 0 14px;box-shadow:0 18px 40px rgba(19,47,95,.18)}.athar-v20-title{font-size:22px;font-weight:900;line-height:1.35}.athar-v20-sub{font-size:12px;opacity:.85;line-height:1.8;margin-top:6px}.athar-v20-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.athar-v20-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,42,80,.07);min-width:0}.athar-v20-kval{font-size:18px;font-weight:900;color:#13345f;white-space:normal;word-break:break-word}.athar-v20-klbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}.athar-v20-chart{height:190px;display:flex;align-items:flex-end;gap:8px;padding:12px 4px 4px;border-bottom:1px solid #e2e8f0;direction:rtl}.athar-v20-barbox{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.athar-v20-bar{width:100%;max-width:34px;min-height:8px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#20c4f4,#143b70);box-shadow:0 10px 18px rgba(32,196,244,.25)}.athar-v20-barlbl{font-size:10px;color:#64748b;margin-top:7px;white-space:nowrap}.athar-v20-barval{font-size:9px;color:#94a3b8;margin-top:2px;white-space:nowrap}.athar-v20-list{display:flex;flex-direction:column;gap:9px}.athar-v20-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:12px}.athar-v20-pct{font-weight:900;border-radius:999px;padding:4px 8px;background:#e0f2fe;color:#075985;min-width:54px;text-align:center}.athar-v20-line{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.athar-v20-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea5e9,#1e3a6e)}@media(max-width:520px){.athar-v20-wrap{padding-inline:10px}.athar-v20-title{font-size:20px}.athar-v20-kpis{grid-template-columns:1fr 1fr}.athar-v20-card{padding:12px;border-radius:16px}.athar-v20-chart{height:170px;gap:6px}.athar-v20-kval{font-size:15px}.athar-v20-row{grid-template-columns:1fr;gap:5px}.athar-v20-pct{width:max-content}}\n';
+  try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(_e){}
+
+  window.rDash=function(){
+    try{
+      if(!window.DB) window.DB={}; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
+      var root=document.getElementById('pg-dash'); if(!root) return;
+      var ps=calcProjects(), budget=ps.reduce(function(s,p){return s+p.budget;},0), spent=ps.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
+      var activeLoans=A(DB.loans).filter(function(l){return l.status==='active'||!l.status;}).length;
+      var bars=monthlyExpenseBars();
+      var h='<div class="athar-v20-wrap">';
+      h+='<div class="athar-v20-hero"><div class="athar-v20-title">مركز التحكم المالي والتشغيلي</div><div class="athar-v20-sub">ملخص سريع من البيانات الفعلية: أرصدة، مشروعات، صرف، مستندات، موافقات، وقروض.</div></div>';
+      var k=[['🏦',M(bankBalance()),'رصيد البنك والخزينة'],['📁',ps.length,'منح ومشروعات نشطة'],['📊',P(burn),'نسبة الصرف الكلية'],['📎',missingDocs(),'قيود بدون مرفقات'],['📥',pendingApprovals(),'موافقات معلقة'],['💳',activeLoans,'قروض نشطة']];
+      h+='<div class="athar-v20-kpis">';
+      k.forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+E(x[1])+'</div><div class="athar-v20-klbl">'+E(x[2])+'</div></div>';});
+      h+='</div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:4px">📈 مصروفات آخر 6 شهور</div><div style="font-size:11px;color:#94a3b8">محسوبة من القيود المرحلة فقط</div><div class="athar-v20-chart">';
+      bars.data.forEach(function(x){var ht=Math.max(8,Math.round((x.v/bars.max)*130)); h+='<div class="athar-v20-barbox"><div class="athar-v20-bar" style="height:'+ht+'px"></div><div class="athar-v20-barlbl">'+E(x.m)+'</div><div class="athar-v20-barval">'+E(M(x.v).replace(' ج',''))+'</div></div>';});
+      h+='</div></div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:10px">📂 أعلى المشروعات من حيث الصرف</div><div class="athar-v20-list">';
+      ps.sort(function(a,b){return b.pct-a.pct;}).slice(0,5).forEach(function(p){var pct=Math.min(100,p.pct); h+='<div class="athar-v20-row"><div style="font-weight:800;color:#13345f">'+E(p.name)+'</div><div class="athar-v20-line"><div class="athar-v20-fill" style="width:'+Math.max(1,pct)+'%"></div></div><div class="athar-v20-pct">'+E(P(p.pct))+'</div></div>';});
+      if(!ps.length) h+='<div style="font-size:12px;color:#94a3b8">لا توجد مشروعات مسجلة بعد.</div>';
+      h+='</div></div></div>';
+      root.innerHTML=h;
+    }catch(err){
+      var root2=document.getElementById('pg-dash'); if(root2) root2.innerHTML='<div class="card">تعذر تحميل لوحة التحكم: '+E(err.message)+'</div>';
+    }
+  };
+
+  window.rFinanceDirectorMonthlyReview=function(){
+    var entries=A(window.DB&&DB.entries), projects=A(window.DB&&DB.projects), emps=A(window.DB&&DB.employees), loans=A(window.DB&&DB.loans);
+    var unbalanced=0, noDoc=0, noProj=0;
+    entries.forEach(function(e){ var d=0,c=0; entryLines(e).forEach(function(l){d+=lineDebit(l);c+=lineCredit(l);}); if(Math.abs(d-c)>0.5)unbalanced++; if(!e.attachment&&!e.attachments&&!e.docs&&isPosted(e))noDoc++; if(isPosted(e)&&entryLines(e).some(function(l){return lineDebit(l)>0&&!lineProject(l,e);}))noProj++; });
+    var overBudget=calcProjects().filter(function(p){return p.pct>100;}).length;
+    var h='<div class="athar-v20-wrap"><div class="ph-t" style="margin-bottom:12px">🧭 مراجعة شهر كامل — مدير مالي</div>';
+    h+='<div class="athar-v20-kpis">';
+    [['⚖️',unbalanced,'قيود غير متوازنة'],['📎',noDoc,'قيود مرحلة بدون مستند'],['📁',noProj,'مصروفات بدون مشروع'],['🚨',overBudget,'مشروعات متجاوزة الموازنة'],['👥',emps.length,'موظفون مسجلون'],['💳',loans.length,'قروض مسجلة']].forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+x[1]+'</div><div class="athar-v20-klbl">'+x[2]+'</div></div>';});
+    h+='</div><div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:8px">تعليقات المدير المالي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px">';
+    var notes=[];
+    if(unbalanced) notes.push('يوجد قيود غير متوازنة؛ يجب منع الترحيل قبل تساوي المدين والدائن.');
+    if(noDoc) notes.push('يوجد قيود مرحلة بدون مستندات؛ يجب تحويلها إلى مسودة أو طلب استكمال مرفقات.');
+    if(noProj) notes.push('يوجد مصروفات بدون مشروع/بند موازنة؛ هذا يؤثر على BVA وملف المنحة.');
+    if(overBudget) notes.push('يوجد مشروعات تخطت الموازنة؛ يجب تفعيل منع الحفظ أو طلب تجاوز إداري.');
+    notes.push('ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد ومستند وتعديل موازنة.');
+    notes.push('سجل التسويات يجب أن يعرض التسويات البنكية المعتمدة فقط وليس شاشة البنوك.');
+    notes.forEach(function(n){h+='<li>'+E(n)+'</li>';});
+    h+='</ol></div></div>';
+    return h;
+  };
+
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div class="card"><div class="ct">📥 الاستيراد</div><p style="font-size:12px;color:#64748b;line-height:1.8;margin:8px 0">شاشة واحدة فقط للاستيراد والتصدير لتجنب التكرار. استخدم النموذج الموحد أو نماذج الأقسام حسب الحاجة.</p>';
+    h+='<button class="btn btn-sky btn-bl" onclick="if(typeof downloadImportTemplate===\'function\')downloadImportTemplate();else alert(\'النموذج غير متاح\')">تحميل نموذج الاستيراد Excel</button>';
+    h+='<button class="btn btn-gr btn-bl" onclick="if(typeof openImportWizard===\'function\')openImportWizard();else if(typeof importEntriesCSV===\'function\')importEntriesCSV();else if(typeof sub===\'function\')sub(\'importwizard\')">رفع ملف ومعاينة البيانات</button></div>';
+    h+='<div class="card"><div class="ct">📤 التصدير</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">';
+    var ex=[['نموذج 41','exportForm41Excel'],['ميزان المراجعة','exportTrialBalanceExcel'],['القيود اليومية','exportEntriesExcel'],['تقرير شامل','exportAllReportsExcel'],['الأصول','exportAssetsExcel'],['BVA المشروعات','exportBVAExcel']];
+    ex.forEach(function(x){h+='<button class="btn btn-sm" style="background:#f8fafc;color:#1e3a6e;border:1px solid #e2e8f0" onclick="if(typeof '+x[1]+'===\'function\')'+x[1]+'();else alert(\'التصدير غير متاح حاليًا\')">'+x[0]+'</button>';});
+    h+='</div></div>';
+    return h;
+  };
+
+  var oldMore=window.rMore;
+  window.rMore=function(){
+    var h='';
+    if(typeof oldMore==='function') h=oldMore();
+    // remove the duplicated standalone import wizard card from the generated HTML
+    h=h.replace(/<div class="mi" data-sub="importwizard">[\s\S]*?<\/div><\/div>/g,'');
+    h=h.replace(/\{i:"📥",t:"استيراد Excel"[\s\S]*?\},/g,'');
+    return h;
+  };
+
+  // If the duplicate route is still called from old buttons, redirect it to the single center.
+  window.rImportWizard=function(){return window.rImportExport();};
+})();
+
+</script>
+</body></html>';
 
   var old=document.getElementById('chk-print-overlay');
   if(old) old.remove();
@@ -19486,7 +20424,141 @@ function printContent(title, htmlContent, landscape){
   win.document.write('<div style="font-size:10px;color:#9ca3af;text-align:left;">أثر للحلول المالية</div></div>');
   win.document.write(htmlContent);
   win.document.write('<'+'script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};}<\/script>');
-  win.document.write('</body></html>');
+  win.document.write('
+<script>
+/* ATHAR V20 targeted stable fixes: import duplication, dashboard chart, monthly review */
+(function(){
+  'use strict';
+  function A(v){return Array.isArray(v)?v:[];}
+  function N(v){v=Number(v);return isFinite(v)?v:0;}
+  function M(v){return Math.round(N(v)).toLocaleString('ar-EG')+' ج';}
+  function P(v){v=N(v);return (Math.round(v*10)/10).toLocaleString('ar-EG')+'%';}
+  function E(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
+  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function isPosted(e){return !e.status || e.status==='posted' || e.posted===true || e.approved===true || e.stage==='posted';}
+  function entryLines(e){return A(e.lines||e.details||e.items);}
+  function lineProject(l,e){return l.project||l.projectCode||l.proj||e.project||e.projectCode||e.proj||'';}
+  function lineBudget(l,e){return l.budgetLine||l.budgetCode||l.lineCode||e.budgetLine||e.budgetCode||e.lineCode||'';}
+  function lineDebit(l){return N(l.debit||l.dr||l.amountDebit||0);}
+  function lineCredit(l){return N(l.credit||l.cr||l.amountCredit||0);}
+  function lineAmount(l){var d=lineDebit(l),c=lineCredit(l); return d>0?d:Math.max(0,c);}
+  function getProjectCode(p){return p.code||p.id||p.projectCode||p.name||'';}
+  function projectBudget(p){
+    var direct=N(p.budget||p.amount||p.totalBudget||p.revisedBudget);
+    var lines=A(p.budgetLines||p.lines||p.budgetItems);
+    var sum=lines.reduce(function(s,l){return s+N(l.amount||l.budget||l.revised||l.value);},0);
+    return sum||direct;
+  }
+  function projectSpent(code){
+    var total=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ if(String(lineProject(l,e))===String(code)) total+=lineDebit(l); }); });
+    return total;
+  }
+  function calcProjects(){
+    return A(window.DB&&DB.projects).map(function(p){
+      var code=getProjectCode(p), b=projectBudget(p), s=projectSpent(code), pct=b?Math.min(999,(s/b*100)):0;
+      return {code:code,name:p.name||p.title||code||'مشروع',budget:b,spent:s,pct:pct};
+    });
+  }
+  function bankBalance(){
+    var bal=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('11')===0||/bank|بنك|خزنة/i.test(acc)){ bal+=lineDebit(l)-lineCredit(l); } }); });
+    return bal;
+  }
+  function missingDocs(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ var has=e.attachment||e.attachments||e.docs||e.file||e.document; if(!has && isPosted(e))n++; }); return n;
+  }
+  function pendingApprovals(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ if(e.status==='draft'||e.status==='pending'||e.approvalStatus==='pending')n++; });
+    A(window.DB&&DB.purchaseRequests).forEach(function(x){ if(!x.status||x.status==='pending')n++; });
+    return n;
+  }
+  function monthlyExpenseBars(){
+    var now=new Date(); var months=[];
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:d.toLocaleDateString('ar-EG',{month:'short'}),y:d.getFullYear(),mo:d.getMonth(),v:0}); }
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; var d=new Date(e.date||e.entryDate||todayISO()); if(isNaN(d))return; months.forEach(function(x){ if(d.getFullYear()===x.y&&d.getMonth()===x.mo){ entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('5')===0||/مصروف|expense/i.test(acc)) x.v+=lineDebit(l); }); } }); });
+    var max=Math.max(1); months.forEach(function(x){if(x.v>max)max=x.v;});
+    return {data:months,max:max};
+  }
+
+  var css='\n.athar-v20-wrap{padding:0 0 86px;overflow-x:hidden}.athar-v20-hero{background:linear-gradient(135deg,#132f5f,#0ea5c6);border-radius:22px;padding:18px;color:#fff;margin:0 0 14px;box-shadow:0 18px 40px rgba(19,47,95,.18)}.athar-v20-title{font-size:22px;font-weight:900;line-height:1.35}.athar-v20-sub{font-size:12px;opacity:.85;line-height:1.8;margin-top:6px}.athar-v20-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.athar-v20-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,42,80,.07);min-width:0}.athar-v20-kval{font-size:18px;font-weight:900;color:#13345f;white-space:normal;word-break:break-word}.athar-v20-klbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}.athar-v20-chart{height:190px;display:flex;align-items:flex-end;gap:8px;padding:12px 4px 4px;border-bottom:1px solid #e2e8f0;direction:rtl}.athar-v20-barbox{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.athar-v20-bar{width:100%;max-width:34px;min-height:8px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#20c4f4,#143b70);box-shadow:0 10px 18px rgba(32,196,244,.25)}.athar-v20-barlbl{font-size:10px;color:#64748b;margin-top:7px;white-space:nowrap}.athar-v20-barval{font-size:9px;color:#94a3b8;margin-top:2px;white-space:nowrap}.athar-v20-list{display:flex;flex-direction:column;gap:9px}.athar-v20-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:12px}.athar-v20-pct{font-weight:900;border-radius:999px;padding:4px 8px;background:#e0f2fe;color:#075985;min-width:54px;text-align:center}.athar-v20-line{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.athar-v20-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea5e9,#1e3a6e)}@media(max-width:520px){.athar-v20-wrap{padding-inline:10px}.athar-v20-title{font-size:20px}.athar-v20-kpis{grid-template-columns:1fr 1fr}.athar-v20-card{padding:12px;border-radius:16px}.athar-v20-chart{height:170px;gap:6px}.athar-v20-kval{font-size:15px}.athar-v20-row{grid-template-columns:1fr;gap:5px}.athar-v20-pct{width:max-content}}\n';
+  try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(_e){}
+
+  window.rDash=function(){
+    try{
+      if(!window.DB) window.DB={}; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
+      var root=document.getElementById('pg-dash'); if(!root) return;
+      var ps=calcProjects(), budget=ps.reduce(function(s,p){return s+p.budget;},0), spent=ps.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
+      var activeLoans=A(DB.loans).filter(function(l){return l.status==='active'||!l.status;}).length;
+      var bars=monthlyExpenseBars();
+      var h='<div class="athar-v20-wrap">';
+      h+='<div class="athar-v20-hero"><div class="athar-v20-title">مركز التحكم المالي والتشغيلي</div><div class="athar-v20-sub">ملخص سريع من البيانات الفعلية: أرصدة، مشروعات، صرف، مستندات، موافقات، وقروض.</div></div>';
+      var k=[['🏦',M(bankBalance()),'رصيد البنك والخزينة'],['📁',ps.length,'منح ومشروعات نشطة'],['📊',P(burn),'نسبة الصرف الكلية'],['📎',missingDocs(),'قيود بدون مرفقات'],['📥',pendingApprovals(),'موافقات معلقة'],['💳',activeLoans,'قروض نشطة']];
+      h+='<div class="athar-v20-kpis">';
+      k.forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+E(x[1])+'</div><div class="athar-v20-klbl">'+E(x[2])+'</div></div>';});
+      h+='</div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:4px">📈 مصروفات آخر 6 شهور</div><div style="font-size:11px;color:#94a3b8">محسوبة من القيود المرحلة فقط</div><div class="athar-v20-chart">';
+      bars.data.forEach(function(x){var ht=Math.max(8,Math.round((x.v/bars.max)*130)); h+='<div class="athar-v20-barbox"><div class="athar-v20-bar" style="height:'+ht+'px"></div><div class="athar-v20-barlbl">'+E(x.m)+'</div><div class="athar-v20-barval">'+E(M(x.v).replace(' ج',''))+'</div></div>';});
+      h+='</div></div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:10px">📂 أعلى المشروعات من حيث الصرف</div><div class="athar-v20-list">';
+      ps.sort(function(a,b){return b.pct-a.pct;}).slice(0,5).forEach(function(p){var pct=Math.min(100,p.pct); h+='<div class="athar-v20-row"><div style="font-weight:800;color:#13345f">'+E(p.name)+'</div><div class="athar-v20-line"><div class="athar-v20-fill" style="width:'+Math.max(1,pct)+'%"></div></div><div class="athar-v20-pct">'+E(P(p.pct))+'</div></div>';});
+      if(!ps.length) h+='<div style="font-size:12px;color:#94a3b8">لا توجد مشروعات مسجلة بعد.</div>';
+      h+='</div></div></div>';
+      root.innerHTML=h;
+    }catch(err){
+      var root2=document.getElementById('pg-dash'); if(root2) root2.innerHTML='<div class="card">تعذر تحميل لوحة التحكم: '+E(err.message)+'</div>';
+    }
+  };
+
+  window.rFinanceDirectorMonthlyReview=function(){
+    var entries=A(window.DB&&DB.entries), projects=A(window.DB&&DB.projects), emps=A(window.DB&&DB.employees), loans=A(window.DB&&DB.loans);
+    var unbalanced=0, noDoc=0, noProj=0;
+    entries.forEach(function(e){ var d=0,c=0; entryLines(e).forEach(function(l){d+=lineDebit(l);c+=lineCredit(l);}); if(Math.abs(d-c)>0.5)unbalanced++; if(!e.attachment&&!e.attachments&&!e.docs&&isPosted(e))noDoc++; if(isPosted(e)&&entryLines(e).some(function(l){return lineDebit(l)>0&&!lineProject(l,e);}))noProj++; });
+    var overBudget=calcProjects().filter(function(p){return p.pct>100;}).length;
+    var h='<div class="athar-v20-wrap"><div class="ph-t" style="margin-bottom:12px">🧭 مراجعة شهر كامل — مدير مالي</div>';
+    h+='<div class="athar-v20-kpis">';
+    [['⚖️',unbalanced,'قيود غير متوازنة'],['📎',noDoc,'قيود مرحلة بدون مستند'],['📁',noProj,'مصروفات بدون مشروع'],['🚨',overBudget,'مشروعات متجاوزة الموازنة'],['👥',emps.length,'موظفون مسجلون'],['💳',loans.length,'قروض مسجلة']].forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+x[1]+'</div><div class="athar-v20-klbl">'+x[2]+'</div></div>';});
+    h+='</div><div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:8px">تعليقات المدير المالي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px">';
+    var notes=[];
+    if(unbalanced) notes.push('يوجد قيود غير متوازنة؛ يجب منع الترحيل قبل تساوي المدين والدائن.');
+    if(noDoc) notes.push('يوجد قيود مرحلة بدون مستندات؛ يجب تحويلها إلى مسودة أو طلب استكمال مرفقات.');
+    if(noProj) notes.push('يوجد مصروفات بدون مشروع/بند موازنة؛ هذا يؤثر على BVA وملف المنحة.');
+    if(overBudget) notes.push('يوجد مشروعات تخطت الموازنة؛ يجب تفعيل منع الحفظ أو طلب تجاوز إداري.');
+    notes.push('ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد ومستند وتعديل موازنة.');
+    notes.push('سجل التسويات يجب أن يعرض التسويات البنكية المعتمدة فقط وليس شاشة البنوك.');
+    notes.forEach(function(n){h+='<li>'+E(n)+'</li>';});
+    h+='</ol></div></div>';
+    return h;
+  };
+
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div class="card"><div class="ct">📥 الاستيراد</div><p style="font-size:12px;color:#64748b;line-height:1.8;margin:8px 0">شاشة واحدة فقط للاستيراد والتصدير لتجنب التكرار. استخدم النموذج الموحد أو نماذج الأقسام حسب الحاجة.</p>';
+    h+='<button class="btn btn-sky btn-bl" onclick="if(typeof downloadImportTemplate===\'function\')downloadImportTemplate();else alert(\'النموذج غير متاح\')">تحميل نموذج الاستيراد Excel</button>';
+    h+='<button class="btn btn-gr btn-bl" onclick="if(typeof openImportWizard===\'function\')openImportWizard();else if(typeof importEntriesCSV===\'function\')importEntriesCSV();else if(typeof sub===\'function\')sub(\'importwizard\')">رفع ملف ومعاينة البيانات</button></div>';
+    h+='<div class="card"><div class="ct">📤 التصدير</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">';
+    var ex=[['نموذج 41','exportForm41Excel'],['ميزان المراجعة','exportTrialBalanceExcel'],['القيود اليومية','exportEntriesExcel'],['تقرير شامل','exportAllReportsExcel'],['الأصول','exportAssetsExcel'],['BVA المشروعات','exportBVAExcel']];
+    ex.forEach(function(x){h+='<button class="btn btn-sm" style="background:#f8fafc;color:#1e3a6e;border:1px solid #e2e8f0" onclick="if(typeof '+x[1]+'===\'function\')'+x[1]+'();else alert(\'التصدير غير متاح حاليًا\')">'+x[0]+'</button>';});
+    h+='</div></div>';
+    return h;
+  };
+
+  var oldMore=window.rMore;
+  window.rMore=function(){
+    var h='';
+    if(typeof oldMore==='function') h=oldMore();
+    // remove the duplicated standalone import wizard card from the generated HTML
+    h=h.replace(/<div class="mi" data-sub="importwizard">[\s\S]*?<\/div><\/div>/g,'');
+    h=h.replace(/\{i:"📥",t:"استيراد Excel"[\s\S]*?\},/g,'');
+    return h;
+  };
+
+  // If the duplicate route is still called from old buttons, redirect it to the single center.
+  window.rImportWizard=function(){return window.rImportExport();};
+})();
+
+</script>
+</body></html>');
   win.document.close();
 }
 
@@ -20432,7 +21504,141 @@ function saveAssetTransfer(idx,printIt){
 }
 function printAssetPermit(a,m){
   function esc(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
-  var html='<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>'+esc(m.type)+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Tahoma,sans-serif;color:#111}.head{display:flex;justify-content:space-between;border-bottom:2px solid #0d3b6e;padding-bottom:12px;margin-bottom:18px}.brand{font-weight:900;color:#0d3b6e;font-size:22px}.title{text-align:center;font-size:24px;font-weight:900;margin:12px 0;color:#0d3b6e}.box{border:1px solid #d8e2ef;border-radius:10px;padding:12px;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lbl{color:#64748b;font-size:12px}.val{font-size:15px;font-weight:800;margin-top:3px}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:46px}.sg{height:86px;border-top:1px solid #111;text-align:center;padding-top:8px;font-weight:800}</style></head><body><div class="head"><div class="brand">أثر للحلول المالية</div><div>تاريخ الطباعة: '+new Date().toLocaleDateString('ar-EG')+'</div></div><div class="title">'+esc(m.type)+'</div><div class="box"><div class="grid"><div><div class="lbl">اسم الأصل</div><div class="val">'+esc(a.name)+'</div></div><div><div class="lbl">الرقم التسلسلي</div><div class="val">'+esc(a.serial||'—')+'</div></div><div><div class="lbl">تاريخ الحركة</div><div class="val">'+esc(m.date||'—')+'</div></div><div><div class="lbl">حالة الأصل</div><div class="val">'+esc(m.condition||'—')+'</div></div><div><div class="lbl">من</div><div class="val">'+esc(m.from||'—')+'</div></div><div><div class="lbl">إلى</div><div class="val">'+esc(m.to||'—')+'</div></div></div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+esc(m.notes||'لا توجد')+'</div></div><div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div></body></html>';
+  var html='<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>'+esc(m.type)+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Tahoma,sans-serif;color:#111}.head{display:flex;justify-content:space-between;border-bottom:2px solid #0d3b6e;padding-bottom:12px;margin-bottom:18px}.brand{font-weight:900;color:#0d3b6e;font-size:22px}.title{text-align:center;font-size:24px;font-weight:900;margin:12px 0;color:#0d3b6e}.box{border:1px solid #d8e2ef;border-radius:10px;padding:12px;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lbl{color:#64748b;font-size:12px}.val{font-size:15px;font-weight:800;margin-top:3px}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:46px}.sg{height:86px;border-top:1px solid #111;text-align:center;padding-top:8px;font-weight:800}</style></head><body><div class="head"><div class="brand">أثر للحلول المالية</div><div>تاريخ الطباعة: '+new Date().toLocaleDateString('ar-EG')+'</div></div><div class="title">'+esc(m.type)+'</div><div class="box"><div class="grid"><div><div class="lbl">اسم الأصل</div><div class="val">'+esc(a.name)+'</div></div><div><div class="lbl">الرقم التسلسلي</div><div class="val">'+esc(a.serial||'—')+'</div></div><div><div class="lbl">تاريخ الحركة</div><div class="val">'+esc(m.date||'—')+'</div></div><div><div class="lbl">حالة الأصل</div><div class="val">'+esc(m.condition||'—')+'</div></div><div><div class="lbl">من</div><div class="val">'+esc(m.from||'—')+'</div></div><div><div class="lbl">إلى</div><div class="val">'+esc(m.to||'—')+'</div></div></div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+esc(m.notes||'لا توجد')+'</div></div><div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div>
+<script>
+/* ATHAR V20 targeted stable fixes: import duplication, dashboard chart, monthly review */
+(function(){
+  'use strict';
+  function A(v){return Array.isArray(v)?v:[];}
+  function N(v){v=Number(v);return isFinite(v)?v:0;}
+  function M(v){return Math.round(N(v)).toLocaleString('ar-EG')+' ج';}
+  function P(v){v=N(v);return (Math.round(v*10)/10).toLocaleString('ar-EG')+'%';}
+  function E(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
+  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function isPosted(e){return !e.status || e.status==='posted' || e.posted===true || e.approved===true || e.stage==='posted';}
+  function entryLines(e){return A(e.lines||e.details||e.items);}
+  function lineProject(l,e){return l.project||l.projectCode||l.proj||e.project||e.projectCode||e.proj||'';}
+  function lineBudget(l,e){return l.budgetLine||l.budgetCode||l.lineCode||e.budgetLine||e.budgetCode||e.lineCode||'';}
+  function lineDebit(l){return N(l.debit||l.dr||l.amountDebit||0);}
+  function lineCredit(l){return N(l.credit||l.cr||l.amountCredit||0);}
+  function lineAmount(l){var d=lineDebit(l),c=lineCredit(l); return d>0?d:Math.max(0,c);}
+  function getProjectCode(p){return p.code||p.id||p.projectCode||p.name||'';}
+  function projectBudget(p){
+    var direct=N(p.budget||p.amount||p.totalBudget||p.revisedBudget);
+    var lines=A(p.budgetLines||p.lines||p.budgetItems);
+    var sum=lines.reduce(function(s,l){return s+N(l.amount||l.budget||l.revised||l.value);},0);
+    return sum||direct;
+  }
+  function projectSpent(code){
+    var total=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ if(String(lineProject(l,e))===String(code)) total+=lineDebit(l); }); });
+    return total;
+  }
+  function calcProjects(){
+    return A(window.DB&&DB.projects).map(function(p){
+      var code=getProjectCode(p), b=projectBudget(p), s=projectSpent(code), pct=b?Math.min(999,(s/b*100)):0;
+      return {code:code,name:p.name||p.title||code||'مشروع',budget:b,spent:s,pct:pct};
+    });
+  }
+  function bankBalance(){
+    var bal=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('11')===0||/bank|بنك|خزنة/i.test(acc)){ bal+=lineDebit(l)-lineCredit(l); } }); });
+    return bal;
+  }
+  function missingDocs(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ var has=e.attachment||e.attachments||e.docs||e.file||e.document; if(!has && isPosted(e))n++; }); return n;
+  }
+  function pendingApprovals(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ if(e.status==='draft'||e.status==='pending'||e.approvalStatus==='pending')n++; });
+    A(window.DB&&DB.purchaseRequests).forEach(function(x){ if(!x.status||x.status==='pending')n++; });
+    return n;
+  }
+  function monthlyExpenseBars(){
+    var now=new Date(); var months=[];
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:d.toLocaleDateString('ar-EG',{month:'short'}),y:d.getFullYear(),mo:d.getMonth(),v:0}); }
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; var d=new Date(e.date||e.entryDate||todayISO()); if(isNaN(d))return; months.forEach(function(x){ if(d.getFullYear()===x.y&&d.getMonth()===x.mo){ entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('5')===0||/مصروف|expense/i.test(acc)) x.v+=lineDebit(l); }); } }); });
+    var max=Math.max(1); months.forEach(function(x){if(x.v>max)max=x.v;});
+    return {data:months,max:max};
+  }
+
+  var css='\n.athar-v20-wrap{padding:0 0 86px;overflow-x:hidden}.athar-v20-hero{background:linear-gradient(135deg,#132f5f,#0ea5c6);border-radius:22px;padding:18px;color:#fff;margin:0 0 14px;box-shadow:0 18px 40px rgba(19,47,95,.18)}.athar-v20-title{font-size:22px;font-weight:900;line-height:1.35}.athar-v20-sub{font-size:12px;opacity:.85;line-height:1.8;margin-top:6px}.athar-v20-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.athar-v20-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,42,80,.07);min-width:0}.athar-v20-kval{font-size:18px;font-weight:900;color:#13345f;white-space:normal;word-break:break-word}.athar-v20-klbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}.athar-v20-chart{height:190px;display:flex;align-items:flex-end;gap:8px;padding:12px 4px 4px;border-bottom:1px solid #e2e8f0;direction:rtl}.athar-v20-barbox{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.athar-v20-bar{width:100%;max-width:34px;min-height:8px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#20c4f4,#143b70);box-shadow:0 10px 18px rgba(32,196,244,.25)}.athar-v20-barlbl{font-size:10px;color:#64748b;margin-top:7px;white-space:nowrap}.athar-v20-barval{font-size:9px;color:#94a3b8;margin-top:2px;white-space:nowrap}.athar-v20-list{display:flex;flex-direction:column;gap:9px}.athar-v20-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:12px}.athar-v20-pct{font-weight:900;border-radius:999px;padding:4px 8px;background:#e0f2fe;color:#075985;min-width:54px;text-align:center}.athar-v20-line{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.athar-v20-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea5e9,#1e3a6e)}@media(max-width:520px){.athar-v20-wrap{padding-inline:10px}.athar-v20-title{font-size:20px}.athar-v20-kpis{grid-template-columns:1fr 1fr}.athar-v20-card{padding:12px;border-radius:16px}.athar-v20-chart{height:170px;gap:6px}.athar-v20-kval{font-size:15px}.athar-v20-row{grid-template-columns:1fr;gap:5px}.athar-v20-pct{width:max-content}}\n';
+  try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(_e){}
+
+  window.rDash=function(){
+    try{
+      if(!window.DB) window.DB={}; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
+      var root=document.getElementById('pg-dash'); if(!root) return;
+      var ps=calcProjects(), budget=ps.reduce(function(s,p){return s+p.budget;},0), spent=ps.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
+      var activeLoans=A(DB.loans).filter(function(l){return l.status==='active'||!l.status;}).length;
+      var bars=monthlyExpenseBars();
+      var h='<div class="athar-v20-wrap">';
+      h+='<div class="athar-v20-hero"><div class="athar-v20-title">مركز التحكم المالي والتشغيلي</div><div class="athar-v20-sub">ملخص سريع من البيانات الفعلية: أرصدة، مشروعات، صرف، مستندات، موافقات، وقروض.</div></div>';
+      var k=[['🏦',M(bankBalance()),'رصيد البنك والخزينة'],['📁',ps.length,'منح ومشروعات نشطة'],['📊',P(burn),'نسبة الصرف الكلية'],['📎',missingDocs(),'قيود بدون مرفقات'],['📥',pendingApprovals(),'موافقات معلقة'],['💳',activeLoans,'قروض نشطة']];
+      h+='<div class="athar-v20-kpis">';
+      k.forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+E(x[1])+'</div><div class="athar-v20-klbl">'+E(x[2])+'</div></div>';});
+      h+='</div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:4px">📈 مصروفات آخر 6 شهور</div><div style="font-size:11px;color:#94a3b8">محسوبة من القيود المرحلة فقط</div><div class="athar-v20-chart">';
+      bars.data.forEach(function(x){var ht=Math.max(8,Math.round((x.v/bars.max)*130)); h+='<div class="athar-v20-barbox"><div class="athar-v20-bar" style="height:'+ht+'px"></div><div class="athar-v20-barlbl">'+E(x.m)+'</div><div class="athar-v20-barval">'+E(M(x.v).replace(' ج',''))+'</div></div>';});
+      h+='</div></div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:10px">📂 أعلى المشروعات من حيث الصرف</div><div class="athar-v20-list">';
+      ps.sort(function(a,b){return b.pct-a.pct;}).slice(0,5).forEach(function(p){var pct=Math.min(100,p.pct); h+='<div class="athar-v20-row"><div style="font-weight:800;color:#13345f">'+E(p.name)+'</div><div class="athar-v20-line"><div class="athar-v20-fill" style="width:'+Math.max(1,pct)+'%"></div></div><div class="athar-v20-pct">'+E(P(p.pct))+'</div></div>';});
+      if(!ps.length) h+='<div style="font-size:12px;color:#94a3b8">لا توجد مشروعات مسجلة بعد.</div>';
+      h+='</div></div></div>';
+      root.innerHTML=h;
+    }catch(err){
+      var root2=document.getElementById('pg-dash'); if(root2) root2.innerHTML='<div class="card">تعذر تحميل لوحة التحكم: '+E(err.message)+'</div>';
+    }
+  };
+
+  window.rFinanceDirectorMonthlyReview=function(){
+    var entries=A(window.DB&&DB.entries), projects=A(window.DB&&DB.projects), emps=A(window.DB&&DB.employees), loans=A(window.DB&&DB.loans);
+    var unbalanced=0, noDoc=0, noProj=0;
+    entries.forEach(function(e){ var d=0,c=0; entryLines(e).forEach(function(l){d+=lineDebit(l);c+=lineCredit(l);}); if(Math.abs(d-c)>0.5)unbalanced++; if(!e.attachment&&!e.attachments&&!e.docs&&isPosted(e))noDoc++; if(isPosted(e)&&entryLines(e).some(function(l){return lineDebit(l)>0&&!lineProject(l,e);}))noProj++; });
+    var overBudget=calcProjects().filter(function(p){return p.pct>100;}).length;
+    var h='<div class="athar-v20-wrap"><div class="ph-t" style="margin-bottom:12px">🧭 مراجعة شهر كامل — مدير مالي</div>';
+    h+='<div class="athar-v20-kpis">';
+    [['⚖️',unbalanced,'قيود غير متوازنة'],['📎',noDoc,'قيود مرحلة بدون مستند'],['📁',noProj,'مصروفات بدون مشروع'],['🚨',overBudget,'مشروعات متجاوزة الموازنة'],['👥',emps.length,'موظفون مسجلون'],['💳',loans.length,'قروض مسجلة']].forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+x[1]+'</div><div class="athar-v20-klbl">'+x[2]+'</div></div>';});
+    h+='</div><div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:8px">تعليقات المدير المالي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px">';
+    var notes=[];
+    if(unbalanced) notes.push('يوجد قيود غير متوازنة؛ يجب منع الترحيل قبل تساوي المدين والدائن.');
+    if(noDoc) notes.push('يوجد قيود مرحلة بدون مستندات؛ يجب تحويلها إلى مسودة أو طلب استكمال مرفقات.');
+    if(noProj) notes.push('يوجد مصروفات بدون مشروع/بند موازنة؛ هذا يؤثر على BVA وملف المنحة.');
+    if(overBudget) notes.push('يوجد مشروعات تخطت الموازنة؛ يجب تفعيل منع الحفظ أو طلب تجاوز إداري.');
+    notes.push('ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد ومستند وتعديل موازنة.');
+    notes.push('سجل التسويات يجب أن يعرض التسويات البنكية المعتمدة فقط وليس شاشة البنوك.');
+    notes.forEach(function(n){h+='<li>'+E(n)+'</li>';});
+    h+='</ol></div></div>';
+    return h;
+  };
+
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div class="card"><div class="ct">📥 الاستيراد</div><p style="font-size:12px;color:#64748b;line-height:1.8;margin:8px 0">شاشة واحدة فقط للاستيراد والتصدير لتجنب التكرار. استخدم النموذج الموحد أو نماذج الأقسام حسب الحاجة.</p>';
+    h+='<button class="btn btn-sky btn-bl" onclick="if(typeof downloadImportTemplate===\'function\')downloadImportTemplate();else alert(\'النموذج غير متاح\')">تحميل نموذج الاستيراد Excel</button>';
+    h+='<button class="btn btn-gr btn-bl" onclick="if(typeof openImportWizard===\'function\')openImportWizard();else if(typeof importEntriesCSV===\'function\')importEntriesCSV();else if(typeof sub===\'function\')sub(\'importwizard\')">رفع ملف ومعاينة البيانات</button></div>';
+    h+='<div class="card"><div class="ct">📤 التصدير</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">';
+    var ex=[['نموذج 41','exportForm41Excel'],['ميزان المراجعة','exportTrialBalanceExcel'],['القيود اليومية','exportEntriesExcel'],['تقرير شامل','exportAllReportsExcel'],['الأصول','exportAssetsExcel'],['BVA المشروعات','exportBVAExcel']];
+    ex.forEach(function(x){h+='<button class="btn btn-sm" style="background:#f8fafc;color:#1e3a6e;border:1px solid #e2e8f0" onclick="if(typeof '+x[1]+'===\'function\')'+x[1]+'();else alert(\'التصدير غير متاح حاليًا\')">'+x[0]+'</button>';});
+    h+='</div></div>';
+    return h;
+  };
+
+  var oldMore=window.rMore;
+  window.rMore=function(){
+    var h='';
+    if(typeof oldMore==='function') h=oldMore();
+    // remove the duplicated standalone import wizard card from the generated HTML
+    h=h.replace(/<div class="mi" data-sub="importwizard">[\s\S]*?<\/div><\/div>/g,'');
+    h=h.replace(/\{i:"📥",t:"استيراد Excel"[\s\S]*?\},/g,'');
+    return h;
+  };
+
+  // If the duplicate route is still called from old buttons, redirect it to the single center.
+  window.rImportWizard=function(){return window.rImportExport();};
+})();
+
+</script>
+</body></html>';
   var w=window.open('','_blank'); if(w){w.document.open();w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},400);} else toast('⚠️ اسمح بفتح النوافذ المنبثقة للطباعة');
 }
 
@@ -21706,6 +22912,140 @@ function rDash(){
     },300);
   });
 })();
+</script>
+
+<script>
+/* ATHAR V20 targeted stable fixes: import duplication, dashboard chart, monthly review */
+(function(){
+  'use strict';
+  function A(v){return Array.isArray(v)?v:[];}
+  function N(v){v=Number(v);return isFinite(v)?v:0;}
+  function M(v){return Math.round(N(v)).toLocaleString('ar-EG')+' ج';}
+  function P(v){v=N(v);return (Math.round(v*10)/10).toLocaleString('ar-EG')+'%';}
+  function E(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
+  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function isPosted(e){return !e.status || e.status==='posted' || e.posted===true || e.approved===true || e.stage==='posted';}
+  function entryLines(e){return A(e.lines||e.details||e.items);}
+  function lineProject(l,e){return l.project||l.projectCode||l.proj||e.project||e.projectCode||e.proj||'';}
+  function lineBudget(l,e){return l.budgetLine||l.budgetCode||l.lineCode||e.budgetLine||e.budgetCode||e.lineCode||'';}
+  function lineDebit(l){return N(l.debit||l.dr||l.amountDebit||0);}
+  function lineCredit(l){return N(l.credit||l.cr||l.amountCredit||0);}
+  function lineAmount(l){var d=lineDebit(l),c=lineCredit(l); return d>0?d:Math.max(0,c);}
+  function getProjectCode(p){return p.code||p.id||p.projectCode||p.name||'';}
+  function projectBudget(p){
+    var direct=N(p.budget||p.amount||p.totalBudget||p.revisedBudget);
+    var lines=A(p.budgetLines||p.lines||p.budgetItems);
+    var sum=lines.reduce(function(s,l){return s+N(l.amount||l.budget||l.revised||l.value);},0);
+    return sum||direct;
+  }
+  function projectSpent(code){
+    var total=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ if(String(lineProject(l,e))===String(code)) total+=lineDebit(l); }); });
+    return total;
+  }
+  function calcProjects(){
+    return A(window.DB&&DB.projects).map(function(p){
+      var code=getProjectCode(p), b=projectBudget(p), s=projectSpent(code), pct=b?Math.min(999,(s/b*100)):0;
+      return {code:code,name:p.name||p.title||code||'مشروع',budget:b,spent:s,pct:pct};
+    });
+  }
+  function bankBalance(){
+    var bal=0;
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('11')===0||/bank|بنك|خزنة/i.test(acc)){ bal+=lineDebit(l)-lineCredit(l); } }); });
+    return bal;
+  }
+  function missingDocs(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ var has=e.attachment||e.attachments||e.docs||e.file||e.document; if(!has && isPosted(e))n++; }); return n;
+  }
+  function pendingApprovals(){
+    var n=0; A(window.DB&&DB.entries).forEach(function(e){ if(e.status==='draft'||e.status==='pending'||e.approvalStatus==='pending')n++; });
+    A(window.DB&&DB.purchaseRequests).forEach(function(x){ if(!x.status||x.status==='pending')n++; });
+    return n;
+  }
+  function monthlyExpenseBars(){
+    var now=new Date(); var months=[];
+    for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({m:d.toLocaleDateString('ar-EG',{month:'short'}),y:d.getFullYear(),mo:d.getMonth(),v:0}); }
+    A(window.DB&&DB.entries).forEach(function(e){ if(!isPosted(e))return; var d=new Date(e.date||e.entryDate||todayISO()); if(isNaN(d))return; months.forEach(function(x){ if(d.getFullYear()===x.y&&d.getMonth()===x.mo){ entryLines(e).forEach(function(l){ var acc=String(l.account||l.acc||l.accountCode||''); if(acc.indexOf('5')===0||/مصروف|expense/i.test(acc)) x.v+=lineDebit(l); }); } }); });
+    var max=Math.max(1); months.forEach(function(x){if(x.v>max)max=x.v;});
+    return {data:months,max:max};
+  }
+
+  var css='\n.athar-v20-wrap{padding:0 0 86px;overflow-x:hidden}.athar-v20-hero{background:linear-gradient(135deg,#132f5f,#0ea5c6);border-radius:22px;padding:18px;color:#fff;margin:0 0 14px;box-shadow:0 18px 40px rgba(19,47,95,.18)}.athar-v20-title{font-size:22px;font-weight:900;line-height:1.35}.athar-v20-sub{font-size:12px;opacity:.85;line-height:1.8;margin-top:6px}.athar-v20-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.athar-v20-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(16,42,80,.07);min-width:0}.athar-v20-kval{font-size:18px;font-weight:900;color:#13345f;white-space:normal;word-break:break-word}.athar-v20-klbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.6}.athar-v20-chart{height:190px;display:flex;align-items:flex-end;gap:8px;padding:12px 4px 4px;border-bottom:1px solid #e2e8f0;direction:rtl}.athar-v20-barbox{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.athar-v20-bar{width:100%;max-width:34px;min-height:8px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#20c4f4,#143b70);box-shadow:0 10px 18px rgba(32,196,244,.25)}.athar-v20-barlbl{font-size:10px;color:#64748b;margin-top:7px;white-space:nowrap}.athar-v20-barval{font-size:9px;color:#94a3b8;margin-top:2px;white-space:nowrap}.athar-v20-list{display:flex;flex-direction:column;gap:9px}.athar-v20-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:12px}.athar-v20-pct{font-weight:900;border-radius:999px;padding:4px 8px;background:#e0f2fe;color:#075985;min-width:54px;text-align:center}.athar-v20-line{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.athar-v20-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea5e9,#1e3a6e)}@media(max-width:520px){.athar-v20-wrap{padding-inline:10px}.athar-v20-title{font-size:20px}.athar-v20-kpis{grid-template-columns:1fr 1fr}.athar-v20-card{padding:12px;border-radius:16px}.athar-v20-chart{height:170px;gap:6px}.athar-v20-kval{font-size:15px}.athar-v20-row{grid-template-columns:1fr;gap:5px}.athar-v20-pct{width:max-content}}\n';
+  try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(_e){}
+
+  window.rDash=function(){
+    try{
+      if(!window.DB) window.DB={}; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
+      var root=document.getElementById('pg-dash'); if(!root) return;
+      var ps=calcProjects(), budget=ps.reduce(function(s,p){return s+p.budget;},0), spent=ps.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
+      var activeLoans=A(DB.loans).filter(function(l){return l.status==='active'||!l.status;}).length;
+      var bars=monthlyExpenseBars();
+      var h='<div class="athar-v20-wrap">';
+      h+='<div class="athar-v20-hero"><div class="athar-v20-title">مركز التحكم المالي والتشغيلي</div><div class="athar-v20-sub">ملخص سريع من البيانات الفعلية: أرصدة، مشروعات، صرف، مستندات، موافقات، وقروض.</div></div>';
+      var k=[['🏦',M(bankBalance()),'رصيد البنك والخزينة'],['📁',ps.length,'منح ومشروعات نشطة'],['📊',P(burn),'نسبة الصرف الكلية'],['📎',missingDocs(),'قيود بدون مرفقات'],['📥',pendingApprovals(),'موافقات معلقة'],['💳',activeLoans,'قروض نشطة']];
+      h+='<div class="athar-v20-kpis">';
+      k.forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+E(x[1])+'</div><div class="athar-v20-klbl">'+E(x[2])+'</div></div>';});
+      h+='</div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:4px">📈 مصروفات آخر 6 شهور</div><div style="font-size:11px;color:#94a3b8">محسوبة من القيود المرحلة فقط</div><div class="athar-v20-chart">';
+      bars.data.forEach(function(x){var ht=Math.max(8,Math.round((x.v/bars.max)*130)); h+='<div class="athar-v20-barbox"><div class="athar-v20-bar" style="height:'+ht+'px"></div><div class="athar-v20-barlbl">'+E(x.m)+'</div><div class="athar-v20-barval">'+E(M(x.v).replace(' ج',''))+'</div></div>';});
+      h+='</div></div>';
+      h+='<div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:10px">📂 أعلى المشروعات من حيث الصرف</div><div class="athar-v20-list">';
+      ps.sort(function(a,b){return b.pct-a.pct;}).slice(0,5).forEach(function(p){var pct=Math.min(100,p.pct); h+='<div class="athar-v20-row"><div style="font-weight:800;color:#13345f">'+E(p.name)+'</div><div class="athar-v20-line"><div class="athar-v20-fill" style="width:'+Math.max(1,pct)+'%"></div></div><div class="athar-v20-pct">'+E(P(p.pct))+'</div></div>';});
+      if(!ps.length) h+='<div style="font-size:12px;color:#94a3b8">لا توجد مشروعات مسجلة بعد.</div>';
+      h+='</div></div></div>';
+      root.innerHTML=h;
+    }catch(err){
+      var root2=document.getElementById('pg-dash'); if(root2) root2.innerHTML='<div class="card">تعذر تحميل لوحة التحكم: '+E(err.message)+'</div>';
+    }
+  };
+
+  window.rFinanceDirectorMonthlyReview=function(){
+    var entries=A(window.DB&&DB.entries), projects=A(window.DB&&DB.projects), emps=A(window.DB&&DB.employees), loans=A(window.DB&&DB.loans);
+    var unbalanced=0, noDoc=0, noProj=0;
+    entries.forEach(function(e){ var d=0,c=0; entryLines(e).forEach(function(l){d+=lineDebit(l);c+=lineCredit(l);}); if(Math.abs(d-c)>0.5)unbalanced++; if(!e.attachment&&!e.attachments&&!e.docs&&isPosted(e))noDoc++; if(isPosted(e)&&entryLines(e).some(function(l){return lineDebit(l)>0&&!lineProject(l,e);}))noProj++; });
+    var overBudget=calcProjects().filter(function(p){return p.pct>100;}).length;
+    var h='<div class="athar-v20-wrap"><div class="ph-t" style="margin-bottom:12px">🧭 مراجعة شهر كامل — مدير مالي</div>';
+    h+='<div class="athar-v20-kpis">';
+    [['⚖️',unbalanced,'قيود غير متوازنة'],['📎',noDoc,'قيود مرحلة بدون مستند'],['📁',noProj,'مصروفات بدون مشروع'],['🚨',overBudget,'مشروعات متجاوزة الموازنة'],['👥',emps.length,'موظفون مسجلون'],['💳',loans.length,'قروض مسجلة']].forEach(function(x){h+='<div class="athar-v20-card"><div style="font-size:22px">'+x[0]+'</div><div class="athar-v20-kval">'+x[1]+'</div><div class="athar-v20-klbl">'+x[2]+'</div></div>';});
+    h+='</div><div class="athar-v20-card" style="margin-top:12px"><div style="font-weight:900;color:#13345f;margin-bottom:8px">تعليقات المدير المالي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px">';
+    var notes=[];
+    if(unbalanced) notes.push('يوجد قيود غير متوازنة؛ يجب منع الترحيل قبل تساوي المدين والدائن.');
+    if(noDoc) notes.push('يوجد قيود مرحلة بدون مستندات؛ يجب تحويلها إلى مسودة أو طلب استكمال مرفقات.');
+    if(noProj) notes.push('يوجد مصروفات بدون مشروع/بند موازنة؛ هذا يؤثر على BVA وملف المنحة.');
+    if(overBudget) notes.push('يوجد مشروعات تخطت الموازنة؛ يجب تفعيل منع الحفظ أو طلب تجاوز إداري.');
+    notes.push('ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد ومستند وتعديل موازنة.');
+    notes.push('سجل التسويات يجب أن يعرض التسويات البنكية المعتمدة فقط وليس شاشة البنوك.');
+    notes.forEach(function(n){h+='<li>'+E(n)+'</li>';});
+    h+='</ol></div></div>';
+    return h;
+  };
+
+  window.rImportExport=function(){
+    var h='<div class="ph-t" style="margin-bottom:14px">📁 مركز الاستيراد والتصدير</div>';
+    h+='<div class="card"><div class="ct">📥 الاستيراد</div><p style="font-size:12px;color:#64748b;line-height:1.8;margin:8px 0">شاشة واحدة فقط للاستيراد والتصدير لتجنب التكرار. استخدم النموذج الموحد أو نماذج الأقسام حسب الحاجة.</p>';
+    h+='<button class="btn btn-sky btn-bl" onclick="if(typeof downloadImportTemplate===\'function\')downloadImportTemplate();else alert(\'النموذج غير متاح\')">تحميل نموذج الاستيراد Excel</button>';
+    h+='<button class="btn btn-gr btn-bl" onclick="if(typeof openImportWizard===\'function\')openImportWizard();else if(typeof importEntriesCSV===\'function\')importEntriesCSV();else if(typeof sub===\'function\')sub(\'importwizard\')">رفع ملف ومعاينة البيانات</button></div>';
+    h+='<div class="card"><div class="ct">📤 التصدير</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">';
+    var ex=[['نموذج 41','exportForm41Excel'],['ميزان المراجعة','exportTrialBalanceExcel'],['القيود اليومية','exportEntriesExcel'],['تقرير شامل','exportAllReportsExcel'],['الأصول','exportAssetsExcel'],['BVA المشروعات','exportBVAExcel']];
+    ex.forEach(function(x){h+='<button class="btn btn-sm" style="background:#f8fafc;color:#1e3a6e;border:1px solid #e2e8f0" onclick="if(typeof '+x[1]+'===\'function\')'+x[1]+'();else alert(\'التصدير غير متاح حاليًا\')">'+x[0]+'</button>';});
+    h+='</div></div>';
+    return h;
+  };
+
+  var oldMore=window.rMore;
+  window.rMore=function(){
+    var h='';
+    if(typeof oldMore==='function') h=oldMore();
+    // remove the duplicated standalone import wizard card from the generated HTML
+    h=h.replace(/<div class="mi" data-sub="importwizard">[\s\S]*?<\/div><\/div>/g,'');
+    h=h.replace(/\{i:"📥",t:"استيراد Excel"[\s\S]*?\},/g,'');
+    return h;
+  };
+
+  // If the duplicate route is still called from old buttons, redirect it to the single center.
+  window.rImportWizard=function(){return window.rImportExport();};
+})();
+
 </script>
 </body>
 </html>
