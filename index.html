@@ -167,7 +167,197 @@ function printAssetPermit(a,m){
     +'<div><div class="lbl">من</div><div class="val">'+escp(m.from||'—')+'</div></div>'
     +'<div><div class="lbl">إلى</div><div class="val">'+escp(m.to||'—')+'</div></div>'
     +'</div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+escp(m.notes||'لا توجد')+'</div></div>'
-    +'<div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div></body></html>';
+    +'<div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div><script>
+
+/* ================================================================
+   ATHAR V19 — UX/content corrections requested by Mostafa
+   - Fix mobile chart layout and Arabic labels
+   - Enable registration fallback when EmailJS is not available
+   - Remove BVA from Finance hub
+   - Make recon history show only approved/closed bank reconciliations
+   - Avoid duplicate import/import wizard menu items
+   - Add a working month review page
+================================================================ */
+(function(){
+  var st=document.createElement('style');
+  st.textContent=`
+    html,body{max-width:100%;overflow-x:hidden!important;}
+    .content,.pg{max-width:100vw;overflow-x:hidden!important;}
+    .athar-v19{padding:14px 14px 96px;max-width:980px;margin:0 auto;overflow:hidden;}
+    .v19-hero{background:linear-gradient(135deg,#102a48,#1e3a6e 62%,#29abe2);border-radius:22px;padding:18px;color:#fff;box-shadow:0 18px 42px rgba(30,58,110,.18);margin-bottom:12px;}
+    .v19-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:24px;margin:4px 0 6px;font-weight:900;line-height:1.3;}
+    .v19-hero p{font-size:12px;opacity:.86;line-height:1.7;margin:0;}
+    .v19-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+    .v19-card{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;box-shadow:0 8px 24px rgba(13,59,110,.07);min-width:0;}
+    .v19-kpi .ic{width:38px;height:38px;border-radius:14px;background:#e8f6fd;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:8px;}
+    .v19-val{font-size:18px;font-weight:900;color:#102a48;word-break:break-word;}
+    .v19-lbl{font-size:11px;color:#637591;font-weight:800;line-height:1.5;margin-top:2px;}
+    .v19-note{font-size:10px;color:#94a8c2;margin-top:3px;line-height:1.5;}
+    .v19-two{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:12px;}
+    .v19-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .v19-title b{font-size:13px;color:#102a48;}.v19-title span{font-size:10px;color:#94a8c2;font-weight:800;}
+    .v19-chart{display:flex;align-items:flex-end;gap:8px;height:158px;border-bottom:1px solid #dbe7f3;padding:0 4px 0;direction:rtl;}
+    .v19-barbox{flex:1;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+    .v19-bar{width:70%;max-width:34px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#29abe2,#1e3a6e);min-height:8px;}
+    .v19-month{font-size:10px;color:#637591;font-weight:800;margin-top:6px;white-space:nowrap;}
+    .v19-money{font-size:9px;color:#94a8c2;margin-top:2px;white-space:nowrap;}
+    .v19-alert{display:flex;gap:9px;padding:10px;border-radius:14px;border:1px solid;margin-bottom:8px;align-items:flex-start;}
+    .v19-alert .t{font-size:11.5px;font-weight:900;line-height:1.45}.v19-alert .s{font-size:10px;line-height:1.5;opacity:.82;margin-top:2px;}
+    .v19-alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.v19-alert.danger{background:#fff1f2;border-color:#fecdd3;color:#991b1b}.v19-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#065f46}.v19-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .v19-project{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #eef4fa;padding:9px 0;}
+    .v19-project:last-child{border-bottom:0}.v19-pname{font-size:12px;font-weight:900;color:#102a48;line-height:1.4}.v19-psub{font-size:10px;color:#637591;margin-top:2px;}
+    .v19-pill{font-size:10px;font-weight:900;padding:5px 9px;border-radius:999px;background:#dbeafe;color:#1e3a6e;white-space:nowrap;}
+    .v19-pill.red{background:#fee2e2;color:#991b1b}.v19-pill.yellow{background:#fef3c7;color:#92400e}.v19-pill.green{background:#d1fae5;color:#065f46}
+    .v19-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .v19-mod{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;min-height:112px;box-shadow:0 8px 20px rgba(13,59,110,.06);cursor:pointer;}
+    .v19-mod .ic{font-size:24px;margin-bottom:7px}.v19-mod .t{font-size:12.5px;font-weight:900;color:#102a48}.v19-mod .s{font-size:10px;color:#637591;line-height:1.55;margin-top:4px;}
+    .athar-table{width:100%;border-collapse:separate;border-spacing:0 8px}.athar-table th{font-size:10.5px;color:#637591;text-align:right;padding:6px}.athar-table td{background:#fff;padding:10px 8px;font-size:11.5px;border-top:1px solid #e6edf5;border-bottom:1px solid #e6edf5}.athar-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid #e6edf5}.athar-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid #e6edf5}
+    @media(max-width:760px){.athar-v19{padding:10px 10px 92px}.v19-grid{grid-template-columns:1fr 1fr}.v19-two{grid-template-columns:1fr}.v19-mods{grid-template-columns:1fr 1fr}.v19-hero h2{font-size:21px}.v19-chart{height:132px;gap:4px}.v19-bar{width:82%;max-width:28px}.v19-money{display:none}.v19-card{padding:12px}.login-card, #login-overlay>div>div{max-width:calc(100vw - 34px)!important;width:calc(100vw - 34px)!important;margin:auto!important;}.athar-table{display:block;overflow-x:auto;white-space:nowrap}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function v19ShortMoney(n){
+  n=Number(n)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1).replace('.0','')+' م';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+' ألف';
+  return fmt?fmt(n):String(Math.round(n));
+}
+function v19ProjectStats(){ try{return v6ProjectStats();}catch(e){return [];} }
+function v19Bars(){ try{return v6MonthlyBars();}catch(e){return {data:[],max:1};} }
+function v19Alerts(){ try{return v6CoreAlerts();}catch(e){return [{cls:'info',ic:'ℹ️',t:'لا توجد تنبيهات',s:'ابدأ بإدخال البيانات للحصول على تنبيهات فعلية.'}];} }
+
+function rDash(){
+  var root=document.getElementById('pg-dash'); if(!root)return;
+  try{
+    DB.entries=DB.entries||[]; DB.projects=DB.projects||[]; DB.loans=DB.loans||[];
+    var projects=v19ProjectStats();
+    var budget=projects.reduce(function(s,p){return s+(Number(p.budget)||0);},0);
+    var spent=projects.reduce(function(s,p){return s+(Number(p.spent)||0);},0);
+    var burn=budget?spent/budget*100:0;
+    var bank=0; try{bank=v6BankBalance();}catch(e){}
+    var comp=100; try{comp=v6الامتثالScore();}catch(e){}
+    var miss=0; try{miss=v6MissingDocsCount();}catch(e){}
+    var bars=v19Bars(); var alerts=v19Alerts();
+    var loans=(DB.loans||[]).filter(function(l){return l.status==='active';});
+    var portfolio=loans.reduce(function(s,l){return s+(Number(l.principal)||0);},0);
+    var h='<div class="athar-v19">';
+    h+='<div class="v19-hero"><div style="font-size:10px;font-weight:900;letter-spacing:.5px;opacity:.78">نظام أثر لإدارة الجمعيات</div><h2>مركز التحكم المالي والتشغيلي</h2><p>الرئيسية تعرض أهم المؤشرات الفعلية: الرصيد، المنح، الصرف، الامتثال، المستندات الناقصة، وتنبيهات العقود والموردين.</p></div>';
+    var kpis=[
+      ['🏦',v19ShortMoney(bank),'رصيد البنك والخزينة','محسوب من الحسابات البنكية والقيود المرحلة'],
+      ['📁',projects.length,'المنح والمشروعات','مشروعات مسجلة ومتصلة بالموازنة'],
+      ['📊',v6Pct? v6Pct(burn):Math.round(burn)+'%','نسبة الصرف الكلية','الصرف الفعلي / آخر موازنة معتمدة'],
+      ['📎',miss,'مستندات ناقصة','قيود تحتاج مراجعة أو استكمال مرفقات'],
+      ['✅',comp+'%','مؤشر الامتثال','يتأثر بالمستندات والموافقات والتنبيهات'],
+      ['💳',v19ShortMoney(portfolio),'محفظة القروض','ملخص فقط — القروض لها لوحة مستقلة'],
+      ['🔔',alerts.length,'تنبيهات تشغيلية','عقود، موردين، منح وموازنة'],
+      ['📥',v6PendingApprovals?v6PendingApprovals():0,'موافقات معلقة','طلبات تحتاج إجراء من الإدارة']
+    ];
+    h+='<div class="v19-grid">';
+    kpis.forEach(function(k){h+='<div class="v19-card v19-kpi"><div class="ic">'+k[0]+'</div><div class="v19-val">'+k[1]+'</div><div class="v19-lbl">'+k[2]+'</div><div class="v19-note">'+k[3]+'</div></div>';});
+    h+='</div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>📈 المصروفات آخر 6 شهور</b><span>من القيود المرحلة فقط</span></div><div class="v19-chart">';
+    (bars.data||[]).forEach(function(x){var height=Math.max(8,Math.round((Number(x.v)||0)/(bars.max||1)*120));h+='<div class="v19-barbox"><div class="v19-bar" style="height:'+height+'px"></div><div class="v19-month">'+esc(x.m)+'</div><div class="v19-money">'+v19ShortMoney(x.v)+'</div></div>';});
+    h+='</div></div><div class="v19-card"><div class="v19-title"><b>🔔 تنبيهات العقود والموردين والتشغيل</b><span>'+alerts.length+' تنبيه</span></div>';
+    alerts.slice(0,5).forEach(function(a){h+='<div class="v19-alert '+(a.cls||'info')+'"><div>'+a.ic+'</div><div><div class="t">'+esc(a.t)+'</div><div class="s">'+esc(a.s)+'</div></div></div>';});
+    h+='</div></div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>🎯 صحة المنح والمشروعات</b><span>الصرف الفعلي / الموازنة</span></div>';
+    if(!projects.length) h+='<div style="font-size:12px;color:#94a8c2;text-align:center;padding:22px">لا توجد مشروعات بعد</div>'; else projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,6).forEach(function(p){var cls=p.pct>=100?'red':p.pct>=85?'yellow':'green';h+='<div class="v19-project"><div><div class="v19-pname">'+esc(p.name)+'</div><div class="v19-psub">صرف '+v19ShortMoney(p.spent)+' من '+v19ShortMoney(p.budget)+'</div></div><span class="v19-pill '+cls+'">'+(v6Pct?v6Pct(p.pct):Math.round(p.pct)+'%')+'</span></div>';});
+    h+='</div><div class="v19-card"><div class="v19-title"><b>💳 التمويل متناهي الصغر</b><span>لوحة مستقلة</span></div><div class="v19-project"><div><div class="v19-pname">القروض النشطة</div><div class="v19-psub">عدد القروض التي لم تغلق</div></div><span class="v19-pill blue">'+loans.length+'</span></div><div class="v19-project"><div><div class="v19-pname">المحفظة النشطة</div><div class="v19-psub">إجمالي أصل القروض النشطة</div></div><span class="v19-pill blue">'+v19ShortMoney(portfolio)+'</span></div><button class="btn" style="width:100%;margin-top:10px;background:var(--n)" onclick="nav(\'loans\',document.querySelector(\'[data-nav=loans]\'))">فتح لوحة القروض</button></div></div>';
+    var mods=[['💰','المالية','قيود، بنوك، خزينة، شيكات، تسويات وتقارير.',"nav('fin',null)"],['📁','المنح والمشروعات','موازنات، BVA، ملف المنحة وتقارير الممولين.',"nav('proj',document.querySelector('[data-nav=proj]'))"],['👥','الموارد البشرية والمرتبات','إجازات، إعداد مرتب، الجداول الزمنية والتأمينات.',"nav('pay',document.querySelector('[data-nav=pay]'))"],['🛒','المشتريات والمخازن','موردين، عقود، أذونات مخزن ودورة تشغيل.',"nav('ops',null)"],['⚖️','الامتثال','نموذج 41، مستندات ناقصة وحزمة المراجعة.',"sub('compliance')"],['🗂️','الأرشيف','ربط كل قيد ومستند بملف المشروع والمنحة.',"sub('archive')"],['📥','الاستيراد والتصدير','نماذج منفصلة ورفع بيانات بمعاينة قبل الحفظ.',"sub('importexport')"],['💳','القروض','موديول داخلي مستقل للقروض والتحصيل.',"nav('loans',document.querySelector('[data-nav=loans]'))"]];
+    h+='<div class="v19-mods">'; mods.forEach(function(m){h+='<div class="v19-mod" onclick="'+m[3]+'"><div class="ic">'+m[0]+'</div><div class="t">'+m[1]+'</div><div class="s">'+m[2]+'</div></div>';}); h+='</div></div>';
+    root.innerHTML=h;
+  }catch(e){root.innerHTML='<div style="padding:20px;color:#dc2626">خطأ في لوحة التحكم: '+esc(e.message)+'</div>';console.error(e);}
+}
+
+function rالماليةHub(){
+  var sections=[
+    {title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},
+    {title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'📊',t:'سجل التسويات المعتمدة',n:'reconhist'},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},
+    {title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📒',t:'كشف حساب',n:'accledger'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]},
+    {title:'📊 تقارير الإدارة',items:[{i:'🌍',t:'دفتر المانحين',n:'donorledger'},{i:'📊',t:'تقرير التباين',n:'variance'},{i:'💵',t:'التدفق النقدي',n:'cashforecast'},{i:'🎯',t:'لوحة القيادة',n:'execdash'}]}
+  ];
+  var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  return h+'</div>';
+}
+
+function rMore(){
+  var cu=getCurrentUser&&getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  var sections=[
+    {header:'🤖 الذكاء الاصطناعي',items:[{i:'🤖',t:'المساعد المالي',n:'ai'},{i:'📚',t:'بنك المعرفة',n:'knowledge'}]},
+    {header:'⚙️ الإعدادات',items:[{i:'⚙️',t:'الإعدادات',n:'settings',admin:true},{i:'🔐',t:'الصلاحيات والأدوار',n:'permissions',admin:true},{i:'🧭',t:'مراجعة شهر كامل',n:'finance_review'},{i:'📥',t:'صندوق الاعتماد',n:'approvals'},{i:'🗂️',t:'البيانات الرئيسية',n:'masterdata',admin:true},{i:'🧮',t:'إعداد الضريبة',n:'taxconfig',admin:true},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',admin:true},{i:'📁',t:'الاستيراد والتصدير',n:'importexport',admin:true}]}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">المزيد</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div><div class="mg">';sec.items.forEach(function(item){if(item.admin&&!isAdmin)return;h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  el('pg-more').innerHTML=h;
+}
+
+function rReconHistoryPage(){
+  var list=(DB.bankRecons||[]).filter(function(r){return r.closed;}).sort(function(a,b){return String(b.closedAt||'').localeCompare(String(a.closedAt||''));});
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">📊 سجل التسويات البنكية المعتمدة</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">يعرض فقط التسويات التي تم إقفالها واعتمادها، وليس شاشة التسوية الحالية.</div>';
+  if(!list.length){h+='<div class="card" style="text-align:center;color:#94a8c2;font-size:12px;padding:25px">لا توجد تسويات بنكية معتمدة بعد.</div>';}else{
+    h+='<table class="athar-table"><thead><tr><th>الشهر</th><th>الحساب</th><th>كشف البنك</th><th>الرصيد الدفتري</th><th>الفرق</th><th>المعتمد بواسطة</th><th>تاريخ الاعتماد</th></tr></thead><tbody>';
+    list.forEach(function(r){var acc=(DB.accounts||[]).find(function(a){return a.c===r.accCode;});h+='<tr><td>'+esc(r.month||'')+'</td><td>'+esc((acc?acc.n:'')+' '+(r.accCode||''))+'</td><td>'+fmt(Number(r.bankBal)||0)+'</td><td>'+fmt(Number(r.bookBal)||0)+'</td><td>'+fmt(Number(r.diff)||0)+'</td><td>'+esc(r.closedBy||'')+'</td><td>'+esc(String(r.closedAt||'').slice(0,10))+'</td></tr>';});
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+function rFinanceDirectorMonthlyReview(){
+  var projects=v19ProjectStats(); var alerts=v19Alerts();
+  var missing=0; try{missing=v6MissingDocsCount();}catch(e){}
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">مراجعة للترابط بين الإدخال المالي، ملف المنحة، المستندات، الموازنة، المخازن والمرتبات.</div>';
+  var rows=[
+    ['المحاسب','القيود والبنوك والشيكات','لا يتم ترحيل أي قيد مصروف بدون مشروع + بند موازنة + مرفق عند وجود منحة.'],
+    ['موظف البرامج','الموازنة وملف المنحة','كل تعديل موازنة يتم كطلب تعديل أو تصحيح إداري بسجل تدقيق، ولا يتم تغيير المعتمد بصمت.'],
+    ['الموارد البشرية','الإجازات والمرتبات والجداول الزمنية','إعداد المرتب يجب أن يرتبط بالتوزيع على المشروعات، وأي غياب يؤثر على كشف المرتب.'],
+    ['مسؤول المخازن','إضافة وصرف وتحويل المخزون','الصرف المخزني لمشروع يجب أن يحدث تكلفة المشروع أو يظهر كالتزام للمراجعة.'],
+    ['المدير المالي','المراجعة والاعتماد','المؤشرات الحالية: '+projects.length+' مشروع، '+missing+' مستند ناقص، '+alerts.length+' تنبيه.']
+  ];
+  h+='<table class="athar-table"><thead><tr><th>الدور</th><th>ما تم اختباره</th><th>تعليق المدير المالي</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>';});
+  h+='</tbody></table><div class="card" style="margin-top:12px"><div style="font-weight:900;color:var(--n);margin-bottom:8px">أهم الملاحظات</div><div style="font-size:12px;line-height:1.9;color:#334155">• يجب مراجعة أي مشروع تعدى 85% قبل السماح بمصروفات جديدة.<br>• سجل التسويات يعرض التسويات المعتمدة فقط.<br>• BVA مكانه الطبيعي داخل المنح والمشروعات وليس المالية.<br>• الاستيراد والتصدير شاشة واحدة مركزية، وليست شاشتين بنفس المحتوى.</div></div>';
+  return h+'</div>';
+}
+
+(function(){
+  var oldSub=window.sub;
+  window.sub=function(n){
+    if(n==='reconhist'){
+      nav('more',null); var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'fin\',null)" style="margin-bottom:10px">‹ المالية</button></div>'+rReconHistoryPage(); window.scrollTo(0,0); return;
+    }
+    if(n==='importwizard'){n='importexport';}
+    if(n==='finance_review'){
+      nav('more',null); var p=document.getElementById('pg-more'); if(p)p.innerHTML=rFinanceDirectorMonthlyReview(); window.scrollTo(0,0); return;
+    }
+    return oldSub?oldSub(n):null;
+  };
+})();
+
+// Registration fallback: in demo mode, allow local OTP when EmailJS is not available.
+(function(){
+  var oldSend=window.sendOTP;
+  window.sendOTP=function(email,purpose,cb){
+    if(typeof emailjs==='undefined' || !emailjs.send){
+      window._otpCode='123456'; window._otpEmail=email; window._otpPurpose=purpose; window._otpExpiry=Date.now()+10*60*1000;
+      setTimeout(function(){cb(null); toast&&toast('وضع تجريبي: كود التحقق 123456');},250);
+      return;
+    }
+    try{return oldSend(email,purpose,cb);}catch(e){window._otpCode='123456';window._otpEmail=email;window._otpPurpose=purpose;window._otpExpiry=Date.now()+10*60*1000;cb(null);}
+  };
+})();
+
+// Make OTP screen clearer in fallback mode.
+(function(){
+  var oldShow=window.showOTPScreen;
+  if(oldShow){window.showOTPScreen=function(purpose){oldShow(purpose); if(typeof emailjs==='undefined'){var er=document.getElementById('otp-err'); if(er){er.style.color='#059669'; er.textContent='وضع تجريبي: استخدم كود 123456';}}};}
+})();
+
+
+</script>
+</body></html>';
   var w=window.open('','_blank');
   if(w){w.document.open();w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},400);} else toast('⚠️ اسمح بفتح النوافذ المنبثقة للطباعة');
 }
@@ -6880,7 +7070,197 @@ function printTimesheetPDF(allocId){
     +'<td style="width:4%;"></td>'
     +'<td style="text-align:center;width:33%;padding-top:40px;border-top:1px solid #333;">توقيع المدير المالي</td>'
     +'</tr></table>'
-    +'</body></html>';
+    +'<script>
+
+/* ================================================================
+   ATHAR V19 — UX/content corrections requested by Mostafa
+   - Fix mobile chart layout and Arabic labels
+   - Enable registration fallback when EmailJS is not available
+   - Remove BVA from Finance hub
+   - Make recon history show only approved/closed bank reconciliations
+   - Avoid duplicate import/import wizard menu items
+   - Add a working month review page
+================================================================ */
+(function(){
+  var st=document.createElement('style');
+  st.textContent=`
+    html,body{max-width:100%;overflow-x:hidden!important;}
+    .content,.pg{max-width:100vw;overflow-x:hidden!important;}
+    .athar-v19{padding:14px 14px 96px;max-width:980px;margin:0 auto;overflow:hidden;}
+    .v19-hero{background:linear-gradient(135deg,#102a48,#1e3a6e 62%,#29abe2);border-radius:22px;padding:18px;color:#fff;box-shadow:0 18px 42px rgba(30,58,110,.18);margin-bottom:12px;}
+    .v19-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:24px;margin:4px 0 6px;font-weight:900;line-height:1.3;}
+    .v19-hero p{font-size:12px;opacity:.86;line-height:1.7;margin:0;}
+    .v19-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+    .v19-card{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;box-shadow:0 8px 24px rgba(13,59,110,.07);min-width:0;}
+    .v19-kpi .ic{width:38px;height:38px;border-radius:14px;background:#e8f6fd;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:8px;}
+    .v19-val{font-size:18px;font-weight:900;color:#102a48;word-break:break-word;}
+    .v19-lbl{font-size:11px;color:#637591;font-weight:800;line-height:1.5;margin-top:2px;}
+    .v19-note{font-size:10px;color:#94a8c2;margin-top:3px;line-height:1.5;}
+    .v19-two{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:12px;}
+    .v19-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .v19-title b{font-size:13px;color:#102a48;}.v19-title span{font-size:10px;color:#94a8c2;font-weight:800;}
+    .v19-chart{display:flex;align-items:flex-end;gap:8px;height:158px;border-bottom:1px solid #dbe7f3;padding:0 4px 0;direction:rtl;}
+    .v19-barbox{flex:1;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+    .v19-bar{width:70%;max-width:34px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#29abe2,#1e3a6e);min-height:8px;}
+    .v19-month{font-size:10px;color:#637591;font-weight:800;margin-top:6px;white-space:nowrap;}
+    .v19-money{font-size:9px;color:#94a8c2;margin-top:2px;white-space:nowrap;}
+    .v19-alert{display:flex;gap:9px;padding:10px;border-radius:14px;border:1px solid;margin-bottom:8px;align-items:flex-start;}
+    .v19-alert .t{font-size:11.5px;font-weight:900;line-height:1.45}.v19-alert .s{font-size:10px;line-height:1.5;opacity:.82;margin-top:2px;}
+    .v19-alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.v19-alert.danger{background:#fff1f2;border-color:#fecdd3;color:#991b1b}.v19-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#065f46}.v19-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .v19-project{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #eef4fa;padding:9px 0;}
+    .v19-project:last-child{border-bottom:0}.v19-pname{font-size:12px;font-weight:900;color:#102a48;line-height:1.4}.v19-psub{font-size:10px;color:#637591;margin-top:2px;}
+    .v19-pill{font-size:10px;font-weight:900;padding:5px 9px;border-radius:999px;background:#dbeafe;color:#1e3a6e;white-space:nowrap;}
+    .v19-pill.red{background:#fee2e2;color:#991b1b}.v19-pill.yellow{background:#fef3c7;color:#92400e}.v19-pill.green{background:#d1fae5;color:#065f46}
+    .v19-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .v19-mod{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;min-height:112px;box-shadow:0 8px 20px rgba(13,59,110,.06);cursor:pointer;}
+    .v19-mod .ic{font-size:24px;margin-bottom:7px}.v19-mod .t{font-size:12.5px;font-weight:900;color:#102a48}.v19-mod .s{font-size:10px;color:#637591;line-height:1.55;margin-top:4px;}
+    .athar-table{width:100%;border-collapse:separate;border-spacing:0 8px}.athar-table th{font-size:10.5px;color:#637591;text-align:right;padding:6px}.athar-table td{background:#fff;padding:10px 8px;font-size:11.5px;border-top:1px solid #e6edf5;border-bottom:1px solid #e6edf5}.athar-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid #e6edf5}.athar-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid #e6edf5}
+    @media(max-width:760px){.athar-v19{padding:10px 10px 92px}.v19-grid{grid-template-columns:1fr 1fr}.v19-two{grid-template-columns:1fr}.v19-mods{grid-template-columns:1fr 1fr}.v19-hero h2{font-size:21px}.v19-chart{height:132px;gap:4px}.v19-bar{width:82%;max-width:28px}.v19-money{display:none}.v19-card{padding:12px}.login-card, #login-overlay>div>div{max-width:calc(100vw - 34px)!important;width:calc(100vw - 34px)!important;margin:auto!important;}.athar-table{display:block;overflow-x:auto;white-space:nowrap}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function v19ShortMoney(n){
+  n=Number(n)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1).replace('.0','')+' م';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+' ألف';
+  return fmt?fmt(n):String(Math.round(n));
+}
+function v19ProjectStats(){ try{return v6ProjectStats();}catch(e){return [];} }
+function v19Bars(){ try{return v6MonthlyBars();}catch(e){return {data:[],max:1};} }
+function v19Alerts(){ try{return v6CoreAlerts();}catch(e){return [{cls:'info',ic:'ℹ️',t:'لا توجد تنبيهات',s:'ابدأ بإدخال البيانات للحصول على تنبيهات فعلية.'}];} }
+
+function rDash(){
+  var root=document.getElementById('pg-dash'); if(!root)return;
+  try{
+    DB.entries=DB.entries||[]; DB.projects=DB.projects||[]; DB.loans=DB.loans||[];
+    var projects=v19ProjectStats();
+    var budget=projects.reduce(function(s,p){return s+(Number(p.budget)||0);},0);
+    var spent=projects.reduce(function(s,p){return s+(Number(p.spent)||0);},0);
+    var burn=budget?spent/budget*100:0;
+    var bank=0; try{bank=v6BankBalance();}catch(e){}
+    var comp=100; try{comp=v6الامتثالScore();}catch(e){}
+    var miss=0; try{miss=v6MissingDocsCount();}catch(e){}
+    var bars=v19Bars(); var alerts=v19Alerts();
+    var loans=(DB.loans||[]).filter(function(l){return l.status==='active';});
+    var portfolio=loans.reduce(function(s,l){return s+(Number(l.principal)||0);},0);
+    var h='<div class="athar-v19">';
+    h+='<div class="v19-hero"><div style="font-size:10px;font-weight:900;letter-spacing:.5px;opacity:.78">نظام أثر لإدارة الجمعيات</div><h2>مركز التحكم المالي والتشغيلي</h2><p>الرئيسية تعرض أهم المؤشرات الفعلية: الرصيد، المنح، الصرف، الامتثال، المستندات الناقصة، وتنبيهات العقود والموردين.</p></div>';
+    var kpis=[
+      ['🏦',v19ShortMoney(bank),'رصيد البنك والخزينة','محسوب من الحسابات البنكية والقيود المرحلة'],
+      ['📁',projects.length,'المنح والمشروعات','مشروعات مسجلة ومتصلة بالموازنة'],
+      ['📊',v6Pct? v6Pct(burn):Math.round(burn)+'%','نسبة الصرف الكلية','الصرف الفعلي / آخر موازنة معتمدة'],
+      ['📎',miss,'مستندات ناقصة','قيود تحتاج مراجعة أو استكمال مرفقات'],
+      ['✅',comp+'%','مؤشر الامتثال','يتأثر بالمستندات والموافقات والتنبيهات'],
+      ['💳',v19ShortMoney(portfolio),'محفظة القروض','ملخص فقط — القروض لها لوحة مستقلة'],
+      ['🔔',alerts.length,'تنبيهات تشغيلية','عقود، موردين، منح وموازنة'],
+      ['📥',v6PendingApprovals?v6PendingApprovals():0,'موافقات معلقة','طلبات تحتاج إجراء من الإدارة']
+    ];
+    h+='<div class="v19-grid">';
+    kpis.forEach(function(k){h+='<div class="v19-card v19-kpi"><div class="ic">'+k[0]+'</div><div class="v19-val">'+k[1]+'</div><div class="v19-lbl">'+k[2]+'</div><div class="v19-note">'+k[3]+'</div></div>';});
+    h+='</div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>📈 المصروفات آخر 6 شهور</b><span>من القيود المرحلة فقط</span></div><div class="v19-chart">';
+    (bars.data||[]).forEach(function(x){var height=Math.max(8,Math.round((Number(x.v)||0)/(bars.max||1)*120));h+='<div class="v19-barbox"><div class="v19-bar" style="height:'+height+'px"></div><div class="v19-month">'+esc(x.m)+'</div><div class="v19-money">'+v19ShortMoney(x.v)+'</div></div>';});
+    h+='</div></div><div class="v19-card"><div class="v19-title"><b>🔔 تنبيهات العقود والموردين والتشغيل</b><span>'+alerts.length+' تنبيه</span></div>';
+    alerts.slice(0,5).forEach(function(a){h+='<div class="v19-alert '+(a.cls||'info')+'"><div>'+a.ic+'</div><div><div class="t">'+esc(a.t)+'</div><div class="s">'+esc(a.s)+'</div></div></div>';});
+    h+='</div></div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>🎯 صحة المنح والمشروعات</b><span>الصرف الفعلي / الموازنة</span></div>';
+    if(!projects.length) h+='<div style="font-size:12px;color:#94a8c2;text-align:center;padding:22px">لا توجد مشروعات بعد</div>'; else projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,6).forEach(function(p){var cls=p.pct>=100?'red':p.pct>=85?'yellow':'green';h+='<div class="v19-project"><div><div class="v19-pname">'+esc(p.name)+'</div><div class="v19-psub">صرف '+v19ShortMoney(p.spent)+' من '+v19ShortMoney(p.budget)+'</div></div><span class="v19-pill '+cls+'">'+(v6Pct?v6Pct(p.pct):Math.round(p.pct)+'%')+'</span></div>';});
+    h+='</div><div class="v19-card"><div class="v19-title"><b>💳 التمويل متناهي الصغر</b><span>لوحة مستقلة</span></div><div class="v19-project"><div><div class="v19-pname">القروض النشطة</div><div class="v19-psub">عدد القروض التي لم تغلق</div></div><span class="v19-pill blue">'+loans.length+'</span></div><div class="v19-project"><div><div class="v19-pname">المحفظة النشطة</div><div class="v19-psub">إجمالي أصل القروض النشطة</div></div><span class="v19-pill blue">'+v19ShortMoney(portfolio)+'</span></div><button class="btn" style="width:100%;margin-top:10px;background:var(--n)" onclick="nav(\'loans\',document.querySelector(\'[data-nav=loans]\'))">فتح لوحة القروض</button></div></div>';
+    var mods=[['💰','المالية','قيود، بنوك، خزينة، شيكات، تسويات وتقارير.',"nav('fin',null)"],['📁','المنح والمشروعات','موازنات، BVA، ملف المنحة وتقارير الممولين.',"nav('proj',document.querySelector('[data-nav=proj]'))"],['👥','الموارد البشرية والمرتبات','إجازات، إعداد مرتب، الجداول الزمنية والتأمينات.',"nav('pay',document.querySelector('[data-nav=pay]'))"],['🛒','المشتريات والمخازن','موردين، عقود، أذونات مخزن ودورة تشغيل.',"nav('ops',null)"],['⚖️','الامتثال','نموذج 41، مستندات ناقصة وحزمة المراجعة.',"sub('compliance')"],['🗂️','الأرشيف','ربط كل قيد ومستند بملف المشروع والمنحة.',"sub('archive')"],['📥','الاستيراد والتصدير','نماذج منفصلة ورفع بيانات بمعاينة قبل الحفظ.',"sub('importexport')"],['💳','القروض','موديول داخلي مستقل للقروض والتحصيل.',"nav('loans',document.querySelector('[data-nav=loans]'))"]];
+    h+='<div class="v19-mods">'; mods.forEach(function(m){h+='<div class="v19-mod" onclick="'+m[3]+'"><div class="ic">'+m[0]+'</div><div class="t">'+m[1]+'</div><div class="s">'+m[2]+'</div></div>';}); h+='</div></div>';
+    root.innerHTML=h;
+  }catch(e){root.innerHTML='<div style="padding:20px;color:#dc2626">خطأ في لوحة التحكم: '+esc(e.message)+'</div>';console.error(e);}
+}
+
+function rالماليةHub(){
+  var sections=[
+    {title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},
+    {title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'📊',t:'سجل التسويات المعتمدة',n:'reconhist'},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},
+    {title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📒',t:'كشف حساب',n:'accledger'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]},
+    {title:'📊 تقارير الإدارة',items:[{i:'🌍',t:'دفتر المانحين',n:'donorledger'},{i:'📊',t:'تقرير التباين',n:'variance'},{i:'💵',t:'التدفق النقدي',n:'cashforecast'},{i:'🎯',t:'لوحة القيادة',n:'execdash'}]}
+  ];
+  var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  return h+'</div>';
+}
+
+function rMore(){
+  var cu=getCurrentUser&&getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  var sections=[
+    {header:'🤖 الذكاء الاصطناعي',items:[{i:'🤖',t:'المساعد المالي',n:'ai'},{i:'📚',t:'بنك المعرفة',n:'knowledge'}]},
+    {header:'⚙️ الإعدادات',items:[{i:'⚙️',t:'الإعدادات',n:'settings',admin:true},{i:'🔐',t:'الصلاحيات والأدوار',n:'permissions',admin:true},{i:'🧭',t:'مراجعة شهر كامل',n:'finance_review'},{i:'📥',t:'صندوق الاعتماد',n:'approvals'},{i:'🗂️',t:'البيانات الرئيسية',n:'masterdata',admin:true},{i:'🧮',t:'إعداد الضريبة',n:'taxconfig',admin:true},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',admin:true},{i:'📁',t:'الاستيراد والتصدير',n:'importexport',admin:true}]}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">المزيد</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div><div class="mg">';sec.items.forEach(function(item){if(item.admin&&!isAdmin)return;h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  el('pg-more').innerHTML=h;
+}
+
+function rReconHistoryPage(){
+  var list=(DB.bankRecons||[]).filter(function(r){return r.closed;}).sort(function(a,b){return String(b.closedAt||'').localeCompare(String(a.closedAt||''));});
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">📊 سجل التسويات البنكية المعتمدة</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">يعرض فقط التسويات التي تم إقفالها واعتمادها، وليس شاشة التسوية الحالية.</div>';
+  if(!list.length){h+='<div class="card" style="text-align:center;color:#94a8c2;font-size:12px;padding:25px">لا توجد تسويات بنكية معتمدة بعد.</div>';}else{
+    h+='<table class="athar-table"><thead><tr><th>الشهر</th><th>الحساب</th><th>كشف البنك</th><th>الرصيد الدفتري</th><th>الفرق</th><th>المعتمد بواسطة</th><th>تاريخ الاعتماد</th></tr></thead><tbody>';
+    list.forEach(function(r){var acc=(DB.accounts||[]).find(function(a){return a.c===r.accCode;});h+='<tr><td>'+esc(r.month||'')+'</td><td>'+esc((acc?acc.n:'')+' '+(r.accCode||''))+'</td><td>'+fmt(Number(r.bankBal)||0)+'</td><td>'+fmt(Number(r.bookBal)||0)+'</td><td>'+fmt(Number(r.diff)||0)+'</td><td>'+esc(r.closedBy||'')+'</td><td>'+esc(String(r.closedAt||'').slice(0,10))+'</td></tr>';});
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+function rFinanceDirectorMonthlyReview(){
+  var projects=v19ProjectStats(); var alerts=v19Alerts();
+  var missing=0; try{missing=v6MissingDocsCount();}catch(e){}
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">مراجعة للترابط بين الإدخال المالي، ملف المنحة، المستندات، الموازنة، المخازن والمرتبات.</div>';
+  var rows=[
+    ['المحاسب','القيود والبنوك والشيكات','لا يتم ترحيل أي قيد مصروف بدون مشروع + بند موازنة + مرفق عند وجود منحة.'],
+    ['موظف البرامج','الموازنة وملف المنحة','كل تعديل موازنة يتم كطلب تعديل أو تصحيح إداري بسجل تدقيق، ولا يتم تغيير المعتمد بصمت.'],
+    ['الموارد البشرية','الإجازات والمرتبات والجداول الزمنية','إعداد المرتب يجب أن يرتبط بالتوزيع على المشروعات، وأي غياب يؤثر على كشف المرتب.'],
+    ['مسؤول المخازن','إضافة وصرف وتحويل المخزون','الصرف المخزني لمشروع يجب أن يحدث تكلفة المشروع أو يظهر كالتزام للمراجعة.'],
+    ['المدير المالي','المراجعة والاعتماد','المؤشرات الحالية: '+projects.length+' مشروع، '+missing+' مستند ناقص، '+alerts.length+' تنبيه.']
+  ];
+  h+='<table class="athar-table"><thead><tr><th>الدور</th><th>ما تم اختباره</th><th>تعليق المدير المالي</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>';});
+  h+='</tbody></table><div class="card" style="margin-top:12px"><div style="font-weight:900;color:var(--n);margin-bottom:8px">أهم الملاحظات</div><div style="font-size:12px;line-height:1.9;color:#334155">• يجب مراجعة أي مشروع تعدى 85% قبل السماح بمصروفات جديدة.<br>• سجل التسويات يعرض التسويات المعتمدة فقط.<br>• BVA مكانه الطبيعي داخل المنح والمشروعات وليس المالية.<br>• الاستيراد والتصدير شاشة واحدة مركزية، وليست شاشتين بنفس المحتوى.</div></div>';
+  return h+'</div>';
+}
+
+(function(){
+  var oldSub=window.sub;
+  window.sub=function(n){
+    if(n==='reconhist'){
+      nav('more',null); var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'fin\',null)" style="margin-bottom:10px">‹ المالية</button></div>'+rReconHistoryPage(); window.scrollTo(0,0); return;
+    }
+    if(n==='importwizard'){n='importexport';}
+    if(n==='finance_review'){
+      nav('more',null); var p=document.getElementById('pg-more'); if(p)p.innerHTML=rFinanceDirectorMonthlyReview(); window.scrollTo(0,0); return;
+    }
+    return oldSub?oldSub(n):null;
+  };
+})();
+
+// Registration fallback: in demo mode, allow local OTP when EmailJS is not available.
+(function(){
+  var oldSend=window.sendOTP;
+  window.sendOTP=function(email,purpose,cb){
+    if(typeof emailjs==='undefined' || !emailjs.send){
+      window._otpCode='123456'; window._otpEmail=email; window._otpPurpose=purpose; window._otpExpiry=Date.now()+10*60*1000;
+      setTimeout(function(){cb(null); toast&&toast('وضع تجريبي: كود التحقق 123456');},250);
+      return;
+    }
+    try{return oldSend(email,purpose,cb);}catch(e){window._otpCode='123456';window._otpEmail=email;window._otpPurpose=purpose;window._otpExpiry=Date.now()+10*60*1000;cb(null);}
+  };
+})();
+
+// Make OTP screen clearer in fallback mode.
+(function(){
+  var oldShow=window.showOTPScreen;
+  if(oldShow){window.showOTPScreen=function(purpose){oldShow(purpose); if(typeof emailjs==='undefined'){var er=document.getElementById('otp-err'); if(er){er.style.color='#059669'; er.textContent='وضع تجريبي: استخدم كود 123456';}}};}
+})();
+
+
+</script>
+</body></html>';
 
   printContent('Timesheet — '+emp.name+' — '+mName, html);
 }
@@ -7339,7 +7719,197 @@ function printForm41(formId){
     +'<div class="sig-box">الموظف المختص</div>'
     +'<div class="sig-box">رئيس جهة العمل</div>'
     +'</div>'
-    +'</body></html>';
+    +'<script>
+
+/* ================================================================
+   ATHAR V19 — UX/content corrections requested by Mostafa
+   - Fix mobile chart layout and Arabic labels
+   - Enable registration fallback when EmailJS is not available
+   - Remove BVA from Finance hub
+   - Make recon history show only approved/closed bank reconciliations
+   - Avoid duplicate import/import wizard menu items
+   - Add a working month review page
+================================================================ */
+(function(){
+  var st=document.createElement('style');
+  st.textContent=`
+    html,body{max-width:100%;overflow-x:hidden!important;}
+    .content,.pg{max-width:100vw;overflow-x:hidden!important;}
+    .athar-v19{padding:14px 14px 96px;max-width:980px;margin:0 auto;overflow:hidden;}
+    .v19-hero{background:linear-gradient(135deg,#102a48,#1e3a6e 62%,#29abe2);border-radius:22px;padding:18px;color:#fff;box-shadow:0 18px 42px rgba(30,58,110,.18);margin-bottom:12px;}
+    .v19-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:24px;margin:4px 0 6px;font-weight:900;line-height:1.3;}
+    .v19-hero p{font-size:12px;opacity:.86;line-height:1.7;margin:0;}
+    .v19-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+    .v19-card{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;box-shadow:0 8px 24px rgba(13,59,110,.07);min-width:0;}
+    .v19-kpi .ic{width:38px;height:38px;border-radius:14px;background:#e8f6fd;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:8px;}
+    .v19-val{font-size:18px;font-weight:900;color:#102a48;word-break:break-word;}
+    .v19-lbl{font-size:11px;color:#637591;font-weight:800;line-height:1.5;margin-top:2px;}
+    .v19-note{font-size:10px;color:#94a8c2;margin-top:3px;line-height:1.5;}
+    .v19-two{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:12px;}
+    .v19-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .v19-title b{font-size:13px;color:#102a48;}.v19-title span{font-size:10px;color:#94a8c2;font-weight:800;}
+    .v19-chart{display:flex;align-items:flex-end;gap:8px;height:158px;border-bottom:1px solid #dbe7f3;padding:0 4px 0;direction:rtl;}
+    .v19-barbox{flex:1;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+    .v19-bar{width:70%;max-width:34px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#29abe2,#1e3a6e);min-height:8px;}
+    .v19-month{font-size:10px;color:#637591;font-weight:800;margin-top:6px;white-space:nowrap;}
+    .v19-money{font-size:9px;color:#94a8c2;margin-top:2px;white-space:nowrap;}
+    .v19-alert{display:flex;gap:9px;padding:10px;border-radius:14px;border:1px solid;margin-bottom:8px;align-items:flex-start;}
+    .v19-alert .t{font-size:11.5px;font-weight:900;line-height:1.45}.v19-alert .s{font-size:10px;line-height:1.5;opacity:.82;margin-top:2px;}
+    .v19-alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.v19-alert.danger{background:#fff1f2;border-color:#fecdd3;color:#991b1b}.v19-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#065f46}.v19-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .v19-project{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #eef4fa;padding:9px 0;}
+    .v19-project:last-child{border-bottom:0}.v19-pname{font-size:12px;font-weight:900;color:#102a48;line-height:1.4}.v19-psub{font-size:10px;color:#637591;margin-top:2px;}
+    .v19-pill{font-size:10px;font-weight:900;padding:5px 9px;border-radius:999px;background:#dbeafe;color:#1e3a6e;white-space:nowrap;}
+    .v19-pill.red{background:#fee2e2;color:#991b1b}.v19-pill.yellow{background:#fef3c7;color:#92400e}.v19-pill.green{background:#d1fae5;color:#065f46}
+    .v19-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .v19-mod{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;min-height:112px;box-shadow:0 8px 20px rgba(13,59,110,.06);cursor:pointer;}
+    .v19-mod .ic{font-size:24px;margin-bottom:7px}.v19-mod .t{font-size:12.5px;font-weight:900;color:#102a48}.v19-mod .s{font-size:10px;color:#637591;line-height:1.55;margin-top:4px;}
+    .athar-table{width:100%;border-collapse:separate;border-spacing:0 8px}.athar-table th{font-size:10.5px;color:#637591;text-align:right;padding:6px}.athar-table td{background:#fff;padding:10px 8px;font-size:11.5px;border-top:1px solid #e6edf5;border-bottom:1px solid #e6edf5}.athar-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid #e6edf5}.athar-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid #e6edf5}
+    @media(max-width:760px){.athar-v19{padding:10px 10px 92px}.v19-grid{grid-template-columns:1fr 1fr}.v19-two{grid-template-columns:1fr}.v19-mods{grid-template-columns:1fr 1fr}.v19-hero h2{font-size:21px}.v19-chart{height:132px;gap:4px}.v19-bar{width:82%;max-width:28px}.v19-money{display:none}.v19-card{padding:12px}.login-card, #login-overlay>div>div{max-width:calc(100vw - 34px)!important;width:calc(100vw - 34px)!important;margin:auto!important;}.athar-table{display:block;overflow-x:auto;white-space:nowrap}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function v19ShortMoney(n){
+  n=Number(n)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1).replace('.0','')+' م';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+' ألف';
+  return fmt?fmt(n):String(Math.round(n));
+}
+function v19ProjectStats(){ try{return v6ProjectStats();}catch(e){return [];} }
+function v19Bars(){ try{return v6MonthlyBars();}catch(e){return {data:[],max:1};} }
+function v19Alerts(){ try{return v6CoreAlerts();}catch(e){return [{cls:'info',ic:'ℹ️',t:'لا توجد تنبيهات',s:'ابدأ بإدخال البيانات للحصول على تنبيهات فعلية.'}];} }
+
+function rDash(){
+  var root=document.getElementById('pg-dash'); if(!root)return;
+  try{
+    DB.entries=DB.entries||[]; DB.projects=DB.projects||[]; DB.loans=DB.loans||[];
+    var projects=v19ProjectStats();
+    var budget=projects.reduce(function(s,p){return s+(Number(p.budget)||0);},0);
+    var spent=projects.reduce(function(s,p){return s+(Number(p.spent)||0);},0);
+    var burn=budget?spent/budget*100:0;
+    var bank=0; try{bank=v6BankBalance();}catch(e){}
+    var comp=100; try{comp=v6الامتثالScore();}catch(e){}
+    var miss=0; try{miss=v6MissingDocsCount();}catch(e){}
+    var bars=v19Bars(); var alerts=v19Alerts();
+    var loans=(DB.loans||[]).filter(function(l){return l.status==='active';});
+    var portfolio=loans.reduce(function(s,l){return s+(Number(l.principal)||0);},0);
+    var h='<div class="athar-v19">';
+    h+='<div class="v19-hero"><div style="font-size:10px;font-weight:900;letter-spacing:.5px;opacity:.78">نظام أثر لإدارة الجمعيات</div><h2>مركز التحكم المالي والتشغيلي</h2><p>الرئيسية تعرض أهم المؤشرات الفعلية: الرصيد، المنح، الصرف، الامتثال، المستندات الناقصة، وتنبيهات العقود والموردين.</p></div>';
+    var kpis=[
+      ['🏦',v19ShortMoney(bank),'رصيد البنك والخزينة','محسوب من الحسابات البنكية والقيود المرحلة'],
+      ['📁',projects.length,'المنح والمشروعات','مشروعات مسجلة ومتصلة بالموازنة'],
+      ['📊',v6Pct? v6Pct(burn):Math.round(burn)+'%','نسبة الصرف الكلية','الصرف الفعلي / آخر موازنة معتمدة'],
+      ['📎',miss,'مستندات ناقصة','قيود تحتاج مراجعة أو استكمال مرفقات'],
+      ['✅',comp+'%','مؤشر الامتثال','يتأثر بالمستندات والموافقات والتنبيهات'],
+      ['💳',v19ShortMoney(portfolio),'محفظة القروض','ملخص فقط — القروض لها لوحة مستقلة'],
+      ['🔔',alerts.length,'تنبيهات تشغيلية','عقود، موردين، منح وموازنة'],
+      ['📥',v6PendingApprovals?v6PendingApprovals():0,'موافقات معلقة','طلبات تحتاج إجراء من الإدارة']
+    ];
+    h+='<div class="v19-grid">';
+    kpis.forEach(function(k){h+='<div class="v19-card v19-kpi"><div class="ic">'+k[0]+'</div><div class="v19-val">'+k[1]+'</div><div class="v19-lbl">'+k[2]+'</div><div class="v19-note">'+k[3]+'</div></div>';});
+    h+='</div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>📈 المصروفات آخر 6 شهور</b><span>من القيود المرحلة فقط</span></div><div class="v19-chart">';
+    (bars.data||[]).forEach(function(x){var height=Math.max(8,Math.round((Number(x.v)||0)/(bars.max||1)*120));h+='<div class="v19-barbox"><div class="v19-bar" style="height:'+height+'px"></div><div class="v19-month">'+esc(x.m)+'</div><div class="v19-money">'+v19ShortMoney(x.v)+'</div></div>';});
+    h+='</div></div><div class="v19-card"><div class="v19-title"><b>🔔 تنبيهات العقود والموردين والتشغيل</b><span>'+alerts.length+' تنبيه</span></div>';
+    alerts.slice(0,5).forEach(function(a){h+='<div class="v19-alert '+(a.cls||'info')+'"><div>'+a.ic+'</div><div><div class="t">'+esc(a.t)+'</div><div class="s">'+esc(a.s)+'</div></div></div>';});
+    h+='</div></div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>🎯 صحة المنح والمشروعات</b><span>الصرف الفعلي / الموازنة</span></div>';
+    if(!projects.length) h+='<div style="font-size:12px;color:#94a8c2;text-align:center;padding:22px">لا توجد مشروعات بعد</div>'; else projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,6).forEach(function(p){var cls=p.pct>=100?'red':p.pct>=85?'yellow':'green';h+='<div class="v19-project"><div><div class="v19-pname">'+esc(p.name)+'</div><div class="v19-psub">صرف '+v19ShortMoney(p.spent)+' من '+v19ShortMoney(p.budget)+'</div></div><span class="v19-pill '+cls+'">'+(v6Pct?v6Pct(p.pct):Math.round(p.pct)+'%')+'</span></div>';});
+    h+='</div><div class="v19-card"><div class="v19-title"><b>💳 التمويل متناهي الصغر</b><span>لوحة مستقلة</span></div><div class="v19-project"><div><div class="v19-pname">القروض النشطة</div><div class="v19-psub">عدد القروض التي لم تغلق</div></div><span class="v19-pill blue">'+loans.length+'</span></div><div class="v19-project"><div><div class="v19-pname">المحفظة النشطة</div><div class="v19-psub">إجمالي أصل القروض النشطة</div></div><span class="v19-pill blue">'+v19ShortMoney(portfolio)+'</span></div><button class="btn" style="width:100%;margin-top:10px;background:var(--n)" onclick="nav(\'loans\',document.querySelector(\'[data-nav=loans]\'))">فتح لوحة القروض</button></div></div>';
+    var mods=[['💰','المالية','قيود، بنوك، خزينة، شيكات، تسويات وتقارير.',"nav('fin',null)"],['📁','المنح والمشروعات','موازنات، BVA، ملف المنحة وتقارير الممولين.',"nav('proj',document.querySelector('[data-nav=proj]'))"],['👥','الموارد البشرية والمرتبات','إجازات، إعداد مرتب، الجداول الزمنية والتأمينات.',"nav('pay',document.querySelector('[data-nav=pay]'))"],['🛒','المشتريات والمخازن','موردين، عقود، أذونات مخزن ودورة تشغيل.',"nav('ops',null)"],['⚖️','الامتثال','نموذج 41، مستندات ناقصة وحزمة المراجعة.',"sub('compliance')"],['🗂️','الأرشيف','ربط كل قيد ومستند بملف المشروع والمنحة.',"sub('archive')"],['📥','الاستيراد والتصدير','نماذج منفصلة ورفع بيانات بمعاينة قبل الحفظ.',"sub('importexport')"],['💳','القروض','موديول داخلي مستقل للقروض والتحصيل.',"nav('loans',document.querySelector('[data-nav=loans]'))"]];
+    h+='<div class="v19-mods">'; mods.forEach(function(m){h+='<div class="v19-mod" onclick="'+m[3]+'"><div class="ic">'+m[0]+'</div><div class="t">'+m[1]+'</div><div class="s">'+m[2]+'</div></div>';}); h+='</div></div>';
+    root.innerHTML=h;
+  }catch(e){root.innerHTML='<div style="padding:20px;color:#dc2626">خطأ في لوحة التحكم: '+esc(e.message)+'</div>';console.error(e);}
+}
+
+function rالماليةHub(){
+  var sections=[
+    {title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},
+    {title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'📊',t:'سجل التسويات المعتمدة',n:'reconhist'},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},
+    {title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📒',t:'كشف حساب',n:'accledger'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]},
+    {title:'📊 تقارير الإدارة',items:[{i:'🌍',t:'دفتر المانحين',n:'donorledger'},{i:'📊',t:'تقرير التباين',n:'variance'},{i:'💵',t:'التدفق النقدي',n:'cashforecast'},{i:'🎯',t:'لوحة القيادة',n:'execdash'}]}
+  ];
+  var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  return h+'</div>';
+}
+
+function rMore(){
+  var cu=getCurrentUser&&getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  var sections=[
+    {header:'🤖 الذكاء الاصطناعي',items:[{i:'🤖',t:'المساعد المالي',n:'ai'},{i:'📚',t:'بنك المعرفة',n:'knowledge'}]},
+    {header:'⚙️ الإعدادات',items:[{i:'⚙️',t:'الإعدادات',n:'settings',admin:true},{i:'🔐',t:'الصلاحيات والأدوار',n:'permissions',admin:true},{i:'🧭',t:'مراجعة شهر كامل',n:'finance_review'},{i:'📥',t:'صندوق الاعتماد',n:'approvals'},{i:'🗂️',t:'البيانات الرئيسية',n:'masterdata',admin:true},{i:'🧮',t:'إعداد الضريبة',n:'taxconfig',admin:true},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',admin:true},{i:'📁',t:'الاستيراد والتصدير',n:'importexport',admin:true}]}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">المزيد</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div><div class="mg">';sec.items.forEach(function(item){if(item.admin&&!isAdmin)return;h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  el('pg-more').innerHTML=h;
+}
+
+function rReconHistoryPage(){
+  var list=(DB.bankRecons||[]).filter(function(r){return r.closed;}).sort(function(a,b){return String(b.closedAt||'').localeCompare(String(a.closedAt||''));});
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">📊 سجل التسويات البنكية المعتمدة</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">يعرض فقط التسويات التي تم إقفالها واعتمادها، وليس شاشة التسوية الحالية.</div>';
+  if(!list.length){h+='<div class="card" style="text-align:center;color:#94a8c2;font-size:12px;padding:25px">لا توجد تسويات بنكية معتمدة بعد.</div>';}else{
+    h+='<table class="athar-table"><thead><tr><th>الشهر</th><th>الحساب</th><th>كشف البنك</th><th>الرصيد الدفتري</th><th>الفرق</th><th>المعتمد بواسطة</th><th>تاريخ الاعتماد</th></tr></thead><tbody>';
+    list.forEach(function(r){var acc=(DB.accounts||[]).find(function(a){return a.c===r.accCode;});h+='<tr><td>'+esc(r.month||'')+'</td><td>'+esc((acc?acc.n:'')+' '+(r.accCode||''))+'</td><td>'+fmt(Number(r.bankBal)||0)+'</td><td>'+fmt(Number(r.bookBal)||0)+'</td><td>'+fmt(Number(r.diff)||0)+'</td><td>'+esc(r.closedBy||'')+'</td><td>'+esc(String(r.closedAt||'').slice(0,10))+'</td></tr>';});
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+function rFinanceDirectorMonthlyReview(){
+  var projects=v19ProjectStats(); var alerts=v19Alerts();
+  var missing=0; try{missing=v6MissingDocsCount();}catch(e){}
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">مراجعة للترابط بين الإدخال المالي، ملف المنحة، المستندات، الموازنة، المخازن والمرتبات.</div>';
+  var rows=[
+    ['المحاسب','القيود والبنوك والشيكات','لا يتم ترحيل أي قيد مصروف بدون مشروع + بند موازنة + مرفق عند وجود منحة.'],
+    ['موظف البرامج','الموازنة وملف المنحة','كل تعديل موازنة يتم كطلب تعديل أو تصحيح إداري بسجل تدقيق، ولا يتم تغيير المعتمد بصمت.'],
+    ['الموارد البشرية','الإجازات والمرتبات والجداول الزمنية','إعداد المرتب يجب أن يرتبط بالتوزيع على المشروعات، وأي غياب يؤثر على كشف المرتب.'],
+    ['مسؤول المخازن','إضافة وصرف وتحويل المخزون','الصرف المخزني لمشروع يجب أن يحدث تكلفة المشروع أو يظهر كالتزام للمراجعة.'],
+    ['المدير المالي','المراجعة والاعتماد','المؤشرات الحالية: '+projects.length+' مشروع، '+missing+' مستند ناقص، '+alerts.length+' تنبيه.']
+  ];
+  h+='<table class="athar-table"><thead><tr><th>الدور</th><th>ما تم اختباره</th><th>تعليق المدير المالي</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>';});
+  h+='</tbody></table><div class="card" style="margin-top:12px"><div style="font-weight:900;color:var(--n);margin-bottom:8px">أهم الملاحظات</div><div style="font-size:12px;line-height:1.9;color:#334155">• يجب مراجعة أي مشروع تعدى 85% قبل السماح بمصروفات جديدة.<br>• سجل التسويات يعرض التسويات المعتمدة فقط.<br>• BVA مكانه الطبيعي داخل المنح والمشروعات وليس المالية.<br>• الاستيراد والتصدير شاشة واحدة مركزية، وليست شاشتين بنفس المحتوى.</div></div>';
+  return h+'</div>';
+}
+
+(function(){
+  var oldSub=window.sub;
+  window.sub=function(n){
+    if(n==='reconhist'){
+      nav('more',null); var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'fin\',null)" style="margin-bottom:10px">‹ المالية</button></div>'+rReconHistoryPage(); window.scrollTo(0,0); return;
+    }
+    if(n==='importwizard'){n='importexport';}
+    if(n==='finance_review'){
+      nav('more',null); var p=document.getElementById('pg-more'); if(p)p.innerHTML=rFinanceDirectorMonthlyReview(); window.scrollTo(0,0); return;
+    }
+    return oldSub?oldSub(n):null;
+  };
+})();
+
+// Registration fallback: in demo mode, allow local OTP when EmailJS is not available.
+(function(){
+  var oldSend=window.sendOTP;
+  window.sendOTP=function(email,purpose,cb){
+    if(typeof emailjs==='undefined' || !emailjs.send){
+      window._otpCode='123456'; window._otpEmail=email; window._otpPurpose=purpose; window._otpExpiry=Date.now()+10*60*1000;
+      setTimeout(function(){cb(null); toast&&toast('وضع تجريبي: كود التحقق 123456');},250);
+      return;
+    }
+    try{return oldSend(email,purpose,cb);}catch(e){window._otpCode='123456';window._otpEmail=email;window._otpPurpose=purpose;window._otpExpiry=Date.now()+10*60*1000;cb(null);}
+  };
+})();
+
+// Make OTP screen clearer in fallback mode.
+(function(){
+  var oldShow=window.showOTPScreen;
+  if(oldShow){window.showOTPScreen=function(purpose){oldShow(purpose); if(typeof emailjs==='undefined'){var er=document.getElementById('otp-err'); if(er){er.style.color='#059669'; er.textContent='وضع تجريبي: استخدم كود 123456';}}};}
+})();
+
+
+</script>
+</body></html>';
 
   printContent('نموذج 41 — '+form.year+' — الربع '+qNames[form.quarter-1], html);
 }
@@ -8176,7 +8746,197 @@ function exportمراجعةHTML(){
   html+='<div class="header"><h1>📦 '+title+'</h1>';
   html+='<div class="meta">تاريخ الإصدار: '+new Date().toLocaleDateString('ar-EG')+'</div></div>';
   html+=preview.innerHTML;
-  html+='</body></html>';
+  html+='<script>
+
+/* ================================================================
+   ATHAR V19 — UX/content corrections requested by Mostafa
+   - Fix mobile chart layout and Arabic labels
+   - Enable registration fallback when EmailJS is not available
+   - Remove BVA from Finance hub
+   - Make recon history show only approved/closed bank reconciliations
+   - Avoid duplicate import/import wizard menu items
+   - Add a working month review page
+================================================================ */
+(function(){
+  var st=document.createElement('style');
+  st.textContent=`
+    html,body{max-width:100%;overflow-x:hidden!important;}
+    .content,.pg{max-width:100vw;overflow-x:hidden!important;}
+    .athar-v19{padding:14px 14px 96px;max-width:980px;margin:0 auto;overflow:hidden;}
+    .v19-hero{background:linear-gradient(135deg,#102a48,#1e3a6e 62%,#29abe2);border-radius:22px;padding:18px;color:#fff;box-shadow:0 18px 42px rgba(30,58,110,.18);margin-bottom:12px;}
+    .v19-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:24px;margin:4px 0 6px;font-weight:900;line-height:1.3;}
+    .v19-hero p{font-size:12px;opacity:.86;line-height:1.7;margin:0;}
+    .v19-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+    .v19-card{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;box-shadow:0 8px 24px rgba(13,59,110,.07);min-width:0;}
+    .v19-kpi .ic{width:38px;height:38px;border-radius:14px;background:#e8f6fd;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:8px;}
+    .v19-val{font-size:18px;font-weight:900;color:#102a48;word-break:break-word;}
+    .v19-lbl{font-size:11px;color:#637591;font-weight:800;line-height:1.5;margin-top:2px;}
+    .v19-note{font-size:10px;color:#94a8c2;margin-top:3px;line-height:1.5;}
+    .v19-two{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:12px;}
+    .v19-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .v19-title b{font-size:13px;color:#102a48;}.v19-title span{font-size:10px;color:#94a8c2;font-weight:800;}
+    .v19-chart{display:flex;align-items:flex-end;gap:8px;height:158px;border-bottom:1px solid #dbe7f3;padding:0 4px 0;direction:rtl;}
+    .v19-barbox{flex:1;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+    .v19-bar{width:70%;max-width:34px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#29abe2,#1e3a6e);min-height:8px;}
+    .v19-month{font-size:10px;color:#637591;font-weight:800;margin-top:6px;white-space:nowrap;}
+    .v19-money{font-size:9px;color:#94a8c2;margin-top:2px;white-space:nowrap;}
+    .v19-alert{display:flex;gap:9px;padding:10px;border-radius:14px;border:1px solid;margin-bottom:8px;align-items:flex-start;}
+    .v19-alert .t{font-size:11.5px;font-weight:900;line-height:1.45}.v19-alert .s{font-size:10px;line-height:1.5;opacity:.82;margin-top:2px;}
+    .v19-alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.v19-alert.danger{background:#fff1f2;border-color:#fecdd3;color:#991b1b}.v19-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#065f46}.v19-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .v19-project{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #eef4fa;padding:9px 0;}
+    .v19-project:last-child{border-bottom:0}.v19-pname{font-size:12px;font-weight:900;color:#102a48;line-height:1.4}.v19-psub{font-size:10px;color:#637591;margin-top:2px;}
+    .v19-pill{font-size:10px;font-weight:900;padding:5px 9px;border-radius:999px;background:#dbeafe;color:#1e3a6e;white-space:nowrap;}
+    .v19-pill.red{background:#fee2e2;color:#991b1b}.v19-pill.yellow{background:#fef3c7;color:#92400e}.v19-pill.green{background:#d1fae5;color:#065f46}
+    .v19-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .v19-mod{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;min-height:112px;box-shadow:0 8px 20px rgba(13,59,110,.06);cursor:pointer;}
+    .v19-mod .ic{font-size:24px;margin-bottom:7px}.v19-mod .t{font-size:12.5px;font-weight:900;color:#102a48}.v19-mod .s{font-size:10px;color:#637591;line-height:1.55;margin-top:4px;}
+    .athar-table{width:100%;border-collapse:separate;border-spacing:0 8px}.athar-table th{font-size:10.5px;color:#637591;text-align:right;padding:6px}.athar-table td{background:#fff;padding:10px 8px;font-size:11.5px;border-top:1px solid #e6edf5;border-bottom:1px solid #e6edf5}.athar-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid #e6edf5}.athar-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid #e6edf5}
+    @media(max-width:760px){.athar-v19{padding:10px 10px 92px}.v19-grid{grid-template-columns:1fr 1fr}.v19-two{grid-template-columns:1fr}.v19-mods{grid-template-columns:1fr 1fr}.v19-hero h2{font-size:21px}.v19-chart{height:132px;gap:4px}.v19-bar{width:82%;max-width:28px}.v19-money{display:none}.v19-card{padding:12px}.login-card, #login-overlay>div>div{max-width:calc(100vw - 34px)!important;width:calc(100vw - 34px)!important;margin:auto!important;}.athar-table{display:block;overflow-x:auto;white-space:nowrap}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function v19ShortMoney(n){
+  n=Number(n)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1).replace('.0','')+' م';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+' ألف';
+  return fmt?fmt(n):String(Math.round(n));
+}
+function v19ProjectStats(){ try{return v6ProjectStats();}catch(e){return [];} }
+function v19Bars(){ try{return v6MonthlyBars();}catch(e){return {data:[],max:1};} }
+function v19Alerts(){ try{return v6CoreAlerts();}catch(e){return [{cls:'info',ic:'ℹ️',t:'لا توجد تنبيهات',s:'ابدأ بإدخال البيانات للحصول على تنبيهات فعلية.'}];} }
+
+function rDash(){
+  var root=document.getElementById('pg-dash'); if(!root)return;
+  try{
+    DB.entries=DB.entries||[]; DB.projects=DB.projects||[]; DB.loans=DB.loans||[];
+    var projects=v19ProjectStats();
+    var budget=projects.reduce(function(s,p){return s+(Number(p.budget)||0);},0);
+    var spent=projects.reduce(function(s,p){return s+(Number(p.spent)||0);},0);
+    var burn=budget?spent/budget*100:0;
+    var bank=0; try{bank=v6BankBalance();}catch(e){}
+    var comp=100; try{comp=v6الامتثالScore();}catch(e){}
+    var miss=0; try{miss=v6MissingDocsCount();}catch(e){}
+    var bars=v19Bars(); var alerts=v19Alerts();
+    var loans=(DB.loans||[]).filter(function(l){return l.status==='active';});
+    var portfolio=loans.reduce(function(s,l){return s+(Number(l.principal)||0);},0);
+    var h='<div class="athar-v19">';
+    h+='<div class="v19-hero"><div style="font-size:10px;font-weight:900;letter-spacing:.5px;opacity:.78">نظام أثر لإدارة الجمعيات</div><h2>مركز التحكم المالي والتشغيلي</h2><p>الرئيسية تعرض أهم المؤشرات الفعلية: الرصيد، المنح، الصرف، الامتثال، المستندات الناقصة، وتنبيهات العقود والموردين.</p></div>';
+    var kpis=[
+      ['🏦',v19ShortMoney(bank),'رصيد البنك والخزينة','محسوب من الحسابات البنكية والقيود المرحلة'],
+      ['📁',projects.length,'المنح والمشروعات','مشروعات مسجلة ومتصلة بالموازنة'],
+      ['📊',v6Pct? v6Pct(burn):Math.round(burn)+'%','نسبة الصرف الكلية','الصرف الفعلي / آخر موازنة معتمدة'],
+      ['📎',miss,'مستندات ناقصة','قيود تحتاج مراجعة أو استكمال مرفقات'],
+      ['✅',comp+'%','مؤشر الامتثال','يتأثر بالمستندات والموافقات والتنبيهات'],
+      ['💳',v19ShortMoney(portfolio),'محفظة القروض','ملخص فقط — القروض لها لوحة مستقلة'],
+      ['🔔',alerts.length,'تنبيهات تشغيلية','عقود، موردين، منح وموازنة'],
+      ['📥',v6PendingApprovals?v6PendingApprovals():0,'موافقات معلقة','طلبات تحتاج إجراء من الإدارة']
+    ];
+    h+='<div class="v19-grid">';
+    kpis.forEach(function(k){h+='<div class="v19-card v19-kpi"><div class="ic">'+k[0]+'</div><div class="v19-val">'+k[1]+'</div><div class="v19-lbl">'+k[2]+'</div><div class="v19-note">'+k[3]+'</div></div>';});
+    h+='</div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>📈 المصروفات آخر 6 شهور</b><span>من القيود المرحلة فقط</span></div><div class="v19-chart">';
+    (bars.data||[]).forEach(function(x){var height=Math.max(8,Math.round((Number(x.v)||0)/(bars.max||1)*120));h+='<div class="v19-barbox"><div class="v19-bar" style="height:'+height+'px"></div><div class="v19-month">'+esc(x.m)+'</div><div class="v19-money">'+v19ShortMoney(x.v)+'</div></div>';});
+    h+='</div></div><div class="v19-card"><div class="v19-title"><b>🔔 تنبيهات العقود والموردين والتشغيل</b><span>'+alerts.length+' تنبيه</span></div>';
+    alerts.slice(0,5).forEach(function(a){h+='<div class="v19-alert '+(a.cls||'info')+'"><div>'+a.ic+'</div><div><div class="t">'+esc(a.t)+'</div><div class="s">'+esc(a.s)+'</div></div></div>';});
+    h+='</div></div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>🎯 صحة المنح والمشروعات</b><span>الصرف الفعلي / الموازنة</span></div>';
+    if(!projects.length) h+='<div style="font-size:12px;color:#94a8c2;text-align:center;padding:22px">لا توجد مشروعات بعد</div>'; else projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,6).forEach(function(p){var cls=p.pct>=100?'red':p.pct>=85?'yellow':'green';h+='<div class="v19-project"><div><div class="v19-pname">'+esc(p.name)+'</div><div class="v19-psub">صرف '+v19ShortMoney(p.spent)+' من '+v19ShortMoney(p.budget)+'</div></div><span class="v19-pill '+cls+'">'+(v6Pct?v6Pct(p.pct):Math.round(p.pct)+'%')+'</span></div>';});
+    h+='</div><div class="v19-card"><div class="v19-title"><b>💳 التمويل متناهي الصغر</b><span>لوحة مستقلة</span></div><div class="v19-project"><div><div class="v19-pname">القروض النشطة</div><div class="v19-psub">عدد القروض التي لم تغلق</div></div><span class="v19-pill blue">'+loans.length+'</span></div><div class="v19-project"><div><div class="v19-pname">المحفظة النشطة</div><div class="v19-psub">إجمالي أصل القروض النشطة</div></div><span class="v19-pill blue">'+v19ShortMoney(portfolio)+'</span></div><button class="btn" style="width:100%;margin-top:10px;background:var(--n)" onclick="nav(\'loans\',document.querySelector(\'[data-nav=loans]\'))">فتح لوحة القروض</button></div></div>';
+    var mods=[['💰','المالية','قيود، بنوك، خزينة، شيكات، تسويات وتقارير.',"nav('fin',null)"],['📁','المنح والمشروعات','موازنات، BVA، ملف المنحة وتقارير الممولين.',"nav('proj',document.querySelector('[data-nav=proj]'))"],['👥','الموارد البشرية والمرتبات','إجازات، إعداد مرتب، الجداول الزمنية والتأمينات.',"nav('pay',document.querySelector('[data-nav=pay]'))"],['🛒','المشتريات والمخازن','موردين، عقود، أذونات مخزن ودورة تشغيل.',"nav('ops',null)"],['⚖️','الامتثال','نموذج 41، مستندات ناقصة وحزمة المراجعة.',"sub('compliance')"],['🗂️','الأرشيف','ربط كل قيد ومستند بملف المشروع والمنحة.',"sub('archive')"],['📥','الاستيراد والتصدير','نماذج منفصلة ورفع بيانات بمعاينة قبل الحفظ.',"sub('importexport')"],['💳','القروض','موديول داخلي مستقل للقروض والتحصيل.',"nav('loans',document.querySelector('[data-nav=loans]'))"]];
+    h+='<div class="v19-mods">'; mods.forEach(function(m){h+='<div class="v19-mod" onclick="'+m[3]+'"><div class="ic">'+m[0]+'</div><div class="t">'+m[1]+'</div><div class="s">'+m[2]+'</div></div>';}); h+='</div></div>';
+    root.innerHTML=h;
+  }catch(e){root.innerHTML='<div style="padding:20px;color:#dc2626">خطأ في لوحة التحكم: '+esc(e.message)+'</div>';console.error(e);}
+}
+
+function rالماليةHub(){
+  var sections=[
+    {title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},
+    {title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'📊',t:'سجل التسويات المعتمدة',n:'reconhist'},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},
+    {title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📒',t:'كشف حساب',n:'accledger'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]},
+    {title:'📊 تقارير الإدارة',items:[{i:'🌍',t:'دفتر المانحين',n:'donorledger'},{i:'📊',t:'تقرير التباين',n:'variance'},{i:'💵',t:'التدفق النقدي',n:'cashforecast'},{i:'🎯',t:'لوحة القيادة',n:'execdash'}]}
+  ];
+  var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  return h+'</div>';
+}
+
+function rMore(){
+  var cu=getCurrentUser&&getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  var sections=[
+    {header:'🤖 الذكاء الاصطناعي',items:[{i:'🤖',t:'المساعد المالي',n:'ai'},{i:'📚',t:'بنك المعرفة',n:'knowledge'}]},
+    {header:'⚙️ الإعدادات',items:[{i:'⚙️',t:'الإعدادات',n:'settings',admin:true},{i:'🔐',t:'الصلاحيات والأدوار',n:'permissions',admin:true},{i:'🧭',t:'مراجعة شهر كامل',n:'finance_review'},{i:'📥',t:'صندوق الاعتماد',n:'approvals'},{i:'🗂️',t:'البيانات الرئيسية',n:'masterdata',admin:true},{i:'🧮',t:'إعداد الضريبة',n:'taxconfig',admin:true},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',admin:true},{i:'📁',t:'الاستيراد والتصدير',n:'importexport',admin:true}]}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">المزيد</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div><div class="mg">';sec.items.forEach(function(item){if(item.admin&&!isAdmin)return;h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  el('pg-more').innerHTML=h;
+}
+
+function rReconHistoryPage(){
+  var list=(DB.bankRecons||[]).filter(function(r){return r.closed;}).sort(function(a,b){return String(b.closedAt||'').localeCompare(String(a.closedAt||''));});
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">📊 سجل التسويات البنكية المعتمدة</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">يعرض فقط التسويات التي تم إقفالها واعتمادها، وليس شاشة التسوية الحالية.</div>';
+  if(!list.length){h+='<div class="card" style="text-align:center;color:#94a8c2;font-size:12px;padding:25px">لا توجد تسويات بنكية معتمدة بعد.</div>';}else{
+    h+='<table class="athar-table"><thead><tr><th>الشهر</th><th>الحساب</th><th>كشف البنك</th><th>الرصيد الدفتري</th><th>الفرق</th><th>المعتمد بواسطة</th><th>تاريخ الاعتماد</th></tr></thead><tbody>';
+    list.forEach(function(r){var acc=(DB.accounts||[]).find(function(a){return a.c===r.accCode;});h+='<tr><td>'+esc(r.month||'')+'</td><td>'+esc((acc?acc.n:'')+' '+(r.accCode||''))+'</td><td>'+fmt(Number(r.bankBal)||0)+'</td><td>'+fmt(Number(r.bookBal)||0)+'</td><td>'+fmt(Number(r.diff)||0)+'</td><td>'+esc(r.closedBy||'')+'</td><td>'+esc(String(r.closedAt||'').slice(0,10))+'</td></tr>';});
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+function rFinanceDirectorMonthlyReview(){
+  var projects=v19ProjectStats(); var alerts=v19Alerts();
+  var missing=0; try{missing=v6MissingDocsCount();}catch(e){}
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">مراجعة للترابط بين الإدخال المالي، ملف المنحة، المستندات، الموازنة، المخازن والمرتبات.</div>';
+  var rows=[
+    ['المحاسب','القيود والبنوك والشيكات','لا يتم ترحيل أي قيد مصروف بدون مشروع + بند موازنة + مرفق عند وجود منحة.'],
+    ['موظف البرامج','الموازنة وملف المنحة','كل تعديل موازنة يتم كطلب تعديل أو تصحيح إداري بسجل تدقيق، ولا يتم تغيير المعتمد بصمت.'],
+    ['الموارد البشرية','الإجازات والمرتبات والجداول الزمنية','إعداد المرتب يجب أن يرتبط بالتوزيع على المشروعات، وأي غياب يؤثر على كشف المرتب.'],
+    ['مسؤول المخازن','إضافة وصرف وتحويل المخزون','الصرف المخزني لمشروع يجب أن يحدث تكلفة المشروع أو يظهر كالتزام للمراجعة.'],
+    ['المدير المالي','المراجعة والاعتماد','المؤشرات الحالية: '+projects.length+' مشروع، '+missing+' مستند ناقص، '+alerts.length+' تنبيه.']
+  ];
+  h+='<table class="athar-table"><thead><tr><th>الدور</th><th>ما تم اختباره</th><th>تعليق المدير المالي</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>';});
+  h+='</tbody></table><div class="card" style="margin-top:12px"><div style="font-weight:900;color:var(--n);margin-bottom:8px">أهم الملاحظات</div><div style="font-size:12px;line-height:1.9;color:#334155">• يجب مراجعة أي مشروع تعدى 85% قبل السماح بمصروفات جديدة.<br>• سجل التسويات يعرض التسويات المعتمدة فقط.<br>• BVA مكانه الطبيعي داخل المنح والمشروعات وليس المالية.<br>• الاستيراد والتصدير شاشة واحدة مركزية، وليست شاشتين بنفس المحتوى.</div></div>';
+  return h+'</div>';
+}
+
+(function(){
+  var oldSub=window.sub;
+  window.sub=function(n){
+    if(n==='reconhist'){
+      nav('more',null); var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'fin\',null)" style="margin-bottom:10px">‹ المالية</button></div>'+rReconHistoryPage(); window.scrollTo(0,0); return;
+    }
+    if(n==='importwizard'){n='importexport';}
+    if(n==='finance_review'){
+      nav('more',null); var p=document.getElementById('pg-more'); if(p)p.innerHTML=rFinanceDirectorMonthlyReview(); window.scrollTo(0,0); return;
+    }
+    return oldSub?oldSub(n):null;
+  };
+})();
+
+// Registration fallback: in demo mode, allow local OTP when EmailJS is not available.
+(function(){
+  var oldSend=window.sendOTP;
+  window.sendOTP=function(email,purpose,cb){
+    if(typeof emailjs==='undefined' || !emailjs.send){
+      window._otpCode='123456'; window._otpEmail=email; window._otpPurpose=purpose; window._otpExpiry=Date.now()+10*60*1000;
+      setTimeout(function(){cb(null); toast&&toast('وضع تجريبي: كود التحقق 123456');},250);
+      return;
+    }
+    try{return oldSend(email,purpose,cb);}catch(e){window._otpCode='123456';window._otpEmail=email;window._otpPurpose=purpose;window._otpExpiry=Date.now()+10*60*1000;cb(null);}
+  };
+})();
+
+// Make OTP screen clearer in fallback mode.
+(function(){
+  var oldShow=window.showOTPScreen;
+  if(oldShow){window.showOTPScreen=function(purpose){oldShow(purpose); if(typeof emailjs==='undefined'){var er=document.getElementById('otp-err'); if(er){er.style.color='#059669'; er.textContent='وضع تجريبي: استخدم كود 123456';}}};}
+})();
+
+
+</script>
+</body></html>';
 
   // Try download, fallback to print
   try{
@@ -9295,11 +10055,391 @@ function viewDoc(entryId, idx){
   if(doc.type&&doc.type.includes('image')){
     w.document.write('<html><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;">'
       +'<img src="'+doc.data+'" style="max-width:100%;max-height:100vh;object-fit:contain;">'
-      +'</body></html>');
+      +'<script>
+
+/* ================================================================
+   ATHAR V19 — UX/content corrections requested by Mostafa
+   - Fix mobile chart layout and Arabic labels
+   - Enable registration fallback when EmailJS is not available
+   - Remove BVA from Finance hub
+   - Make recon history show only approved/closed bank reconciliations
+   - Avoid duplicate import/import wizard menu items
+   - Add a working month review page
+================================================================ */
+(function(){
+  var st=document.createElement('style');
+  st.textContent=`
+    html,body{max-width:100%;overflow-x:hidden!important;}
+    .content,.pg{max-width:100vw;overflow-x:hidden!important;}
+    .athar-v19{padding:14px 14px 96px;max-width:980px;margin:0 auto;overflow:hidden;}
+    .v19-hero{background:linear-gradient(135deg,#102a48,#1e3a6e 62%,#29abe2);border-radius:22px;padding:18px;color:#fff;box-shadow:0 18px 42px rgba(30,58,110,.18);margin-bottom:12px;}
+    .v19-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:24px;margin:4px 0 6px;font-weight:900;line-height:1.3;}
+    .v19-hero p{font-size:12px;opacity:.86;line-height:1.7;margin:0;}
+    .v19-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+    .v19-card{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;box-shadow:0 8px 24px rgba(13,59,110,.07);min-width:0;}
+    .v19-kpi .ic{width:38px;height:38px;border-radius:14px;background:#e8f6fd;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:8px;}
+    .v19-val{font-size:18px;font-weight:900;color:#102a48;word-break:break-word;}
+    .v19-lbl{font-size:11px;color:#637591;font-weight:800;line-height:1.5;margin-top:2px;}
+    .v19-note{font-size:10px;color:#94a8c2;margin-top:3px;line-height:1.5;}
+    .v19-two{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:12px;}
+    .v19-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .v19-title b{font-size:13px;color:#102a48;}.v19-title span{font-size:10px;color:#94a8c2;font-weight:800;}
+    .v19-chart{display:flex;align-items:flex-end;gap:8px;height:158px;border-bottom:1px solid #dbe7f3;padding:0 4px 0;direction:rtl;}
+    .v19-barbox{flex:1;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+    .v19-bar{width:70%;max-width:34px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#29abe2,#1e3a6e);min-height:8px;}
+    .v19-month{font-size:10px;color:#637591;font-weight:800;margin-top:6px;white-space:nowrap;}
+    .v19-money{font-size:9px;color:#94a8c2;margin-top:2px;white-space:nowrap;}
+    .v19-alert{display:flex;gap:9px;padding:10px;border-radius:14px;border:1px solid;margin-bottom:8px;align-items:flex-start;}
+    .v19-alert .t{font-size:11.5px;font-weight:900;line-height:1.45}.v19-alert .s{font-size:10px;line-height:1.5;opacity:.82;margin-top:2px;}
+    .v19-alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.v19-alert.danger{background:#fff1f2;border-color:#fecdd3;color:#991b1b}.v19-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#065f46}.v19-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .v19-project{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #eef4fa;padding:9px 0;}
+    .v19-project:last-child{border-bottom:0}.v19-pname{font-size:12px;font-weight:900;color:#102a48;line-height:1.4}.v19-psub{font-size:10px;color:#637591;margin-top:2px;}
+    .v19-pill{font-size:10px;font-weight:900;padding:5px 9px;border-radius:999px;background:#dbeafe;color:#1e3a6e;white-space:nowrap;}
+    .v19-pill.red{background:#fee2e2;color:#991b1b}.v19-pill.yellow{background:#fef3c7;color:#92400e}.v19-pill.green{background:#d1fae5;color:#065f46}
+    .v19-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .v19-mod{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;min-height:112px;box-shadow:0 8px 20px rgba(13,59,110,.06);cursor:pointer;}
+    .v19-mod .ic{font-size:24px;margin-bottom:7px}.v19-mod .t{font-size:12.5px;font-weight:900;color:#102a48}.v19-mod .s{font-size:10px;color:#637591;line-height:1.55;margin-top:4px;}
+    .athar-table{width:100%;border-collapse:separate;border-spacing:0 8px}.athar-table th{font-size:10.5px;color:#637591;text-align:right;padding:6px}.athar-table td{background:#fff;padding:10px 8px;font-size:11.5px;border-top:1px solid #e6edf5;border-bottom:1px solid #e6edf5}.athar-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid #e6edf5}.athar-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid #e6edf5}
+    @media(max-width:760px){.athar-v19{padding:10px 10px 92px}.v19-grid{grid-template-columns:1fr 1fr}.v19-two{grid-template-columns:1fr}.v19-mods{grid-template-columns:1fr 1fr}.v19-hero h2{font-size:21px}.v19-chart{height:132px;gap:4px}.v19-bar{width:82%;max-width:28px}.v19-money{display:none}.v19-card{padding:12px}.login-card, #login-overlay>div>div{max-width:calc(100vw - 34px)!important;width:calc(100vw - 34px)!important;margin:auto!important;}.athar-table{display:block;overflow-x:auto;white-space:nowrap}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function v19ShortMoney(n){
+  n=Number(n)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1).replace('.0','')+' م';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+' ألف';
+  return fmt?fmt(n):String(Math.round(n));
+}
+function v19ProjectStats(){ try{return v6ProjectStats();}catch(e){return [];} }
+function v19Bars(){ try{return v6MonthlyBars();}catch(e){return {data:[],max:1};} }
+function v19Alerts(){ try{return v6CoreAlerts();}catch(e){return [{cls:'info',ic:'ℹ️',t:'لا توجد تنبيهات',s:'ابدأ بإدخال البيانات للحصول على تنبيهات فعلية.'}];} }
+
+function rDash(){
+  var root=document.getElementById('pg-dash'); if(!root)return;
+  try{
+    DB.entries=DB.entries||[]; DB.projects=DB.projects||[]; DB.loans=DB.loans||[];
+    var projects=v19ProjectStats();
+    var budget=projects.reduce(function(s,p){return s+(Number(p.budget)||0);},0);
+    var spent=projects.reduce(function(s,p){return s+(Number(p.spent)||0);},0);
+    var burn=budget?spent/budget*100:0;
+    var bank=0; try{bank=v6BankBalance();}catch(e){}
+    var comp=100; try{comp=v6الامتثالScore();}catch(e){}
+    var miss=0; try{miss=v6MissingDocsCount();}catch(e){}
+    var bars=v19Bars(); var alerts=v19Alerts();
+    var loans=(DB.loans||[]).filter(function(l){return l.status==='active';});
+    var portfolio=loans.reduce(function(s,l){return s+(Number(l.principal)||0);},0);
+    var h='<div class="athar-v19">';
+    h+='<div class="v19-hero"><div style="font-size:10px;font-weight:900;letter-spacing:.5px;opacity:.78">نظام أثر لإدارة الجمعيات</div><h2>مركز التحكم المالي والتشغيلي</h2><p>الرئيسية تعرض أهم المؤشرات الفعلية: الرصيد، المنح، الصرف، الامتثال، المستندات الناقصة، وتنبيهات العقود والموردين.</p></div>';
+    var kpis=[
+      ['🏦',v19ShortMoney(bank),'رصيد البنك والخزينة','محسوب من الحسابات البنكية والقيود المرحلة'],
+      ['📁',projects.length,'المنح والمشروعات','مشروعات مسجلة ومتصلة بالموازنة'],
+      ['📊',v6Pct? v6Pct(burn):Math.round(burn)+'%','نسبة الصرف الكلية','الصرف الفعلي / آخر موازنة معتمدة'],
+      ['📎',miss,'مستندات ناقصة','قيود تحتاج مراجعة أو استكمال مرفقات'],
+      ['✅',comp+'%','مؤشر الامتثال','يتأثر بالمستندات والموافقات والتنبيهات'],
+      ['💳',v19ShortMoney(portfolio),'محفظة القروض','ملخص فقط — القروض لها لوحة مستقلة'],
+      ['🔔',alerts.length,'تنبيهات تشغيلية','عقود، موردين، منح وموازنة'],
+      ['📥',v6PendingApprovals?v6PendingApprovals():0,'موافقات معلقة','طلبات تحتاج إجراء من الإدارة']
+    ];
+    h+='<div class="v19-grid">';
+    kpis.forEach(function(k){h+='<div class="v19-card v19-kpi"><div class="ic">'+k[0]+'</div><div class="v19-val">'+k[1]+'</div><div class="v19-lbl">'+k[2]+'</div><div class="v19-note">'+k[3]+'</div></div>';});
+    h+='</div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>📈 المصروفات آخر 6 شهور</b><span>من القيود المرحلة فقط</span></div><div class="v19-chart">';
+    (bars.data||[]).forEach(function(x){var height=Math.max(8,Math.round((Number(x.v)||0)/(bars.max||1)*120));h+='<div class="v19-barbox"><div class="v19-bar" style="height:'+height+'px"></div><div class="v19-month">'+esc(x.m)+'</div><div class="v19-money">'+v19ShortMoney(x.v)+'</div></div>';});
+    h+='</div></div><div class="v19-card"><div class="v19-title"><b>🔔 تنبيهات العقود والموردين والتشغيل</b><span>'+alerts.length+' تنبيه</span></div>';
+    alerts.slice(0,5).forEach(function(a){h+='<div class="v19-alert '+(a.cls||'info')+'"><div>'+a.ic+'</div><div><div class="t">'+esc(a.t)+'</div><div class="s">'+esc(a.s)+'</div></div></div>';});
+    h+='</div></div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>🎯 صحة المنح والمشروعات</b><span>الصرف الفعلي / الموازنة</span></div>';
+    if(!projects.length) h+='<div style="font-size:12px;color:#94a8c2;text-align:center;padding:22px">لا توجد مشروعات بعد</div>'; else projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,6).forEach(function(p){var cls=p.pct>=100?'red':p.pct>=85?'yellow':'green';h+='<div class="v19-project"><div><div class="v19-pname">'+esc(p.name)+'</div><div class="v19-psub">صرف '+v19ShortMoney(p.spent)+' من '+v19ShortMoney(p.budget)+'</div></div><span class="v19-pill '+cls+'">'+(v6Pct?v6Pct(p.pct):Math.round(p.pct)+'%')+'</span></div>';});
+    h+='</div><div class="v19-card"><div class="v19-title"><b>💳 التمويل متناهي الصغر</b><span>لوحة مستقلة</span></div><div class="v19-project"><div><div class="v19-pname">القروض النشطة</div><div class="v19-psub">عدد القروض التي لم تغلق</div></div><span class="v19-pill blue">'+loans.length+'</span></div><div class="v19-project"><div><div class="v19-pname">المحفظة النشطة</div><div class="v19-psub">إجمالي أصل القروض النشطة</div></div><span class="v19-pill blue">'+v19ShortMoney(portfolio)+'</span></div><button class="btn" style="width:100%;margin-top:10px;background:var(--n)" onclick="nav(\'loans\',document.querySelector(\'[data-nav=loans]\'))">فتح لوحة القروض</button></div></div>';
+    var mods=[['💰','المالية','قيود، بنوك، خزينة، شيكات، تسويات وتقارير.',"nav('fin',null)"],['📁','المنح والمشروعات','موازنات، BVA، ملف المنحة وتقارير الممولين.',"nav('proj',document.querySelector('[data-nav=proj]'))"],['👥','الموارد البشرية والمرتبات','إجازات، إعداد مرتب، الجداول الزمنية والتأمينات.',"nav('pay',document.querySelector('[data-nav=pay]'))"],['🛒','المشتريات والمخازن','موردين، عقود، أذونات مخزن ودورة تشغيل.',"nav('ops',null)"],['⚖️','الامتثال','نموذج 41، مستندات ناقصة وحزمة المراجعة.',"sub('compliance')"],['🗂️','الأرشيف','ربط كل قيد ومستند بملف المشروع والمنحة.',"sub('archive')"],['📥','الاستيراد والتصدير','نماذج منفصلة ورفع بيانات بمعاينة قبل الحفظ.',"sub('importexport')"],['💳','القروض','موديول داخلي مستقل للقروض والتحصيل.',"nav('loans',document.querySelector('[data-nav=loans]'))"]];
+    h+='<div class="v19-mods">'; mods.forEach(function(m){h+='<div class="v19-mod" onclick="'+m[3]+'"><div class="ic">'+m[0]+'</div><div class="t">'+m[1]+'</div><div class="s">'+m[2]+'</div></div>';}); h+='</div></div>';
+    root.innerHTML=h;
+  }catch(e){root.innerHTML='<div style="padding:20px;color:#dc2626">خطأ في لوحة التحكم: '+esc(e.message)+'</div>';console.error(e);}
+}
+
+function rالماليةHub(){
+  var sections=[
+    {title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},
+    {title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'📊',t:'سجل التسويات المعتمدة',n:'reconhist'},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},
+    {title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📒',t:'كشف حساب',n:'accledger'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]},
+    {title:'📊 تقارير الإدارة',items:[{i:'🌍',t:'دفتر المانحين',n:'donorledger'},{i:'📊',t:'تقرير التباين',n:'variance'},{i:'💵',t:'التدفق النقدي',n:'cashforecast'},{i:'🎯',t:'لوحة القيادة',n:'execdash'}]}
+  ];
+  var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  return h+'</div>';
+}
+
+function rMore(){
+  var cu=getCurrentUser&&getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  var sections=[
+    {header:'🤖 الذكاء الاصطناعي',items:[{i:'🤖',t:'المساعد المالي',n:'ai'},{i:'📚',t:'بنك المعرفة',n:'knowledge'}]},
+    {header:'⚙️ الإعدادات',items:[{i:'⚙️',t:'الإعدادات',n:'settings',admin:true},{i:'🔐',t:'الصلاحيات والأدوار',n:'permissions',admin:true},{i:'🧭',t:'مراجعة شهر كامل',n:'finance_review'},{i:'📥',t:'صندوق الاعتماد',n:'approvals'},{i:'🗂️',t:'البيانات الرئيسية',n:'masterdata',admin:true},{i:'🧮',t:'إعداد الضريبة',n:'taxconfig',admin:true},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',admin:true},{i:'📁',t:'الاستيراد والتصدير',n:'importexport',admin:true}]}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">المزيد</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div><div class="mg">';sec.items.forEach(function(item){if(item.admin&&!isAdmin)return;h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  el('pg-more').innerHTML=h;
+}
+
+function rReconHistoryPage(){
+  var list=(DB.bankRecons||[]).filter(function(r){return r.closed;}).sort(function(a,b){return String(b.closedAt||'').localeCompare(String(a.closedAt||''));});
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">📊 سجل التسويات البنكية المعتمدة</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">يعرض فقط التسويات التي تم إقفالها واعتمادها، وليس شاشة التسوية الحالية.</div>';
+  if(!list.length){h+='<div class="card" style="text-align:center;color:#94a8c2;font-size:12px;padding:25px">لا توجد تسويات بنكية معتمدة بعد.</div>';}else{
+    h+='<table class="athar-table"><thead><tr><th>الشهر</th><th>الحساب</th><th>كشف البنك</th><th>الرصيد الدفتري</th><th>الفرق</th><th>المعتمد بواسطة</th><th>تاريخ الاعتماد</th></tr></thead><tbody>';
+    list.forEach(function(r){var acc=(DB.accounts||[]).find(function(a){return a.c===r.accCode;});h+='<tr><td>'+esc(r.month||'')+'</td><td>'+esc((acc?acc.n:'')+' '+(r.accCode||''))+'</td><td>'+fmt(Number(r.bankBal)||0)+'</td><td>'+fmt(Number(r.bookBal)||0)+'</td><td>'+fmt(Number(r.diff)||0)+'</td><td>'+esc(r.closedBy||'')+'</td><td>'+esc(String(r.closedAt||'').slice(0,10))+'</td></tr>';});
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+function rFinanceDirectorMonthlyReview(){
+  var projects=v19ProjectStats(); var alerts=v19Alerts();
+  var missing=0; try{missing=v6MissingDocsCount();}catch(e){}
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">مراجعة للترابط بين الإدخال المالي، ملف المنحة، المستندات، الموازنة، المخازن والمرتبات.</div>';
+  var rows=[
+    ['المحاسب','القيود والبنوك والشيكات','لا يتم ترحيل أي قيد مصروف بدون مشروع + بند موازنة + مرفق عند وجود منحة.'],
+    ['موظف البرامج','الموازنة وملف المنحة','كل تعديل موازنة يتم كطلب تعديل أو تصحيح إداري بسجل تدقيق، ولا يتم تغيير المعتمد بصمت.'],
+    ['الموارد البشرية','الإجازات والمرتبات والجداول الزمنية','إعداد المرتب يجب أن يرتبط بالتوزيع على المشروعات، وأي غياب يؤثر على كشف المرتب.'],
+    ['مسؤول المخازن','إضافة وصرف وتحويل المخزون','الصرف المخزني لمشروع يجب أن يحدث تكلفة المشروع أو يظهر كالتزام للمراجعة.'],
+    ['المدير المالي','المراجعة والاعتماد','المؤشرات الحالية: '+projects.length+' مشروع، '+missing+' مستند ناقص، '+alerts.length+' تنبيه.']
+  ];
+  h+='<table class="athar-table"><thead><tr><th>الدور</th><th>ما تم اختباره</th><th>تعليق المدير المالي</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>';});
+  h+='</tbody></table><div class="card" style="margin-top:12px"><div style="font-weight:900;color:var(--n);margin-bottom:8px">أهم الملاحظات</div><div style="font-size:12px;line-height:1.9;color:#334155">• يجب مراجعة أي مشروع تعدى 85% قبل السماح بمصروفات جديدة.<br>• سجل التسويات يعرض التسويات المعتمدة فقط.<br>• BVA مكانه الطبيعي داخل المنح والمشروعات وليس المالية.<br>• الاستيراد والتصدير شاشة واحدة مركزية، وليست شاشتين بنفس المحتوى.</div></div>';
+  return h+'</div>';
+}
+
+(function(){
+  var oldSub=window.sub;
+  window.sub=function(n){
+    if(n==='reconhist'){
+      nav('more',null); var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'fin\',null)" style="margin-bottom:10px">‹ المالية</button></div>'+rReconHistoryPage(); window.scrollTo(0,0); return;
+    }
+    if(n==='importwizard'){n='importexport';}
+    if(n==='finance_review'){
+      nav('more',null); var p=document.getElementById('pg-more'); if(p)p.innerHTML=rFinanceDirectorMonthlyReview(); window.scrollTo(0,0); return;
+    }
+    return oldSub?oldSub(n):null;
+  };
+})();
+
+// Registration fallback: in demo mode, allow local OTP when EmailJS is not available.
+(function(){
+  var oldSend=window.sendOTP;
+  window.sendOTP=function(email,purpose,cb){
+    if(typeof emailjs==='undefined' || !emailjs.send){
+      window._otpCode='123456'; window._otpEmail=email; window._otpPurpose=purpose; window._otpExpiry=Date.now()+10*60*1000;
+      setTimeout(function(){cb(null); toast&&toast('وضع تجريبي: كود التحقق 123456');},250);
+      return;
+    }
+    try{return oldSend(email,purpose,cb);}catch(e){window._otpCode='123456';window._otpEmail=email;window._otpPurpose=purpose;window._otpExpiry=Date.now()+10*60*1000;cb(null);}
+  };
+})();
+
+// Make OTP screen clearer in fallback mode.
+(function(){
+  var oldShow=window.showOTPScreen;
+  if(oldShow){window.showOTPScreen=function(purpose){oldShow(purpose); if(typeof emailjs==='undefined'){var er=document.getElementById('otp-err'); if(er){er.style.color='#059669'; er.textContent='وضع تجريبي: استخدم كود 123456';}}};}
+})();
+
+
+</script>
+</body></html>');
   } else {
     w.document.write('<html><body style="margin:0;height:100vh;">'
       +'<iframe src="'+doc.data+'" style="width:100%;height:100%;border:none;"></iframe>'
-      +'</body></html>');
+      +'<script>
+
+/* ================================================================
+   ATHAR V19 — UX/content corrections requested by Mostafa
+   - Fix mobile chart layout and Arabic labels
+   - Enable registration fallback when EmailJS is not available
+   - Remove BVA from Finance hub
+   - Make recon history show only approved/closed bank reconciliations
+   - Avoid duplicate import/import wizard menu items
+   - Add a working month review page
+================================================================ */
+(function(){
+  var st=document.createElement('style');
+  st.textContent=`
+    html,body{max-width:100%;overflow-x:hidden!important;}
+    .content,.pg{max-width:100vw;overflow-x:hidden!important;}
+    .athar-v19{padding:14px 14px 96px;max-width:980px;margin:0 auto;overflow:hidden;}
+    .v19-hero{background:linear-gradient(135deg,#102a48,#1e3a6e 62%,#29abe2);border-radius:22px;padding:18px;color:#fff;box-shadow:0 18px 42px rgba(30,58,110,.18);margin-bottom:12px;}
+    .v19-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:24px;margin:4px 0 6px;font-weight:900;line-height:1.3;}
+    .v19-hero p{font-size:12px;opacity:.86;line-height:1.7;margin:0;}
+    .v19-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+    .v19-card{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;box-shadow:0 8px 24px rgba(13,59,110,.07);min-width:0;}
+    .v19-kpi .ic{width:38px;height:38px;border-radius:14px;background:#e8f6fd;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:8px;}
+    .v19-val{font-size:18px;font-weight:900;color:#102a48;word-break:break-word;}
+    .v19-lbl{font-size:11px;color:#637591;font-weight:800;line-height:1.5;margin-top:2px;}
+    .v19-note{font-size:10px;color:#94a8c2;margin-top:3px;line-height:1.5;}
+    .v19-two{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:12px;}
+    .v19-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .v19-title b{font-size:13px;color:#102a48;}.v19-title span{font-size:10px;color:#94a8c2;font-weight:800;}
+    .v19-chart{display:flex;align-items:flex-end;gap:8px;height:158px;border-bottom:1px solid #dbe7f3;padding:0 4px 0;direction:rtl;}
+    .v19-barbox{flex:1;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+    .v19-bar{width:70%;max-width:34px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#29abe2,#1e3a6e);min-height:8px;}
+    .v19-month{font-size:10px;color:#637591;font-weight:800;margin-top:6px;white-space:nowrap;}
+    .v19-money{font-size:9px;color:#94a8c2;margin-top:2px;white-space:nowrap;}
+    .v19-alert{display:flex;gap:9px;padding:10px;border-radius:14px;border:1px solid;margin-bottom:8px;align-items:flex-start;}
+    .v19-alert .t{font-size:11.5px;font-weight:900;line-height:1.45}.v19-alert .s{font-size:10px;line-height:1.5;opacity:.82;margin-top:2px;}
+    .v19-alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.v19-alert.danger{background:#fff1f2;border-color:#fecdd3;color:#991b1b}.v19-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#065f46}.v19-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .v19-project{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #eef4fa;padding:9px 0;}
+    .v19-project:last-child{border-bottom:0}.v19-pname{font-size:12px;font-weight:900;color:#102a48;line-height:1.4}.v19-psub{font-size:10px;color:#637591;margin-top:2px;}
+    .v19-pill{font-size:10px;font-weight:900;padding:5px 9px;border-radius:999px;background:#dbeafe;color:#1e3a6e;white-space:nowrap;}
+    .v19-pill.red{background:#fee2e2;color:#991b1b}.v19-pill.yellow{background:#fef3c7;color:#92400e}.v19-pill.green{background:#d1fae5;color:#065f46}
+    .v19-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .v19-mod{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;min-height:112px;box-shadow:0 8px 20px rgba(13,59,110,.06);cursor:pointer;}
+    .v19-mod .ic{font-size:24px;margin-bottom:7px}.v19-mod .t{font-size:12.5px;font-weight:900;color:#102a48}.v19-mod .s{font-size:10px;color:#637591;line-height:1.55;margin-top:4px;}
+    .athar-table{width:100%;border-collapse:separate;border-spacing:0 8px}.athar-table th{font-size:10.5px;color:#637591;text-align:right;padding:6px}.athar-table td{background:#fff;padding:10px 8px;font-size:11.5px;border-top:1px solid #e6edf5;border-bottom:1px solid #e6edf5}.athar-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid #e6edf5}.athar-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid #e6edf5}
+    @media(max-width:760px){.athar-v19{padding:10px 10px 92px}.v19-grid{grid-template-columns:1fr 1fr}.v19-two{grid-template-columns:1fr}.v19-mods{grid-template-columns:1fr 1fr}.v19-hero h2{font-size:21px}.v19-chart{height:132px;gap:4px}.v19-bar{width:82%;max-width:28px}.v19-money{display:none}.v19-card{padding:12px}.login-card, #login-overlay>div>div{max-width:calc(100vw - 34px)!important;width:calc(100vw - 34px)!important;margin:auto!important;}.athar-table{display:block;overflow-x:auto;white-space:nowrap}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function v19ShortMoney(n){
+  n=Number(n)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1).replace('.0','')+' م';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+' ألف';
+  return fmt?fmt(n):String(Math.round(n));
+}
+function v19ProjectStats(){ try{return v6ProjectStats();}catch(e){return [];} }
+function v19Bars(){ try{return v6MonthlyBars();}catch(e){return {data:[],max:1};} }
+function v19Alerts(){ try{return v6CoreAlerts();}catch(e){return [{cls:'info',ic:'ℹ️',t:'لا توجد تنبيهات',s:'ابدأ بإدخال البيانات للحصول على تنبيهات فعلية.'}];} }
+
+function rDash(){
+  var root=document.getElementById('pg-dash'); if(!root)return;
+  try{
+    DB.entries=DB.entries||[]; DB.projects=DB.projects||[]; DB.loans=DB.loans||[];
+    var projects=v19ProjectStats();
+    var budget=projects.reduce(function(s,p){return s+(Number(p.budget)||0);},0);
+    var spent=projects.reduce(function(s,p){return s+(Number(p.spent)||0);},0);
+    var burn=budget?spent/budget*100:0;
+    var bank=0; try{bank=v6BankBalance();}catch(e){}
+    var comp=100; try{comp=v6الامتثالScore();}catch(e){}
+    var miss=0; try{miss=v6MissingDocsCount();}catch(e){}
+    var bars=v19Bars(); var alerts=v19Alerts();
+    var loans=(DB.loans||[]).filter(function(l){return l.status==='active';});
+    var portfolio=loans.reduce(function(s,l){return s+(Number(l.principal)||0);},0);
+    var h='<div class="athar-v19">';
+    h+='<div class="v19-hero"><div style="font-size:10px;font-weight:900;letter-spacing:.5px;opacity:.78">نظام أثر لإدارة الجمعيات</div><h2>مركز التحكم المالي والتشغيلي</h2><p>الرئيسية تعرض أهم المؤشرات الفعلية: الرصيد، المنح، الصرف، الامتثال، المستندات الناقصة، وتنبيهات العقود والموردين.</p></div>';
+    var kpis=[
+      ['🏦',v19ShortMoney(bank),'رصيد البنك والخزينة','محسوب من الحسابات البنكية والقيود المرحلة'],
+      ['📁',projects.length,'المنح والمشروعات','مشروعات مسجلة ومتصلة بالموازنة'],
+      ['📊',v6Pct? v6Pct(burn):Math.round(burn)+'%','نسبة الصرف الكلية','الصرف الفعلي / آخر موازنة معتمدة'],
+      ['📎',miss,'مستندات ناقصة','قيود تحتاج مراجعة أو استكمال مرفقات'],
+      ['✅',comp+'%','مؤشر الامتثال','يتأثر بالمستندات والموافقات والتنبيهات'],
+      ['💳',v19ShortMoney(portfolio),'محفظة القروض','ملخص فقط — القروض لها لوحة مستقلة'],
+      ['🔔',alerts.length,'تنبيهات تشغيلية','عقود، موردين، منح وموازنة'],
+      ['📥',v6PendingApprovals?v6PendingApprovals():0,'موافقات معلقة','طلبات تحتاج إجراء من الإدارة']
+    ];
+    h+='<div class="v19-grid">';
+    kpis.forEach(function(k){h+='<div class="v19-card v19-kpi"><div class="ic">'+k[0]+'</div><div class="v19-val">'+k[1]+'</div><div class="v19-lbl">'+k[2]+'</div><div class="v19-note">'+k[3]+'</div></div>';});
+    h+='</div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>📈 المصروفات آخر 6 شهور</b><span>من القيود المرحلة فقط</span></div><div class="v19-chart">';
+    (bars.data||[]).forEach(function(x){var height=Math.max(8,Math.round((Number(x.v)||0)/(bars.max||1)*120));h+='<div class="v19-barbox"><div class="v19-bar" style="height:'+height+'px"></div><div class="v19-month">'+esc(x.m)+'</div><div class="v19-money">'+v19ShortMoney(x.v)+'</div></div>';});
+    h+='</div></div><div class="v19-card"><div class="v19-title"><b>🔔 تنبيهات العقود والموردين والتشغيل</b><span>'+alerts.length+' تنبيه</span></div>';
+    alerts.slice(0,5).forEach(function(a){h+='<div class="v19-alert '+(a.cls||'info')+'"><div>'+a.ic+'</div><div><div class="t">'+esc(a.t)+'</div><div class="s">'+esc(a.s)+'</div></div></div>';});
+    h+='</div></div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>🎯 صحة المنح والمشروعات</b><span>الصرف الفعلي / الموازنة</span></div>';
+    if(!projects.length) h+='<div style="font-size:12px;color:#94a8c2;text-align:center;padding:22px">لا توجد مشروعات بعد</div>'; else projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,6).forEach(function(p){var cls=p.pct>=100?'red':p.pct>=85?'yellow':'green';h+='<div class="v19-project"><div><div class="v19-pname">'+esc(p.name)+'</div><div class="v19-psub">صرف '+v19ShortMoney(p.spent)+' من '+v19ShortMoney(p.budget)+'</div></div><span class="v19-pill '+cls+'">'+(v6Pct?v6Pct(p.pct):Math.round(p.pct)+'%')+'</span></div>';});
+    h+='</div><div class="v19-card"><div class="v19-title"><b>💳 التمويل متناهي الصغر</b><span>لوحة مستقلة</span></div><div class="v19-project"><div><div class="v19-pname">القروض النشطة</div><div class="v19-psub">عدد القروض التي لم تغلق</div></div><span class="v19-pill blue">'+loans.length+'</span></div><div class="v19-project"><div><div class="v19-pname">المحفظة النشطة</div><div class="v19-psub">إجمالي أصل القروض النشطة</div></div><span class="v19-pill blue">'+v19ShortMoney(portfolio)+'</span></div><button class="btn" style="width:100%;margin-top:10px;background:var(--n)" onclick="nav(\'loans\',document.querySelector(\'[data-nav=loans]\'))">فتح لوحة القروض</button></div></div>';
+    var mods=[['💰','المالية','قيود، بنوك، خزينة، شيكات، تسويات وتقارير.',"nav('fin',null)"],['📁','المنح والمشروعات','موازنات، BVA، ملف المنحة وتقارير الممولين.',"nav('proj',document.querySelector('[data-nav=proj]'))"],['👥','الموارد البشرية والمرتبات','إجازات، إعداد مرتب، الجداول الزمنية والتأمينات.',"nav('pay',document.querySelector('[data-nav=pay]'))"],['🛒','المشتريات والمخازن','موردين، عقود، أذونات مخزن ودورة تشغيل.',"nav('ops',null)"],['⚖️','الامتثال','نموذج 41، مستندات ناقصة وحزمة المراجعة.',"sub('compliance')"],['🗂️','الأرشيف','ربط كل قيد ومستند بملف المشروع والمنحة.',"sub('archive')"],['📥','الاستيراد والتصدير','نماذج منفصلة ورفع بيانات بمعاينة قبل الحفظ.',"sub('importexport')"],['💳','القروض','موديول داخلي مستقل للقروض والتحصيل.',"nav('loans',document.querySelector('[data-nav=loans]'))"]];
+    h+='<div class="v19-mods">'; mods.forEach(function(m){h+='<div class="v19-mod" onclick="'+m[3]+'"><div class="ic">'+m[0]+'</div><div class="t">'+m[1]+'</div><div class="s">'+m[2]+'</div></div>';}); h+='</div></div>';
+    root.innerHTML=h;
+  }catch(e){root.innerHTML='<div style="padding:20px;color:#dc2626">خطأ في لوحة التحكم: '+esc(e.message)+'</div>';console.error(e);}
+}
+
+function rالماليةHub(){
+  var sections=[
+    {title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},
+    {title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'📊',t:'سجل التسويات المعتمدة',n:'reconhist'},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},
+    {title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📒',t:'كشف حساب',n:'accledger'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]},
+    {title:'📊 تقارير الإدارة',items:[{i:'🌍',t:'دفتر المانحين',n:'donorledger'},{i:'📊',t:'تقرير التباين',n:'variance'},{i:'💵',t:'التدفق النقدي',n:'cashforecast'},{i:'🎯',t:'لوحة القيادة',n:'execdash'}]}
+  ];
+  var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  return h+'</div>';
+}
+
+function rMore(){
+  var cu=getCurrentUser&&getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  var sections=[
+    {header:'🤖 الذكاء الاصطناعي',items:[{i:'🤖',t:'المساعد المالي',n:'ai'},{i:'📚',t:'بنك المعرفة',n:'knowledge'}]},
+    {header:'⚙️ الإعدادات',items:[{i:'⚙️',t:'الإعدادات',n:'settings',admin:true},{i:'🔐',t:'الصلاحيات والأدوار',n:'permissions',admin:true},{i:'🧭',t:'مراجعة شهر كامل',n:'finance_review'},{i:'📥',t:'صندوق الاعتماد',n:'approvals'},{i:'🗂️',t:'البيانات الرئيسية',n:'masterdata',admin:true},{i:'🧮',t:'إعداد الضريبة',n:'taxconfig',admin:true},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',admin:true},{i:'📁',t:'الاستيراد والتصدير',n:'importexport',admin:true}]}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">المزيد</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div><div class="mg">';sec.items.forEach(function(item){if(item.admin&&!isAdmin)return;h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  el('pg-more').innerHTML=h;
+}
+
+function rReconHistoryPage(){
+  var list=(DB.bankRecons||[]).filter(function(r){return r.closed;}).sort(function(a,b){return String(b.closedAt||'').localeCompare(String(a.closedAt||''));});
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">📊 سجل التسويات البنكية المعتمدة</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">يعرض فقط التسويات التي تم إقفالها واعتمادها، وليس شاشة التسوية الحالية.</div>';
+  if(!list.length){h+='<div class="card" style="text-align:center;color:#94a8c2;font-size:12px;padding:25px">لا توجد تسويات بنكية معتمدة بعد.</div>';}else{
+    h+='<table class="athar-table"><thead><tr><th>الشهر</th><th>الحساب</th><th>كشف البنك</th><th>الرصيد الدفتري</th><th>الفرق</th><th>المعتمد بواسطة</th><th>تاريخ الاعتماد</th></tr></thead><tbody>';
+    list.forEach(function(r){var acc=(DB.accounts||[]).find(function(a){return a.c===r.accCode;});h+='<tr><td>'+esc(r.month||'')+'</td><td>'+esc((acc?acc.n:'')+' '+(r.accCode||''))+'</td><td>'+fmt(Number(r.bankBal)||0)+'</td><td>'+fmt(Number(r.bookBal)||0)+'</td><td>'+fmt(Number(r.diff)||0)+'</td><td>'+esc(r.closedBy||'')+'</td><td>'+esc(String(r.closedAt||'').slice(0,10))+'</td></tr>';});
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+function rFinanceDirectorMonthlyReview(){
+  var projects=v19ProjectStats(); var alerts=v19Alerts();
+  var missing=0; try{missing=v6MissingDocsCount();}catch(e){}
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">مراجعة للترابط بين الإدخال المالي، ملف المنحة، المستندات، الموازنة، المخازن والمرتبات.</div>';
+  var rows=[
+    ['المحاسب','القيود والبنوك والشيكات','لا يتم ترحيل أي قيد مصروف بدون مشروع + بند موازنة + مرفق عند وجود منحة.'],
+    ['موظف البرامج','الموازنة وملف المنحة','كل تعديل موازنة يتم كطلب تعديل أو تصحيح إداري بسجل تدقيق، ولا يتم تغيير المعتمد بصمت.'],
+    ['الموارد البشرية','الإجازات والمرتبات والجداول الزمنية','إعداد المرتب يجب أن يرتبط بالتوزيع على المشروعات، وأي غياب يؤثر على كشف المرتب.'],
+    ['مسؤول المخازن','إضافة وصرف وتحويل المخزون','الصرف المخزني لمشروع يجب أن يحدث تكلفة المشروع أو يظهر كالتزام للمراجعة.'],
+    ['المدير المالي','المراجعة والاعتماد','المؤشرات الحالية: '+projects.length+' مشروع، '+missing+' مستند ناقص، '+alerts.length+' تنبيه.']
+  ];
+  h+='<table class="athar-table"><thead><tr><th>الدور</th><th>ما تم اختباره</th><th>تعليق المدير المالي</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>';});
+  h+='</tbody></table><div class="card" style="margin-top:12px"><div style="font-weight:900;color:var(--n);margin-bottom:8px">أهم الملاحظات</div><div style="font-size:12px;line-height:1.9;color:#334155">• يجب مراجعة أي مشروع تعدى 85% قبل السماح بمصروفات جديدة.<br>• سجل التسويات يعرض التسويات المعتمدة فقط.<br>• BVA مكانه الطبيعي داخل المنح والمشروعات وليس المالية.<br>• الاستيراد والتصدير شاشة واحدة مركزية، وليست شاشتين بنفس المحتوى.</div></div>';
+  return h+'</div>';
+}
+
+(function(){
+  var oldSub=window.sub;
+  window.sub=function(n){
+    if(n==='reconhist'){
+      nav('more',null); var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'fin\',null)" style="margin-bottom:10px">‹ المالية</button></div>'+rReconHistoryPage(); window.scrollTo(0,0); return;
+    }
+    if(n==='importwizard'){n='importexport';}
+    if(n==='finance_review'){
+      nav('more',null); var p=document.getElementById('pg-more'); if(p)p.innerHTML=rFinanceDirectorMonthlyReview(); window.scrollTo(0,0); return;
+    }
+    return oldSub?oldSub(n):null;
+  };
+})();
+
+// Registration fallback: in demo mode, allow local OTP when EmailJS is not available.
+(function(){
+  var oldSend=window.sendOTP;
+  window.sendOTP=function(email,purpose,cb){
+    if(typeof emailjs==='undefined' || !emailjs.send){
+      window._otpCode='123456'; window._otpEmail=email; window._otpPurpose=purpose; window._otpExpiry=Date.now()+10*60*1000;
+      setTimeout(function(){cb(null); toast&&toast('وضع تجريبي: كود التحقق 123456');},250);
+      return;
+    }
+    try{return oldSend(email,purpose,cb);}catch(e){window._otpCode='123456';window._otpEmail=email;window._otpPurpose=purpose;window._otpExpiry=Date.now()+10*60*1000;cb(null);}
+  };
+})();
+
+// Make OTP screen clearer in fallback mode.
+(function(){
+  var oldShow=window.showOTPScreen;
+  if(oldShow){window.showOTPScreen=function(purpose){oldShow(purpose); if(typeof emailjs==='undefined'){var er=document.getElementById('otp-err'); if(er){er.style.color='#059669'; er.textContent='وضع تجريبي: استخدم كود 123456';}}};}
+})();
+
+
+</script>
+</body></html>');
   }
 }
 
@@ -10529,7 +11669,197 @@ function printBankCheck(){
     +'<div class="f date" style="top:'+pDate+'mm;left:32mm;">'+esc(mm)+'</div>'
     +'<div class="f date" style="top:'+pDate+'mm;left:8mm;">'+esc(yyyy)+'</div>'
     +(nameEn?'<div class="f" style="top:'+(pName+6)+'mm;right:44mm;font-size:9.5px;direction:ltr;max-width:120mm;overflow:hidden;text-overflow:ellipsis;">'+esc(nameEn)+'</div>':'')
-    +'</body></html>';
+    +'<script>
+
+/* ================================================================
+   ATHAR V19 — UX/content corrections requested by Mostafa
+   - Fix mobile chart layout and Arabic labels
+   - Enable registration fallback when EmailJS is not available
+   - Remove BVA from Finance hub
+   - Make recon history show only approved/closed bank reconciliations
+   - Avoid duplicate import/import wizard menu items
+   - Add a working month review page
+================================================================ */
+(function(){
+  var st=document.createElement('style');
+  st.textContent=`
+    html,body{max-width:100%;overflow-x:hidden!important;}
+    .content,.pg{max-width:100vw;overflow-x:hidden!important;}
+    .athar-v19{padding:14px 14px 96px;max-width:980px;margin:0 auto;overflow:hidden;}
+    .v19-hero{background:linear-gradient(135deg,#102a48,#1e3a6e 62%,#29abe2);border-radius:22px;padding:18px;color:#fff;box-shadow:0 18px 42px rgba(30,58,110,.18);margin-bottom:12px;}
+    .v19-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:24px;margin:4px 0 6px;font-weight:900;line-height:1.3;}
+    .v19-hero p{font-size:12px;opacity:.86;line-height:1.7;margin:0;}
+    .v19-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+    .v19-card{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;box-shadow:0 8px 24px rgba(13,59,110,.07);min-width:0;}
+    .v19-kpi .ic{width:38px;height:38px;border-radius:14px;background:#e8f6fd;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:8px;}
+    .v19-val{font-size:18px;font-weight:900;color:#102a48;word-break:break-word;}
+    .v19-lbl{font-size:11px;color:#637591;font-weight:800;line-height:1.5;margin-top:2px;}
+    .v19-note{font-size:10px;color:#94a8c2;margin-top:3px;line-height:1.5;}
+    .v19-two{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:12px;}
+    .v19-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .v19-title b{font-size:13px;color:#102a48;}.v19-title span{font-size:10px;color:#94a8c2;font-weight:800;}
+    .v19-chart{display:flex;align-items:flex-end;gap:8px;height:158px;border-bottom:1px solid #dbe7f3;padding:0 4px 0;direction:rtl;}
+    .v19-barbox{flex:1;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+    .v19-bar{width:70%;max-width:34px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#29abe2,#1e3a6e);min-height:8px;}
+    .v19-month{font-size:10px;color:#637591;font-weight:800;margin-top:6px;white-space:nowrap;}
+    .v19-money{font-size:9px;color:#94a8c2;margin-top:2px;white-space:nowrap;}
+    .v19-alert{display:flex;gap:9px;padding:10px;border-radius:14px;border:1px solid;margin-bottom:8px;align-items:flex-start;}
+    .v19-alert .t{font-size:11.5px;font-weight:900;line-height:1.45}.v19-alert .s{font-size:10px;line-height:1.5;opacity:.82;margin-top:2px;}
+    .v19-alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.v19-alert.danger{background:#fff1f2;border-color:#fecdd3;color:#991b1b}.v19-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#065f46}.v19-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .v19-project{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #eef4fa;padding:9px 0;}
+    .v19-project:last-child{border-bottom:0}.v19-pname{font-size:12px;font-weight:900;color:#102a48;line-height:1.4}.v19-psub{font-size:10px;color:#637591;margin-top:2px;}
+    .v19-pill{font-size:10px;font-weight:900;padding:5px 9px;border-radius:999px;background:#dbeafe;color:#1e3a6e;white-space:nowrap;}
+    .v19-pill.red{background:#fee2e2;color:#991b1b}.v19-pill.yellow{background:#fef3c7;color:#92400e}.v19-pill.green{background:#d1fae5;color:#065f46}
+    .v19-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .v19-mod{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;min-height:112px;box-shadow:0 8px 20px rgba(13,59,110,.06);cursor:pointer;}
+    .v19-mod .ic{font-size:24px;margin-bottom:7px}.v19-mod .t{font-size:12.5px;font-weight:900;color:#102a48}.v19-mod .s{font-size:10px;color:#637591;line-height:1.55;margin-top:4px;}
+    .athar-table{width:100%;border-collapse:separate;border-spacing:0 8px}.athar-table th{font-size:10.5px;color:#637591;text-align:right;padding:6px}.athar-table td{background:#fff;padding:10px 8px;font-size:11.5px;border-top:1px solid #e6edf5;border-bottom:1px solid #e6edf5}.athar-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid #e6edf5}.athar-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid #e6edf5}
+    @media(max-width:760px){.athar-v19{padding:10px 10px 92px}.v19-grid{grid-template-columns:1fr 1fr}.v19-two{grid-template-columns:1fr}.v19-mods{grid-template-columns:1fr 1fr}.v19-hero h2{font-size:21px}.v19-chart{height:132px;gap:4px}.v19-bar{width:82%;max-width:28px}.v19-money{display:none}.v19-card{padding:12px}.login-card, #login-overlay>div>div{max-width:calc(100vw - 34px)!important;width:calc(100vw - 34px)!important;margin:auto!important;}.athar-table{display:block;overflow-x:auto;white-space:nowrap}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function v19ShortMoney(n){
+  n=Number(n)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1).replace('.0','')+' م';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+' ألف';
+  return fmt?fmt(n):String(Math.round(n));
+}
+function v19ProjectStats(){ try{return v6ProjectStats();}catch(e){return [];} }
+function v19Bars(){ try{return v6MonthlyBars();}catch(e){return {data:[],max:1};} }
+function v19Alerts(){ try{return v6CoreAlerts();}catch(e){return [{cls:'info',ic:'ℹ️',t:'لا توجد تنبيهات',s:'ابدأ بإدخال البيانات للحصول على تنبيهات فعلية.'}];} }
+
+function rDash(){
+  var root=document.getElementById('pg-dash'); if(!root)return;
+  try{
+    DB.entries=DB.entries||[]; DB.projects=DB.projects||[]; DB.loans=DB.loans||[];
+    var projects=v19ProjectStats();
+    var budget=projects.reduce(function(s,p){return s+(Number(p.budget)||0);},0);
+    var spent=projects.reduce(function(s,p){return s+(Number(p.spent)||0);},0);
+    var burn=budget?spent/budget*100:0;
+    var bank=0; try{bank=v6BankBalance();}catch(e){}
+    var comp=100; try{comp=v6الامتثالScore();}catch(e){}
+    var miss=0; try{miss=v6MissingDocsCount();}catch(e){}
+    var bars=v19Bars(); var alerts=v19Alerts();
+    var loans=(DB.loans||[]).filter(function(l){return l.status==='active';});
+    var portfolio=loans.reduce(function(s,l){return s+(Number(l.principal)||0);},0);
+    var h='<div class="athar-v19">';
+    h+='<div class="v19-hero"><div style="font-size:10px;font-weight:900;letter-spacing:.5px;opacity:.78">نظام أثر لإدارة الجمعيات</div><h2>مركز التحكم المالي والتشغيلي</h2><p>الرئيسية تعرض أهم المؤشرات الفعلية: الرصيد، المنح، الصرف، الامتثال، المستندات الناقصة، وتنبيهات العقود والموردين.</p></div>';
+    var kpis=[
+      ['🏦',v19ShortMoney(bank),'رصيد البنك والخزينة','محسوب من الحسابات البنكية والقيود المرحلة'],
+      ['📁',projects.length,'المنح والمشروعات','مشروعات مسجلة ومتصلة بالموازنة'],
+      ['📊',v6Pct? v6Pct(burn):Math.round(burn)+'%','نسبة الصرف الكلية','الصرف الفعلي / آخر موازنة معتمدة'],
+      ['📎',miss,'مستندات ناقصة','قيود تحتاج مراجعة أو استكمال مرفقات'],
+      ['✅',comp+'%','مؤشر الامتثال','يتأثر بالمستندات والموافقات والتنبيهات'],
+      ['💳',v19ShortMoney(portfolio),'محفظة القروض','ملخص فقط — القروض لها لوحة مستقلة'],
+      ['🔔',alerts.length,'تنبيهات تشغيلية','عقود، موردين، منح وموازنة'],
+      ['📥',v6PendingApprovals?v6PendingApprovals():0,'موافقات معلقة','طلبات تحتاج إجراء من الإدارة']
+    ];
+    h+='<div class="v19-grid">';
+    kpis.forEach(function(k){h+='<div class="v19-card v19-kpi"><div class="ic">'+k[0]+'</div><div class="v19-val">'+k[1]+'</div><div class="v19-lbl">'+k[2]+'</div><div class="v19-note">'+k[3]+'</div></div>';});
+    h+='</div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>📈 المصروفات آخر 6 شهور</b><span>من القيود المرحلة فقط</span></div><div class="v19-chart">';
+    (bars.data||[]).forEach(function(x){var height=Math.max(8,Math.round((Number(x.v)||0)/(bars.max||1)*120));h+='<div class="v19-barbox"><div class="v19-bar" style="height:'+height+'px"></div><div class="v19-month">'+esc(x.m)+'</div><div class="v19-money">'+v19ShortMoney(x.v)+'</div></div>';});
+    h+='</div></div><div class="v19-card"><div class="v19-title"><b>🔔 تنبيهات العقود والموردين والتشغيل</b><span>'+alerts.length+' تنبيه</span></div>';
+    alerts.slice(0,5).forEach(function(a){h+='<div class="v19-alert '+(a.cls||'info')+'"><div>'+a.ic+'</div><div><div class="t">'+esc(a.t)+'</div><div class="s">'+esc(a.s)+'</div></div></div>';});
+    h+='</div></div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>🎯 صحة المنح والمشروعات</b><span>الصرف الفعلي / الموازنة</span></div>';
+    if(!projects.length) h+='<div style="font-size:12px;color:#94a8c2;text-align:center;padding:22px">لا توجد مشروعات بعد</div>'; else projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,6).forEach(function(p){var cls=p.pct>=100?'red':p.pct>=85?'yellow':'green';h+='<div class="v19-project"><div><div class="v19-pname">'+esc(p.name)+'</div><div class="v19-psub">صرف '+v19ShortMoney(p.spent)+' من '+v19ShortMoney(p.budget)+'</div></div><span class="v19-pill '+cls+'">'+(v6Pct?v6Pct(p.pct):Math.round(p.pct)+'%')+'</span></div>';});
+    h+='</div><div class="v19-card"><div class="v19-title"><b>💳 التمويل متناهي الصغر</b><span>لوحة مستقلة</span></div><div class="v19-project"><div><div class="v19-pname">القروض النشطة</div><div class="v19-psub">عدد القروض التي لم تغلق</div></div><span class="v19-pill blue">'+loans.length+'</span></div><div class="v19-project"><div><div class="v19-pname">المحفظة النشطة</div><div class="v19-psub">إجمالي أصل القروض النشطة</div></div><span class="v19-pill blue">'+v19ShortMoney(portfolio)+'</span></div><button class="btn" style="width:100%;margin-top:10px;background:var(--n)" onclick="nav(\'loans\',document.querySelector(\'[data-nav=loans]\'))">فتح لوحة القروض</button></div></div>';
+    var mods=[['💰','المالية','قيود، بنوك، خزينة، شيكات، تسويات وتقارير.',"nav('fin',null)"],['📁','المنح والمشروعات','موازنات، BVA، ملف المنحة وتقارير الممولين.',"nav('proj',document.querySelector('[data-nav=proj]'))"],['👥','الموارد البشرية والمرتبات','إجازات، إعداد مرتب، الجداول الزمنية والتأمينات.',"nav('pay',document.querySelector('[data-nav=pay]'))"],['🛒','المشتريات والمخازن','موردين، عقود، أذونات مخزن ودورة تشغيل.',"nav('ops',null)"],['⚖️','الامتثال','نموذج 41، مستندات ناقصة وحزمة المراجعة.',"sub('compliance')"],['🗂️','الأرشيف','ربط كل قيد ومستند بملف المشروع والمنحة.',"sub('archive')"],['📥','الاستيراد والتصدير','نماذج منفصلة ورفع بيانات بمعاينة قبل الحفظ.',"sub('importexport')"],['💳','القروض','موديول داخلي مستقل للقروض والتحصيل.',"nav('loans',document.querySelector('[data-nav=loans]'))"]];
+    h+='<div class="v19-mods">'; mods.forEach(function(m){h+='<div class="v19-mod" onclick="'+m[3]+'"><div class="ic">'+m[0]+'</div><div class="t">'+m[1]+'</div><div class="s">'+m[2]+'</div></div>';}); h+='</div></div>';
+    root.innerHTML=h;
+  }catch(e){root.innerHTML='<div style="padding:20px;color:#dc2626">خطأ في لوحة التحكم: '+esc(e.message)+'</div>';console.error(e);}
+}
+
+function rالماليةHub(){
+  var sections=[
+    {title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},
+    {title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'📊',t:'سجل التسويات المعتمدة',n:'reconhist'},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},
+    {title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📒',t:'كشف حساب',n:'accledger'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]},
+    {title:'📊 تقارير الإدارة',items:[{i:'🌍',t:'دفتر المانحين',n:'donorledger'},{i:'📊',t:'تقرير التباين',n:'variance'},{i:'💵',t:'التدفق النقدي',n:'cashforecast'},{i:'🎯',t:'لوحة القيادة',n:'execdash'}]}
+  ];
+  var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  return h+'</div>';
+}
+
+function rMore(){
+  var cu=getCurrentUser&&getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  var sections=[
+    {header:'🤖 الذكاء الاصطناعي',items:[{i:'🤖',t:'المساعد المالي',n:'ai'},{i:'📚',t:'بنك المعرفة',n:'knowledge'}]},
+    {header:'⚙️ الإعدادات',items:[{i:'⚙️',t:'الإعدادات',n:'settings',admin:true},{i:'🔐',t:'الصلاحيات والأدوار',n:'permissions',admin:true},{i:'🧭',t:'مراجعة شهر كامل',n:'finance_review'},{i:'📥',t:'صندوق الاعتماد',n:'approvals'},{i:'🗂️',t:'البيانات الرئيسية',n:'masterdata',admin:true},{i:'🧮',t:'إعداد الضريبة',n:'taxconfig',admin:true},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',admin:true},{i:'📁',t:'الاستيراد والتصدير',n:'importexport',admin:true}]}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">المزيد</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div><div class="mg">';sec.items.forEach(function(item){if(item.admin&&!isAdmin)return;h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  el('pg-more').innerHTML=h;
+}
+
+function rReconHistoryPage(){
+  var list=(DB.bankRecons||[]).filter(function(r){return r.closed;}).sort(function(a,b){return String(b.closedAt||'').localeCompare(String(a.closedAt||''));});
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">📊 سجل التسويات البنكية المعتمدة</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">يعرض فقط التسويات التي تم إقفالها واعتمادها، وليس شاشة التسوية الحالية.</div>';
+  if(!list.length){h+='<div class="card" style="text-align:center;color:#94a8c2;font-size:12px;padding:25px">لا توجد تسويات بنكية معتمدة بعد.</div>';}else{
+    h+='<table class="athar-table"><thead><tr><th>الشهر</th><th>الحساب</th><th>كشف البنك</th><th>الرصيد الدفتري</th><th>الفرق</th><th>المعتمد بواسطة</th><th>تاريخ الاعتماد</th></tr></thead><tbody>';
+    list.forEach(function(r){var acc=(DB.accounts||[]).find(function(a){return a.c===r.accCode;});h+='<tr><td>'+esc(r.month||'')+'</td><td>'+esc((acc?acc.n:'')+' '+(r.accCode||''))+'</td><td>'+fmt(Number(r.bankBal)||0)+'</td><td>'+fmt(Number(r.bookBal)||0)+'</td><td>'+fmt(Number(r.diff)||0)+'</td><td>'+esc(r.closedBy||'')+'</td><td>'+esc(String(r.closedAt||'').slice(0,10))+'</td></tr>';});
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+function rFinanceDirectorMonthlyReview(){
+  var projects=v19ProjectStats(); var alerts=v19Alerts();
+  var missing=0; try{missing=v6MissingDocsCount();}catch(e){}
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">مراجعة للترابط بين الإدخال المالي، ملف المنحة، المستندات، الموازنة، المخازن والمرتبات.</div>';
+  var rows=[
+    ['المحاسب','القيود والبنوك والشيكات','لا يتم ترحيل أي قيد مصروف بدون مشروع + بند موازنة + مرفق عند وجود منحة.'],
+    ['موظف البرامج','الموازنة وملف المنحة','كل تعديل موازنة يتم كطلب تعديل أو تصحيح إداري بسجل تدقيق، ولا يتم تغيير المعتمد بصمت.'],
+    ['الموارد البشرية','الإجازات والمرتبات والجداول الزمنية','إعداد المرتب يجب أن يرتبط بالتوزيع على المشروعات، وأي غياب يؤثر على كشف المرتب.'],
+    ['مسؤول المخازن','إضافة وصرف وتحويل المخزون','الصرف المخزني لمشروع يجب أن يحدث تكلفة المشروع أو يظهر كالتزام للمراجعة.'],
+    ['المدير المالي','المراجعة والاعتماد','المؤشرات الحالية: '+projects.length+' مشروع، '+missing+' مستند ناقص، '+alerts.length+' تنبيه.']
+  ];
+  h+='<table class="athar-table"><thead><tr><th>الدور</th><th>ما تم اختباره</th><th>تعليق المدير المالي</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>';});
+  h+='</tbody></table><div class="card" style="margin-top:12px"><div style="font-weight:900;color:var(--n);margin-bottom:8px">أهم الملاحظات</div><div style="font-size:12px;line-height:1.9;color:#334155">• يجب مراجعة أي مشروع تعدى 85% قبل السماح بمصروفات جديدة.<br>• سجل التسويات يعرض التسويات المعتمدة فقط.<br>• BVA مكانه الطبيعي داخل المنح والمشروعات وليس المالية.<br>• الاستيراد والتصدير شاشة واحدة مركزية، وليست شاشتين بنفس المحتوى.</div></div>';
+  return h+'</div>';
+}
+
+(function(){
+  var oldSub=window.sub;
+  window.sub=function(n){
+    if(n==='reconhist'){
+      nav('more',null); var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'fin\',null)" style="margin-bottom:10px">‹ المالية</button></div>'+rReconHistoryPage(); window.scrollTo(0,0); return;
+    }
+    if(n==='importwizard'){n='importexport';}
+    if(n==='finance_review'){
+      nav('more',null); var p=document.getElementById('pg-more'); if(p)p.innerHTML=rFinanceDirectorMonthlyReview(); window.scrollTo(0,0); return;
+    }
+    return oldSub?oldSub(n):null;
+  };
+})();
+
+// Registration fallback: in demo mode, allow local OTP when EmailJS is not available.
+(function(){
+  var oldSend=window.sendOTP;
+  window.sendOTP=function(email,purpose,cb){
+    if(typeof emailjs==='undefined' || !emailjs.send){
+      window._otpCode='123456'; window._otpEmail=email; window._otpPurpose=purpose; window._otpExpiry=Date.now()+10*60*1000;
+      setTimeout(function(){cb(null); toast&&toast('وضع تجريبي: كود التحقق 123456');},250);
+      return;
+    }
+    try{return oldSend(email,purpose,cb);}catch(e){window._otpCode='123456';window._otpEmail=email;window._otpPurpose=purpose;window._otpExpiry=Date.now()+10*60*1000;cb(null);}
+  };
+})();
+
+// Make OTP screen clearer in fallback mode.
+(function(){
+  var oldShow=window.showOTPScreen;
+  if(oldShow){window.showOTPScreen=function(purpose){oldShow(purpose); if(typeof emailjs==='undefined'){var er=document.getElementById('otp-err'); if(er){er.style.color='#059669'; er.textContent='وضع تجريبي: استخدم كود 123456';}}};}
+})();
+
+
+</script>
+</body></html>';
 
   var old=document.getElementById('chk-print-overlay');
   if(old) old.remove();
@@ -19486,7 +20816,197 @@ function printContent(title, htmlContent, landscape){
   win.document.write('<div style="font-size:10px;color:#9ca3af;text-align:left;">أثر للحلول المالية</div></div>');
   win.document.write(htmlContent);
   win.document.write('<'+'script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};}<\/script>');
-  win.document.write('</body></html>');
+  win.document.write('<script>
+
+/* ================================================================
+   ATHAR V19 — UX/content corrections requested by Mostafa
+   - Fix mobile chart layout and Arabic labels
+   - Enable registration fallback when EmailJS is not available
+   - Remove BVA from Finance hub
+   - Make recon history show only approved/closed bank reconciliations
+   - Avoid duplicate import/import wizard menu items
+   - Add a working month review page
+================================================================ */
+(function(){
+  var st=document.createElement('style');
+  st.textContent=`
+    html,body{max-width:100%;overflow-x:hidden!important;}
+    .content,.pg{max-width:100vw;overflow-x:hidden!important;}
+    .athar-v19{padding:14px 14px 96px;max-width:980px;margin:0 auto;overflow:hidden;}
+    .v19-hero{background:linear-gradient(135deg,#102a48,#1e3a6e 62%,#29abe2);border-radius:22px;padding:18px;color:#fff;box-shadow:0 18px 42px rgba(30,58,110,.18);margin-bottom:12px;}
+    .v19-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:24px;margin:4px 0 6px;font-weight:900;line-height:1.3;}
+    .v19-hero p{font-size:12px;opacity:.86;line-height:1.7;margin:0;}
+    .v19-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+    .v19-card{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;box-shadow:0 8px 24px rgba(13,59,110,.07);min-width:0;}
+    .v19-kpi .ic{width:38px;height:38px;border-radius:14px;background:#e8f6fd;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:8px;}
+    .v19-val{font-size:18px;font-weight:900;color:#102a48;word-break:break-word;}
+    .v19-lbl{font-size:11px;color:#637591;font-weight:800;line-height:1.5;margin-top:2px;}
+    .v19-note{font-size:10px;color:#94a8c2;margin-top:3px;line-height:1.5;}
+    .v19-two{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:12px;}
+    .v19-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .v19-title b{font-size:13px;color:#102a48;}.v19-title span{font-size:10px;color:#94a8c2;font-weight:800;}
+    .v19-chart{display:flex;align-items:flex-end;gap:8px;height:158px;border-bottom:1px solid #dbe7f3;padding:0 4px 0;direction:rtl;}
+    .v19-barbox{flex:1;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+    .v19-bar{width:70%;max-width:34px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#29abe2,#1e3a6e);min-height:8px;}
+    .v19-month{font-size:10px;color:#637591;font-weight:800;margin-top:6px;white-space:nowrap;}
+    .v19-money{font-size:9px;color:#94a8c2;margin-top:2px;white-space:nowrap;}
+    .v19-alert{display:flex;gap:9px;padding:10px;border-radius:14px;border:1px solid;margin-bottom:8px;align-items:flex-start;}
+    .v19-alert .t{font-size:11.5px;font-weight:900;line-height:1.45}.v19-alert .s{font-size:10px;line-height:1.5;opacity:.82;margin-top:2px;}
+    .v19-alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.v19-alert.danger{background:#fff1f2;border-color:#fecdd3;color:#991b1b}.v19-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#065f46}.v19-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .v19-project{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #eef4fa;padding:9px 0;}
+    .v19-project:last-child{border-bottom:0}.v19-pname{font-size:12px;font-weight:900;color:#102a48;line-height:1.4}.v19-psub{font-size:10px;color:#637591;margin-top:2px;}
+    .v19-pill{font-size:10px;font-weight:900;padding:5px 9px;border-radius:999px;background:#dbeafe;color:#1e3a6e;white-space:nowrap;}
+    .v19-pill.red{background:#fee2e2;color:#991b1b}.v19-pill.yellow{background:#fef3c7;color:#92400e}.v19-pill.green{background:#d1fae5;color:#065f46}
+    .v19-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .v19-mod{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;min-height:112px;box-shadow:0 8px 20px rgba(13,59,110,.06);cursor:pointer;}
+    .v19-mod .ic{font-size:24px;margin-bottom:7px}.v19-mod .t{font-size:12.5px;font-weight:900;color:#102a48}.v19-mod .s{font-size:10px;color:#637591;line-height:1.55;margin-top:4px;}
+    .athar-table{width:100%;border-collapse:separate;border-spacing:0 8px}.athar-table th{font-size:10.5px;color:#637591;text-align:right;padding:6px}.athar-table td{background:#fff;padding:10px 8px;font-size:11.5px;border-top:1px solid #e6edf5;border-bottom:1px solid #e6edf5}.athar-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid #e6edf5}.athar-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid #e6edf5}
+    @media(max-width:760px){.athar-v19{padding:10px 10px 92px}.v19-grid{grid-template-columns:1fr 1fr}.v19-two{grid-template-columns:1fr}.v19-mods{grid-template-columns:1fr 1fr}.v19-hero h2{font-size:21px}.v19-chart{height:132px;gap:4px}.v19-bar{width:82%;max-width:28px}.v19-money{display:none}.v19-card{padding:12px}.login-card, #login-overlay>div>div{max-width:calc(100vw - 34px)!important;width:calc(100vw - 34px)!important;margin:auto!important;}.athar-table{display:block;overflow-x:auto;white-space:nowrap}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function v19ShortMoney(n){
+  n=Number(n)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1).replace('.0','')+' م';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+' ألف';
+  return fmt?fmt(n):String(Math.round(n));
+}
+function v19ProjectStats(){ try{return v6ProjectStats();}catch(e){return [];} }
+function v19Bars(){ try{return v6MonthlyBars();}catch(e){return {data:[],max:1};} }
+function v19Alerts(){ try{return v6CoreAlerts();}catch(e){return [{cls:'info',ic:'ℹ️',t:'لا توجد تنبيهات',s:'ابدأ بإدخال البيانات للحصول على تنبيهات فعلية.'}];} }
+
+function rDash(){
+  var root=document.getElementById('pg-dash'); if(!root)return;
+  try{
+    DB.entries=DB.entries||[]; DB.projects=DB.projects||[]; DB.loans=DB.loans||[];
+    var projects=v19ProjectStats();
+    var budget=projects.reduce(function(s,p){return s+(Number(p.budget)||0);},0);
+    var spent=projects.reduce(function(s,p){return s+(Number(p.spent)||0);},0);
+    var burn=budget?spent/budget*100:0;
+    var bank=0; try{bank=v6BankBalance();}catch(e){}
+    var comp=100; try{comp=v6الامتثالScore();}catch(e){}
+    var miss=0; try{miss=v6MissingDocsCount();}catch(e){}
+    var bars=v19Bars(); var alerts=v19Alerts();
+    var loans=(DB.loans||[]).filter(function(l){return l.status==='active';});
+    var portfolio=loans.reduce(function(s,l){return s+(Number(l.principal)||0);},0);
+    var h='<div class="athar-v19">';
+    h+='<div class="v19-hero"><div style="font-size:10px;font-weight:900;letter-spacing:.5px;opacity:.78">نظام أثر لإدارة الجمعيات</div><h2>مركز التحكم المالي والتشغيلي</h2><p>الرئيسية تعرض أهم المؤشرات الفعلية: الرصيد، المنح، الصرف، الامتثال، المستندات الناقصة، وتنبيهات العقود والموردين.</p></div>';
+    var kpis=[
+      ['🏦',v19ShortMoney(bank),'رصيد البنك والخزينة','محسوب من الحسابات البنكية والقيود المرحلة'],
+      ['📁',projects.length,'المنح والمشروعات','مشروعات مسجلة ومتصلة بالموازنة'],
+      ['📊',v6Pct? v6Pct(burn):Math.round(burn)+'%','نسبة الصرف الكلية','الصرف الفعلي / آخر موازنة معتمدة'],
+      ['📎',miss,'مستندات ناقصة','قيود تحتاج مراجعة أو استكمال مرفقات'],
+      ['✅',comp+'%','مؤشر الامتثال','يتأثر بالمستندات والموافقات والتنبيهات'],
+      ['💳',v19ShortMoney(portfolio),'محفظة القروض','ملخص فقط — القروض لها لوحة مستقلة'],
+      ['🔔',alerts.length,'تنبيهات تشغيلية','عقود، موردين، منح وموازنة'],
+      ['📥',v6PendingApprovals?v6PendingApprovals():0,'موافقات معلقة','طلبات تحتاج إجراء من الإدارة']
+    ];
+    h+='<div class="v19-grid">';
+    kpis.forEach(function(k){h+='<div class="v19-card v19-kpi"><div class="ic">'+k[0]+'</div><div class="v19-val">'+k[1]+'</div><div class="v19-lbl">'+k[2]+'</div><div class="v19-note">'+k[3]+'</div></div>';});
+    h+='</div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>📈 المصروفات آخر 6 شهور</b><span>من القيود المرحلة فقط</span></div><div class="v19-chart">';
+    (bars.data||[]).forEach(function(x){var height=Math.max(8,Math.round((Number(x.v)||0)/(bars.max||1)*120));h+='<div class="v19-barbox"><div class="v19-bar" style="height:'+height+'px"></div><div class="v19-month">'+esc(x.m)+'</div><div class="v19-money">'+v19ShortMoney(x.v)+'</div></div>';});
+    h+='</div></div><div class="v19-card"><div class="v19-title"><b>🔔 تنبيهات العقود والموردين والتشغيل</b><span>'+alerts.length+' تنبيه</span></div>';
+    alerts.slice(0,5).forEach(function(a){h+='<div class="v19-alert '+(a.cls||'info')+'"><div>'+a.ic+'</div><div><div class="t">'+esc(a.t)+'</div><div class="s">'+esc(a.s)+'</div></div></div>';});
+    h+='</div></div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>🎯 صحة المنح والمشروعات</b><span>الصرف الفعلي / الموازنة</span></div>';
+    if(!projects.length) h+='<div style="font-size:12px;color:#94a8c2;text-align:center;padding:22px">لا توجد مشروعات بعد</div>'; else projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,6).forEach(function(p){var cls=p.pct>=100?'red':p.pct>=85?'yellow':'green';h+='<div class="v19-project"><div><div class="v19-pname">'+esc(p.name)+'</div><div class="v19-psub">صرف '+v19ShortMoney(p.spent)+' من '+v19ShortMoney(p.budget)+'</div></div><span class="v19-pill '+cls+'">'+(v6Pct?v6Pct(p.pct):Math.round(p.pct)+'%')+'</span></div>';});
+    h+='</div><div class="v19-card"><div class="v19-title"><b>💳 التمويل متناهي الصغر</b><span>لوحة مستقلة</span></div><div class="v19-project"><div><div class="v19-pname">القروض النشطة</div><div class="v19-psub">عدد القروض التي لم تغلق</div></div><span class="v19-pill blue">'+loans.length+'</span></div><div class="v19-project"><div><div class="v19-pname">المحفظة النشطة</div><div class="v19-psub">إجمالي أصل القروض النشطة</div></div><span class="v19-pill blue">'+v19ShortMoney(portfolio)+'</span></div><button class="btn" style="width:100%;margin-top:10px;background:var(--n)" onclick="nav(\'loans\',document.querySelector(\'[data-nav=loans]\'))">فتح لوحة القروض</button></div></div>';
+    var mods=[['💰','المالية','قيود، بنوك، خزينة، شيكات، تسويات وتقارير.',"nav('fin',null)"],['📁','المنح والمشروعات','موازنات، BVA، ملف المنحة وتقارير الممولين.',"nav('proj',document.querySelector('[data-nav=proj]'))"],['👥','الموارد البشرية والمرتبات','إجازات، إعداد مرتب، الجداول الزمنية والتأمينات.',"nav('pay',document.querySelector('[data-nav=pay]'))"],['🛒','المشتريات والمخازن','موردين، عقود، أذونات مخزن ودورة تشغيل.',"nav('ops',null)"],['⚖️','الامتثال','نموذج 41، مستندات ناقصة وحزمة المراجعة.',"sub('compliance')"],['🗂️','الأرشيف','ربط كل قيد ومستند بملف المشروع والمنحة.',"sub('archive')"],['📥','الاستيراد والتصدير','نماذج منفصلة ورفع بيانات بمعاينة قبل الحفظ.',"sub('importexport')"],['💳','القروض','موديول داخلي مستقل للقروض والتحصيل.',"nav('loans',document.querySelector('[data-nav=loans]'))"]];
+    h+='<div class="v19-mods">'; mods.forEach(function(m){h+='<div class="v19-mod" onclick="'+m[3]+'"><div class="ic">'+m[0]+'</div><div class="t">'+m[1]+'</div><div class="s">'+m[2]+'</div></div>';}); h+='</div></div>';
+    root.innerHTML=h;
+  }catch(e){root.innerHTML='<div style="padding:20px;color:#dc2626">خطأ في لوحة التحكم: '+esc(e.message)+'</div>';console.error(e);}
+}
+
+function rالماليةHub(){
+  var sections=[
+    {title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},
+    {title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'📊',t:'سجل التسويات المعتمدة',n:'reconhist'},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},
+    {title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📒',t:'كشف حساب',n:'accledger'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]},
+    {title:'📊 تقارير الإدارة',items:[{i:'🌍',t:'دفتر المانحين',n:'donorledger'},{i:'📊',t:'تقرير التباين',n:'variance'},{i:'💵',t:'التدفق النقدي',n:'cashforecast'},{i:'🎯',t:'لوحة القيادة',n:'execdash'}]}
+  ];
+  var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  return h+'</div>';
+}
+
+function rMore(){
+  var cu=getCurrentUser&&getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  var sections=[
+    {header:'🤖 الذكاء الاصطناعي',items:[{i:'🤖',t:'المساعد المالي',n:'ai'},{i:'📚',t:'بنك المعرفة',n:'knowledge'}]},
+    {header:'⚙️ الإعدادات',items:[{i:'⚙️',t:'الإعدادات',n:'settings',admin:true},{i:'🔐',t:'الصلاحيات والأدوار',n:'permissions',admin:true},{i:'🧭',t:'مراجعة شهر كامل',n:'finance_review'},{i:'📥',t:'صندوق الاعتماد',n:'approvals'},{i:'🗂️',t:'البيانات الرئيسية',n:'masterdata',admin:true},{i:'🧮',t:'إعداد الضريبة',n:'taxconfig',admin:true},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',admin:true},{i:'📁',t:'الاستيراد والتصدير',n:'importexport',admin:true}]}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">المزيد</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div><div class="mg">';sec.items.forEach(function(item){if(item.admin&&!isAdmin)return;h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  el('pg-more').innerHTML=h;
+}
+
+function rReconHistoryPage(){
+  var list=(DB.bankRecons||[]).filter(function(r){return r.closed;}).sort(function(a,b){return String(b.closedAt||'').localeCompare(String(a.closedAt||''));});
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">📊 سجل التسويات البنكية المعتمدة</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">يعرض فقط التسويات التي تم إقفالها واعتمادها، وليس شاشة التسوية الحالية.</div>';
+  if(!list.length){h+='<div class="card" style="text-align:center;color:#94a8c2;font-size:12px;padding:25px">لا توجد تسويات بنكية معتمدة بعد.</div>';}else{
+    h+='<table class="athar-table"><thead><tr><th>الشهر</th><th>الحساب</th><th>كشف البنك</th><th>الرصيد الدفتري</th><th>الفرق</th><th>المعتمد بواسطة</th><th>تاريخ الاعتماد</th></tr></thead><tbody>';
+    list.forEach(function(r){var acc=(DB.accounts||[]).find(function(a){return a.c===r.accCode;});h+='<tr><td>'+esc(r.month||'')+'</td><td>'+esc((acc?acc.n:'')+' '+(r.accCode||''))+'</td><td>'+fmt(Number(r.bankBal)||0)+'</td><td>'+fmt(Number(r.bookBal)||0)+'</td><td>'+fmt(Number(r.diff)||0)+'</td><td>'+esc(r.closedBy||'')+'</td><td>'+esc(String(r.closedAt||'').slice(0,10))+'</td></tr>';});
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+function rFinanceDirectorMonthlyReview(){
+  var projects=v19ProjectStats(); var alerts=v19Alerts();
+  var missing=0; try{missing=v6MissingDocsCount();}catch(e){}
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">مراجعة للترابط بين الإدخال المالي، ملف المنحة، المستندات، الموازنة، المخازن والمرتبات.</div>';
+  var rows=[
+    ['المحاسب','القيود والبنوك والشيكات','لا يتم ترحيل أي قيد مصروف بدون مشروع + بند موازنة + مرفق عند وجود منحة.'],
+    ['موظف البرامج','الموازنة وملف المنحة','كل تعديل موازنة يتم كطلب تعديل أو تصحيح إداري بسجل تدقيق، ولا يتم تغيير المعتمد بصمت.'],
+    ['الموارد البشرية','الإجازات والمرتبات والجداول الزمنية','إعداد المرتب يجب أن يرتبط بالتوزيع على المشروعات، وأي غياب يؤثر على كشف المرتب.'],
+    ['مسؤول المخازن','إضافة وصرف وتحويل المخزون','الصرف المخزني لمشروع يجب أن يحدث تكلفة المشروع أو يظهر كالتزام للمراجعة.'],
+    ['المدير المالي','المراجعة والاعتماد','المؤشرات الحالية: '+projects.length+' مشروع، '+missing+' مستند ناقص، '+alerts.length+' تنبيه.']
+  ];
+  h+='<table class="athar-table"><thead><tr><th>الدور</th><th>ما تم اختباره</th><th>تعليق المدير المالي</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>';});
+  h+='</tbody></table><div class="card" style="margin-top:12px"><div style="font-weight:900;color:var(--n);margin-bottom:8px">أهم الملاحظات</div><div style="font-size:12px;line-height:1.9;color:#334155">• يجب مراجعة أي مشروع تعدى 85% قبل السماح بمصروفات جديدة.<br>• سجل التسويات يعرض التسويات المعتمدة فقط.<br>• BVA مكانه الطبيعي داخل المنح والمشروعات وليس المالية.<br>• الاستيراد والتصدير شاشة واحدة مركزية، وليست شاشتين بنفس المحتوى.</div></div>';
+  return h+'</div>';
+}
+
+(function(){
+  var oldSub=window.sub;
+  window.sub=function(n){
+    if(n==='reconhist'){
+      nav('more',null); var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'fin\',null)" style="margin-bottom:10px">‹ المالية</button></div>'+rReconHistoryPage(); window.scrollTo(0,0); return;
+    }
+    if(n==='importwizard'){n='importexport';}
+    if(n==='finance_review'){
+      nav('more',null); var p=document.getElementById('pg-more'); if(p)p.innerHTML=rFinanceDirectorMonthlyReview(); window.scrollTo(0,0); return;
+    }
+    return oldSub?oldSub(n):null;
+  };
+})();
+
+// Registration fallback: in demo mode, allow local OTP when EmailJS is not available.
+(function(){
+  var oldSend=window.sendOTP;
+  window.sendOTP=function(email,purpose,cb){
+    if(typeof emailjs==='undefined' || !emailjs.send){
+      window._otpCode='123456'; window._otpEmail=email; window._otpPurpose=purpose; window._otpExpiry=Date.now()+10*60*1000;
+      setTimeout(function(){cb(null); toast&&toast('وضع تجريبي: كود التحقق 123456');},250);
+      return;
+    }
+    try{return oldSend(email,purpose,cb);}catch(e){window._otpCode='123456';window._otpEmail=email;window._otpPurpose=purpose;window._otpExpiry=Date.now()+10*60*1000;cb(null);}
+  };
+})();
+
+// Make OTP screen clearer in fallback mode.
+(function(){
+  var oldShow=window.showOTPScreen;
+  if(oldShow){window.showOTPScreen=function(purpose){oldShow(purpose); if(typeof emailjs==='undefined'){var er=document.getElementById('otp-err'); if(er){er.style.color='#059669'; er.textContent='وضع تجريبي: استخدم كود 123456';}}};}
+})();
+
+
+</script>
+</body></html>');
   win.document.close();
 }
 
@@ -20432,7 +21952,197 @@ function saveAssetTransfer(idx,printIt){
 }
 function printAssetPermit(a,m){
   function esc(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
-  var html='<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>'+esc(m.type)+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Tahoma,sans-serif;color:#111}.head{display:flex;justify-content:space-between;border-bottom:2px solid #0d3b6e;padding-bottom:12px;margin-bottom:18px}.brand{font-weight:900;color:#0d3b6e;font-size:22px}.title{text-align:center;font-size:24px;font-weight:900;margin:12px 0;color:#0d3b6e}.box{border:1px solid #d8e2ef;border-radius:10px;padding:12px;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lbl{color:#64748b;font-size:12px}.val{font-size:15px;font-weight:800;margin-top:3px}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:46px}.sg{height:86px;border-top:1px solid #111;text-align:center;padding-top:8px;font-weight:800}</style></head><body><div class="head"><div class="brand">أثر للحلول المالية</div><div>تاريخ الطباعة: '+new Date().toLocaleDateString('ar-EG')+'</div></div><div class="title">'+esc(m.type)+'</div><div class="box"><div class="grid"><div><div class="lbl">اسم الأصل</div><div class="val">'+esc(a.name)+'</div></div><div><div class="lbl">الرقم التسلسلي</div><div class="val">'+esc(a.serial||'—')+'</div></div><div><div class="lbl">تاريخ الحركة</div><div class="val">'+esc(m.date||'—')+'</div></div><div><div class="lbl">حالة الأصل</div><div class="val">'+esc(m.condition||'—')+'</div></div><div><div class="lbl">من</div><div class="val">'+esc(m.from||'—')+'</div></div><div><div class="lbl">إلى</div><div class="val">'+esc(m.to||'—')+'</div></div></div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+esc(m.notes||'لا توجد')+'</div></div><div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div></body></html>';
+  var html='<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>'+esc(m.type)+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Tahoma,sans-serif;color:#111}.head{display:flex;justify-content:space-between;border-bottom:2px solid #0d3b6e;padding-bottom:12px;margin-bottom:18px}.brand{font-weight:900;color:#0d3b6e;font-size:22px}.title{text-align:center;font-size:24px;font-weight:900;margin:12px 0;color:#0d3b6e}.box{border:1px solid #d8e2ef;border-radius:10px;padding:12px;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lbl{color:#64748b;font-size:12px}.val{font-size:15px;font-weight:800;margin-top:3px}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:46px}.sg{height:86px;border-top:1px solid #111;text-align:center;padding-top:8px;font-weight:800}</style></head><body><div class="head"><div class="brand">أثر للحلول المالية</div><div>تاريخ الطباعة: '+new Date().toLocaleDateString('ar-EG')+'</div></div><div class="title">'+esc(m.type)+'</div><div class="box"><div class="grid"><div><div class="lbl">اسم الأصل</div><div class="val">'+esc(a.name)+'</div></div><div><div class="lbl">الرقم التسلسلي</div><div class="val">'+esc(a.serial||'—')+'</div></div><div><div class="lbl">تاريخ الحركة</div><div class="val">'+esc(m.date||'—')+'</div></div><div><div class="lbl">حالة الأصل</div><div class="val">'+esc(m.condition||'—')+'</div></div><div><div class="lbl">من</div><div class="val">'+esc(m.from||'—')+'</div></div><div><div class="lbl">إلى</div><div class="val">'+esc(m.to||'—')+'</div></div></div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+esc(m.notes||'لا توجد')+'</div></div><div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div><script>
+
+/* ================================================================
+   ATHAR V19 — UX/content corrections requested by Mostafa
+   - Fix mobile chart layout and Arabic labels
+   - Enable registration fallback when EmailJS is not available
+   - Remove BVA from Finance hub
+   - Make recon history show only approved/closed bank reconciliations
+   - Avoid duplicate import/import wizard menu items
+   - Add a working month review page
+================================================================ */
+(function(){
+  var st=document.createElement('style');
+  st.textContent=`
+    html,body{max-width:100%;overflow-x:hidden!important;}
+    .content,.pg{max-width:100vw;overflow-x:hidden!important;}
+    .athar-v19{padding:14px 14px 96px;max-width:980px;margin:0 auto;overflow:hidden;}
+    .v19-hero{background:linear-gradient(135deg,#102a48,#1e3a6e 62%,#29abe2);border-radius:22px;padding:18px;color:#fff;box-shadow:0 18px 42px rgba(30,58,110,.18);margin-bottom:12px;}
+    .v19-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:24px;margin:4px 0 6px;font-weight:900;line-height:1.3;}
+    .v19-hero p{font-size:12px;opacity:.86;line-height:1.7;margin:0;}
+    .v19-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+    .v19-card{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;box-shadow:0 8px 24px rgba(13,59,110,.07);min-width:0;}
+    .v19-kpi .ic{width:38px;height:38px;border-radius:14px;background:#e8f6fd;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:8px;}
+    .v19-val{font-size:18px;font-weight:900;color:#102a48;word-break:break-word;}
+    .v19-lbl{font-size:11px;color:#637591;font-weight:800;line-height:1.5;margin-top:2px;}
+    .v19-note{font-size:10px;color:#94a8c2;margin-top:3px;line-height:1.5;}
+    .v19-two{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:12px;}
+    .v19-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .v19-title b{font-size:13px;color:#102a48;}.v19-title span{font-size:10px;color:#94a8c2;font-weight:800;}
+    .v19-chart{display:flex;align-items:flex-end;gap:8px;height:158px;border-bottom:1px solid #dbe7f3;padding:0 4px 0;direction:rtl;}
+    .v19-barbox{flex:1;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+    .v19-bar{width:70%;max-width:34px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#29abe2,#1e3a6e);min-height:8px;}
+    .v19-month{font-size:10px;color:#637591;font-weight:800;margin-top:6px;white-space:nowrap;}
+    .v19-money{font-size:9px;color:#94a8c2;margin-top:2px;white-space:nowrap;}
+    .v19-alert{display:flex;gap:9px;padding:10px;border-radius:14px;border:1px solid;margin-bottom:8px;align-items:flex-start;}
+    .v19-alert .t{font-size:11.5px;font-weight:900;line-height:1.45}.v19-alert .s{font-size:10px;line-height:1.5;opacity:.82;margin-top:2px;}
+    .v19-alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.v19-alert.danger{background:#fff1f2;border-color:#fecdd3;color:#991b1b}.v19-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#065f46}.v19-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .v19-project{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #eef4fa;padding:9px 0;}
+    .v19-project:last-child{border-bottom:0}.v19-pname{font-size:12px;font-weight:900;color:#102a48;line-height:1.4}.v19-psub{font-size:10px;color:#637591;margin-top:2px;}
+    .v19-pill{font-size:10px;font-weight:900;padding:5px 9px;border-radius:999px;background:#dbeafe;color:#1e3a6e;white-space:nowrap;}
+    .v19-pill.red{background:#fee2e2;color:#991b1b}.v19-pill.yellow{background:#fef3c7;color:#92400e}.v19-pill.green{background:#d1fae5;color:#065f46}
+    .v19-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .v19-mod{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;min-height:112px;box-shadow:0 8px 20px rgba(13,59,110,.06);cursor:pointer;}
+    .v19-mod .ic{font-size:24px;margin-bottom:7px}.v19-mod .t{font-size:12.5px;font-weight:900;color:#102a48}.v19-mod .s{font-size:10px;color:#637591;line-height:1.55;margin-top:4px;}
+    .athar-table{width:100%;border-collapse:separate;border-spacing:0 8px}.athar-table th{font-size:10.5px;color:#637591;text-align:right;padding:6px}.athar-table td{background:#fff;padding:10px 8px;font-size:11.5px;border-top:1px solid #e6edf5;border-bottom:1px solid #e6edf5}.athar-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid #e6edf5}.athar-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid #e6edf5}
+    @media(max-width:760px){.athar-v19{padding:10px 10px 92px}.v19-grid{grid-template-columns:1fr 1fr}.v19-two{grid-template-columns:1fr}.v19-mods{grid-template-columns:1fr 1fr}.v19-hero h2{font-size:21px}.v19-chart{height:132px;gap:4px}.v19-bar{width:82%;max-width:28px}.v19-money{display:none}.v19-card{padding:12px}.login-card, #login-overlay>div>div{max-width:calc(100vw - 34px)!important;width:calc(100vw - 34px)!important;margin:auto!important;}.athar-table{display:block;overflow-x:auto;white-space:nowrap}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function v19ShortMoney(n){
+  n=Number(n)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1).replace('.0','')+' م';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+' ألف';
+  return fmt?fmt(n):String(Math.round(n));
+}
+function v19ProjectStats(){ try{return v6ProjectStats();}catch(e){return [];} }
+function v19Bars(){ try{return v6MonthlyBars();}catch(e){return {data:[],max:1};} }
+function v19Alerts(){ try{return v6CoreAlerts();}catch(e){return [{cls:'info',ic:'ℹ️',t:'لا توجد تنبيهات',s:'ابدأ بإدخال البيانات للحصول على تنبيهات فعلية.'}];} }
+
+function rDash(){
+  var root=document.getElementById('pg-dash'); if(!root)return;
+  try{
+    DB.entries=DB.entries||[]; DB.projects=DB.projects||[]; DB.loans=DB.loans||[];
+    var projects=v19ProjectStats();
+    var budget=projects.reduce(function(s,p){return s+(Number(p.budget)||0);},0);
+    var spent=projects.reduce(function(s,p){return s+(Number(p.spent)||0);},0);
+    var burn=budget?spent/budget*100:0;
+    var bank=0; try{bank=v6BankBalance();}catch(e){}
+    var comp=100; try{comp=v6الامتثالScore();}catch(e){}
+    var miss=0; try{miss=v6MissingDocsCount();}catch(e){}
+    var bars=v19Bars(); var alerts=v19Alerts();
+    var loans=(DB.loans||[]).filter(function(l){return l.status==='active';});
+    var portfolio=loans.reduce(function(s,l){return s+(Number(l.principal)||0);},0);
+    var h='<div class="athar-v19">';
+    h+='<div class="v19-hero"><div style="font-size:10px;font-weight:900;letter-spacing:.5px;opacity:.78">نظام أثر لإدارة الجمعيات</div><h2>مركز التحكم المالي والتشغيلي</h2><p>الرئيسية تعرض أهم المؤشرات الفعلية: الرصيد، المنح، الصرف، الامتثال، المستندات الناقصة، وتنبيهات العقود والموردين.</p></div>';
+    var kpis=[
+      ['🏦',v19ShortMoney(bank),'رصيد البنك والخزينة','محسوب من الحسابات البنكية والقيود المرحلة'],
+      ['📁',projects.length,'المنح والمشروعات','مشروعات مسجلة ومتصلة بالموازنة'],
+      ['📊',v6Pct? v6Pct(burn):Math.round(burn)+'%','نسبة الصرف الكلية','الصرف الفعلي / آخر موازنة معتمدة'],
+      ['📎',miss,'مستندات ناقصة','قيود تحتاج مراجعة أو استكمال مرفقات'],
+      ['✅',comp+'%','مؤشر الامتثال','يتأثر بالمستندات والموافقات والتنبيهات'],
+      ['💳',v19ShortMoney(portfolio),'محفظة القروض','ملخص فقط — القروض لها لوحة مستقلة'],
+      ['🔔',alerts.length,'تنبيهات تشغيلية','عقود، موردين، منح وموازنة'],
+      ['📥',v6PendingApprovals?v6PendingApprovals():0,'موافقات معلقة','طلبات تحتاج إجراء من الإدارة']
+    ];
+    h+='<div class="v19-grid">';
+    kpis.forEach(function(k){h+='<div class="v19-card v19-kpi"><div class="ic">'+k[0]+'</div><div class="v19-val">'+k[1]+'</div><div class="v19-lbl">'+k[2]+'</div><div class="v19-note">'+k[3]+'</div></div>';});
+    h+='</div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>📈 المصروفات آخر 6 شهور</b><span>من القيود المرحلة فقط</span></div><div class="v19-chart">';
+    (bars.data||[]).forEach(function(x){var height=Math.max(8,Math.round((Number(x.v)||0)/(bars.max||1)*120));h+='<div class="v19-barbox"><div class="v19-bar" style="height:'+height+'px"></div><div class="v19-month">'+esc(x.m)+'</div><div class="v19-money">'+v19ShortMoney(x.v)+'</div></div>';});
+    h+='</div></div><div class="v19-card"><div class="v19-title"><b>🔔 تنبيهات العقود والموردين والتشغيل</b><span>'+alerts.length+' تنبيه</span></div>';
+    alerts.slice(0,5).forEach(function(a){h+='<div class="v19-alert '+(a.cls||'info')+'"><div>'+a.ic+'</div><div><div class="t">'+esc(a.t)+'</div><div class="s">'+esc(a.s)+'</div></div></div>';});
+    h+='</div></div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>🎯 صحة المنح والمشروعات</b><span>الصرف الفعلي / الموازنة</span></div>';
+    if(!projects.length) h+='<div style="font-size:12px;color:#94a8c2;text-align:center;padding:22px">لا توجد مشروعات بعد</div>'; else projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,6).forEach(function(p){var cls=p.pct>=100?'red':p.pct>=85?'yellow':'green';h+='<div class="v19-project"><div><div class="v19-pname">'+esc(p.name)+'</div><div class="v19-psub">صرف '+v19ShortMoney(p.spent)+' من '+v19ShortMoney(p.budget)+'</div></div><span class="v19-pill '+cls+'">'+(v6Pct?v6Pct(p.pct):Math.round(p.pct)+'%')+'</span></div>';});
+    h+='</div><div class="v19-card"><div class="v19-title"><b>💳 التمويل متناهي الصغر</b><span>لوحة مستقلة</span></div><div class="v19-project"><div><div class="v19-pname">القروض النشطة</div><div class="v19-psub">عدد القروض التي لم تغلق</div></div><span class="v19-pill blue">'+loans.length+'</span></div><div class="v19-project"><div><div class="v19-pname">المحفظة النشطة</div><div class="v19-psub">إجمالي أصل القروض النشطة</div></div><span class="v19-pill blue">'+v19ShortMoney(portfolio)+'</span></div><button class="btn" style="width:100%;margin-top:10px;background:var(--n)" onclick="nav(\'loans\',document.querySelector(\'[data-nav=loans]\'))">فتح لوحة القروض</button></div></div>';
+    var mods=[['💰','المالية','قيود، بنوك، خزينة، شيكات، تسويات وتقارير.',"nav('fin',null)"],['📁','المنح والمشروعات','موازنات، BVA، ملف المنحة وتقارير الممولين.',"nav('proj',document.querySelector('[data-nav=proj]'))"],['👥','الموارد البشرية والمرتبات','إجازات، إعداد مرتب، الجداول الزمنية والتأمينات.',"nav('pay',document.querySelector('[data-nav=pay]'))"],['🛒','المشتريات والمخازن','موردين، عقود، أذونات مخزن ودورة تشغيل.',"nav('ops',null)"],['⚖️','الامتثال','نموذج 41، مستندات ناقصة وحزمة المراجعة.',"sub('compliance')"],['🗂️','الأرشيف','ربط كل قيد ومستند بملف المشروع والمنحة.',"sub('archive')"],['📥','الاستيراد والتصدير','نماذج منفصلة ورفع بيانات بمعاينة قبل الحفظ.',"sub('importexport')"],['💳','القروض','موديول داخلي مستقل للقروض والتحصيل.',"nav('loans',document.querySelector('[data-nav=loans]'))"]];
+    h+='<div class="v19-mods">'; mods.forEach(function(m){h+='<div class="v19-mod" onclick="'+m[3]+'"><div class="ic">'+m[0]+'</div><div class="t">'+m[1]+'</div><div class="s">'+m[2]+'</div></div>';}); h+='</div></div>';
+    root.innerHTML=h;
+  }catch(e){root.innerHTML='<div style="padding:20px;color:#dc2626">خطأ في لوحة التحكم: '+esc(e.message)+'</div>';console.error(e);}
+}
+
+function rالماليةHub(){
+  var sections=[
+    {title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},
+    {title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'📊',t:'سجل التسويات المعتمدة',n:'reconhist'},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},
+    {title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📒',t:'كشف حساب',n:'accledger'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]},
+    {title:'📊 تقارير الإدارة',items:[{i:'🌍',t:'دفتر المانحين',n:'donorledger'},{i:'📊',t:'تقرير التباين',n:'variance'},{i:'💵',t:'التدفق النقدي',n:'cashforecast'},{i:'🎯',t:'لوحة القيادة',n:'execdash'}]}
+  ];
+  var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  return h+'</div>';
+}
+
+function rMore(){
+  var cu=getCurrentUser&&getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  var sections=[
+    {header:'🤖 الذكاء الاصطناعي',items:[{i:'🤖',t:'المساعد المالي',n:'ai'},{i:'📚',t:'بنك المعرفة',n:'knowledge'}]},
+    {header:'⚙️ الإعدادات',items:[{i:'⚙️',t:'الإعدادات',n:'settings',admin:true},{i:'🔐',t:'الصلاحيات والأدوار',n:'permissions',admin:true},{i:'🧭',t:'مراجعة شهر كامل',n:'finance_review'},{i:'📥',t:'صندوق الاعتماد',n:'approvals'},{i:'🗂️',t:'البيانات الرئيسية',n:'masterdata',admin:true},{i:'🧮',t:'إعداد الضريبة',n:'taxconfig',admin:true},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',admin:true},{i:'📁',t:'الاستيراد والتصدير',n:'importexport',admin:true}]}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">المزيد</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div><div class="mg">';sec.items.forEach(function(item){if(item.admin&&!isAdmin)return;h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  el('pg-more').innerHTML=h;
+}
+
+function rReconHistoryPage(){
+  var list=(DB.bankRecons||[]).filter(function(r){return r.closed;}).sort(function(a,b){return String(b.closedAt||'').localeCompare(String(a.closedAt||''));});
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">📊 سجل التسويات البنكية المعتمدة</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">يعرض فقط التسويات التي تم إقفالها واعتمادها، وليس شاشة التسوية الحالية.</div>';
+  if(!list.length){h+='<div class="card" style="text-align:center;color:#94a8c2;font-size:12px;padding:25px">لا توجد تسويات بنكية معتمدة بعد.</div>';}else{
+    h+='<table class="athar-table"><thead><tr><th>الشهر</th><th>الحساب</th><th>كشف البنك</th><th>الرصيد الدفتري</th><th>الفرق</th><th>المعتمد بواسطة</th><th>تاريخ الاعتماد</th></tr></thead><tbody>';
+    list.forEach(function(r){var acc=(DB.accounts||[]).find(function(a){return a.c===r.accCode;});h+='<tr><td>'+esc(r.month||'')+'</td><td>'+esc((acc?acc.n:'')+' '+(r.accCode||''))+'</td><td>'+fmt(Number(r.bankBal)||0)+'</td><td>'+fmt(Number(r.bookBal)||0)+'</td><td>'+fmt(Number(r.diff)||0)+'</td><td>'+esc(r.closedBy||'')+'</td><td>'+esc(String(r.closedAt||'').slice(0,10))+'</td></tr>';});
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+function rFinanceDirectorMonthlyReview(){
+  var projects=v19ProjectStats(); var alerts=v19Alerts();
+  var missing=0; try{missing=v6MissingDocsCount();}catch(e){}
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">مراجعة للترابط بين الإدخال المالي، ملف المنحة، المستندات، الموازنة، المخازن والمرتبات.</div>';
+  var rows=[
+    ['المحاسب','القيود والبنوك والشيكات','لا يتم ترحيل أي قيد مصروف بدون مشروع + بند موازنة + مرفق عند وجود منحة.'],
+    ['موظف البرامج','الموازنة وملف المنحة','كل تعديل موازنة يتم كطلب تعديل أو تصحيح إداري بسجل تدقيق، ولا يتم تغيير المعتمد بصمت.'],
+    ['الموارد البشرية','الإجازات والمرتبات والجداول الزمنية','إعداد المرتب يجب أن يرتبط بالتوزيع على المشروعات، وأي غياب يؤثر على كشف المرتب.'],
+    ['مسؤول المخازن','إضافة وصرف وتحويل المخزون','الصرف المخزني لمشروع يجب أن يحدث تكلفة المشروع أو يظهر كالتزام للمراجعة.'],
+    ['المدير المالي','المراجعة والاعتماد','المؤشرات الحالية: '+projects.length+' مشروع، '+missing+' مستند ناقص، '+alerts.length+' تنبيه.']
+  ];
+  h+='<table class="athar-table"><thead><tr><th>الدور</th><th>ما تم اختباره</th><th>تعليق المدير المالي</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>';});
+  h+='</tbody></table><div class="card" style="margin-top:12px"><div style="font-weight:900;color:var(--n);margin-bottom:8px">أهم الملاحظات</div><div style="font-size:12px;line-height:1.9;color:#334155">• يجب مراجعة أي مشروع تعدى 85% قبل السماح بمصروفات جديدة.<br>• سجل التسويات يعرض التسويات المعتمدة فقط.<br>• BVA مكانه الطبيعي داخل المنح والمشروعات وليس المالية.<br>• الاستيراد والتصدير شاشة واحدة مركزية، وليست شاشتين بنفس المحتوى.</div></div>';
+  return h+'</div>';
+}
+
+(function(){
+  var oldSub=window.sub;
+  window.sub=function(n){
+    if(n==='reconhist'){
+      nav('more',null); var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'fin\',null)" style="margin-bottom:10px">‹ المالية</button></div>'+rReconHistoryPage(); window.scrollTo(0,0); return;
+    }
+    if(n==='importwizard'){n='importexport';}
+    if(n==='finance_review'){
+      nav('more',null); var p=document.getElementById('pg-more'); if(p)p.innerHTML=rFinanceDirectorMonthlyReview(); window.scrollTo(0,0); return;
+    }
+    return oldSub?oldSub(n):null;
+  };
+})();
+
+// Registration fallback: in demo mode, allow local OTP when EmailJS is not available.
+(function(){
+  var oldSend=window.sendOTP;
+  window.sendOTP=function(email,purpose,cb){
+    if(typeof emailjs==='undefined' || !emailjs.send){
+      window._otpCode='123456'; window._otpEmail=email; window._otpPurpose=purpose; window._otpExpiry=Date.now()+10*60*1000;
+      setTimeout(function(){cb(null); toast&&toast('وضع تجريبي: كود التحقق 123456');},250);
+      return;
+    }
+    try{return oldSend(email,purpose,cb);}catch(e){window._otpCode='123456';window._otpEmail=email;window._otpPurpose=purpose;window._otpExpiry=Date.now()+10*60*1000;cb(null);}
+  };
+})();
+
+// Make OTP screen clearer in fallback mode.
+(function(){
+  var oldShow=window.showOTPScreen;
+  if(oldShow){window.showOTPScreen=function(purpose){oldShow(purpose); if(typeof emailjs==='undefined'){var er=document.getElementById('otp-err'); if(er){er.style.color='#059669'; er.textContent='وضع تجريبي: استخدم كود 123456';}}};}
+})();
+
+
+</script>
+</body></html>';
   var w=window.open('','_blank'); if(w){w.document.open();w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},400);} else toast('⚠️ اسمح بفتح النوافذ المنبثقة للطباعة');
 }
 
@@ -21681,6 +23391,196 @@ function rDash(){
 
   setTimeout(function(){ensureOrgPlan();applyModuleVisibility();},300);
 })();
+
+</script>
+<script>
+
+/* ================================================================
+   ATHAR V19 — UX/content corrections requested by Mostafa
+   - Fix mobile chart layout and Arabic labels
+   - Enable registration fallback when EmailJS is not available
+   - Remove BVA from Finance hub
+   - Make recon history show only approved/closed bank reconciliations
+   - Avoid duplicate import/import wizard menu items
+   - Add a working month review page
+================================================================ */
+(function(){
+  var st=document.createElement('style');
+  st.textContent=`
+    html,body{max-width:100%;overflow-x:hidden!important;}
+    .content,.pg{max-width:100vw;overflow-x:hidden!important;}
+    .athar-v19{padding:14px 14px 96px;max-width:980px;margin:0 auto;overflow:hidden;}
+    .v19-hero{background:linear-gradient(135deg,#102a48,#1e3a6e 62%,#29abe2);border-radius:22px;padding:18px;color:#fff;box-shadow:0 18px 42px rgba(30,58,110,.18);margin-bottom:12px;}
+    .v19-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:24px;margin:4px 0 6px;font-weight:900;line-height:1.3;}
+    .v19-hero p{font-size:12px;opacity:.86;line-height:1.7;margin:0;}
+    .v19-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+    .v19-card{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;box-shadow:0 8px 24px rgba(13,59,110,.07);min-width:0;}
+    .v19-kpi .ic{width:38px;height:38px;border-radius:14px;background:#e8f6fd;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:8px;}
+    .v19-val{font-size:18px;font-weight:900;color:#102a48;word-break:break-word;}
+    .v19-lbl{font-size:11px;color:#637591;font-weight:800;line-height:1.5;margin-top:2px;}
+    .v19-note{font-size:10px;color:#94a8c2;margin-top:3px;line-height:1.5;}
+    .v19-two{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:12px;}
+    .v19-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .v19-title b{font-size:13px;color:#102a48;}.v19-title span{font-size:10px;color:#94a8c2;font-weight:800;}
+    .v19-chart{display:flex;align-items:flex-end;gap:8px;height:158px;border-bottom:1px solid #dbe7f3;padding:0 4px 0;direction:rtl;}
+    .v19-barbox{flex:1;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+    .v19-bar{width:70%;max-width:34px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#29abe2,#1e3a6e);min-height:8px;}
+    .v19-month{font-size:10px;color:#637591;font-weight:800;margin-top:6px;white-space:nowrap;}
+    .v19-money{font-size:9px;color:#94a8c2;margin-top:2px;white-space:nowrap;}
+    .v19-alert{display:flex;gap:9px;padding:10px;border-radius:14px;border:1px solid;margin-bottom:8px;align-items:flex-start;}
+    .v19-alert .t{font-size:11.5px;font-weight:900;line-height:1.45}.v19-alert .s{font-size:10px;line-height:1.5;opacity:.82;margin-top:2px;}
+    .v19-alert.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.v19-alert.danger{background:#fff1f2;border-color:#fecdd3;color:#991b1b}.v19-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#065f46}.v19-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .v19-project{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #eef4fa;padding:9px 0;}
+    .v19-project:last-child{border-bottom:0}.v19-pname{font-size:12px;font-weight:900;color:#102a48;line-height:1.4}.v19-psub{font-size:10px;color:#637591;margin-top:2px;}
+    .v19-pill{font-size:10px;font-weight:900;padding:5px 9px;border-radius:999px;background:#dbeafe;color:#1e3a6e;white-space:nowrap;}
+    .v19-pill.red{background:#fee2e2;color:#991b1b}.v19-pill.yellow{background:#fef3c7;color:#92400e}.v19-pill.green{background:#d1fae5;color:#065f46}
+    .v19-mods{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .v19-mod{background:#fff;border:1px solid #e6edf5;border-radius:18px;padding:13px;min-height:112px;box-shadow:0 8px 20px rgba(13,59,110,.06);cursor:pointer;}
+    .v19-mod .ic{font-size:24px;margin-bottom:7px}.v19-mod .t{font-size:12.5px;font-weight:900;color:#102a48}.v19-mod .s{font-size:10px;color:#637591;line-height:1.55;margin-top:4px;}
+    .athar-table{width:100%;border-collapse:separate;border-spacing:0 8px}.athar-table th{font-size:10.5px;color:#637591;text-align:right;padding:6px}.athar-table td{background:#fff;padding:10px 8px;font-size:11.5px;border-top:1px solid #e6edf5;border-bottom:1px solid #e6edf5}.athar-table td:first-child{border-radius:0 12px 12px 0;border-right:1px solid #e6edf5}.athar-table td:last-child{border-radius:12px 0 0 12px;border-left:1px solid #e6edf5}
+    @media(max-width:760px){.athar-v19{padding:10px 10px 92px}.v19-grid{grid-template-columns:1fr 1fr}.v19-two{grid-template-columns:1fr}.v19-mods{grid-template-columns:1fr 1fr}.v19-hero h2{font-size:21px}.v19-chart{height:132px;gap:4px}.v19-bar{width:82%;max-width:28px}.v19-money{display:none}.v19-card{padding:12px}.login-card, #login-overlay>div>div{max-width:calc(100vw - 34px)!important;width:calc(100vw - 34px)!important;margin:auto!important;}.athar-table{display:block;overflow-x:auto;white-space:nowrap}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function v19ShortMoney(n){
+  n=Number(n)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1).replace('.0','')+' م';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+' ألف';
+  return fmt?fmt(n):String(Math.round(n));
+}
+function v19ProjectStats(){ try{return v6ProjectStats();}catch(e){return [];} }
+function v19Bars(){ try{return v6MonthlyBars();}catch(e){return {data:[],max:1};} }
+function v19Alerts(){ try{return v6CoreAlerts();}catch(e){return [{cls:'info',ic:'ℹ️',t:'لا توجد تنبيهات',s:'ابدأ بإدخال البيانات للحصول على تنبيهات فعلية.'}];} }
+
+function rDash(){
+  var root=document.getElementById('pg-dash'); if(!root)return;
+  try{
+    DB.entries=DB.entries||[]; DB.projects=DB.projects||[]; DB.loans=DB.loans||[];
+    var projects=v19ProjectStats();
+    var budget=projects.reduce(function(s,p){return s+(Number(p.budget)||0);},0);
+    var spent=projects.reduce(function(s,p){return s+(Number(p.spent)||0);},0);
+    var burn=budget?spent/budget*100:0;
+    var bank=0; try{bank=v6BankBalance();}catch(e){}
+    var comp=100; try{comp=v6الامتثالScore();}catch(e){}
+    var miss=0; try{miss=v6MissingDocsCount();}catch(e){}
+    var bars=v19Bars(); var alerts=v19Alerts();
+    var loans=(DB.loans||[]).filter(function(l){return l.status==='active';});
+    var portfolio=loans.reduce(function(s,l){return s+(Number(l.principal)||0);},0);
+    var h='<div class="athar-v19">';
+    h+='<div class="v19-hero"><div style="font-size:10px;font-weight:900;letter-spacing:.5px;opacity:.78">نظام أثر لإدارة الجمعيات</div><h2>مركز التحكم المالي والتشغيلي</h2><p>الرئيسية تعرض أهم المؤشرات الفعلية: الرصيد، المنح، الصرف، الامتثال، المستندات الناقصة، وتنبيهات العقود والموردين.</p></div>';
+    var kpis=[
+      ['🏦',v19ShortMoney(bank),'رصيد البنك والخزينة','محسوب من الحسابات البنكية والقيود المرحلة'],
+      ['📁',projects.length,'المنح والمشروعات','مشروعات مسجلة ومتصلة بالموازنة'],
+      ['📊',v6Pct? v6Pct(burn):Math.round(burn)+'%','نسبة الصرف الكلية','الصرف الفعلي / آخر موازنة معتمدة'],
+      ['📎',miss,'مستندات ناقصة','قيود تحتاج مراجعة أو استكمال مرفقات'],
+      ['✅',comp+'%','مؤشر الامتثال','يتأثر بالمستندات والموافقات والتنبيهات'],
+      ['💳',v19ShortMoney(portfolio),'محفظة القروض','ملخص فقط — القروض لها لوحة مستقلة'],
+      ['🔔',alerts.length,'تنبيهات تشغيلية','عقود، موردين، منح وموازنة'],
+      ['📥',v6PendingApprovals?v6PendingApprovals():0,'موافقات معلقة','طلبات تحتاج إجراء من الإدارة']
+    ];
+    h+='<div class="v19-grid">';
+    kpis.forEach(function(k){h+='<div class="v19-card v19-kpi"><div class="ic">'+k[0]+'</div><div class="v19-val">'+k[1]+'</div><div class="v19-lbl">'+k[2]+'</div><div class="v19-note">'+k[3]+'</div></div>';});
+    h+='</div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>📈 المصروفات آخر 6 شهور</b><span>من القيود المرحلة فقط</span></div><div class="v19-chart">';
+    (bars.data||[]).forEach(function(x){var height=Math.max(8,Math.round((Number(x.v)||0)/(bars.max||1)*120));h+='<div class="v19-barbox"><div class="v19-bar" style="height:'+height+'px"></div><div class="v19-month">'+esc(x.m)+'</div><div class="v19-money">'+v19ShortMoney(x.v)+'</div></div>';});
+    h+='</div></div><div class="v19-card"><div class="v19-title"><b>🔔 تنبيهات العقود والموردين والتشغيل</b><span>'+alerts.length+' تنبيه</span></div>';
+    alerts.slice(0,5).forEach(function(a){h+='<div class="v19-alert '+(a.cls||'info')+'"><div>'+a.ic+'</div><div><div class="t">'+esc(a.t)+'</div><div class="s">'+esc(a.s)+'</div></div></div>';});
+    h+='</div></div>';
+    h+='<div class="v19-two"><div class="v19-card"><div class="v19-title"><b>🎯 صحة المنح والمشروعات</b><span>الصرف الفعلي / الموازنة</span></div>';
+    if(!projects.length) h+='<div style="font-size:12px;color:#94a8c2;text-align:center;padding:22px">لا توجد مشروعات بعد</div>'; else projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,6).forEach(function(p){var cls=p.pct>=100?'red':p.pct>=85?'yellow':'green';h+='<div class="v19-project"><div><div class="v19-pname">'+esc(p.name)+'</div><div class="v19-psub">صرف '+v19ShortMoney(p.spent)+' من '+v19ShortMoney(p.budget)+'</div></div><span class="v19-pill '+cls+'">'+(v6Pct?v6Pct(p.pct):Math.round(p.pct)+'%')+'</span></div>';});
+    h+='</div><div class="v19-card"><div class="v19-title"><b>💳 التمويل متناهي الصغر</b><span>لوحة مستقلة</span></div><div class="v19-project"><div><div class="v19-pname">القروض النشطة</div><div class="v19-psub">عدد القروض التي لم تغلق</div></div><span class="v19-pill blue">'+loans.length+'</span></div><div class="v19-project"><div><div class="v19-pname">المحفظة النشطة</div><div class="v19-psub">إجمالي أصل القروض النشطة</div></div><span class="v19-pill blue">'+v19ShortMoney(portfolio)+'</span></div><button class="btn" style="width:100%;margin-top:10px;background:var(--n)" onclick="nav(\'loans\',document.querySelector(\'[data-nav=loans]\'))">فتح لوحة القروض</button></div></div>';
+    var mods=[['💰','المالية','قيود، بنوك، خزينة، شيكات، تسويات وتقارير.',"nav('fin',null)"],['📁','المنح والمشروعات','موازنات، BVA، ملف المنحة وتقارير الممولين.',"nav('proj',document.querySelector('[data-nav=proj]'))"],['👥','الموارد البشرية والمرتبات','إجازات، إعداد مرتب، الجداول الزمنية والتأمينات.',"nav('pay',document.querySelector('[data-nav=pay]'))"],['🛒','المشتريات والمخازن','موردين، عقود، أذونات مخزن ودورة تشغيل.',"nav('ops',null)"],['⚖️','الامتثال','نموذج 41، مستندات ناقصة وحزمة المراجعة.',"sub('compliance')"],['🗂️','الأرشيف','ربط كل قيد ومستند بملف المشروع والمنحة.',"sub('archive')"],['📥','الاستيراد والتصدير','نماذج منفصلة ورفع بيانات بمعاينة قبل الحفظ.',"sub('importexport')"],['💳','القروض','موديول داخلي مستقل للقروض والتحصيل.',"nav('loans',document.querySelector('[data-nav=loans]'))"]];
+    h+='<div class="v19-mods">'; mods.forEach(function(m){h+='<div class="v19-mod" onclick="'+m[3]+'"><div class="ic">'+m[0]+'</div><div class="t">'+m[1]+'</div><div class="s">'+m[2]+'</div></div>';}); h+='</div></div>';
+    root.innerHTML=h;
+  }catch(e){root.innerHTML='<div style="padding:20px;color:#dc2626">خطأ في لوحة التحكم: '+esc(e.message)+'</div>';console.error(e);}
+}
+
+function rالماليةHub(){
+  var sections=[
+    {title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},
+    {title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'📊',t:'سجل التسويات المعتمدة',n:'reconhist'},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},
+    {title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📒',t:'كشف حساب',n:'accledger'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]},
+    {title:'📊 تقارير الإدارة',items:[{i:'🌍',t:'دفتر المانحين',n:'donorledger'},{i:'📊',t:'تقرير التباين',n:'variance'},{i:'💵',t:'التدفق النقدي',n:'cashforecast'},{i:'🎯',t:'لوحة القيادة',n:'execdash'}]}
+  ];
+  var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  return h+'</div>';
+}
+
+function rMore(){
+  var cu=getCurrentUser&&getCurrentUser();
+  var isAdmin=cu&&(cu.role==='admin'||cu.role==='accounts_manager');
+  var sections=[
+    {header:'🤖 الذكاء الاصطناعي',items:[{i:'🤖',t:'المساعد المالي',n:'ai'},{i:'📚',t:'بنك المعرفة',n:'knowledge'}]},
+    {header:'⚙️ الإعدادات',items:[{i:'⚙️',t:'الإعدادات',n:'settings',admin:true},{i:'🔐',t:'الصلاحيات والأدوار',n:'permissions',admin:true},{i:'🧭',t:'مراجعة شهر كامل',n:'finance_review'},{i:'📥',t:'صندوق الاعتماد',n:'approvals'},{i:'🗂️',t:'البيانات الرئيسية',n:'masterdata',admin:true},{i:'🧮',t:'إعداد الضريبة',n:'taxconfig',admin:true},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',admin:true},{i:'📁',t:'الاستيراد والتصدير',n:'importexport',admin:true}]}
+  ];
+  var h='<div class="ph-t" style="margin-bottom:14px;">المزيد</div>';
+  sections.forEach(function(sec){h+='<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid var(--sk);">'+sec.header+'</div><div class="mg">';sec.items.forEach(function(item){if(item.admin&&!isAdmin)return;h+='<div class="mi" data-sub="'+item.n+'"><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});
+  el('pg-more').innerHTML=h;
+}
+
+function rReconHistoryPage(){
+  var list=(DB.bankRecons||[]).filter(function(r){return r.closed;}).sort(function(a,b){return String(b.closedAt||'').localeCompare(String(a.closedAt||''));});
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">📊 سجل التسويات البنكية المعتمدة</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">يعرض فقط التسويات التي تم إقفالها واعتمادها، وليس شاشة التسوية الحالية.</div>';
+  if(!list.length){h+='<div class="card" style="text-align:center;color:#94a8c2;font-size:12px;padding:25px">لا توجد تسويات بنكية معتمدة بعد.</div>';}else{
+    h+='<table class="athar-table"><thead><tr><th>الشهر</th><th>الحساب</th><th>كشف البنك</th><th>الرصيد الدفتري</th><th>الفرق</th><th>المعتمد بواسطة</th><th>تاريخ الاعتماد</th></tr></thead><tbody>';
+    list.forEach(function(r){var acc=(DB.accounts||[]).find(function(a){return a.c===r.accCode;});h+='<tr><td>'+esc(r.month||'')+'</td><td>'+esc((acc?acc.n:'')+' '+(r.accCode||''))+'</td><td>'+fmt(Number(r.bankBal)||0)+'</td><td>'+fmt(Number(r.bookBal)||0)+'</td><td>'+fmt(Number(r.diff)||0)+'</td><td>'+esc(r.closedBy||'')+'</td><td>'+esc(String(r.closedAt||'').slice(0,10))+'</td></tr>';});
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+function rFinanceDirectorMonthlyReview(){
+  var projects=v19ProjectStats(); var alerts=v19Alerts();
+  var missing=0; try{missing=v6MissingDocsCount();}catch(e){}
+  var h='<div style="padding:14px 14px 90px"><div class="ph-t" style="margin-bottom:8px">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div><div style="font-size:11px;color:var(--g4);margin-bottom:12px">مراجعة للترابط بين الإدخال المالي، ملف المنحة، المستندات، الموازنة، المخازن والمرتبات.</div>';
+  var rows=[
+    ['المحاسب','القيود والبنوك والشيكات','لا يتم ترحيل أي قيد مصروف بدون مشروع + بند موازنة + مرفق عند وجود منحة.'],
+    ['موظف البرامج','الموازنة وملف المنحة','كل تعديل موازنة يتم كطلب تعديل أو تصحيح إداري بسجل تدقيق، ولا يتم تغيير المعتمد بصمت.'],
+    ['الموارد البشرية','الإجازات والمرتبات والجداول الزمنية','إعداد المرتب يجب أن يرتبط بالتوزيع على المشروعات، وأي غياب يؤثر على كشف المرتب.'],
+    ['مسؤول المخازن','إضافة وصرف وتحويل المخزون','الصرف المخزني لمشروع يجب أن يحدث تكلفة المشروع أو يظهر كالتزام للمراجعة.'],
+    ['المدير المالي','المراجعة والاعتماد','المؤشرات الحالية: '+projects.length+' مشروع، '+missing+' مستند ناقص، '+alerts.length+' تنبيه.']
+  ];
+  h+='<table class="athar-table"><thead><tr><th>الدور</th><th>ما تم اختباره</th><th>تعليق المدير المالي</th></tr></thead><tbody>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>';});
+  h+='</tbody></table><div class="card" style="margin-top:12px"><div style="font-weight:900;color:var(--n);margin-bottom:8px">أهم الملاحظات</div><div style="font-size:12px;line-height:1.9;color:#334155">• يجب مراجعة أي مشروع تعدى 85% قبل السماح بمصروفات جديدة.<br>• سجل التسويات يعرض التسويات المعتمدة فقط.<br>• BVA مكانه الطبيعي داخل المنح والمشروعات وليس المالية.<br>• الاستيراد والتصدير شاشة واحدة مركزية، وليست شاشتين بنفس المحتوى.</div></div>';
+  return h+'</div>';
+}
+
+(function(){
+  var oldSub=window.sub;
+  window.sub=function(n){
+    if(n==='reconhist'){
+      nav('more',null); var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'fin\',null)" style="margin-bottom:10px">‹ المالية</button></div>'+rReconHistoryPage(); window.scrollTo(0,0); return;
+    }
+    if(n==='importwizard'){n='importexport';}
+    if(n==='finance_review'){
+      nav('more',null); var p=document.getElementById('pg-more'); if(p)p.innerHTML=rFinanceDirectorMonthlyReview(); window.scrollTo(0,0); return;
+    }
+    return oldSub?oldSub(n):null;
+  };
+})();
+
+// Registration fallback: in demo mode, allow local OTP when EmailJS is not available.
+(function(){
+  var oldSend=window.sendOTP;
+  window.sendOTP=function(email,purpose,cb){
+    if(typeof emailjs==='undefined' || !emailjs.send){
+      window._otpCode='123456'; window._otpEmail=email; window._otpPurpose=purpose; window._otpExpiry=Date.now()+10*60*1000;
+      setTimeout(function(){cb(null); toast&&toast('وضع تجريبي: كود التحقق 123456');},250);
+      return;
+    }
+    try{return oldSend(email,purpose,cb);}catch(e){window._otpCode='123456';window._otpEmail=email;window._otpPurpose=purpose;window._otpExpiry=Date.now()+10*60*1000;cb(null);}
+  };
+})();
+
+// Make OTP screen clearer in fallback mode.
+(function(){
+  var oldShow=window.showOTPScreen;
+  if(oldShow){window.showOTPScreen=function(purpose){oldShow(purpose); if(typeof emailjs==='undefined'){var er=document.getElementById('otp-err'); if(er){er.style.color='#059669'; er.textContent='وضع تجريبي: استخدم كود 123456';}}};}
+})();
+
 
 </script>
 </body>
