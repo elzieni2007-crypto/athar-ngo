@@ -357,7 +357,7 @@ function rOperationsHub(){
       title:'👥 الموارد البشرية',
       items:[
         {i:'🏢',t:'الموظفين',sub:'ملفات وبيانات',n:'employees',pg:true},
-        {i:'💳',t:'كشف الرواتب',sub:'رواتب وتأمينات',n:'pay',pg:true},
+        {i:'💳',t:'إعداد المرتب',sub:'رواتب وتأمينات',n:'pay',pg:true},
         {i:'⏱️',t:'Timesheet',sub:'توزيع التكلفة',n:'timesheet'},
         {i:'🌴',t:'الإجازات',sub:'طلبات واعتماد',n:'myleaves'},
       ]
@@ -1334,7 +1334,7 @@ function rOperationsHub(){
     ]},
     {title:'👥 الموارد البشرية',items:[
       {i:'🏢',t:'الموظفين',n:'employees'},
-      {i:'💳',t:'كشف الرواتب',n:'pay',pg:true},
+      {i:'💳',t:'إعداد المرتب',n:'pay',pg:true},
       {i:'⏱️',t:'Timesheet',n:'timesheet'},
       {i:'🌴',t:'الإجازات',n:'myleaves'},
     ]},
@@ -1817,7 +1817,7 @@ function rDash(){
     {icon:'💰',title:'المالية',sub:'تقارير وبنوك وشيكات',sec:'fin',pg:false,bg:'#ede9fe',ic:'#7c3aed',primary:true},
     {icon:'🎯',title:'العمليات',sub:'HR ومشتريات وامتثال',sec:'ops',pg:false,bg:'#d1fae5',ic:'#059669',primary:true},
     {icon:'🎯',title:'المشروعات',sub:'BVA ومتابعة المنح',sec:'proj',pg:true,bg:'#fef3c7',ic:'#d97706',primary:true},
-    {icon:'💳',title:'المرتبات',sub:'مسير الرواتب',sec:'pay',pg:true,bg:'#fce7f3',ic:'#db2777'},
+    {icon:'💳',title:'المرتبات',sub:'إعداد مرتب الرواتب',sec:'pay',pg:true,bg:'#fce7f3',ic:'#db2777'},
     {icon:'🗂️',title:'الأرشيف',sub:'مستندات القيود',sec:'archive',bg:'#f0fdf4',ic:'#059669'},
     {icon:'✅',title:'الامتثال',sub:'متطلبات المانحين',sec:'compliance',bg:'#fff7ed',ic:'#ea580c'},
     {icon:'🎯',title:'لوحة القيادة',sub:'للمدير التنفيذي',sec:'execdash',bg:'#fff1f2',ic:'#dc2626'},
@@ -3192,7 +3192,7 @@ function rPay(){
   h+='<div style="display:flex;gap:5px;">';
   h+='<button class="btn btn-sm btn-gy" onclick="viewPayHistory()" style="font-size:10.5px;">📋 السجل</button>';
   h+='<button class="btn btn-sm" onclick="openPayslipModal()" style="font-size:10.5px;background:var(--sk);">📄 قسيمة راتب</button>';
-h+='<button class="btn btn-gr btn-sm" onclick="openGenPayModal()" style="font-size:10.5px;">⚙️ إعداد مسير</button>';
+h+='<button class="btn btn-gr btn-sm" onclick="openGenPayModal()" style="font-size:10.5px;">⚙️ إعداد إعداد مرتب</button>';
   h+='</div></div>';
 
   // KPI bar
@@ -3280,7 +3280,7 @@ function buildPayList(q,dept){
       var mk3=new Date().getFullYear()+"-"+(new Date().getMonth()+1).toString().padStart(2,"0");
       var hv=getEmpOverride(e.id,mk3);var hvd=(hv.overtime||0)+(hv.bonus||0)+(hv.stipend||0)+(hv.penalty||0)+(hv.absence||0)>0;
       h+='<button class="btn btn-sm" onclick="openVarComponents(\''+e.id+'\',\''+mk3+'\')" style="font-size:10px;background:'+(hvd?'var(--gr)':'var(--am)')+';">🔧'+(hvd?' ✓ متغير':' متغير')+'</button>';
-      h+='<button class="btn btn-sm btn-gr" onclick="openGenPayModal(\''+e.id+'\')" style="font-size:10px;">💳 مسير</button>';
+      h+='<button class="btn btn-sm btn-gr" onclick="openGenPayModal(\''+e.id+'\')" style="font-size:10px;">💳 إعداد مرتب</button>';
       h+='<button class="btn btn-sm" onclick="openPayslipModal()" style="font-size:10px;background:var(--sk);">📄 قسيمة</button>';
       h+='</div></div>';
     });
@@ -3334,7 +3334,7 @@ function openGenPayModal(filterEmpId){
     h+='<div style="background:var(--abg);border:1.5px solid var(--am);border-radius:9px;padding:10px;margin-bottom:12px;font-size:12px;color:#92400e;">⚠️ تم إعداد إعداد المرتبات الكامل لشهر '+MONTHS[now.getMonth()]+' '+defYear+' بالفعل. يمكنك إعداد مرتب موظف محدد فقط.</div>';
   }
 
-  h+='<div class="sd">نوع المسير</div>';
+  h+='<div class="sd">نوع الإعداد مرتب</div>';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px;">';
   var scope=filterEmpId?"single":"all";
   h+='<div id="pay-scope-all" onclick="setPayScope(\'all\')" style="background:'+(scope==="all"?'var(--n)':'var(--g1)')+';color:'+(scope==="all"?'white':'var(--n)')+';border-radius:9px;padding:10px;text-align:center;cursor:pointer;font-size:12px;font-weight:700;">👥 كل الموظفين</div>';
@@ -3351,8 +3351,8 @@ function openGenPayModal(filterEmpId){
   var empO=active.map(function(e){return'<option value="'+e.id+'"'+(e.id===filterEmpId?" selected":"")+'>'+e.id+' — '+e.name+'</option>';}).join("");
   h+='<div id="pay-single-row" style="display:'+(filterEmpId?"block":"none")+';" class="fg"><label>الموظف</label><select id="pay-emp-sel">'+empO+'</select></div>';
 
-  h+='<div class="sd">بيانات المسير</div>';
-  h+='<div class="fr"><div class="fg"><label>شهر المسير</label>';
+  h+='<div class="sd">بيانات الإعداد مرتب</div>';
+  h+='<div class="fr"><div class="fg"><label>شهر الإعداد مرتب</label>';
   h+='<select id="pay-month" onchange="updatePayMK()">';
   MONTHS.forEach(function(m,i){
     var mo=(i+1).toString().padStart(2,"0");
@@ -3569,7 +3569,7 @@ function generatePayroll(){
     entryId=entryId+"-"+Date.now().toString().slice(-4);
   }
 
-  var entryDesc=(scope==="all"?"مسير مرتبات ":scope==="dept"?"مرتبات قسم "+dept+" — ":"مرتب "+(emps[0].name)+" — ")+monthName+" "+year+(notes?" — "+notes:"");
+  var entryDesc=(scope==="all"?"إعداد مرتب مرتبات ":scope==="dept"?"مرتبات قسم "+dept+" — ":"مرتب "+(emps[0].name)+" — ")+monthName+" "+year+(notes?" — "+notes:"");
 
   var bankAccObj=DB.accounts.find(function(a){return a.c===bankAcc;})||{n:"البنك"};
 
@@ -3790,6 +3790,7 @@ function generateProjectTxnReport(){
   var entries=(DB.entries||[]).filter(function(e){
     if(e.status!=='posted') return false;
     if(e.proj!==projCode) return false;
+    if(wbsCode){var hw=(e.wbs===wbsCode)||(e.lines||[]).some(function(l){return l.wbs===wbsCode||l.cc===wbsCode;});if(!hw)return false;}
     if(wbsCode){var hw=(e.wbs===wbsCode)||(e.lines||[]).some(function(l){return l.wbs===wbsCode||l.cc===wbsCode;});if(!hw)return false;}
     if(fromDate&&e.date<fromDate) return false;
     if(toDate&&e.date>toDate) return false;
@@ -8005,9 +8006,9 @@ function exportPayrollExcel(){
     var ws=XLSX.utils.aoa_to_sheet([headers].concat(rows));
     ws['!cols']=headers.map(function(){return {wch:18};});
     var wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,'كشف الرواتب');
-    downloadXLSX(wb,'مسير_المرتبات_'+new Date().toISOString().slice(0,7)+'.xlsx');
-    toast('✅ تم تصدير كشف الرواتب Excel');
+    XLSX.utils.book_append_sheet(wb,ws,'إعداد المرتب');
+    downloadXLSX(wb,'إعداد مرتب_المرتبات_'+new Date().toISOString().slice(0,7)+'.xlsx');
+    toast('✅ تم تصدير إعداد المرتب Excel');
   });
 }
 
@@ -8088,7 +8089,7 @@ function exportAllReportsExcel(){
       return [e.name,e.pos||'',r.gross,r.empI,r.tax,r.net,r.cost];
     });
     XLSX.utils.book_append_sheet(wb,
-      XLSX.utils.aoa_to_sheet([payHeaders].concat(payRows)),'كشف الرواتب');
+      XLSX.utils.aoa_to_sheet([payHeaders].concat(payRows)),'إعداد المرتب');
 
     // Sheet 3: BVA
     var bvaHeaders=['المشروع','المانح','الموازنة','الصرف','الباقي','%'];
@@ -8361,7 +8362,7 @@ function globalSearch(query){
   // 5. Navigation / Screens
   var navItems=[
     {q:['قيد','قيود','يومية','ترحيل'],label:'📝 القيود اليومية',action:{type:'nav',pg:'jour'}},
-    {q:['مرتب','مرتبات','رواتب','مسير'],label:'💳 كشف الرواتب',action:{type:'pg',pg:'pay'}},
+    {q:['مرتب','مرتبات','رواتب','إعداد مرتب'],label:'💳 إعداد المرتب',action:{type:'pg',pg:'pay'}},
     {q:['مشروع','مشروعات','bva','موازنة'],label:'🎯 المشروعات',action:{type:'pg',pg:'proj'}},
     {q:['موظف','موظفين','hr','بشرية'],label:'🏢 الموظفين',action:{type:'sub',pg:'employees'}},
     {q:['مورد','موردين','مشتريات'],label:'🏭 الموردون',action:{type:'sub',pg:'suppliers'}},
@@ -12478,7 +12479,7 @@ function loadExtendedSeedData(){
     var id1=eid(); var id2=eid();
     if(!existingIds.has(id1)){
       var salGross=85000, ins=Math.round(85000*0.1175), netSal=salGross-ins;
-      var e=entry(id1,mo+'-25','مسير رواتب '+mo,'SAL-'+mo,'',[
+      var e=entry(id1,mo+'-25','إعداد مرتب رواتب '+mo,'SAL-'+mo,'',[
         ln('5311','مرتبات وأجور',salGross,0),
         ln('2111','موردون ودائنون',0,salGross),
       ]);
@@ -14011,7 +14012,7 @@ var WORKFLOWS = {
     canApprove: 'canApprovePO',
   },
   payroll: {
-    label:'كشف الرواتب',
+    label:'إعداد المرتب',
     steps:[
       {key:'draft',    label:'مسودة',      icon:'📝', color:'#6b7280'},
       {key:'pending',  label:'في الانتظار', icon:'⏳', color:'#d97706'},
@@ -14210,7 +14211,7 @@ function rPermissionsPage(){
     {key:"canPost",label:"ترحيل القيود"},
     {key:"canApprove",label:"اعتماد الطلبات"},
     {key:"canDelete",label:"حذف البيانات"},
-    {key:"canPayroll",label:"كشف الرواتب"},
+    {key:"canPayroll",label:"إعداد المرتب"},
     {key:"canHR",label:"شؤون الموظفين"},
     {key:"canBanks",label:"البنوك والتسويات"},
     {key:"canReports",label:"التقارير المالية"},
@@ -16213,7 +16214,7 @@ function rImportExport(){
     {icon:"📊",label:"تقرير شامل — كل الأوراق",sub:"Excel — 4 أوراق في ملف واحد",fn:"exportAllReportsExcel()",cls:"",bg:"#0D3B6E"},
     {icon:"⚖️",label:"ميزان المراجعة",sub:"Excel — أرصدة كل الحسابات",fn:"exportTrialBalanceExcel()",cls:"",bg:"#1d4ed8"},
     {icon:"📝",label:"القيود اليومية",sub:"Excel — كل القيود المرحّلة",fn:"exportEntriesExcel()",cls:"",bg:"#0284c7"},
-    {icon:"💳",label:"كشف الرواتب",sub:"Excel — الرواتب والاستقطاعات",fn:"exportPayrollExcel()",cls:"",bg:"#7c3aed"},
+    {icon:"💳",label:"إعداد المرتب",sub:"Excel — الرواتب والاستقطاعات",fn:"exportPayrollExcel()",cls:"",bg:"#7c3aed"},
     {icon:"🎯",label:"تقرير BVA المشروعات",sub:"Excel — الموازنات والصرف",fn:"exportBVAExcel()",cls:"",bg:"#059669"},
     {icon:"🏢",label:"الأصول الثابتة",sub:"Excel — الأصول والإهلاك",fn:"exportAssetsExcel()",cls:"",bg:"#d97706"},
   ];
@@ -18569,7 +18570,7 @@ function rReportsPage(){
       {icon:"📋",label:"نموذج 41 Excel",fn:"exportForm41Excel()"},
       {icon:"📊",label:"تقرير شامل Excel",fn:"exportAllReportsExcel()"},
       {icon:"⚖️",label:"ميزان المراجعة Excel",fn:"exportTrialBalanceExcel()"},
-      {icon:"💳",label:"كشف الرواتب Excel",fn:"exportPayrollExcel()"},
+      {icon:"💳",label:"إعداد المرتب Excel",fn:"exportPayrollExcel()"},
       {icon:"🎯",label:"BVA المشروعات Excel",fn:"exportBVAExcel()"},
       {icon:"🏢",label:"الأصول الثابتة Excel",fn:"exportAssetsExcel()"},
       {icon:"🗂️",label:"تقرير الأرشيف Excel",fn:"exportArchiveReport()"},
@@ -19369,6 +19370,7 @@ document.addEventListener("DOMContentLoaded", function(){
   }
   nav("dash", document.querySelector('[data-nav="dash"]'));
 });
+
 </script>
 </body>
 </html>
