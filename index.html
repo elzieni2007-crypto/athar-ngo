@@ -154,9 +154,22 @@ function saveAssetTransfer(idx,printIt){
   a.custodianId=to; a.status='مُسلَّم'; save(); cm(); sub('assets'); toast('✅ تم تسجيل تحويل الأصل'); if(printIt) printAssetPermit(a,m);
 }
 function printAssetPermit(a,m){
-  function esc(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
-  var html='<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>'+esc(m.type)+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Tahoma,sans-serif;color:#111}.head{display:flex;justify-content:space-between;border-bottom:2px solid #0d3b6e;padding-bottom:12px;margin-bottom:18px}.brand{font-weight:900;color:#0d3b6e;font-size:22px}.title{text-align:center;font-size:24px;font-weight:900;margin:12px 0;color:#0d3b6e}.box{border:1px solid #d8e2ef;border-radius:10px;padding:12px;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lbl{color:#64748b;font-size:12px}.val{font-size:15px;font-weight:800;margin-top:3px}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:46px}.sg{height:86px;border-top:1px solid #111;text-align:center;padding-top:8px;font-weight:800}</style></head><body><div class="head"><div class="brand">أثر للحلول المالية</div><div>تاريخ الطباعة: '+new Date().toLocaleDateString('ar-EG')+'</div></div><div class="title">'+esc(m.type)+'</div><div class="box"><div class="grid"><div><div class="lbl">اسم الأصل</div><div class="val">'+esc(a.name)+'</div></div><div><div class="lbl">الرقم التسلسلي</div><div class="val">'+esc(a.serial||'—')+'</div></div><div><div class="lbl">تاريخ الحركة</div><div class="val">'+esc(m.date||'—')+'</div></div><div><div class="lbl">حالة الأصل</div><div class="val">'+esc(m.condition||'—')+'</div></div><div><div class="lbl">من</div><div class="val">'+esc(m.from||'—')+'</div></div><div><div class="lbl">إلى</div><div class="val">'+esc(m.to||'—')+'</div></div></div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+esc(m.notes||'لا توجد')+'</div></div><div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div></body></html>';
-  var w=window.open('','_blank'); if(w){w.document.open();w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},400);} else toast('⚠️ اسمح بفتح النوافذ المنبثقة للطباعة');
+  function escp(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+  var css='@page{size:A4;margin:14mm}body{font-family:Arial,Tahoma,sans-serif;color:#111}.head{display:flex;justify-content:space-between;border-bottom:2px solid #0d3b6e;padding-bottom:12px;margin-bottom:18px}.brand{font-weight:900;color:#0d3b6e;font-size:22px}.title{text-align:center;font-size:24px;font-weight:900;margin:12px 0;color:#0d3b6e}.box{border:1px solid #d8e2ef;border-radius:10px;padding:12px;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lbl{color:#64748b;font-size:12px}.val{font-size:15px;font-weight:800;margin-top:3px}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:46px}.sg{height:86px;border-top:1px solid #111;text-align:center;padding-top:8px;font-weight:800}';
+  var html='<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>'+escp(m.type)+'</title><style>'+css+'</style></head><body>'
+    +'<div class="head"><div class="brand">أثر للحلول المالية</div><div>تاريخ الطباعة: '+new Date().toLocaleDateString('ar-EG')+'</div></div>'
+    +'<div class="title">'+escp(m.type)+'</div>'
+    +'<div class="box"><div class="grid">'
+    +'<div><div class="lbl">اسم الأصل</div><div class="val">'+escp(a.name)+'</div></div>'
+    +'<div><div class="lbl">الرقم التسلسلي</div><div class="val">'+escp(a.serial||'—')+'</div></div>'
+    +'<div><div class="lbl">تاريخ الحركة</div><div class="val">'+escp(m.date||'—')+'</div></div>'
+    +'<div><div class="lbl">حالة الأصل</div><div class="val">'+escp(m.condition||'—')+'</div></div>'
+    +'<div><div class="lbl">من</div><div class="val">'+escp(m.from||'—')+'</div></div>'
+    +'<div><div class="lbl">إلى</div><div class="val">'+escp(m.to||'—')+'</div></div>'
+    +'</div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+escp(m.notes||'لا توجد')+'</div></div>'
+    +'<div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div></body></html>';
+  var w=window.open('','_blank');
+  if(w){w.document.open();w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},400);} else toast('⚠️ اسمح بفتح النوافذ المنبثقة للطباعة');
 }
 
 function rDash(){
@@ -1320,6 +1333,7 @@ function rMore(){
     {header:"⚙️ الإعدادات", items:[
       {i:"⚙️",t:"الإعدادات",n:"settings",admin:true},
       {i:"🔐",t:"الصلاحيات والأدوار",n:"permissions",admin:true},
+      {i:"🧭",t:"مراجعة شهر كامل",n:"finance_review",admin:false},
       {i:"📥",t:"صندوق الاعتماد",n:"approvals"},
       {i:"🗂️",t:"البيانات الرئيسية",n:"masterdata",admin:true},
       {i:"🧮",t:"إعداد الضريبة",n:"taxconfig",admin:true},
@@ -1698,6 +1712,7 @@ function sub(n){
     ops:rOperationsHub,
     settings:rSetPage,
     permissions:rPermissionsPage,
+    finance_review:rFinanceDirectorMonthlyReview,
     approvals:rApprovalInbox,
     grantfiles:rGrantFiles,
     projtxn:rProjectTxnReport,
@@ -5033,10 +5048,11 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
   var monthCr=(txns||[]).reduce(function(s,t){return s+(t.cr||0);},0);
   var bookBal=(openBal||0)+monthDr-monthCr;
 
-  // رصيد كشف الحساب المعدّل = الرصيد الدفتري − إيداعات لم تظهر + شيكات لم تُصرف
-  var adjustedBank=bookBal-totalDeposits+totalChecks+manualAdj;
-  // المطابقة: رصيد كشف الحساب المعدّل vs رصيد كشف الحساب (stmtBal)
-  var diff=adjustedBank-stmtBal;
+  // المعادلة الصحيحة للتسوية البنكية:
+  // الرصيد البنكي المعدّل = رصيد كشف الحساب + إيداعات لم تظهر − شيكات لم تُصرف ± تسويات يدوية
+  // ثم يتم مقارنته بالرصيد الدفتري.
+  var adjustedBank=stmtBal+totalDeposits-totalChecks+manualAdj;
+  var diff=bookBal-adjustedBank;
   var balanced=Math.abs(diff)<0.01;
 
   var h='<div style="font-weight:800;color:var(--nd);margin-bottom:10px;font-size:13px;">📊 ملخص التسوية</div>';
@@ -5093,33 +5109,33 @@ function buildReconSummary(openBal,txns,prevPending,manualItems,bankBal){
     h+='</div>';
   }
 
-  // ── رصيد كشف الحساب المعدّل ──────────────────────────────────
+  // ── الرصيد البنكي المعدّل ──────────────────────────────────
   h+='<div style="background:#f8f9fa;border-radius:8px;padding:10px;">';
-  h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">رصيد كشف الحساب المعدّل</div>';
+  h+='<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--nd);">الرصيد البنكي المعدّل</div>';
   h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;">';
-  h+='<span>الرصيد الدفتري</span><span>'+fmt(bookBal)+'</span></div>';
+  h+='<span>رصيد كشف الحساب</span><span>'+fmt(stmtBal)+'</span></div>';
   if(totalDeposits>0){
-    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#dc2626;">';
-    h+='<span>− إيداعات لم تظهر</span><span>'+fmt(totalDeposits)+'</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#059669;">';
+    h+='<span>+ إيداعات لم تظهر</span><span>'+fmt(totalDeposits)+'</span></div>';
   }
   if(totalChecks>0){
-    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#059669;">';
-    h+='<span>+ شيكات لم تُصرف</span><span>'+fmt(totalChecks)+'</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#dc2626;">';
+    h+='<span>− شيكات لم تُصرف</span><span>'+fmt(totalChecks)+'</span></div>';
   }
   if(manualAdj!==0){
     h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;color:#d97706;">';
     h+='<span>± تسويات يدوية</span><span>'+fmt(manualAdj)+'</span></div>';
   }
   h+='<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:900;padding-top:4px;margin-top:4px;border-top:2px solid #e5e7eb;">';
-  h+='<span>رصيد كشف الحساب المعدّل</span><span>'+fmt(adjustedBank)+'</span></div>';
+  h+='<span>الرصيد البنكي المعدّل</span><span>'+fmt(adjustedBank)+'</span></div>';
   h+='</div>';
 
-  // ── النتيجة: المعدّل vs كشف الحساب ───────────────────────────
+  // ── النتيجة: الرصيد البنكي المعدّل vs الرصيد الدفتري ───────────────────────────
   h+='<div style="background:'+(balanced?'#059669':'#dc2626')+';border-radius:10px;padding:12px;color:white;">';
   h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;opacity:.85;margin-bottom:3px;">';
-  h+='<span>رصيد كشف الحساب المعدّل</span><span>'+fmt(adjustedBank)+'</span></div>';
+  h+='<span>الرصيد البنكي المعدّل</span><span>'+fmt(adjustedBank)+'</span></div>';
   h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;opacity:.85;margin-bottom:6px;">';
-  h+='<span>رصيد كشف الحساب</span><span>'+fmt(stmtBal)+'</span></div>';
+  h+='<span>الرصيد الدفتري</span><span>'+fmt(bookBal)+'</span></div>';
   h+='<div style="font-weight:900;font-size:15px;text-align:center;border-top:1px solid rgba(255,255,255,.3);padding-top:8px;">';
   h+=(balanced?'✅ التسوية متطابقة':'⚠️ الفرق: '+fmt(Math.abs(diff))+' ج.م');
   h+='</div></div>';
@@ -5230,16 +5246,18 @@ function closeRecon(accCode,month){
   var monthCr=r.txns.reduce(function(s,t){return s+t.cr;},0);
   var bookBal=r.openBal+monthDr-monthCr;
   // Quick balance check
-  var pendingDr=r.txns.concat(r.prevPending).filter(function(t){
+  var uncleared=r.txns.concat(r.prevPending).filter(function(t){
     return state.clearedIds.indexOf(t.entryId+t.date)<0&&
            state.clearedIds.indexOf('P_'+t.entryId)<0;
-  }).reduce(function(s,t){return s+t.dr-t.cr;},0);
+  });
+  var totalDeposits=uncleared.reduce(function(s,t){return s+(t.dr||0);},0);
+  var totalChecks=uncleared.reduce(function(s,t){return s+(t.cr||0);},0);
   var manAdj=state.manualItems.reduce(function(s,mi){return s+mi.type*mi.amt;},0);
-  var reconBal=bankBal+pendingDr+manAdj;
-  var diff=Math.abs(bookBal-reconBal);
+  var adjustedBank=bankBal+totalDeposits-totalChecks+manAdj;
+  var diff=Math.abs(bookBal-adjustedBank);
 
   if(diff>0.01){
-    if(!confirm('التسوية غير متطابقة — الفرق '+fmt(diff)+' ج.م\nهل تريد الإقفال على أي حال؟')) return;
+    if(!confirm('التسوية غير متطابقة — الفرق '+fmt(diff)+' ج.م\nالرصيد الدفتري: '+fmt(bookBal)+'\nالرصيد البنكي المعدّل: '+fmt(adjustedBank)+'\nهل تريد الإقفال على أي حال؟')) return;
   }
   initRecon();
   DB.bankRecons=DB.bankRecons.filter(function(r){
@@ -5247,7 +5265,7 @@ function closeRecon(accCode,month){
   });
   DB.bankRecons.push({
     id:'RC'+Date.now(),accCode:accCode,month:month,
-    bankBal:bankBal,bookBal:bookBal,diff:bookBal-reconBal,
+    bankBal:bankBal,bookBal:bookBal,adjustedBank:adjustedBank,diff:bookBal-adjustedBank,
     clearedIds:state.clearedIds,manualItems:state.manualItems,
     pendingItems:state.pendingItems,
     closed:true,closedAt:new Date().toISOString(),
@@ -5256,6 +5274,17 @@ function closeRecon(accCode,month){
   save();
   toast('✅ تم إقفال تسوية '+month+(diff<0.01?' — متطابقة ✅':' — فرق '+fmt(diff)));
   sub('banks');
+}
+
+
+// اختبار داخلي سريع لمعادلة التسوية البنكية بدون التأثير على بيانات المستخدم
+function testBankReconFormula(){
+  // الرصيد الدفتري = 1,300، كشف البنك = 1,000، إيداع لم يظهر = 500، شيك لم يصرف = 200
+  // الرصيد البنكي المعدل = 1,000 + 500 - 200 = 1,300 => الفرق صفر
+  var bookBal=1300, stmtBal=1000, deposits=500, checks=200, manualAdj=0;
+  var adjustedBank=stmtBal+deposits-checks+manualAdj;
+  var diff=Math.abs(bookBal-adjustedBank);
+  return diff<0.01;
 }
 
 function rBankPage(){
@@ -13713,19 +13742,47 @@ function saveEmpStatus(i){
 // ============================================================
 
 // ---- permission matrix ----
-// roles: admin | accounts_manager | accountant
-;
+// وضع الجمعيات الصغيرة: دورين أساسيين فقط
+// admin = مدير النظام / accountant = محاسب أو مدخل بيانات
 
-var ROLE_LABELS = {admin:"مدير النظام",accounts_manager:"مدير حسابات",accountant:"محاسب"};
-var ROLE_ICONS  = {admin:"🔴",accounts_manager:"🟡",accountant:"🟢"};
+var ROLE_LABELS = {admin:"مدير النظام",accounts_manager:"مدير مالي",accountant:"محاسب",program:"موظف برامج",hr:"موارد بشرية",storekeeper:"مسؤول مخازن"};
+var ROLE_ICONS  = {admin:"🔴",accounts_manager:"🟡",accountant:"🟢",program:"🎯",hr:"👥",storekeeper:"📦"};
 
 function initAuth(){
-  if(!DB.users)DB.users=[{
-    id:"U001",name:"المدير",username:"admin",
-    password:"admin123",role:"admin",active:true,createdAt:new Date().toISOString().split("T")[0]
-  }];
+  if(!DB.users)DB.users=[];
+  var today=new Date().toISOString().split("T")[0];
+  if(!DB.users.length){
+    DB.users=[
+      {id:"U001",name:"مدير النظام",username:"admin",password:"admin123",role:"admin",active:true,createdAt:today},
+      {id:"U002",name:"مدير مالي",username:"finance",password:"finance123",role:"accounts_manager",active:true,createdAt:today},
+      {id:"U003",name:"محاسب",username:"accountant",password:"account123",role:"accountant",active:true,createdAt:today},
+      {id:"U004",name:"موظف برامج",username:"program",password:"program123",role:"program",active:true,createdAt:today},
+      {id:"U005",name:"مسؤول الموارد البشرية",username:"hr",password:"hr123",role:"hr",active:true,createdAt:today},
+      {id:"U006",name:"مسؤول المخازن",username:"store",password:"store123",role:"storekeeper",active:true,createdAt:today}
+    ];
+  }else{
+    if(!DB.users.some(function(u){return u.role==="admin";})){
+      DB.users.unshift({id:"U"+Date.now(),name:"مدير النظام",username:"admin",password:"admin123",role:"admin",active:true,createdAt:today});
+    }
+    if(!DB.users.some(function(u){return u.role==="accounts_manager";})){
+      DB.users.push({id:"U"+(Date.now()+10),name:"مدير مالي",username:"finance",password:"finance123",role:"accounts_manager",active:true,createdAt:today});
+    }
+    if(!DB.users.some(function(u){return u.role==="accountant";})){
+      DB.users.push({id:"U"+(Date.now()+1),name:"محاسب",username:"accountant",password:"account123",role:"accountant",active:true,createdAt:today});
+    }
+    if(!DB.users.some(function(u){return u.role==="program";})){
+      DB.users.push({id:"U"+(Date.now()+2),name:"موظف برامج",username:"program",password:"program123",role:"program",active:true,createdAt:today});
+    }
+    if(!DB.users.some(function(u){return u.role==="hr";})){
+      DB.users.push({id:"U"+(Date.now()+3),name:"مسؤول الموارد البشرية",username:"hr",password:"hr123",role:"hr",active:true,createdAt:today});
+    }
+    if(!DB.users.some(function(u){return u.role==="storekeeper";})){
+      DB.users.push({id:"U"+(Date.now()+4),name:"مسؤول المخازن",username:"store",password:"store123",role:"storekeeper",active:true,createdAt:today});
+    }
+  }
   if(!DB.closedPeriods)DB.closedPeriods=[];
   if(!DB.currentUser)DB.currentUser=null;
+  ensureDefaultRolePerms();
 }
 
 // ---- session helpers ----
@@ -13742,17 +13799,12 @@ function clearCurrentUser(){
   try{sessionStorage.removeItem("atharUser");}catch(e){}
 }
 function can(perm){
+  if(typeof hasPerm==='function') return hasPerm(perm);
   var u=getCurrentUser();
-  if(!u){
-    // No session - check if there is a default user in DB
-    if(DB.users&&DB.users.length){
-      var admin=DB.users.find(function(x){return x.role==="admin"&&x.active!==false;});
-      if(admin) return true; // Auto-allow if admin exists but session not set
-    }
-    return true; // Allow all if no users configured yet
-  }
-  var p=PERMS[u.role];
-  return p?!!p[perm]:false;
+  if(!u) return false;
+  if(u.role==='admin') return true;
+  var p=(typeof PERMS!=='undefined'&&(PERMS[u.role]||PERMS.accountant))||{};
+  return p[perm]===true;
 }
 function requirePerm(perm,msg){
   if(!can(perm)){
@@ -14001,12 +14053,13 @@ function showLogin(){
   }
   h+='<div style="margin-bottom:12px;">';
   h+='<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">اسم المستخدم</label>';
-  h+='<input id="lg-u" placeholder="username" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;">';
+  h+='<input id="lg-u" placeholder="اسم الدخول" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;">';
   h+='</div>';
   h+='<div style="margin-bottom:18px;">';
   h+='<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">كلمة المرور</label>';
   h+='<input id="lg-p" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;" onkeydown="if(event.key===\'Enter\')doLogin()">';
   h+='</div>';
+  h+='<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:8px;margin-bottom:10px;font-size:11px;color:#475569;line-height:1.7;text-align:right;">تجربة سريعة: مدير النظام <b>admin / admin123</b><br>محاسب <b>accountant / account123</b></div>';
   h+='<div id="lg-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>';
   h+='<button onclick="doLogin()" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">تسجيل الدخول ←</button>';
   h+='<div style="text-align:center;margin-top:14px;font-size:12px;color:#6b7280;">نسيت كلمة المرور؟ <a href="#" onclick="showForgotPass();return false;" style="color:#0e7490;font-weight:700;">استعادة</a></div>';
@@ -14042,178 +14095,175 @@ function doLogout(){
 
 // ── Extended Roles & Permissions ─────────────────────────────────
 var ROLES = {
-  admin:            { label:'مدير النظام',       icon:'🔴', color:'#dc2626' },
-  director:         { label:'المدير التنفيذي',    icon:'🟣', color:'#7c3aed' },
-  accounts_manager: { label:'مدير الحسابات',      icon:'🟡', color:'#d97706' },
-  accountant:       { label:'محاسب',              icon:'🟢', color:'#059669' },
-  procurement:      { label:'مسؤول مشتريات',      icon:'🔵', color:'#1d4ed8' },
-  hr:               { label:'مسؤول HR',            icon:'🟤', color:'#92400e' },
-  auditor:          { label:'مراجع داخلي',         icon:'⚫', color:'#374151' },
-  viewer:           { label:'مشاهد فقط',           icon:'⚪', color:'#6b7280' },
+  admin: { label:'مدير النظام', icon:'🔴', color:'#dc2626', desc:'كل الصلاحيات والإعدادات الحساسة وإدارة المستخدمين' },
+  accounts_manager: { label:'مدير مالي', icon:'🟡', color:'#d97706', desc:'اعتماد ومراجعة مالية وتقارير وإقفال فترات بدون إدارة المستخدمين' },
+  accountant: { label:'محاسب', icon:'🟢', color:'#059669', desc:'قيود وبنوك وشيكات وتسويات وتقارير تشغيلية بدون حذف أو إعدادات حساسة' },
+  program: { label:'موظف برامج', icon:'🎯', color:'#2563eb', desc:'مشروعات وموازنات وملف المنحة ومتابعة الصرف دون قيود مالية مباشرة' },
+  hr: { label:'موارد بشرية', icon:'👥', color:'#7c3aed', desc:'موظفين وإجازات وتايم شيت وإعداد مرتب دون صلاحيات مالية عامة' },
+  storekeeper: { label:'مسؤول مخازن', icon:'📦', color:'#0f766e', desc:'استلام وصرف وتحويل مخزني وأصول وعهد دون صلاحيات محاسبية' }
 };
 
 var PERMS = {
   admin: {
-    // القيود
     canViewEntries:true, canAddEntries:true, canEditEntries:true, canDeleteEntries:true,
     canApproveEntries:true, canPostEntries:true,
-    // المالية
-    canViewReports:true, canViewBanks:true, canViewTrial:true,
-    canViewBalance:true, canViewIncome:true,
-    // الموازنة
+    canViewReports:true, canViewBanks:true, canViewTrial:true, canViewBalance:true, canViewIncome:true,
     canViewBVA:true, canEditBudget:true,
-    // HR & مرتبات
     canViewالمرتبات:true, canEditالمرتبات:true, canApproveالمرتبات:true,
-    canViewEmployees:true, canEditEmployees:true,
-    canApproveLeaves:true,
-    // مشتريات
+    canViewSalaries:true, canEditSalaries:true, canApproveSalaries:true,
+    canViewEmployees:true, canEditEmployees:true, canApproveLeaves:true,
     canViewالمشتريات:true, canAddPO:true, canApprovePO:true,
+    canViewPurchases:true, canEditPurchases:true,
     canViewContracts:true, canEditContracts:true,
-    // مخازن
+    canViewSuppliers:true, canEditSuppliers:true,
     canViewInventory:true, canEditInventory:true,
-    // مشروعات
+    canViewAssets:true, canEditAssets:true, canMoveAssets:true,
     canViewProjects:true, canEditProjects:true,
-    // نظام
     canManageUsers:true, canEditSettings:true, canExportData:true,
-    canResetData:true, canViewمراجعة:true, canLockPeriod:true,
-    canViewGrantFiles:true, canEditGrantFiles:true,
-  },
-  director: {
-    canViewEntries:true, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
-    canApproveEntries:true, canPostEntries:false,
-    canViewReports:true, canViewBanks:true, canViewTrial:true,
-    canViewBalance:true, canViewIncome:true,
-    canViewBVA:true, canEditBudget:false,
-    canViewالمرتبات:true, canEditالمرتبات:false, canApproveالمرتبات:true,
-    canViewEmployees:true, canEditEmployees:false,
-    canApproveLeaves:true,
-    canViewالمشتريات:true, canAddPO:false, canApprovePO:true,
-    canViewContracts:true, canEditContracts:false,
-    canViewInventory:true, canEditInventory:false,
-    canViewProjects:true, canEditProjects:false,
-    canManageUsers:false, canEditSettings:false, canExportData:true,
-    canResetData:false, canViewمراجعة:true, canLockPeriod:false,
-    canViewGrantFiles:true, canEditGrantFiles:false,
+    canImportData:true, canResetData:true, canViewمراجعة:true, canLockPeriod:true,
+    canViewAudit:true, canViewGrantFiles:true, canEditGrantFiles:true,
+    canViewLoans:true, canEditLoans:true, canCollectLoans:true,
+    canPrintChecks:true, canEditChecks:true,
+    canAdminOverride:true
   },
   accounts_manager: {
-    canViewEntries:true, canAddEntries:true, canEditEntries:true, canDeleteEntries:false,
+    canViewEntries:true, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
     canApproveEntries:true, canPostEntries:true,
-    canViewReports:true, canViewBanks:true, canViewTrial:true,
-    canViewBalance:true, canViewIncome:true,
-    canViewBVA:true, canEditBudget:false,
-    canViewالمرتبات:true, canEditالمرتبات:true, canApproveالمرتبات:false,
-    canViewEmployees:true, canEditEmployees:false,
-    canApproveLeaves:false,
-    canViewالمشتريات:true, canAddPO:true, canApprovePO:false,
+    canViewReports:true, canViewBanks:true, canViewTrial:true, canViewBalance:true, canViewIncome:true,
+    canViewBVA:true, canEditBudget:true,
+    canViewالمرتبات:true, canEditالمرتبات:false, canApproveالمرتبات:true,
+    canViewSalaries:true, canEditSalaries:false, canApproveSalaries:true,
+    canViewEmployees:true, canEditEmployees:false, canApproveLeaves:true,
+    canViewالمشتريات:true, canAddPO:false, canApprovePO:true,
+    canViewPurchases:true, canEditPurchases:false,
     canViewContracts:true, canEditContracts:true,
-    canViewInventory:true, canEditInventory:true,
+    canViewSuppliers:true, canEditSuppliers:true,
+    canViewInventory:true, canEditInventory:false,
+    canViewAssets:true, canEditAssets:false, canMoveAssets:false,
     canViewProjects:true, canEditProjects:true,
     canManageUsers:false, canEditSettings:false, canExportData:true,
-    canResetData:false, canViewمراجعة:true, canLockPeriod:false,
-    canViewGrantFiles:true, canEditGrantFiles:true,
+    canImportData:true, canResetData:false, canViewمراجعة:true, canLockPeriod:true,
+    canViewAudit:true, canViewGrantFiles:true, canEditGrantFiles:true,
+    canViewLoans:true, canEditLoans:false, canCollectLoans:false,
+    canPrintChecks:true, canEditChecks:true,
+    canAdminOverride:true
   },
   accountant: {
-    canViewEntries:true, canAddEntries:true, canEditEntries:false, canDeleteEntries:false,
+    canViewEntries:true, canAddEntries:true, canEditEntries:true, canDeleteEntries:false,
     canApproveEntries:false, canPostEntries:false,
-    canViewReports:true, canViewBanks:false, canViewTrial:true,
-    canViewBalance:false, canViewIncome:false,
+    canViewReports:true, canViewBanks:true, canViewTrial:true, canViewBalance:false, canViewIncome:false,
     canViewBVA:true, canEditBudget:false,
     canViewالمرتبات:false, canEditالمرتبات:false, canApproveالمرتبات:false,
-    canViewEmployees:false, canEditEmployees:false,
-    canApproveLeaves:false,
-    canViewالمشتريات:true, canAddPO:false, canApprovePO:false,
-    canViewContracts:false, canEditContracts:false,
+    canViewSalaries:false, canEditSalaries:false, canApproveSalaries:false,
+    canViewEmployees:true, canEditEmployees:false, canApproveLeaves:false,
+    canViewالمشتريات:true, canAddPO:true, canApprovePO:false,
+    canViewPurchases:true, canEditPurchases:false,
+    canViewContracts:true, canEditContracts:false,
+    canViewSuppliers:true, canEditSuppliers:false,
     canViewInventory:true, canEditInventory:false,
+    canViewAssets:true, canEditAssets:false, canMoveAssets:false,
     canViewProjects:true, canEditProjects:false,
-    canManageUsers:false, canEditSettings:false, canExportData:false,
-    canResetData:false, canViewمراجعة:false, canLockPeriod:false,
-    canViewGrantFiles:false, canEditGrantFiles:false,
+    canManageUsers:false, canEditSettings:false, canExportData:true,
+    canImportData:false, canResetData:false, canViewمراجعة:true, canLockPeriod:false,
+    canViewAudit:false, canViewGrantFiles:true, canEditGrantFiles:false,
+    canViewLoans:true, canEditLoans:false, canCollectLoans:false,
+    canPrintChecks:true, canEditChecks:true,
+    canAdminOverride:false
   },
-  procurement: {
+  program: {
     canViewEntries:false, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
     canApproveEntries:false, canPostEntries:false,
-    canViewReports:false, canViewBanks:false, canViewTrial:false,
-    canViewBalance:false, canViewIncome:false,
-    canViewBVA:true, canEditBudget:false,
+    canViewReports:true, canViewBanks:false, canViewTrial:false, canViewBalance:false, canViewIncome:false,
+    canViewBVA:true, canEditBudget:true,
     canViewالمرتبات:false, canEditالمرتبات:false, canApproveالمرتبات:false,
-    canViewEmployees:false, canEditEmployees:false,
-    canApproveLeaves:false,
+    canViewSalaries:false, canEditSalaries:false, canApproveSalaries:false,
+    canViewEmployees:false, canEditEmployees:false, canApproveLeaves:false,
     canViewالمشتريات:true, canAddPO:true, canApprovePO:false,
-    canViewContracts:true, canEditContracts:true,
-    canViewInventory:true, canEditInventory:true,
-    canViewProjects:true, canEditProjects:false,
-    canManageUsers:false, canEditSettings:false, canExportData:false,
-    canResetData:false, canViewمراجعة:false, canLockPeriod:false,
-    canViewGrantFiles:true, canEditGrantFiles:false,
+    canViewPurchases:true, canEditPurchases:false,
+    canViewContracts:true, canEditContracts:false,
+    canViewSuppliers:true, canEditSuppliers:false,
+    canViewInventory:true, canEditInventory:false,
+    canViewAssets:true, canEditAssets:false, canMoveAssets:false,
+    canViewProjects:true, canEditProjects:true,
+    canManageUsers:false, canEditSettings:false, canExportData:true,
+    canImportData:true, canResetData:false, canViewمراجعة:false, canLockPeriod:false,
+    canViewAudit:false, canViewGrantFiles:true, canEditGrantFiles:true,
+    canViewLoans:false, canEditLoans:false, canCollectLoans:false,
+    canPrintChecks:false, canEditChecks:false,
+    canAdminOverride:false
   },
   hr: {
     canViewEntries:false, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
     canApproveEntries:false, canPostEntries:false,
-    canViewReports:false, canViewBanks:false, canViewTrial:false,
-    canViewBalance:false, canViewIncome:false,
+    canViewReports:true, canViewBanks:false, canViewTrial:false, canViewBalance:false, canViewIncome:false,
     canViewBVA:false, canEditBudget:false,
     canViewالمرتبات:true, canEditالمرتبات:true, canApproveالمرتبات:false,
-    canViewEmployees:true, canEditEmployees:true,
-    canApproveLeaves:true,
+    canViewSalaries:true, canEditSalaries:true, canApproveSalaries:false,
+    canViewEmployees:true, canEditEmployees:true, canApproveLeaves:true,
     canViewالمشتريات:false, canAddPO:false, canApprovePO:false,
+    canViewPurchases:false, canEditPurchases:false,
     canViewContracts:false, canEditContracts:false,
+    canViewSuppliers:false, canEditSuppliers:false,
     canViewInventory:false, canEditInventory:false,
-    canViewProjects:false, canEditProjects:false,
-    canManageUsers:false, canEditSettings:false, canExportData:false,
-    canResetData:false, canViewمراجعة:false, canLockPeriod:false,
-    canViewGrantFiles:false, canEditGrantFiles:false,
-  },
-  auditor: {
-    canViewEntries:true, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
-    canApproveEntries:false, canPostEntries:false,
-    canViewReports:true, canViewBanks:true, canViewTrial:true,
-    canViewBalance:true, canViewIncome:true,
-    canViewBVA:true, canEditBudget:false,
-    canViewالمرتبات:true, canEditالمرتبات:false, canApproveالمرتبات:false,
-    canViewEmployees:true, canEditEmployees:false,
-    canApproveLeaves:false,
-    canViewالمشتريات:true, canAddPO:false, canApprovePO:false,
-    canViewContracts:true, canEditContracts:false,
-    canViewInventory:true, canEditInventory:false,
+    canViewAssets:false, canEditAssets:false, canMoveAssets:false,
     canViewProjects:true, canEditProjects:false,
     canManageUsers:false, canEditSettings:false, canExportData:true,
-    canResetData:false, canViewمراجعة:true, canLockPeriod:false,
-    canViewGrantFiles:true, canEditGrantFiles:false,
+    canImportData:true, canResetData:false, canViewمراجعة:false, canLockPeriod:false,
+    canViewAudit:false, canViewGrantFiles:false, canEditGrantFiles:false,
+    canViewLoans:false, canEditLoans:false, canCollectLoans:false,
+    canPrintChecks:false, canEditChecks:false,
+    canAdminOverride:false
   },
-  viewer: {
-    canViewEntries:true, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
+  storekeeper: {
+    canViewEntries:false, canAddEntries:false, canEditEntries:false, canDeleteEntries:false,
     canApproveEntries:false, canPostEntries:false,
-    canViewReports:true, canViewBanks:false, canViewTrial:true,
-    canViewBalance:false, canViewIncome:false,
-    canViewBVA:true, canEditBudget:false,
+    canViewReports:true, canViewBanks:false, canViewTrial:false, canViewBalance:false, canViewIncome:false,
+    canViewBVA:false, canEditBudget:false,
     canViewالمرتبات:false, canEditالمرتبات:false, canApproveالمرتبات:false,
-    canViewEmployees:false, canEditEmployees:false,
-    canApproveLeaves:false,
-    canViewالمشتريات:false, canAddPO:false, canApprovePO:false,
+    canViewSalaries:false, canEditSalaries:false, canApproveSalaries:false,
+    canViewEmployees:false, canEditEmployees:false, canApproveLeaves:false,
+    canViewالمشتريات:true, canAddPO:true, canApprovePO:false,
+    canViewPurchases:true, canEditPurchases:false,
     canViewContracts:false, canEditContracts:false,
-    canViewInventory:false, canEditInventory:false,
+    canViewSuppliers:true, canEditSuppliers:false,
+    canViewInventory:true, canEditInventory:true,
+    canViewAssets:true, canEditAssets:true, canMoveAssets:true,
     canViewProjects:true, canEditProjects:false,
-    canManageUsers:false, canEditSettings:false, canExportData:false,
-    canResetData:false, canViewمراجعة:false, canLockPeriod:false,
-    canViewGrantFiles:false, canEditGrantFiles:false,
-  },
+    canManageUsers:false, canEditSettings:false, canExportData:true,
+    canImportData:true, canResetData:false, canViewمراجعة:false, canLockPeriod:false,
+    canViewAudit:false, canViewGrantFiles:false, canEditGrantFiles:false,
+    canViewLoans:false, canEditLoans:false, canCollectLoans:false,
+    canPrintChecks:false, canEditChecks:false,
+    canAdminOverride:false
+  }
 };
+
+function ensureDefaultRolePerms(){
+  if(typeof PERMS==='undefined') return;
+  if(!DB.rolePerms)DB.rolePerms={};
+  Object.keys(PERMS).forEach(function(role){
+    if(!DB.rolePerms[role])DB.rolePerms[role]={};
+    Object.keys(PERMS[role]).forEach(function(k){
+      if(DB.rolePerms[role][k]===undefined)DB.rolePerms[role][k]=PERMS[role][k];
+    });
+  });
+}
 
 // ── Permission Check ──────────────────────────────────────────────
 function hasPerm(perm){
   var u=getCurrentUser();
   if(!u) return false;
-  var role=u.role||'viewer';
-  // Check custom user permissions first
+  if(u.role==='admin') return true;
   var usr=(DB.users||[]).find(function(x){return x.id===u.id;});
-  if(usr&&usr.customPerms&&usr.customPerms[perm]!==undefined) return usr.customPerms[perm];
-  var p=PERMS[role]||PERMS.viewer;
+  if(usr&&usr.customPerms&&usr.customPerms[perm]!==undefined) return usr.customPerms[perm]===true;
+  if(DB.rolePerms&&DB.rolePerms[u.role]&&DB.rolePerms[u.role][perm]!==undefined) return DB.rolePerms[u.role][perm]===true;
+  var p=PERMS[u.role]||PERMS.accountant||{};
   return p[perm]===true;
 }
 
-function requirePerm(perm){
+function requirePerm(perm,msg){
   if(!hasPerm(perm)){
-    toast('⛔ ليس لديك صلاحية لهذه العملية');
+    toast('⛔ '+(msg||'ليس لديك صلاحية لهذه العملية'));
     return false;
   }
   return true;
@@ -14430,10 +14480,38 @@ function submitReject(aid){
 // ── Permissions Settings Page ─────────────────────────────────────
 
 function saveRolePerms(){save();toast("✅ تم حفظ جميع الصلاحيات");}
+
+function rFinanceDirectorMonthlyReview(){
+  var u=getCurrentUser();
+  var h='<div class="ph-t" style="margin-bottom:12px;">🧭 مراجعة شهر تشغيل كامل — مدير مالي</div>';
+  h+='<div style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;line-height:1.9;">هذه الشاشة ليست مجرد شكل؛ هي قائمة مراجعة تشغيلية لاختبار الترابط بين المحاسبة، البرامج، الموارد البشرية، المخازن، الأصول، والمستندات خلال شهر كامل.</div>';
+  var sections=[
+    ['المحاسب','قيود يومية، سندات، بنوك، طباعة شيكات، تسوية بنكية','يجب منع القيد غير المتوازن، وإلزام المشروع/البند عند وجود منحة، وربط كل قيد بمرفق قبل الترحيل.'],
+    ['موظف البرامج','مشروع جديد، موازنة بالأكواد، ملف منحة، متابعة BVA','يجب قفل الموازنة بعد الاعتماد، وأي تعديل يكون Revision أو Override إداري بسجل تدقيق.'],
+    ['الموارد البشرية','موظفين، إجازات، تايم شيت، إعداد مرتب','يجب أن يولد إعداد المرتب قيدًا قابلًا للمراجعة ويربط التكلفة بالمشروع ونسبة LOE.'],
+    ['مسؤول المخازن','استلام، صرف، تحويل مخزني، أصول وعهد','يجب منع الصرف بدون رصيد، وربط إذن الصرف بالمشروع/النشاط، وتحويل الأصل من شخص لشخص بسجل حركة.'],
+    ['مدير مالي','مراجعة مستندات، اعتماد، إقفال شهر، تقارير مانح','يجب وجود Checklist للمستندات، تنبيهات ناقص، ومطابقة ملف المنحة بعد كل عملية.']
+  ];
+  h+='<div class="mg">';
+  sections.forEach(function(s){
+    h+='<div class="card" style="margin:0;min-height:150px;"><div style="font-weight:900;color:var(--n);font-size:14px;margin-bottom:6px;">'+s[0]+'</div><div style="font-size:12px;color:#334155;line-height:1.8;">'+s[1]+'</div><div style="margin-top:8px;font-size:11px;color:#dc2626;line-height:1.8;">⚠️ '+s[2]+'</div></div>';
+  });
+  h+='</div>';
+  h+='<div class="card" style="margin-top:12px;"><div class="ct">تعليقات جوهرية بعد الاختبار المنطقي</div><ol style="font-size:12px;line-height:2;color:#334155;padding-right:18px;">'
+    +'<li>الصلاحيات يجب ألا تكتفي بإخفاء الأزرار؛ لازم تمنع التنفيذ داخل الدوال نفسها.</li>'
+    +'<li>ملف المنحة يجب أن يتحدث تلقائيًا مع كل قيد أو مستند أو تعديل موازنة.</li>'
+    +'<li>أي قيد خاص بمنحة بدون مشروع أو بند موازنة أو مرفق يجب يظل مسودة ولا يترحل.</li>'
+    +'<li>التسوية البنكية يجب تربط الشيكات غير المصروفة والإيداعات تحت التحصيل بالقيد الأصلي.</li>'
+    +'<li>المخزون والأصول يحتاجان تسلسل مستندي: طلب/استلام/صرف/تحويل/جرد.</li>'
+    +'<li>إقفال الشهر يجب يمنع التعديل إلا بتصحيح إداري بسجل تدقيق.</li>'
+    +'</ol></div>';
+  return setPgMore(h);
+}
 function rPermissionsPage(){
   var u=getCurrentUser();
   if(!u||u.role!=="admin") return '<div style="text-align:center;padding:40px;color:#dc2626;"><div style="font-size:40px;">⛔</div><div style="font-weight:700;margin-top:8px;">الصلاحيات للمدير فقط</div></div>';
   var h='<div class="ph-t" style="margin-bottom:14px;">🔐 إدارة الصلاحيات والأدوار</div>';
+  h+='<div style="background:#ecfeff;border:1px solid #a5f3fc;color:#155e75;border-radius:12px;padding:10px;margin-bottom:12px;font-size:12px;line-height:1.8;"><b>وضع الجمعيات الصغيرة:</b> النظام مضبوط افتراضيًا لبيئة الجمعيات الصغيرة والمتوسطة: مدير النظام + مدير مالي + محاسب + موظف برامج + موارد بشرية + مسؤول مخازن. ويمكن تقليلها لدورين فقط إذا كانت الجمعية صغيرة جدًا.</div>';
   // Change user role
   h+='<div style="background:#f0f9ff;border-radius:12px;padding:12px;margin-bottom:14px;">';
   h+='<div style="font-weight:700;font-size:12px;color:var(--g4);margin-bottom:8px;">تغيير دور مستخدم</div>';
@@ -14515,8 +14593,11 @@ function applyUserRole(){
 function hasPerm(perm){
   var u=getCurrentUser();if(!u)return false;
   if(u.role==='admin')return true;
-  if(!DB.rolePerms||!DB.rolePerms[u.role])return false;
-  return DB.rolePerms[u.role][perm]!==false;
+  var usr=(DB.users||[]).find(function(x){return x.id===u.id;});
+  if(usr&&usr.customPerms&&usr.customPerms[perm]!==undefined)return usr.customPerms[perm]===true;
+  if(DB.rolePerms&&DB.rolePerms[u.role]&&DB.rolePerms[u.role][perm]!==undefined)return DB.rolePerms[u.role][perm]===true;
+  var p=(PERMS[u.role]||PERMS.accountant||{});
+  return p[perm]===true;
 }
 function resetUserPass(idx){
   var usr=(DB.users||[])[idx];if(!usr)return;
@@ -14532,7 +14613,7 @@ function saveResetPass(idx){
 }
 function openAddUser(){
   var h='<div class="fg"><label>الاسم</label><input id="au-name" placeholder="اسم المستخدم"></div>';
-  h+='<div class="fg"><label>اسم الدخول</label><input id="au-user" placeholder="username"></div>';
+  h+='<div class="fg"><label>اسم الدخول</label><input id="au-user" placeholder="اسم الدخول"></div>';
   h+='<div class="fg"><label>كلمة المرور</label><input type="password" id="au-pass" placeholder="••••••"></div>';
   h+='<div class="fg"><label>الدور</label><select id="au-role">';
   Object.keys(ROLES).forEach(function(k){h+='<option value="'+k+'">'+ROLES[k].icon+' '+ROLES[k].label+'</option>';});
@@ -21258,6 +21339,349 @@ function rDash(){
     return h;
   };
 })();
+
+
+/* =============================================================
+   V18 — Budget Control + Package/Module Visibility
+   ============================================================= */
+(function(){
+  var MODULES={
+    core:{label:'الرئيسية',icon:'🏠'},
+    finance:{label:'المالية والقيود والشيكات',icon:'💰'},
+    grants:{label:'المنح والمشروعات والموازنات',icon:'📁'},
+    hr:{label:'الموارد البشرية والمرتبات والتايم شيت',icon:'👥'},
+    procurement:{label:'المشتريات والعقود والموردين',icon:'🛒'},
+    inventory:{label:'المخازن',icon:'📦'},
+    assets:{label:'الأصول الثابتة',icon:'🏢'},
+    compliance:{label:'الامتثال والمراجعة',icon:'⚖️'},
+    archive:{label:'الأرشيف والمستندات',icon:'🗂️'},
+    reports:{label:'التقارير',icon:'📊'},
+    ai:{label:'المساعد الذكي',icon:'🤖'},
+    microfinance:{label:'التمويل متناهي الصغر',icon:'💳'},
+    import:{label:'الاستيراد والتصدير',icon:'📥'},
+    settings:{label:'الإعدادات والصلاحيات',icon:'⚙️'}
+  };
+  var PLAN_MODULES={
+    basic:['core','finance','grants','hr','inventory','assets','compliance','archive','reports','import','settings'],
+    pro:['core','finance','grants','hr','procurement','inventory','assets','compliance','archive','reports','ai','microfinance','import','settings']
+  };
+  var PAGE_MODULE={
+    dash:'core',more:'core',fin:'finance',jour:'finance',checks:'finance',proj:'grants',pay:'hr',ops:'procurement',loans:'microfinance',
+    reports:'reports',importexport:'import',importwizard:'import',settings:'settings',permissions:'settings',masterdata:'settings',taxconfig:'settings',openingbals:'settings',
+    ai:'ai',knowledge:'ai',archive:'archive',compliance:'compliance',compliancesettings:'compliance',form41:'compliance',approvals:'compliance',audit:'compliance',
+    assets:'assets',inventory:'inventory',inv_receive:'inventory',inv_issue:'inventory',inv_transfer:'inventory',inv_dispose:'inventory',invreports:'inventory',
+    suppliers:'procurement',contracts:'procurement',employees:'hr',hrreports:'hr',timesheet:'hr',myleaves:'hr',leaveapproval:'hr',provisions:'hr',yearend:'finance',grantfiles:'grants',projtxn:'grants',search:'core',accledger:'finance'
+  };
+  var PAGE_PERM={
+    fin:'canViewEntries',jour:'canViewEntries',checks:'canPrintChecks',proj:'canViewProjects',pay:'canViewPayroll',
+    loans:'canViewLoans',assets:'canViewAssets',inventory:'canViewInventory',inv_receive:'canManageInventory',inv_issue:'canManageInventory',
+    inv_transfer:'canManageInventory',inv_dispose:'canManageInventory',suppliers:'canViewSuppliers',contracts:'canViewContracts',
+    employees:'canViewEmployees',timesheet:'canViewTimesheet',leaveapproval:'canApproveLeaves',myleaves:'canViewLeaves',
+    importexport:'canImportData',importwizard:'canImportData',permissions:'canManageUsers',masterdata:'canManageSettings',settings:'canViewSettings',
+    taxconfig:'canManageSettings',openingbals:'canManageSettings',compliancesettings:'canManageSettings',approvals:'canApproveEntries',
+    ai:'canUseAI',archive:'canViewArchive',reports:'canViewReports'
+  };
+  window.ATHAR_MODULES=MODULES;
+  window.ATHAR_PLAN_MODULES=PLAN_MODULES;
+  window.ATHAR_PAGE_MODULE=PAGE_MODULE;
+
+  function ensureOrgPlan(){
+    if(!window.DB) return;
+    if(!DB.org) DB.org={};
+    if(!DB.org.plan) DB.org.plan='basic';
+    if(!DB.org.enabledModules || !Array.isArray(DB.org.enabledModules)){
+      DB.org.enabledModules=(PLAN_MODULES[DB.org.plan]||PLAN_MODULES.basic).slice();
+      try{ if(typeof save==='function') save(); }catch(e){}
+    }
+    if(!DB.sysSettings) DB.sysSettings={};
+    if(DB.sysSettings.enforceBudget===undefined) DB.sysSettings.enforceBudget=true;
+    if(DB.sysSettings.budgetWarningPct===undefined) DB.sysSettings.budgetWarningPct=90;
+    if(DB.sysSettings.budgetTolerancePct===undefined) DB.sysSettings.budgetTolerancePct=0;
+  }
+  window.ensureOrgPlan=ensureOrgPlan;
+
+  window.isModuleEnabled=function(moduleKey){
+    ensureOrgPlan();
+    if(!moduleKey||moduleKey==='core') return true;
+    var enabled=(DB.org&&DB.org.enabledModules)||PLAN_MODULES.basic;
+    return enabled.indexOf(moduleKey)>-1;
+  };
+  window.getPageModule=function(pg){return PAGE_MODULE[pg]||'core';};
+  window.hasPageAccess=function(pg){
+    ensureOrgPlan();
+    var moduleKey=getPageModule(pg);
+    if(!isModuleEnabled(moduleKey)) return false;
+    var perm=PAGE_PERM[pg];
+    if(perm && typeof hasPerm==='function') return hasPerm(perm);
+    if(perm && typeof can==='function') return can(perm);
+    return true;
+  };
+  window.requirePageAccess=function(pg){
+    if(hasPageAccess(pg)) return true;
+    var m=getPageModule(pg);
+    var ml=(MODULES[m]||{}).label||m;
+    if(typeof toast==='function') toast('🚫 هذه الشاشة غير متاحة في باقة الجمعية أو صلاحيات المستخدم: '+ml);
+    return false;
+  };
+
+  window.applyModuleVisibility=function(){
+    try{
+      ensureOrgPlan();
+      document.querySelectorAll('[data-nav]').forEach(function(el){
+        var pg=el.getAttribute('data-nav');
+        if(!hasPageAccess(pg)) el.style.display='none'; else el.style.display='';
+      });
+      document.querySelectorAll('[data-sub]').forEach(function(el){
+        var pg=el.getAttribute('data-sub');
+        if(!hasPageAccess(pg)) el.style.display='none'; else el.style.display='';
+      });
+    }catch(e){console.warn('visibility failed',e);}
+  };
+
+  if(typeof nav==='function'&&!window._atharV18NavPatched){
+    window._atharV18NavPatched=true;
+    var _nav=nav;
+    window.nav=function(pg,btn){
+      if(!requirePageAccess(pg)) return;
+      _nav(pg,btn);
+      setTimeout(applyModuleVisibility,30);
+    };
+  }
+  if(typeof sub==='function'&&!window._atharV18SubPatched){
+    window._atharV18SubPatched=true;
+    var _sub=sub;
+    window.sub=function(pg){
+      if(!requirePageAccess(pg)) return;
+      _sub(pg);
+      setTimeout(applyModuleVisibility,30);
+    };
+  }
+
+  window.renderPackageSettingsCard=function(){
+    ensureOrgPlan();
+    var u=typeof getCurrentUser==='function'?getCurrentUser():null;
+    if(!u||u.role!=='admin') return '';
+    var plan=DB.org.plan||'basic';
+    var enabled=DB.org.enabledModules||[];
+    var h='<div class="sd">📦 الباقة وإظهار الأقسام للجمعية</div>';
+    h+='<div style="background:#eef6ff;border:1px solid #dbeafe;border-radius:12px;padding:12px;margin-bottom:12px;font-size:11.5px;color:#1e3a6e;line-height:1.7;">';
+    h+='حدد الباقة والأقسام التي تظهر لهذه الجمعية. المستخدم لا يرى إلا الأقسام المفعلة للجمعية + الصلاحيات الممنوحة لدوره الوظيفي.';
+    h+='</div>';
+    h+='<div class="fr"><div class="fg"><label>باقة الجمعية</label><select id="org-plan" onchange="changeOrgPlan(this.value)">';
+    h+='<option value="basic"'+(plan==='basic'?' selected':'')+'>Basic — أساسية</option>';
+    h+='<option value="pro"'+(plan==='pro'?' selected':'')+'>Pro — احترافية</option>';
+    h+='</select></div><div class="fg"><label>سياسة الموازنة</label><select id="ss-budget-policy" onchange="saveBudgetPolicy()">';
+    h+='<option value="block"'+(DB.sysSettings.enforceBudget!==false?' selected':'')+'>منع الحفظ عند التجاوز</option>';
+    h+='<option value="warn"'+(DB.sysSettings.enforceBudget===false?' selected':'')+'>تحذير فقط</option>';
+    h+='</select></div></div>';
+    h+='<div class="fr"><div class="fg"><label>تنبيه عند نسبة صرف %</label><input type="number" id="ss-warn-pct" value="'+(DB.sysSettings.budgetWarningPct||90)+'" oninput="saveBudgetPolicy()"></div>';
+    h+='<div class="fg"><label>سماحية تجاوز للإدارة %</label><input type="number" id="ss-tol-pct" value="'+(DB.sysSettings.budgetTolerancePct||0)+'" oninput="saveBudgetPolicy()"></div></div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">';
+    Object.keys(MODULES).forEach(function(k){
+      var locked=k==='core'||k==='settings';
+      var checked=enabled.indexOf(k)>-1||locked;
+      h+='<label style="display:flex;gap:8px;align-items:center;background:white;border:1px solid #e2eaf3;border-radius:10px;padding:10px;font-size:11.5px;color:#1e3a6e;">';
+      h+='<input type="checkbox" data-module="'+k+'" '+(checked?'checked':'')+' '+(locked?'disabled':'')+' onchange="toggleOrgModule(this)">';
+      h+='<span style="font-size:18px;">'+MODULES[k].icon+'</span><span>'+MODULES[k].label+'</span>';
+      h+='</label>';
+    });
+    h+='</div>';
+    return h;
+  };
+
+  window.changeOrgPlan=function(plan){
+    ensureOrgPlan();
+    DB.org.plan=plan;
+    DB.org.enabledModules=(PLAN_MODULES[plan]||PLAN_MODULES.basic).slice();
+    if(typeof save==='function') save();
+    if(typeof toast==='function') toast('✅ تم تحديث الباقة والأقسام');
+    if(typeof sub==='function') sub('settings');
+    setTimeout(applyModuleVisibility,50);
+  };
+  window.toggleOrgModule=function(cb){
+    ensureOrgPlan();
+    var k=cb.getAttribute('data-module');
+    if(k==='core'||k==='settings'){cb.checked=true;return;}
+    var arr=DB.org.enabledModules||[];
+    if(cb.checked && arr.indexOf(k)<0) arr.push(k);
+    if(!cb.checked) arr=arr.filter(function(x){return x!==k;});
+    DB.org.enabledModules=arr;
+    if(typeof save==='function') save();
+    if(typeof toast==='function') toast('✅ تم تحديث ظهور الأقسام');
+    setTimeout(applyModuleVisibility,50);
+  };
+  window.saveBudgetPolicy=function(){
+    ensureOrgPlan();
+    var policy=(document.getElementById('ss-budget-policy')||{}).value||'block';
+    DB.sysSettings.enforceBudget=(policy!=='warn');
+    DB.sysSettings.budgetWarningPct=parseFloat((document.getElementById('ss-warn-pct')||{}).value)||90;
+    DB.sysSettings.budgetTolerancePct=parseFloat((document.getElementById('ss-tol-pct')||{}).value)||0;
+    if(typeof save==='function') save();
+  };
+
+  if(typeof rSetPage==='function'&&!window._atharV18SettingsPatched){
+    window._atharV18SettingsPatched=true;
+    var _rSetPage=rSetPage;
+    window.rSetPage=function(){
+      var html=_rSetPage();
+      var card=renderPackageSettingsCard();
+      if(card && html.indexOf('📦 الباقة وإظهار الأقسام')<0){
+        // inject after current user info card, otherwise before closing
+        html=html.replace('<div class="sd">بيانات الجمعية</div>', card+'<div class="sd">بيانات الجمعية</div>');
+        if(html.indexOf(card)<0) html+=card;
+      }
+      return html;
+    };
+  }
+
+  function findProject(code){return (DB.projects||[]).find(function(p){return p.code===code;});}
+  function expenseAmount(line){return (typeof isExpenseAcc==='function'&&isExpenseAcc(line.acc))?(line.dr||0):0;}
+  window.getBudgetAvailableForLine=function(projCode,wbsCode){
+    var p=findProject(projCode); if(!p) return null;
+    var budget=0,spent=0,name='إجمالي المشروع';
+    if(wbsCode && p.wbs && p.wbs.length){
+      var all=p.wbs||[];
+      var item=all.find(function(x){return x.code===wbsCode;});
+      if(!item) return null;
+      name=item.name||wbsCode;
+      budget=(typeof getWBSBudget==='function')?getWBSBudget(p,wbsCode,all):(item.budget||0);
+      spent=(typeof getWBSSpentWithChildren==='function')?getWBSSpentWithChildren(projCode,wbsCode,all):((typeof getWBSSpent==='function')?getWBSSpent(projCode,wbsCode):0);
+    }else{
+      budget=p.budget||0;
+      spent=(typeof getProjectSpent==='function')?getProjectSpent(projCode):0;
+    }
+    return {project:p,budget:budget,spent:spent,available:budget-spent,name:name};
+  };
+
+  window.checkBudgetBeforeSave=function(lines, opts){
+    ensureOrgPlan(); opts=opts||{};
+    var cfg=DB.sysSettings||{};
+    var warnPct=parseFloat(cfg.budgetWarningPct||90);
+    var tolPct=parseFloat(cfg.budgetTolerancePct||0);
+    var groups={};
+    (lines||[]).forEach(function(l){
+      var amt=expenseAmount(l); if(!amt) return;
+      var proj=l.proj||opts.project||''; if(!proj) return;
+      var wbs=l.wbsCode||l.wbs||'';
+      var key=proj+'||'+wbs;
+      if(!groups[key]) groups[key]={proj:proj,wbs:wbs,amount:0,lines:[]};
+      groups[key].amount+=amt; groups[key].lines.push(l);
+    });
+    var warnings=[], blocks=[];
+    Object.keys(groups).forEach(function(key){
+      var g=groups[key];
+      var info=getBudgetAvailableForLine(g.proj,g.wbs);
+      if(!info||!info.budget) return;
+      var after=info.spent+g.amount;
+      var pct=info.budget?Math.round(after/info.budget*100):0;
+      var max=info.budget*(1+tolPct/100);
+      var projName=(info.project&&info.project.name)||g.proj;
+      var msg='المشروع: '+projName+'\nالبند: '+info.name+(g.wbs?' ('+g.wbs+')':'')+'\nالموازنة: '+fmt(info.budget)+'\nالمصروف الحالي: '+fmt(info.spent)+'\nقيمة العملية: '+fmt(g.amount)+'\nبعد الحفظ: '+fmt(after)+' ('+pct+'%)\nالمتاح: '+fmt(info.budget-info.spent);
+      if(after>max){blocks.push('❌ الموازنة لا تسمح بالحفظ\n'+msg);} else if(pct>=warnPct){warnings.push('⚠️ تحذير موازنة\n'+msg);}    
+    });
+    if(blocks.length){return {ok:false,level:'block',messages:blocks};}
+    if(warnings.length){return {ok:true,level:'warn',messages:warnings};}
+    return {ok:true,level:'ok',messages:[]};
+  };
+
+  window.showBudgetControlResult=function(res){
+    if(!res||res.level==='ok') return true;
+    if(res.level==='block'){
+      alert(res.messages.join('\n\n')+'\n\nالحل: اطلب تعديل موازنة أو نقل بين البنود أو موافقة إدارية.');
+      return false;
+    }
+    return confirm(res.messages.join('\n\n')+'\n\nهل تريد المتابعة؟');
+  };
+
+  // Fix WBS search/project lookup per line — old code used removed header project field.
+  window.filterWBS=function(i){
+    var q=(el('ewbs-search-'+i)||{}).value||'';
+    var d=el('ewbs-drop-'+i); if(!d)return;
+    var projCode=(el('eproj-'+i)||{}).value||'';
+    var wbsItems=projCode&&typeof getWBSForProject==='function'?getWBSForProject(projCode):[];
+    d.style.display='block'; d.innerHTML=buildWBSDropHtml(i,wbsItems,q);
+    var hid=el('ewbs-'+i); if(hid) hid.value='';
+  };
+  window.selectWBSFromDrop=function(el2){
+    var i=el2.getAttribute('data-wbs-i');
+    var code=el2.getAttribute('data-wbs-c');
+    var nameEl=el2.querySelector('[data-wbs-n]');
+    var name=nameEl?nameEl.textContent:'';
+    var hidden=el('ewbs-'+i); if(hidden) hidden.value=code;
+    var inp=el('ewbs-search-'+i); if(inp) inp.value=code+' — '+name;
+    hideWBSDrop(i);
+    var projCode=(el('eproj-'+i)||{}).value||'';
+    if(projCode){
+      var p=DB.projects.find(function(x){return x.code===projCode;});
+      var wbsItem=p&&p.wbs?p.wbs.find(function(w){return w.code===code;}):null;
+      if(wbsItem&&wbsItem.accCode){
+        var acc=DB.accounts.find(function(a){return a.c===wbsItem.accCode;});
+        if(acc){var accInp=el('eaSearch-'+i); if(accInp) accInp.value=acc.c+' — '+acc.n; var accHid=el('ea-'+i); if(accHid) accHid.value=acc.c;}
+      }
+    }
+    if(typeof updET==='function') updET();
+  };
+
+  // Rebuild saveE with WBS-level budget control.
+  if(typeof saveE==='function'&&!window._atharV18SaveEPatched){
+    window._atharV18SaveEPatched=true;
+    window.saveE=function(){
+      if(!requirePerm('canEditEntries','المحاسب لا يمكنه إدخال قيود'))return;
+      var dt=sv('e-d')||new Date().toISOString().split('T')[0];
+      if(!checkPeriodLock(dt))return;
+      var lines=collectTP('e',_eL);
+      if(lines.length<2){toast('⚠️ القيد يحتاج سطرين على الأقل');return;}
+      var tD=lines.reduce(function(s,l){return s+(l.dr||0);},0);
+      var tC=lines.reduce(function(s,l){return s+(l.cr||0);},0);
+      if(Math.abs(tD-tC)>0.01){toast('⚠️ القيد غير متوازن — فرق: '+fmt(Math.abs(tD-tC)));return;}
+      var desc=sv('e-ds'); if(!desc){toast('⚠️ البيان مطلوب');return;}
+
+      // Auto WHT lines
+      var autoWHTLines=[];
+      lines.forEach(function(ln){
+        if(!ln.tpId) return;
+        var tp=(DB.thirdParties||[]).find(function(t){return t.id===ln.tpId;});
+        if(!tp||!tp.taxId||!tp.whtRate) return;
+        var grossAmt=ln.dr||0; if(!grossAmt) return;
+        var rate=tp.whtRate/100;
+        var whtAmt=Math.round(grossAmt*rate/(1+rate)*100)/100;
+        if(!whtAmt) return;
+        var exists=lines.some(function(l){return (l.acc==='2114'||String(l.acc||'').startsWith('2114'))&&Math.abs((l.cr||0)-whtAmt)<0.1;});
+        if(exists) return;
+        var wa=typeof getWHTAccount==='function'?getWHTAccount(tp.whtRate):{acc:'2114',name:'ضرائب خصم مستحقة'};
+        autoWHTLines.push({acc:wa.acc,an:wa.name,dr:0,cr:whtAmt,proj:ln.proj||'',cc:ln.cc||'',tpId:'',tpName:'',tpType:'',wbsCode:ln.wbsCode||'',autoGenerated:true});
+        for(var k=lines.length-1;k>=0;k--){
+          if((String(lines[k].acc||'').startsWith('111')||String(lines[k].acc||'').startsWith('112'))&&lines[k].cr>0){
+            lines[k].cr=Math.round((lines[k].cr-whtAmt)*100)/100; break;
+          }
+        }
+      });
+      if(autoWHTLines.length) lines=lines.concat(autoWHTLines);
+
+      var budgetRes=checkBudgetBeforeSave(lines,{source:'entry'});
+      if(!showBudgetControlResult(budgetRes)) return;
+
+      var id='J'+new Date().getFullYear()+'-'+String(Date.now()).slice(-6);
+      var primaryProj=(lines.find(function(l){return l.proj;})||{}).proj||'';
+      if(!DB.entries) DB.entries=[];
+      DB.entries.push({id:id,date:dt,ref:sv('e-r')||id,desc:desc,proj:primaryProj,costCenter:sv('e-cc'),location:sv('e-loc'),activity:sv('e-act'),docType:sv('e-dt'),payMethod:sv('e-pm'),lines:lines,status:'posted',contractId:sv('e-contract')||'',createdBy:(getCurrentUser()||{}).name||'',createdAt:new Date().toISOString()});
+      save();cm();rJour();rDash();
+      toast('✅ تم ترحيل القيد '+id);
+    };
+  }
+
+  // Add budget check to payroll posting if the project/WBS selected has no room.
+  if(typeof openGenPayModal==='function'&&!window._atharV18PayWarnPatched){
+    var _openGenPayModal=openGenPayModal;
+    window.openGenPayModal=function(){ _openGenPayModal.apply(this,arguments); setTimeout(function(){
+      var btns=document.querySelectorAll('.mo.on button');
+      btns.forEach(function(b){ if((b.textContent||'').indexOf('إنشاء القيد')>-1 || (b.textContent||'').indexOf('حفظ')>-1){ b.setAttribute('title','سيتم فحص الموازنة قبل الحفظ'); }});
+    },100); };
+  }
+
+  setTimeout(function(){ensureOrgPlan();applyModuleVisibility();},300);
+})();
+
 </script>
 </body>
 </html>
