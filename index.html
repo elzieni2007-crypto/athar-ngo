@@ -163,16 +163,16 @@ function rDash(){
   try{
     if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
     var root=document.getElementById('pg-dash'); if(!root)return;
-    var projects=v6ProjectStats(), activeProjects=projects.length;
+    var projects=v6ProjectStats(), activeGrants=projects.length;
     var budget=projects.reduce(function(s,p){return s+p.budget;},0), spent=projects.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
     var bank=v6BankBalance(), comp=v6الامتثالScore(), pending=v6PendingApprovals();
     var miss=v6MissingDocsCount(), alerts=v6CoreAlerts(), bars=v6MonthlyBars();
     var topProjects=projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,5);
-    var loans=(DB.loans||[]), activeقروض=loans.filter(function(l){return l.status==='active';}).length;
+    var loans=(DB.loans||[]), activeLoans=loans.filter(function(l){return l.status==='active';}).length;
     var loanPortfolio=loans.filter(function(l){return l.status==='active';}).reduce(function(s,l){return s+(Number(l.principal)||0);},0);
     var h='<div class="v7-wrap">';
     h+='<div class="v7-hero"><div class="v7-hrow"><div><div class="v7-ey">ATHAR NGO OPERATING SYSTEM</div><div class="v7-title">مركز التحكم المالي والتشغيلي</div><div class="v7-sub">الرئيسية تعرض القرار: رصيد، منح، امتثال، موافقات، مستندات ناقصة — والقروض موديول داخلي مستقل.</div></div><div class="v7-score"><b>'+comp+'</b><span>مؤشر الامتثال</span></div></div><div class="v7-pills"><span class="v7-pill">مراجعة Ready</span><span class="v7-pill">Grant Control</span><span class="v7-pill">Smart الأرشيف</span><span class="v7-pill">التمويل متناهي الصغر Inside</span></div></div>';
-    var k=[{i:'🏦',v:v6Money(bank),l:'رصيد البنك والخزينة',n:'محسوب من القيود المرحلة',a:'#059669',s:'#d1fae5',t:'فعلي'},{i:'📁',v:activeProjects,l:'منح ومشروعات',n:'متابعة الصرف والمدة والتقارير',a:'#29abe2',s:'#e8f6fd',t:'المنح والمشروعات'},{i:'📊',v:v6Pct(burn),l:'نسبة الصرف الكلية',n:v6Money(spent)+' من '+v6Money(budget),a:'#d97706',s:'#fef3c7',t:'Burn'},{i:'📎',v:miss,l:'مستندات ناقصة',n:'تحتاج استكمال قبل المراجعة',a:'#dc2626',s:'#fee2e2',t:'مراجعة'},{i:'📥',v:pending,l:'موافقات معلقة',n:'طلبات تحتاج اعتماد أو مراجعة',a:'#7c3aed',s:'#ede9fe',t:'Action'},{i:'💳',v:activeقروض,l:'قروض نشطة',n:'ملخص فقط — الموديول مستقل',a:'#0ea5e9',s:'#e0f2fe',t:'Loan'}];
+    var k=[{i:'🏦',v:v6Money(bank),l:'رصيد البنك والخزينة',n:'محسوب من القيود المرحلة',a:'#059669',s:'#d1fae5',t:'فعلي'},{i:'📁',v:activeGrants,l:'منح ومشروعات',n:'متابعة الصرف والمدة والتقارير',a:'#29abe2',s:'#e8f6fd',t:'المنح والمشروعات'},{i:'📊',v:v6Pct(burn),l:'نسبة الصرف الكلية',n:v6Money(spent)+' من '+v6Money(budget),a:'#d97706',s:'#fef3c7',t:'Burn'},{i:'📎',v:miss,l:'مستندات ناقصة',n:'تحتاج استكمال قبل المراجعة',a:'#dc2626',s:'#fee2e2',t:'مراجعة'},{i:'📥',v:pending,l:'موافقات معلقة',n:'طلبات تحتاج اعتماد أو مراجعة',a:'#7c3aed',s:'#ede9fe',t:'Action'},{i:'💳',v:activeLoans,l:'قروض نشطة',n:'ملخص فقط — الموديول مستقل',a:'#0ea5e9',s:'#e0f2fe',t:'Loan'}];
     h+='<div class="v7-kpis">'; k.forEach(function(x){h+='<div class="v7-card v7-kpi" style="--a:'+x.a+';--s:'+x.s+'"><div class="v7-khead"><div class="v7-ico">'+x.i+'</div><div class="v7-tag">'+x.t+'</div></div><div class="v7-val">'+x.v+'</div><div class="v7-lbl">'+x.l+'</div><div class="v7-note">'+x.n+'</div></div>';}); h+='</div>';
     h+='<div class="v7-quick"><button class="v7-q green" onclick="nav(\'jour\',document.querySelector(\'[data-nav=jour]\'))">＋ قيد جديد</button><button class="v7-q sky" onclick="sub(\'archive\')">📎 رفع مستند</button><button class="v7-q amber" onclick="sub(\'assets\')">🏢 الأصول</button><button class="v7-q" onclick="openChecks()">🏦 طباعة شيك</button></div>';
     h+='<div class="v7-grid"><div class="v7-card"><div class="v7-sec"><b>📈 مصروفات آخر 6 شهور</b><span>Posted entries</span></div><div class="v7-bars">';
@@ -19948,14 +19948,14 @@ function rDash(){
     if(!DB.loans)DB.loans=[]; if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[];
     var root=document.getElementById('pg-dash'); if(!root)return;
     var projects=v6ProjectStats();
-    var activeProjects=projects.length;
+    var activeGrants=projects.length;
     var budget=projects.reduce(function(s,p){return s+p.budget;},0);
     var spent=projects.reduce(function(s,p){return s+p.spent;},0);
     var burn=budget?spent/budget*100:0;
     var bank=v6BankBalance();
     var comp=v6الامتثالScore();
     var pending=v6PendingApprovals();
-    var loans=v6SafeArr(DB.loans); var activeقروض=loans.filter(function(l){return l.status==='active';}).length;
+    var loans=v6SafeArr(DB.loans); var activeLoans=loans.filter(function(l){return l.status==='active';}).length;
     var loanPortfolio=loans.filter(function(l){return l.status==='active';}).reduce(function(s,l){return s+(Number(l.principal)||0);},0);
     var bars=v6MonthlyBars();
     var alerts=v6CoreAlerts();
@@ -19964,7 +19964,7 @@ function rDash(){
     h+='<div class="v6-hero"><div class="v6-top"><div><div class="v6-eyebrow">منظومة أثر الرئيسية</div><div class="v6-title">لوحة إدارة أثر الرئيسية</div><div class="v6-sub">إدارة مالية + منح + امتثال + أرشفة + تقارير — والقروض كموديول مستقل داخلي.</div></div><div class="v6-score"><div class="v6-score-num">'+comp+'</div><div class="v6-score-lbl">مؤشر الامتثال</div></div></div><div class="v6-pills"><span class="v6-pill">NGO المالية</span><span class="v6-pill">Grant Control</span><span class="v6-pill">مراجعة Ready</span><span class="v6-pill">AI Ready</span></div></div>';
     var kpis=[
       {i:'🏦',v:v6Money(bank),l:'رصيد البنك والخزينة',n:'محدث من القيود والحسابات',a:'#059669',s:'#d1fae5',t:'فعلي'},
-      {i:'📁',v:activeProjects,l:'منح / مشروعات نشطة',n:'متابعة الميزانيات والصرف',a:'#29abe2',s:'#e8f6fd',t:'المنح والمشروعات'},
+      {i:'📁',v:activeGrants,l:'منح / مشروعات نشطة',n:'متابعة الميزانيات والصرف',a:'#29abe2',s:'#e8f6fd',t:'المنح والمشروعات'},
       {i:'📊',v:v6Pct(burn),l:'نسبة الصرف الكلية',n:v6Money(spent)+' من '+v6Money(budget),a:'#d97706',s:'#fef3c7',t:'Burn'},
       {i:'📥',v:pending,l:'موافقات معلقة',n:'طلبات تحتاج إجراء',a:'#dc2626',s:'#fee2e2',t:'Action'}
     ];
@@ -20161,16 +20161,16 @@ function rDash(){
   try{
     if(!DB.entries)DB.entries=[]; if(!DB.projects)DB.projects=[]; if(!DB.loans)DB.loans=[];
     var root=document.getElementById('pg-dash'); if(!root)return;
-    var projects=v6ProjectStats(), activeProjects=projects.length;
+    var projects=v6ProjectStats(), activeGrants=projects.length;
     var budget=projects.reduce(function(s,p){return s+p.budget;},0), spent=projects.reduce(function(s,p){return s+p.spent;},0), burn=budget?spent/budget*100:0;
     var bank=v6BankBalance(), comp=v6الامتثالScore(), pending=v6PendingApprovals();
     var miss=v6MissingDocsCount(), alerts=v6CoreAlerts(), bars=v6MonthlyBars();
     var topProjects=projects.slice().sort(function(a,b){return b.pct-a.pct;}).slice(0,5);
-    var loans=(DB.loans||[]), activeقروض=loans.filter(function(l){return l.status==='active';}).length;
+    var loans=(DB.loans||[]), activeLoans=loans.filter(function(l){return l.status==='active';}).length;
     var loanPortfolio=loans.filter(function(l){return l.status==='active';}).reduce(function(s,l){return s+(Number(l.principal)||0);},0);
     var h='<div class="v7-wrap">';
     h+='<div class="v7-hero"><div class="v7-hrow"><div><div class="v7-ey">ATHAR NGO OPERATING SYSTEM</div><div class="v7-title">مركز التحكم المالي والتشغيلي</div><div class="v7-sub">الرئيسية تعرض القرار: رصيد، منح، امتثال، موافقات، مستندات ناقصة — والقروض موديول داخلي مستقل.</div></div><div class="v7-score"><b>'+comp+'</b><span>مؤشر الامتثال</span></div></div><div class="v7-pills"><span class="v7-pill">مراجعة Ready</span><span class="v7-pill">Grant Control</span><span class="v7-pill">Smart الأرشيف</span><span class="v7-pill">التمويل متناهي الصغر Inside</span></div></div>';
-    var k=[{i:'🏦',v:v6Money(bank),l:'رصيد البنك والخزينة',n:'محسوب من القيود المرحلة',a:'#059669',s:'#d1fae5',t:'فعلي'},{i:'📁',v:activeProjects,l:'منح ومشروعات',n:'متابعة الصرف والمدة والتقارير',a:'#29abe2',s:'#e8f6fd',t:'المنح والمشروعات'},{i:'📊',v:v6Pct(burn),l:'نسبة الصرف الكلية',n:v6Money(spent)+' من '+v6Money(budget),a:'#d97706',s:'#fef3c7',t:'Burn'},{i:'📎',v:miss,l:'مستندات ناقصة',n:'تحتاج استكمال قبل المراجعة',a:'#dc2626',s:'#fee2e2',t:'مراجعة'},{i:'📥',v:pending,l:'موافقات معلقة',n:'طلبات تحتاج اعتماد أو مراجعة',a:'#7c3aed',s:'#ede9fe',t:'Action'},{i:'💳',v:activeقروض,l:'قروض نشطة',n:'ملخص فقط — الموديول مستقل',a:'#0ea5e9',s:'#e0f2fe',t:'Loan'}];
+    var k=[{i:'🏦',v:v6Money(bank),l:'رصيد البنك والخزينة',n:'محسوب من القيود المرحلة',a:'#059669',s:'#d1fae5',t:'فعلي'},{i:'📁',v:activeGrants,l:'منح ومشروعات',n:'متابعة الصرف والمدة والتقارير',a:'#29abe2',s:'#e8f6fd',t:'المنح والمشروعات'},{i:'📊',v:v6Pct(burn),l:'نسبة الصرف الكلية',n:v6Money(spent)+' من '+v6Money(budget),a:'#d97706',s:'#fef3c7',t:'Burn'},{i:'📎',v:miss,l:'مستندات ناقصة',n:'تحتاج استكمال قبل المراجعة',a:'#dc2626',s:'#fee2e2',t:'مراجعة'},{i:'📥',v:pending,l:'موافقات معلقة',n:'طلبات تحتاج اعتماد أو مراجعة',a:'#7c3aed',s:'#ede9fe',t:'Action'},{i:'💳',v:activeLoans,l:'قروض نشطة',n:'ملخص فقط — الموديول مستقل',a:'#0ea5e9',s:'#e0f2fe',t:'Loan'}];
     h+='<div class="v7-kpis">'; k.forEach(function(x){h+='<div class="v7-card v7-kpi" style="--a:'+x.a+';--s:'+x.s+'"><div class="v7-khead"><div class="v7-ico">'+x.i+'</div><div class="v7-tag">'+x.t+'</div></div><div class="v7-val">'+x.v+'</div><div class="v7-lbl">'+x.l+'</div><div class="v7-note">'+x.n+'</div></div>';}); h+='</div>';
     h+='<div class="v7-quick"><button class="v7-q green" onclick="nav(\'jour\',document.querySelector(\'[data-nav=jour]\'))">＋ قيد جديد</button><button class="v7-q sky" onclick="sub(\'archive\')">📎 رفع مستند</button><button class="v7-q amber" onclick="sub(\'assets\')">🏢 الأصول</button><button class="v7-q" onclick="openChecks()">🏦 طباعة شيك</button></div>';
     h+='<div class="v7-grid"><div class="v7-card"><div class="v7-sec"><b>📈 مصروفات آخر 6 شهور</b><span>Posted entries</span></div><div class="v7-bars">';
