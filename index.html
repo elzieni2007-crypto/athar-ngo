@@ -223,6 +223,7 @@ button,input,select,textarea,a{pointer-events:auto !important;}
   <div id="pg-proj" class="pg"></div>
   <div id="pg-pay" class="pg"></div>
   <div id="pg-more" class="pg"></div>
+  <div id="pg-loans" class="pg"></div>
   <div id="pg-checks" class="pg"></div>
   <div id="pg-fin" class="pg"></div>
   <div id="pg-ops" class="pg"></div>
@@ -236,9 +237,6 @@ button,input,select,textarea,a{pointer-events:auto !important;}
   <div class="bn" data-nav="more"><div class="bn-i">☰</div>المزيد</div>
 </nav>
 <div class="mo" id="mo"><div class="mb"><div class="mh"><span class="mt" id="mo-t">–</span><div style="display:flex;gap:5px;"><button onclick="printModal()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;cursor:pointer;font-family:Cairo,sans-serif;font-size:11px;">🖨️</button><button class="mx" onclick="cm()">✕</button></div></div><div class="mbdy" id="mo-b"></div></div></div></div>
-<div class="toast" id="toast"></div>
-
-
 <script>
 function getOpeningBals(fromDate){
   // Calculate opening balances from entries before fromDate
@@ -290,6 +288,7 @@ function rFinanceHub(){
       title:'🏦 البنوك والخزينة',
       items:[
         {i:'🏦',t:'البنوك والخزينة',sub:'أرصدة وتسويات',n:'banks'},
+        {i:'💳',t:'القروض',sub:'إدارة القروض والأقساط',n:'loans'},
         {i:'🔄',t:'سجل التسويات',sub:'تسوية بنكية',n:'reconhist'},
         {i:'🖊️',t:'طباعة الشيكات',sub:'شيك بنكي مع تفقيط',n:'checks'},
       ]
@@ -1004,7 +1003,7 @@ function hideTbBack(){
 function nav(pg,btn){
   console.log('[أثر] nav called:', pg);
   // Hide topbar back button on main pages
-  if(['dash','jour','fin','ops','more','pay','proj'].indexOf(pg)>-1) hideTbBack();
+  if(['dash','jour','fin','ops','more','pay','proj','loans'].indexOf(pg)>-1) hideTbBack();
 
   // update user badge in topbar
   var tbadge=document.getElementById("tb-user-badge");
@@ -1018,6 +1017,7 @@ function nav(pg,btn){
   else if(pg==="jour")rJour();
   else if(pg==="proj")rProj();
   else if(pg==="pay")rPay();
+  else if(pg==="loans"){rLoansPage();showTbBack({type:"nav",pg:"fin"});}
   else if(pg==="checks"){var _pgChecks=document.getElementById("pg-checks");if(_pgChecks)_pgChecks.innerHTML=rCheckPage();showTbBack({type:"nav",pg:"fin"});}
   else if(pg==="fin"){var _pgFin=document.getElementById("pg-fin");if(_pgFin)_pgFin.innerHTML=rFinanceHub();}
   else if(pg==="ops"){var _pgOps=document.getElementById("pg-ops");if(_pgOps)_pgOps.innerHTML=rOperationsHub();}
@@ -1459,7 +1459,7 @@ function sub(n){
     settings:"⚙️ الإعدادات"
   };
   // Pages that should render full-screen vs modal
-  var fullPages=['accounts','trial','balance','income','bva','banks','inventory','fin','ops','search','audit',
+  var fullPages=['loans','accounts','trial','balance','income','bva','banks','inventory','fin','ops','search','audit',
     'openingbals','yearend','donorledger','variance','cashforecast','contracts','provisions','execdash',
     'inv_receive','inv_issue','inv_transfer','inv_dispose',
     'employees','suppliers','invreports','hrreports','tpledger',
@@ -1629,6 +1629,40 @@ function renderAlertsBar(){
   return h;
 }
 
+function v6SafeArr(a){ return Array.isArray(a)?a:[]; }
+
+function v6Pct(n){ return (isFinite(n)?Math.round(n):0).toLocaleString('ar-EG')+'%'; }
+
+function v6Money(n){ return (Math.round(n)||0).toLocaleString('ar-EG')+' ج.م'; }
+
+function ratioRow(label,val,color){return '<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--g5);font-weight:800;margin-bottom:5px;"><span>'+label+'</span><span style="color:'+color+';">'+val+'%</span></div><div style="height:9px;background:#eef3f8;border-radius:20px;overflow:hidden;"><div style="height:100%;width:'+Math.min(100,val)+'%;background:'+color+';border-radius:20px;"></div></div></div>';}
+
+function addMonthsISO(dateStr,monthsToAdd){
+  var d=new Date(dateStr);
+  if(isNaN(d.getTime())) d=new Date();
+  var day=d.getDate();
+  d.setMonth(d.getMonth()+monthsToAdd);
+  // handle month-end overflow safely
+  if(d.getDate()<day) d.setDate(0);
+  return d.toISOString().slice(0,10);
+}
+
+function diffDays(d){var x=new Date(d);x.setHours(0,0,0,0);return Math.round((x-today0())/86400000);}
+
+function today0(){var d=new Date();d.setHours(0,0,0,0);return d;}
+
+function miniCard(icon,label,value,sub,color){
+      return '<div style="background:white;border:1px solid #e8eef5;border-radius:17px;padding:13px;box-shadow:0 6px 18px rgba(30,58,110,.07);">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:22px;">'+icon+'</span><span style="background:'+color+'22;color:'+color+';font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;">'+sub+'</span></div>'
+        +'<div style="font-family:Tajawal,sans-serif;font-size:17px;font-weight:900;color:var(--n);">'+value+'</div><div style="font-size:10.5px;color:var(--g5);margin-top:2px;">'+label+'</div></div>';
+    }
+
+function money(n){return (Number(n)||0).toLocaleString('ar-EG',{maximumFractionDigits:0})+' ج';}
+
+function fmtDate2(d){if(!d)return '—';var p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0];}
+
+function fmtN(n){return (Math.round(n)||0).toLocaleString('ar-EG')+' ج.م';}
+
 function rDash(){
   var B=bals();
 
@@ -1679,6 +1713,24 @@ function rDash(){
 
   var h='';
   h+=renderAlertsBar();
+  // Loans overdue alert
+  try{
+    var _loans=DB.loans||[];
+    var _today=new Date(); _today.setHours(0,0,0,0);
+    var _overdue=_loans.filter(function(l){
+      return l.status==="active"&&(l.schedule||[]).some(function(s){
+        return s.status==="pending"&&new Date(s.dueDate)<_today;
+      });
+    });
+    if(_overdue.length){
+      h+='<div style="background:#fee2e2;border-right:4px solid #dc2626;border-radius:10px;';
+      h+='padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;"';
+      h+=' onclick="sub(\'loans\')">' ;
+      h+='<div><div style="font-weight:800;font-size:12px;color:#dc2626;">⚠️ قروض متأخرة السداد</div>';
+      h+='<div style="font-size:11px;color:#7f1d1d;">'+_overdue.length+' قرض متأخر — اضغط للمراجعة</div></div>';
+      h+='<div style="font-size:20px;">›</div></div>';
+    }
+  }catch(_){}
 
   // === GRANT DEADLINES WIDGET ===
   h+=renderGrantDeadlinesDash();
@@ -5459,6 +5511,536 @@ function saveAssetTransfer(idx){
     to:to,date:(document.getElementById('at-date')||{}).value,
     by:(getCurrentUser()||{}).name||''});
   a.dept=to;save();cm();toast('✅ تم تسجيل التحويل');sub('assets');
+}
+
+function v6MonthlyBars(){
+  var months=['ينا','فبر','مار','أبر','ماي','يون'];
+  var now=new Date(); var data=[];
+  for(var i=5;i>=0;i--){
+    var d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    var key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    var val=v6SafeArr(DB.entries).filter(function(e){return e.status==='posted' && String(e.date||'').slice(0,7)===key;}).reduce(function(sum,e){
+      return sum+v6SafeArr(e.lines).reduce(function(s,l){return s+((l.acc&&String(l.acc).charAt(0)==='5')?(Number(l.dr)||0):0);},0);
+    },0);
+    data.push({m:months[d.getMonth()%12],v:val});
+  }
+  var max=Math.max.apply(null,data.map(function(x){return x.v;})); if(!max) max=1;
+  return {data:data,max:max};
+}
+
+function v6EntryExpenses(){
+  return v6SafeArr(DB.entries).filter(function(e){return e.status==='posted';}).reduce(function(sum,e){
+    return sum+v6SafeArr(e.lines).reduce(function(s,l){ return s+((l.acc&&String(l.acc).charAt(0)==='5')?(Number(l.dr)||0):0); },0);
+  },0);
+}
+
+function v6ComplianceScore(){
+  var missing=v6MissingDocsCount();
+  var pending=v6PendingApprovals();
+  var taxDue=v6SafeArr(DB.entries).filter(function(e){return e.status==='posted';}).length ? 0 : 0;
+  var score=100 - Math.min(35,missing*4) - Math.min(25,pending*3) - taxDue;
+  return Math.max(45,score);
+}
+
+function v6BankBalance(){
+  var B=bals?bals():{}; var total=0;
+  v6SafeArr(DB.accounts).filter(function(a){return String(a.c||'').indexOf('111')===0 && a.nat==='dr';}).forEach(function(a){var b=B[a.c]||{dr:0,cr:0}; total+=(b.dr||0)-(b.cr||0);});
+  return total;
+}
+
+function v6CoreAlerts(){
+  var alerts=[]; var ps=v6ProjectStats(); var miss=v6MissingDocsCount(); var pending=v6PendingApprovals();
+  ps.forEach(function(p){ if(p.budget>0 && p.pct>=90) alerts.push({cls:p.pct>=100?'danger':'warn',ic:'🎯',t:'تنبيه موازنة: '+p.name,s:'نسبة الصرف '+v6Pct(p.pct)+' من الميزانية المعتمدة'}); });
+  if(miss) alerts.push({cls:'warn',ic:'📎',t:'مستندات ناقصة',s:miss+' قيد يحتاج لاستكمال المرفقات قبل المراجعة'});
+  if(pending) alerts.push({cls:'info',ic:'📥',t:'موافقات معلقة',s:pending+' طلب ينتظر الاعتماد أو المراجعة'});
+  v6UpcomingReports().slice(0,3).forEach(function(r){ alerts.push({cls:r.days<0?'danger':r.days<=7?'danger':'warn',ic:'📅',t:(r.days<0?'تقرير متأخر: ':'تقرير قادم: ')+r.label,s:r.grant+' — '+(r.days<0?'متأخر '+Math.abs(r.days)+' يوم':'متبقي '+r.days+' يوم')}); });
+  if(!alerts.length) alerts.push({cls:'ok',ic:'✅',t:'الوضع مستقر',s:'لا توجد تنبيهات حرجة حالياً — النظام جاهز للعمل'});
+  return alerts;
+}
+
+function procurementAlerts(){
+    var alerts=[];
+    arr(DB.contracts).forEach(function(ct){var end=ct.endDate||ct.end||ct.contractEnd;if(!end)return;var d=diffDays(end), name=ct.name||ct.title||'عقد'; if(d<0)alerts.push({c:'danger',i:'📋',t:'عقد منتهي: '+name,s:'انتهى منذ '+Math.abs(d)+' يوم'}); else if(d<=30)alerts.push({c:'warn',i:'📋',t:'عقد ينتهي قريباً: '+name,s:'متبقي '+d+' يوم'});});
+    arr(DB.thirdParties).filter(function(tp){return tp.type==='supplier'||tp.type==='مورد';}).forEach(function(tp){var docs=tp.docs||{};['cr','tax','vat','ins'].forEach(function(k){var exp=docs[k]&&docs[k].exp;if(!exp)return;var d=diffDays(exp), lab={cr:'سجل تجاري',tax:'بطاقة ضريبية',vat:'ضريبة قيمة مضافة',ins:'تأمينات'}[k]||k;if(d<0)alerts.push({c:'danger',i:'🏭',t:(tp.name||'مورد')+' — '+lab+' منتهي',s:'انتهى منذ '+Math.abs(d)+' يوم'}); else if(d<=60)alerts.push({c:'warn',i:'🏭',t:(tp.name||'مورد')+' — '+lab+' ينتهي',s:'متبقي '+d+' يوم'});});});
+    if(!arr(DB.contracts).length) alerts.push({c:'setup',i:'📋',t:'لا توجد عقود مسجلة للمتابعة',s:'أضف عقداً في سجل العقود لتفعيل تنبيهات الانتهاء'});
+    var suppliers=arr(DB.thirdParties).filter(function(tp){return tp.type==='supplier'||tp.type==='مورد';});
+    if(!suppliers.length) alerts.push({c:'setup',i:'🏭',t:'لا توجد مستندات موردين بمواعيد انتهاء',s:'أضف بيانات المورد/السجل/البطاقة الضريبية لتظهر التنبيهات'});
+    return alerts;
+  }
+
+function printAssetPermit(a,m){
+  function esc(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+  var html='<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>'+esc(m.type)+'</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,Tahoma,sans-serif;color:#111}.head{display:flex;justify-content:space-between;border-bottom:2px solid #0d3b6e;padding-bottom:12px;margin-bottom:18px}.brand{font-weight:900;color:#0d3b6e;font-size:22px}.title{text-align:center;font-size:24px;font-weight:900;margin:12px 0;color:#0d3b6e}.box{border:1px solid #d8e2ef;border-radius:10px;padding:12px;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lbl{color:#64748b;font-size:12px}.val{font-size:15px;font-weight:800;margin-top:3px}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:46px}.sg{height:86px;border-top:1px solid #111;text-align:center;padding-top:8px;font-weight:800}</style></head><body><div class="head"><div class="brand">أثر للحلول المالية</div><div>تاريخ الطباعة: '+new Date().toLocaleDateString('ar-EG')+'</div></div><div class="title">'+esc(m.type)+'</div><div class="box"><div class="grid"><div><div class="lbl">اسم الأصل</div><div class="val">'+esc(a.name)+'</div></div><div><div class="lbl">الرقم التسلسلي</div><div class="val">'+esc(a.serial||'—')+'</div></div><div><div class="lbl">تاريخ الحركة</div><div class="val">'+esc(m.date||'—')+'</div></div><div><div class="lbl">حالة الأصل</div><div class="val">'+esc(m.condition||'—')+'</div></div><div><div class="lbl">من</div><div class="val">'+esc(m.from||'—')+'</div></div><div><div class="lbl">إلى</div><div class="val">'+esc(m.to||'—')+'</div></div></div></div><div class="box"><div class="lbl">ملاحظات</div><div class="val">'+esc(m.notes||'لا توجد')+'</div></div><div class="sign"><div class="sg">المُسلّم</div><div class="sg">المستلم</div><div class="sg">الإدارة المالية</div></div></body></html>';
+  var w=window.open('','_blank'); if(w){w.document.open();w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},400);} else toast('⚠️ اسمح بفتح النوافذ المنبثقة للطباعة');
+}
+
+function injectMicroLoanV4CSS(){
+  if(document.getElementById('athar-v4-css')) return;
+  var st=document.createElement('style');
+  st.id='athar-v4-css';
+  st.textContent=`
+    .ml-v4-page{padding:14px 14px 82px;background:linear-gradient(180deg,#eaf7ff 0%,#f8fbff 38%,#f1f5f9 100%);min-height:100vh;}
+    .ml-v4-hero{background:radial-gradient(circle at top left,rgba(41,171,226,.55),transparent 35%),linear-gradient(135deg,#071f3f 0%,#0D3B6E 50%,#00AEEF 120%);border-radius:24px;padding:18px;color:#fff;box-shadow:0 18px 38px rgba(13,59,110,.28);position:relative;overflow:hidden;margin-bottom:14px;}
+    .ml-v4-hero:before{content:"";position:absolute;inset:auto -35px -45px auto;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,.09)}
+    .ml-v4-hero:after{content:"";position:absolute;right:-25px;top:-25px;width:95px;height:95px;border-radius:24px;transform:rotate(22deg);background:rgba(255,255,255,.07)}
+    .ml-v4-title{font-family:Tajawal,Cairo,sans-serif;font-size:24px;font-weight:900;line-height:1.1;}
+    .ml-v4-sub{font-size:11.5px;color:rgba(255,255,255,.76);margin-top:6px;}
+    .ml-v4-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:5px 10px;font-size:10.5px;font-weight:800;color:#fff;}
+    .ml-v4-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .ml-v4-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+    .ml-v4-card{background:rgba(255,255,255,.96);border:1px solid #e5edf6;border-radius:19px;padding:14px;box-shadow:0 8px 22px rgba(30,58,110,.075);}
+    .ml-v4-kpi{background:#fff;border:1px solid #e5edf6;border-radius:18px;padding:14px;box-shadow:0 8px 22px rgba(30,58,110,.075);position:relative;overflow:hidden;}
+    .ml-v4-kpi:before{content:"";position:absolute;right:0;top:0;width:5px;height:100%;background:var(--accent,#29abe2)}
+    .ml-v4-kpi .ic{font-size:23px;margin-bottom:8px}.ml-v4-kpi .val{font-family:Tajawal,Cairo,sans-serif;font-size:18px;font-weight:900;color:#102a4c}.ml-v4-kpi .lbl{font-size:10.5px;color:#64748b;margin-top:2px}.ml-v4-kpi .tag{position:absolute;left:10px;top:10px;background:color-mix(in srgb,var(--accent,#29abe2) 12%, white);color:var(--accent,#29abe2);font-size:9.5px;font-weight:900;border-radius:999px;padding:2px 8px;}
+    .ml-v4-bar{height:9px;background:#eef4fa;border-radius:999px;overflow:hidden}.ml-v4-fill{height:100%;border-radius:999px;background:var(--accent,#29abe2)}
+    .ml-v4-loan-card{background:#fff;border:1px solid #e5edf6;border-radius:18px;padding:14px;box-shadow:0 6px 18px rgba(30,58,110,.07);position:relative;overflow:hidden;}
+    .ml-v4-loan-card:before{content:"";position:absolute;right:0;top:0;width:5px;height:100%;background:var(--risk,#059669)}
+    .ml-v4-status{font-size:10px;font-weight:900;padding:4px 10px;border-radius:999px;color:#fff;background:var(--risk,#059669)}
+    .ml-v4-action{border:none;border-radius:10px;padding:8px 10px;font-family:Cairo,sans-serif;font-size:11px;font-weight:900;cursor:pointer;}
+    .ml-v4-search{width:100%;border:1.5px solid #dbe8f5;background:#fff;border-radius:14px;padding:11px 13px;font-size:12px;font-family:Cairo,sans-serif;box-shadow:0 5px 14px rgba(30,58,110,.05)}
+    .ml-v4-modal-hero{background:linear-gradient(135deg,#0D3B6E,#29abe2);color:#fff;border-radius:16px;padding:13px;margin-bottom:13px;}
+    .ml-v4-section-title{font-size:12px;font-weight:900;color:#1e3a6e;margin:12px 0 8px;display:flex;align-items:center;gap:6px;}
+    .ml-v4-mini{background:#f8fbff;border:1px solid #e8eef5;border-radius:12px;padding:10px;text-align:center;}
+  `;
+  document.head.appendChild(st);
+}
+
+function monthlyBars(){var now=new Date(), out=[];for(var i=5;i>=0;i--){var d=new Date(now.getFullYear(),now.getMonth()-i,1), ym=d.toISOString().slice(0,7), label=d.toLocaleDateString('ar-EG',{month:'short'});var v=arr(DB.entries).filter(function(e){return e.status==='posted'&&String(e.date||'').slice(0,7)===ym;}).reduce(function(s,e){return s+arr(e.lines).reduce(function(ss,l){return ss+((l.acc&&String(l.acc)[0]==='5')?num(l.dr):0);},0);},0);out.push({m:label,v:v});}return {data:out,max:Math.max(1,...out.map(function(x){return x.v;}))};}
+
+function loanChartBars(monthRows,maxVal){
+  if(!monthRows.length) return '<div style="padding:18px;text-align:center;color:var(--g4);font-size:12px;">لا توجد استحقاقات قادمة</div>';
+  maxVal=maxVal||1;
+  var h='<div style="display:flex;align-items:flex-end;gap:8px;height:135px;padding:8px 4px 2px;direction:ltr;">';
+  monthRows.forEach(function(r){
+    var pct=Math.max(5,Math.round((r.amount/maxVal)*100));
+    h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;">'
+      +'<div style="font-size:9px;color:var(--g5);font-weight:700;white-space:nowrap;">'+fmtN(r.amount).replace(' ج.م','')+'</div>'
+      +'<div title="'+r.label+'" style="width:100%;max-width:28px;height:'+pct+'%;background:linear-gradient(180deg,var(--sk),var(--n));border-radius:8px 8px 3px 3px;box-shadow:0 4px 10px rgba(41,171,226,.25);"></div>'
+      +'<div style="font-size:9px;color:var(--g5);white-space:nowrap;">'+r.label+'</div>'
+      +'</div>';
+  });
+  return h+'</div>';
+}
+
+function loanV4MonthRows(){
+  var today=new Date();today.setHours(0,0,0,0);
+  var labs=['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس'];
+  var rows=[];
+  for(var m=0;m<6;m++){
+    var dt=new Date(today);dt.setDate(1);dt.setMonth(dt.getMonth()+m);
+    var key=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');
+    var due=0, admin=0;
+    (DB.loans||[]).filter(function(l){return l.status==='active';}).forEach(function(l){(l.schedule||[]).forEach(function(s){if(s.status==='pending'&&(s.dueDate||'').slice(0,7)===key){due+=(s.amount||0);admin+=(s.interestPart||s.adminFeesPart||0);}});});
+    rows.push({label:labs[dt.getMonth()],due:due,admin:admin});
+  }
+  return rows;
+}
+
+function loanV4DueInfo(l){
+  var today=new Date();today.setHours(0,0,0,0);
+  var pending=(l.schedule||[]).filter(function(s){return s.status==='pending';}).sort(function(a,b){return (a.dueDate||'').localeCompare(b.dueDate||'');});
+  var overdue=pending.filter(function(s){return new Date(s.dueDate)<today;});
+  var paid=(l.schedule||[]).filter(function(s){return s.status==='paid';});
+  var overdueAmt=overdue.reduce(function(a,x){return a+(x.amount||0);},0);
+  var next=pending[0]||null;
+  var pct=(l.schedule&&l.schedule.length)?Math.round(paid.length/l.schedule.length*100):0;
+  var risk='منخفض', color='#059669';
+  if(overdue.length>=3){risk='مرتفع';color='#dc2626';}
+  else if(overdue.length>0){risk='متوسط';color='#d97706';}
+  else if(l.status==='closed'){risk='مغلق';color='#64748b';}
+  return {pending:pending,overdue:overdue,paid:paid,overdueAmt:overdueAmt,next:next,pct:pct,risk:risk,color:color};
+}
+
+function loanV4Bars(rows){
+  var mx=Math.max.apply(null,rows.map(function(r){return r.due;})); if(!mx||mx<1) mx=1;
+  var h='<div style="height:150px;display:flex;align-items:flex-end;gap:8px;direction:ltr;padding:8px 2px 0;">';
+  rows.forEach(function(r){var p=Math.max(5,Math.round(r.due/mx*100));
+    h+='<div style="flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;gap:5px;">'
+     +'<div style="font-size:9px;color:#64748b;font-weight:900;white-space:nowrap;">'+fmtN(r.due).replace(' ج.م','')+'</div>'
+     +'<div style="height:'+p+'%;width:100%;max-width:30px;border-radius:10px 10px 4px 4px;background:linear-gradient(180deg,#29abe2,#1e3a6e);box-shadow:0 8px 18px rgba(41,171,226,.25);"></div>'
+     +'<div style="font-size:9px;color:#64748b;font-weight:800;">'+r.label+'</div></div>';
+  });
+  return h+'</div>';
+}
+
+function loanV4Aging(){
+  var today=new Date();today.setHours(0,0,0,0);
+  var buckets=[{k:'1–30 يوم',v:0,c:0},{k:'31–60 يوم',v:0,c:0},{k:'61–90 يوم',v:0,c:0},{k:'+90 يوم',v:0,c:0}];
+  (DB.loans||[]).filter(function(l){return l.status==='active';}).forEach(function(l){
+    (l.schedule||[]).filter(function(s){return s.status==='pending'&&new Date(s.dueDate)<today;}).forEach(function(s){
+      var days=Math.floor((today-new Date(s.dueDate))/(1000*60*60*24));
+      var i=days<=30?0:days<=60?1:days<=90?2:3;
+      buckets[i].v+=(s.amount||0);buckets[i].c++;
+    });
+  });
+  return buckets;
+}
+
+function loanStats(){var loans=arr(DB.loans), today=new Date();today.setHours(0,0,0,0);var active=loans.filter(l=>l.status==='active'||!l.status);var portfolio=active.reduce((s,l)=>s+(Number(l.principal)||0),0);var due=0,paid=0,over=0;active.forEach(l=>arr(l.schedule).forEach(x=>{var a=Number(x.amount)||0;if(x.status==='paid'){paid+=a}else{due+=a;if(new Date(x.dueDate)<today)over+=a}}));return {loans,active,portfolio,due,paid,over,par:portfolio?over/portfolio*100:0,collection:(paid+due)?paid/(paid+due)*100:0};}
+
+function migrateLoanAdminFees(){
+  if(!DB||!DB.loans) return;
+  var changed=false;
+  DB.loans.forEach(function(l){
+    if(!l||!l.schedule||!l.schedule.length) return;
+    var totalAdminFees=atharAdminFeesTotal(l.principal||0,l.interestRate||0,l.months||0);
+    var firstFee=l.schedule[0].interestPart||0;
+    var otherFees=l.schedule.slice(1).reduce(function(s,x){return s+(x.interestPart||0);},0);
+    if(l.adminFeesMode==='first_installment' && Math.abs((l.totalInterest||0)-totalAdminFees)<1) return;
+    if(otherFees>0 || Math.abs(firstFee-totalAdminFees)>1){
+      var paidMap={};
+      l.schedule.forEach(function(x){paidMap[x.installNo]={status:x.status,paidDate:x.paidDate,paidAmount:x.paidAmount,accrualEntryId:x.accrualEntryId};});
+      var rebuilt=buildLoanSchedule(l.principal||0,l.interestRate||0,l.months||0,l.startDate||new Date().toISOString().slice(0,10),l.payFreq||'monthly');
+      l.schedule=rebuilt.schedule.map(function(x){
+        var old=paidMap[x.installNo]||{};
+        x.status=old.status||x.status;
+        x.paidDate=old.paidDate||null;
+        x.paidAmount=(old.status==='paid')?x.amount:(old.paidAmount||0);
+        x.interestPaid=(old.status==='paid')?x.interestPart:0;
+        x.accrualEntryId=old.accrualEntryId||null;
+        return x;
+      });
+      l.totalInterest=totalAdminFees;
+      l.totalAdminFees=totalAdminFees;
+      l.adminFeesMode='first_installment';
+      changed=true;
+    }
+  });
+  if(changed) save();
+}
+
+function atharAdminFeesTotal(principal,rate,months){
+  principal=parseFloat(principal)||0;
+  rate=parseFloat(rate)||0;
+  months=parseInt(months)||0;
+  return Math.round(principal*(rate/100)*(months/12));
+}
+
+function seedLoansData(){
+  ensureLoanDB();
+  var existingIds={};
+  DB.loans.forEach(function(l){ if(l&&l.id) existingIds[l.id]=true; });
+
+  var today=new Date();
+  var d=function(monthsAgo,extraDays){
+    var x=new Date(today);
+    x.setMonth(x.getMonth()-monthsAgo);
+    if(extraDays) x.setDate(x.getDate()+extraDays);
+    return x.toISOString().slice(0,10);
+  };
+
+  // Helper: build loan and push to DB
+  function mkLoan(id,name,phone,principal,rate,months,freq,startDate,paidCount,status){
+    var res=buildLoanSchedule(principal,rate,months,startDate,freq);
+    var loan={
+      id:id, clientName:name, clientId:'', clientPhone:phone, clientAddr:'',
+      principal:principal, interestRate:rate, months:months, payFreq:freq,
+      startDate:startDate, totalInterest:res.totalInterest,
+      schedule:res.schedule, status:status||'active',
+      createdAt:startDate+'T08:00:00.000Z', disbEntryId:null
+    };
+    // Mark paid installments
+    var paid=0;
+    for(var i=0;i<loan.schedule.length&&paid<paidCount;i++){
+      loan.schedule[i].status='paid';
+      loan.schedule[i].paidDate=loan.schedule[i].dueDate;
+      loan.schedule[i].paidAmount=loan.schedule[i].amount;
+      loan.schedule[i].interestPaid=loan.schedule[i].interestPart;
+      paid++;
+    }
+    if(status==='closed'){
+      loan.schedule.forEach(function(s){s.status='paid';s.paidDate=s.dueDate;s.paidAmount=s.amount;s.interestPaid=s.interestPart;});
+      loan.closedDate=loan.schedule[loan.schedule.length-1].dueDate;
+    }
+    if(!existingIds[id]){DB.loans.push(loan); existingIds[id]=true;}
+  }
+
+  // 20 clients — varied amounts, some overdue, some paid, some closed
+  mkLoan('LN001','محمد أحمد السيد','01001234567',10000,18,12,'monthly',d(10),2,'active');      // متأخر 8 أقساط
+  mkLoan('LN002','فاطمة علي حسن','01112345678',5000,15,6,'monthly',d(8),1,'active');            // متأخر 7 أقساط
+  mkLoan('LN003','أحمد محمود عبده','01223456789',15000,20,12,'monthly',d(6),4,'active');        // متأخر 2
+  mkLoan('LN004','سارة إبراهيم نور','01034567890',8000,18,12,'monthly',d(4),2,'active');        // متأخر قسط
+  mkLoan('LN005','خالد محمد رضا','01145678901',12000,15,12,'monthly',d(3),2,'active');          // جاري عادي
+  mkLoan('LN006','منى حسين خليل','01256789012',6000,18,6,'monthly',d(5),3,'active');            // متأخر 2
+  mkLoan('LN007','عمر عبدالله فتحي','01367890123',20000,12,12,'monthly',d(2),1,'active');       // جاري
+  mkLoan('LN008','هناء سمير زكي','01078901234',4000,18,6,'monthly',d(7),0,'active');            // متأخر كل الأقساط
+  mkLoan('LN009','طارق إسماعيل بكر','01189012345',9000,20,12,'monthly',d(1),1,'active');        // جاري
+  mkLoan('LN010','رانيا وليد صالح','01290123456',7000,15,6,'monthly',d(6),6,'closed');         // مغلق كامل
+  mkLoan('LN011','ياسر عادل منصور','01001122334',18000,18,12,'monthly',d(11),3,'active');       // متأخر 8
+  mkLoan('LN012','دينا ممدوح فاروق','01112233445',5500,15,12,'monthly',d(3),3,'active');        // جاري
+  mkLoan('LN013','هشام ناصر جمال','01223344556',11000,20,12,'monthly',d(2),2,'active');         // جاري
+  mkLoan('LN014','نادية فؤاد حلمي','01334455667',8500,18,6,'biannual',d(12),1,'active');        // متأخر نصف سنوي
+  mkLoan('LN015','بسمة حامد رشاد','01445566778',16000,12,12,'monthly',d(6),6,'closed');        // مغلق
+  mkLoan('LN016','كريم زياد نجيب','01556677889',13000,15,12,'monthly',d(4),3,'active');         // جاري
+  mkLoan('LN017','شيرين وجدي حداد','01667788990',7500,18,12,'monthly',d(9),2,'active');         // متأخر 7
+  mkLoan('LN018','أشرف لطفي قاسم','01778899001',10000,20,6,'biannual',d(8),1,'active');         // متأخر نصف سنوي
+  mkLoan('LN019','مريم نبيل درويش','01889900112',6000,15,12,'monthly',d(1),1,'active');          // جاري
+  mkLoan('LN020','وليد سعد بدوي','01990011223',22000,12,12,'monthly',d(5),5,'active');           // جاري منتظم
+
+  save();
+  console.log('[أثر] Loans seed: 20 clients loaded');
+}
+
+function deleteLoan(loanId){
+  if(!confirm('حذف هذا القرض نهائياً؟')) return;
+  DB.loans=(DB.loans||[]).filter(function(l){return l.id!==loanId;});
+  save(); toast('🗑️ تم الحذف'); rLoansPage(); rDash();
+}
+
+function runLoanAccruals(loanId){
+  var l=(DB.loans||[]).find(function(x){return x.id===loanId;});
+  if(!l) return;
+  var today=new Date(); today.setHours(0,0,0,0);
+  var pending=(l.schedule||[]).filter(function(s){return s.status==='pending'&&new Date(s.dueDate)<=today;});
+  if(!pending.length){toast('ℹ️ لا توجد أقساط مستحقة حتى اليوم');return;}
+  var total=pending.reduce(function(s,x){return s+x.amount;},0);
+  var h='<div style="background:var(--skp);border-radius:10px;padding:12px;margin-bottom:12px;">'
+    +'<div style="font-weight:800;font-size:13px;color:var(--n);">'+l.clientName+'</div>'
+    +'<div style="font-size:11px;color:var(--g5);">'+pending.length+' قسط مستحق — إجمالي: '+fmtN(total)+'</div></div>';
+  pending.forEach(function(s){
+    h+='<div style="display:flex;justify-content:space-between;padding:8px;background:var(--g1);border-radius:8px;margin-bottom:6px;">'
+      +'<span style="font-size:12px;">قسط '+s.installNo+' — '+fmtDate2(s.dueDate)+'</span>'
+      +'<span style="font-weight:700;color:var(--rd);">'+fmtN(s.amount)+'</span></div>';
+  });
+  h+='<div class="fg"><label>تاريخ قيد الاستحقاق</label><input id="lacc-date" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'
+    +'<input type="hidden" id="lacc-lid" value="'+loanId+'">'
+    +'<button type="button" id="btn-create-acc" onclick="createAccrualEntriesFromModal();return false;" style="background:var(--sk);color:white;border:none;border-radius:9px;padding:12px;width:100%;font-family:Cairo,sans-serif;font-size:14px;font-weight:800;cursor:pointer;margin-top:4px;">🔄 إنشاء قيود الاستحقاق</button>';
+  document.getElementById('mo-lacc-b').innerHTML=h;
+  openLMo('mo-lacc');
+}
+
+function openLoanPayment(loanId){
+  var l=(DB.loans||[]).find(function(x){return x.id===loanId;});
+  if(!l) return;
+  var today=new Date(); today.setHours(0,0,0,0);
+  var pending=(l.schedule||[]).filter(function(s){return s.status==='pending';}).sort(function(a,b){return a.dueDate.localeCompare(b.dueDate);});
+  if(!pending.length){toast('✅ لا توجد أقساط معلقة');return;}
+  var next=pending[0];
+  var h='<div style="background:var(--skp);border-radius:10px;padding:12px;margin-bottom:12px;">'
+    +'<div style="font-weight:800;font-size:13px;color:var(--n);">'+l.clientName+'</div>'
+    +'<div style="font-size:11px;color:var(--g5);margin-top:3px;">القسط رقم '+next.installNo+' — '+fmtDate2(next.dueDate)+'</div></div>'
+    +'<div class="fr"><div class="fg"><label>المبلغ المسدد</label><input id="lpay-amt" type="number" value="'+next.amount+'"></div>'
+    +'<div class="fg"><label>تاريخ السداد</label><input id="lpay-date" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div></div>'
+    +'<div class="fg"><label>ح/ التحصيل</label><select id="lpay-acc"><option value="1111">1111 — الخزينة</option><option value="1112">1112 — البنك</option></select></div>'
+    +'<input type="hidden" id="lpay-lid" value="'+loanId+'"><input type="hidden" id="lpay-ins" value="'+next.installNo+'">'
+    +'<button type="button" id="btn-confirm-pay" onclick="confirmLoanPaymentFromModal();return false;" style="background:var(--gr);color:white;border:none;border-radius:9px;padding:12px;width:100%;font-family:Cairo,sans-serif;font-size:14px;font-weight:800;cursor:pointer;margin-top:4px;">✅ تأكيد السداد</button>';
+  document.getElementById('mo-lpay-b').innerHTML=h;
+  openLMo('mo-lpay');
+}
+
+function openLoanCard(loanId){
+  var l=(DB.loans||[]).find(function(x){return x.id===loanId;});
+  if(!l) return;
+  var today=new Date(); today.setHours(0,0,0,0);
+  var paid=(l.schedule||[]).filter(function(s){return s.status==='paid';});
+  var pending=(l.schedule||[]).filter(function(s){return s.status==='pending';});
+  var overdue=pending.filter(function(s){return new Date(s.dueDate)<today;});
+  var paidPrincipal=paid.reduce(function(s,x){return s+(x.principalPart||0);},0);
+  var paidInterest=paid.reduce(function(s,x){return s+(x.interestPaid||x.interestPart||0);},0);
+  var h='<div style="background:linear-gradient(135deg,var(--nd),var(--n));color:white;border-radius:12px;padding:14px;margin-bottom:12px;">'
+    +'<div style="font-family:Tajawal,sans-serif;font-size:17px;font-weight:900;margin-bottom:4px;">'+l.clientName+'</div>';
+  if(l.clientId) h+='<div style="font-size:11px;opacity:.8;">🪪 '+l.clientId+'</div>';
+  if(l.clientPhone) h+='<div style="font-size:11px;opacity:.8;">📞 '+l.clientPhone+'</div>';
+  h+='<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
+    +'<span style="background:rgba(255,255,255,.2);font-size:10px;padding:2px 9px;border-radius:20px;">'+(l.payFreq==='monthly'?'شهري':'نصف سنوي')+'</span>'
+    +'<span style="background:rgba(255,255,255,.2);font-size:10px;padding:2px 9px;border-radius:20px;">'+l.interestRate+'% سنوياً</span>'
+    +'<span style="background:rgba(255,255,255,.2);font-size:10px;padding:2px 9px;border-radius:20px;">'+l.months+' شهر</span>'
+    +'</div></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+  [{l:'أصل القرض',v:fmtN(l.principal),c:'var(--n)'},{l:'إجمالي المصروفات الإدارية',v:fmtN(l.totalInterest||0),c:'var(--am)'},
+   {l:'مسدد (أصل)',v:fmtN(paidPrincipal),c:'var(--gr)'},{l:'مصروفات إدارية محصلة',v:fmtN(paidInterest),c:'var(--gr)'},
+   {l:'متبقي (أصل)',v:fmtN(l.principal-paidPrincipal),c:'var(--rd)'},{l:'مصروفات إدارية متبقية',v:fmtN((l.totalInterest||0)-paidInterest),c:'var(--am)'}
+  ].forEach(function(c){h+='<div style="background:var(--g1);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:10px;color:var(--g5);">'+c.l+'</div><div style="font-family:Tajawal,sans-serif;font-size:14px;font-weight:900;color:'+c.c+';margin-top:3px;">'+c.v+'</div></div>';});
+  h+='</div>';
+  if(overdue.length) h+='<div style="background:var(--rbg);border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;font-weight:800;color:var(--rd);">⚠️ '+overdue.length+' قسط متأخر</div>';
+  h+='<div style="font-weight:800;font-size:12px;color:var(--n);margin-bottom:8px;">📅 جدول الأقساط</div>';
+  h+='<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>الاستحقاق</th><th>القسط</th><th>أصل</th><th>مصروفات إدارية</th><th>الحالة</th></tr></thead><tbody>';
+  (l.schedule||[]).forEach(function(s){
+    var isOD=s.status==='pending'&&new Date(s.dueDate)<today;
+    var st=s.status==='paid'?'<span class="badge bg">مسدد</span>':isOD?'<span class="badge br">متأخر</span>':'<span class="badge ba">قادم</span>';
+    h+='<tr style="'+(isOD?'background:#fff5f5;':'')+'"><td style="text-align:center;font-weight:700;">'+s.installNo+'</td>'
+      +'<td>'+fmtDate2(s.dueDate)+'</td><td class="tn">'+fmtN(s.amount)+'</td>'
+      +'<td class="tn">'+fmtN(s.principalPart)+'</td><td class="tn" style="color:var(--am);">'+fmtN(s.interestPart)+'</td>'
+      +'<td>'+st+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  document.getElementById('mo-lcard-t').textContent='📋 كارت — '+l.clientName;
+  document.getElementById('mo-lcard-b').innerHTML=h;
+  openLMo('mo-lcard');
+}
+
+function saveLoan(){
+  ensureLoanDB();
+  var elName=document.getElementById('ln-name'), elPrincipal=document.getElementById('ln-principal'), elRate=document.getElementById('ln-rate'), elMonths=document.getElementById('ln-months'), elStart=document.getElementById('ln-start'), elFreq=document.getElementById('ln-freq');
+  if(!elName||!elPrincipal||!elMonths||!elStart||!elFreq){toast('⚠️ افتح شاشة قرض جديد مرة أخرى');return;}
+  var name=(elName.value||'').trim();
+  var principal=parseFloat(elPrincipal.value)||0;
+  var rate=parseFloat(elRate?elRate.value:0)||0;
+  var months=parseInt(elMonths.value)||0;
+  var startDate=elStart.value;
+  var freq=elFreq.value;
+  var accPay=(document.getElementById('ln-accpay')&&document.getElementById('ln-accpay').value)||'1111';
+  if(!name){toast('⚠️ أدخل اسم العميل');return;}
+  if(!principal){toast('⚠️ أدخل مبلغ القرض');return;}
+  if(!months){toast('⚠️ أدخل مدة القرض');return;}
+  if(!startDate){toast('⚠️ أدخل تاريخ الصرف');return;}
+  var res=buildLoanSchedule(principal,rate,months,startDate,freq);
+  var loanId='LN'+Date.now();
+  if((DB.loans||[]).some(function(x){return x.id===loanId;})) loanId='LN'+Date.now()+'_'+Math.floor(Math.random()*1000);
+  DB.entries.push({id:'E'+Date.now(),date:startDate,ref:loanId,narr:'صرف قرض صغير — '+name,
+    lines:[{acc:'1126',dr:principal,cr:0,narr:'أصل القرض — '+name},{acc:accPay,dr:0,cr:principal,narr:'صرف من الخزينة/البنك'}],
+    status:'posted',type:'journal',createdAt:new Date().toISOString()});
+  if(res.totalInterest>0){
+    DB.entries.push({id:'E'+(Date.now()+1),date:startDate,ref:loanId,narr:'إثبات المصروفات الإدارية للقرض — '+name,
+      lines:[{acc:'1127',dr:res.totalInterest,cr:0,narr:'مصروفات إدارية مستحقة — '+name},{acc:'4213',dr:0,cr:res.totalInterest,narr:'إيرادات مصروفات إدارية للقروض'}],
+      status:'posted',type:'journal',createdAt:new Date().toISOString()});
+  }
+  DB.loans.push({id:loanId,clientName:name,clientId:(document.getElementById('ln-cid').value||'').trim(),
+    clientPhone:(document.getElementById('ln-phone').value||'').trim(),clientAddr:(document.getElementById('ln-addr').value||'').trim(),
+    principal:principal,interestRate:rate,months:months,payFreq:freq,startDate:startDate,
+    totalInterest:res.totalInterest,schedule:res.schedule,status:'active',
+    createdAt:new Date().toISOString()});
+  if(!save()) return;
+  closeLMo('mo-loan');
+  toast('✅ تم إنشاء القرض للعميل '+name);
+  rLoansPage();
+  rDash();
+}
+
+function previewLoanSchedule(){
+  var elPrincipal=document.getElementById('ln-principal');
+  var elRate=document.getElementById('ln-rate');
+  var elMonths=document.getElementById('ln-months');
+  var elStart=document.getElementById('ln-start');
+  var elFreq=document.getElementById('ln-freq');
+  var box=document.getElementById('ln-preview');
+  var content=document.getElementById('ln-preview-content');
+  if(!elPrincipal||!elMonths||!elStart||!elFreq||!box||!content){toast('⚠️ افتح شاشة قرض جديد مرة أخرى');return;}
+  var principal=parseFloat(elPrincipal.value)||0;
+  var rate=parseFloat(elRate?elRate.value:0)||0;
+  var months=parseInt(elMonths.value)||0;
+  var startDate=elStart.value;
+  var freq=elFreq.value;
+  if(!principal||!months||!startDate){toast('⚠️ أدخل المبلغ والمدة وتاريخ البدء');return;}
+  var res=buildLoanSchedule(principal,rate,months,startDate,freq);
+  var n=res.schedule.length;
+  content.innerHTML=
+    'إجمالي المصروفات الإدارية: <b style="color:var(--am);">'+fmtN(res.totalInterest)+'</b> <span style="color:var(--g5);">(تُحصّل بالكامل مع القسط الأول)</span> | '
+    +'إجمالي المبلغ: <b style="color:var(--n);">'+fmtN(principal+res.totalInterest)+'</b><br>'
+    +'عدد الأقساط: <b>'+n+'</b> | قيمة أول قسط: <b>'+fmtN(res.schedule[0]?res.schedule[0].amount:0)+'</b><br>'
+    +'أول قسط: <b>'+fmtDate2(res.schedule[0]?res.schedule[0].dueDate:'')+'</b> | '
+    +'آخر قسط: <b>'+fmtDate2(res.schedule[n-1]?res.schedule[n-1].dueDate:'')+'</b>';
+  box.style.display='block';
+}
+
+function closeLMo(id){var m=document.getElementById(id);if(m){m.classList.remove('on');}}
+
+function openLMo(id){var m=document.getElementById(id);if(m){m.classList.add('on');}}
+
+function rLoansPage(){
+  if(!DB.loans) DB.loans=[];
+  if(!window._loansView) window._loansView='list';
+  // Render into pg-loans directly via DOM
+  var pg=document.getElementById('pg-loans');
+  if(!pg) return '';
+  pg.innerHTML='';
+
+  var wrap=document.createElement('div');
+  wrap.style.cssText='padding:14px 14px 80px;';
+
+  // ── TOP BAR ────────────────────────────────────────────────────
+  var topbar=document.createElement('div');
+  topbar.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;';
+
+  function mkTabBtn(label,viewName){
+    var b=document.createElement('button');
+    b.textContent=label;
+    b.style.cssText='background:'+(window._loansView===viewName?'var(--n)':'var(--g1)')+';color:'+(window._loansView===viewName?'white':'var(--g5)')+';border:none;border-radius:8px;padding:8px 14px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;';
+    b.addEventListener('click',function(){window._loansView=viewName;rLoansPage();});
+    return b;
+  }
+  topbar.appendChild(mkTabBtn('📋 القروض','list'));
+  topbar.appendChild(mkTabBtn('📊 التقارير','reports'));
+
+  var btnNew=document.createElement('button');
+  btnNew.textContent='＋ قرض جديد';
+  btnNew.style.cssText='background:var(--gr);color:white;border:none;border-radius:8px;padding:8px 14px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;margin-right:auto;';
+  btnNew.addEventListener('click',openLoanModal);
+  topbar.appendChild(btnNew);
+  wrap.appendChild(topbar);
+
+  // ── OVERDUE BANNER ─────────────────────────────────────────────
+  var today=new Date(); today.setHours(0,0,0,0);
+  var overdue=(DB.loans||[]).filter(function(l){
+    return l.status==='active'&&(l.schedule||[]).some(function(s){return s.status==='pending'&&new Date(s.dueDate)<today;});
+  });
+  if(overdue.length){
+    var banner=document.createElement('div');
+    banner.style.cssText='background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;';
+    banner.innerHTML='<span style="font-size:22px;">⚠️</span>'
+      +'<div><div style="font-weight:800;font-size:13px;color:#92400e;">تنبيه: '+overdue.length+' قرض بهم أقساط متأخرة</div>'
+      +'<div style="font-size:11px;color:#b45309;margin-top:2px;">'+overdue.map(function(l){return l.clientName;}).join(' — ')+'</div></div>';
+    wrap.appendChild(banner);
+  }
+
+  // ── CONTENT ───────────────────────────────────────────────────
+  var content=document.createElement('div');
+  if(window._loansView==='list') content.innerHTML=renderLoansList();
+  else content.innerHTML=renderLoansReports();
+  wrap.appendChild(content);
+
+  pg.appendChild(wrap);
+
+  // ── MODALS (append to body so they're always accessible) ───────
+  ['mo-loan','mo-lcard','mo-lpay','mo-lacc'].forEach(function(id){
+    if(!document.getElementById(id)){
+      var m=document.createElement('div');
+      m.id=id; m.className='mo';
+      document.body.appendChild(m);
+    }
+  });
+  document.getElementById('mo-loan').innerHTML=loanModalHtml();
+  document.getElementById('mo-lcard').innerHTML=loanCardModalHtml();
+  document.getElementById('mo-lpay').innerHTML=loanPaymentModalHtml();
+  document.getElementById('mo-lacc').innerHTML=loanAccrualModalHtml();
+
+  return '';
+}
+
+function buildLoanSchedule(principal,annualRate,months,startDate,freq){
+  principal=parseFloat(principal)||0;
+  annualRate=parseFloat(annualRate)||0;
+  months=parseInt(months)||0;
+  freq=freq||'monthly';
+  var interval=(freq==='biannual')?6:1;
+  var count=Math.max(1,Math.ceil(months/interval));
+  var totalInterest=Math.round(principal*(annualRate/100)*(months/12));
+  var totalAmount=principal+totalInterest;
+  var schedule=[];
+  var remP=principal, remI=totalInterest, remT=totalAmount;
+  for(var i=1;i<=count;i++){
+    var principalPart=(i===count)?remP:Math.round(principal/count);
+    var interestPart=(i===count)?remI:Math.round(totalInterest/count);
+    var amount=(i===count)?remT:(principalPart+interestPart);
+    schedule.push({
+      installNo:i,
+      dueDate:addMonthsISO(startDate,interval*i),
+      amount:amount,
+      principalPart:principalPart,
+      interestPart:interestPart,
+      status:'pending',
+      paidDate:null,
+      paidAmount:0,
+      interestPaid:0
+    });
+    remP-=principalPart; remI-=interestPart; remT-=amount;
+  }
+  return {totalInterest:totalInterest,schedule:schedule};
+}
+
+function ensureLoanDB(){
+  if(!DB.loans) DB.loans=[];
+  if(!DB.entries) DB.entries=[];
 }
 
 function rAssetsPage(){
@@ -18787,7 +19369,6 @@ document.addEventListener("DOMContentLoaded", function(){
   }
   nav("dash", document.querySelector('[data-nav="dash"]'));
 });
-
 </script>
 </body>
 </html>
