@@ -273,10 +273,6 @@ button,input,select,textarea,a{pointer-events:auto !important;}
 @media(min-width:720px){.athar-v6{max-width:1100px;margin:auto;padding-bottom:95px}.v6-kpis{grid-template-columns:repeat(4,1fr)}.v6-grid{grid-template-columns:1.3fr .9fr}.v6-modules{grid-template-columns:repeat(4,1fr)}.v6-actions{grid-template-columns:repeat(4,1fr)}}
 
 </style>
-
-<style id="athar-v27-stable-css">
-.dash-v27{padding:12px 12px 92px!important;overflow-x:hidden!important;max-width:100%!important}.module-grid-home{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}.home-module-card{background:#fff;border:1px solid #e8eef6;border-radius:18px;padding:14px 10px;min-height:128px;text-align:center;box-shadow:0 8px 20px rgba(30,58,110,.06);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center}.hm-i{font-size:28px;margin-bottom:7px}.hm-t{font-weight:900;color:#1e3a6e;font-size:15px;line-height:1.45}.hm-s{color:#64748b;font-size:11px;line-height:1.6;margin-top:5px}.chart-panel{overflow:hidden!important}.chart-panel .p-title{font-size:15px!important;line-height:1.6!important;margin-bottom:12px!important;text-align:right!important;white-space:normal!important}.chart-list{display:flex;flex-direction:column;gap:9px;width:100%;overflow:hidden}.chart-row{display:grid;grid-template-columns:48px 1fr 72px;gap:8px;align-items:center;direction:rtl}.chart-label{font-weight:800;color:#475569;font-size:11px;text-align:right}.chart-track{height:14px;background:#e8f6fd;border-radius:20px;overflow:hidden;min-width:0}.chart-track span{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,#1e3a6e,#29abe2)}.chart-val{font-size:10px;color:#64748b;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mini-chart{display:none!important}@media(max-width:430px){.dash-v27{padding-left:10px!important;padding-right:10px!important}.module-grid-home{gap:9px}.home-module-card{min-height:118px;padding:12px 8px}.hm-i{font-size:25px}.hm-t{font-size:14px}.hm-s{font-size:10.5px}.chart-row{grid-template-columns:42px 1fr 58px;gap:6px}.chart-val{font-size:9px}.chart-label{font-size:10px}.hero-clean .ttl{font-size:18px!important;line-height:1.35!important}.hero-clean .sub{font-size:11px!important}}
-</style>
 </head>
 <body>
 <div class="topbar">
@@ -20950,19 +20946,14 @@ function projectBudget(p){
 }
 function rDash(){
   var projects=(DB.projects||[]), entries=(DB.entries||[]), users=(DB.users||[]), suppliers=(DB.suppliers||[]), contracts=(DB.contracts||[]), loans=(DB.loans||[]);
-  function num(v){ v=Number(v||0); return isFinite(v)?v:0; }
-  function f(v){ try{return (typeof fmt==='function')?fmt(v):num(v).toLocaleString('ar-EG');}catch(e){return num(v).toLocaleString('ar-EG');} }
-  function pBudget(p){ try{return num(projectBudget(p));}catch(e){return num(p.budget||p.totalBudget);} }
-  function pSpent(p){ try{return num(calcPostedSpent(p.code||p.id||p.name));}catch(e){return 0;} }
-  var totalBudget=projects.reduce(function(s,p){return s+pBudget(p);},0);
-  var spent=projects.length?projects.reduce(function(s,p){return s+pSpent(p);},0):0;
+  var totalBudget=projects.reduce(function(s,p){return s+projectBudget(p);},0);
+  var spent=projects.length?projects.reduce(function(s,p){return s+calcPostedSpent(p.code||p.id||p.name);},0):calcPostedSpent('');
   var burn=totalBudget?Math.round(spent/totalBudget*100):0;
   var activeGrants=projects.filter(function(p){return (p.status||'active')==='active';}).length;
   var activeLoans=loans.filter(function(l){return (l.status||'active')==='active';});
-  var loanPortfolio=activeLoans.reduce(function(s,l){return s+num(l.principal||l.amount);},0);
+  var loanPortfolio=activeLoans.reduce(function(s,l){return s+safeNum(l.principal||l.amount);},0);
   var dueSoon=(contracts||[]).filter(function(c){
-    var ed=c.endDate||c.end||c.expiry; if(!ed) return false;
-    var d=new Date(ed); var days=(d-new Date())/86400000; return days>=0&&days<=30;
+    if(!c.endDate&&!c.end) return false; var d=new Date(c.endDate||c.end); var days=(d-new Date())/86400000; return days>=0&&days<=30;
   }).length;
   var missingDocs=entries.filter(function(e){return !(e.attachments&&e.attachments.length) && !(e.docs&&e.docs.length);}).length;
 
@@ -20971,40 +20962,23 @@ function rDash(){
   entries.forEach(function(e){
     var d=new Date(e.date||e.dt||Date.now()); var key=monthName(d.getMonth());
     var row=months.find(function(x){return x.m===key;}); if(!row) return;
-    (e.lines||[]).forEach(function(l){var acc=String(l.acc||l.account||''); if(acc.charAt(0)==='5'||acc.charAt(0)==='6') row.v+=num(l.debit||l.dr||0);});
+    (e.lines||[]).forEach(function(l){var acc=String(l.acc||l.account||''); if(acc.charAt(0)==='5'||acc.charAt(0)==='6') row.v+=safeNum(l.debit||l.dr||0);});
   });
   var max=Math.max.apply(null, months.map(function(x){return x.v;})); if(!max) max=1;
 
-  var h='<div class="dash-clean dash-v27" dir="rtl">';
-  h+='<div class="hero-clean"><div><div class="ey">أثر للحلول المالية</div><div class="ttl">مركز التحكم المالي والتشغيلي</div><div class="sub">الرئيسية تعرض ملخص المنح، الصرف، المستندات، العقود والقروض من البيانات الفعلية.</div></div><div class="score"><b>'+burn+'%</b><span>نسبة الصرف</span></div></div>';
-
+  var h='<div class="dash-clean" dir="rtl">';
+  h+='<div class="hero-clean"><div><div class="ey">أثر للحلول المالية</div><div class="ttl">مركز التحكم المالي والتشغيلي</div><div class="sub">مؤشرات فعلية من القيود والمشروعات والقروض — بدون ازدحام.</div></div><div class="score"><b>'+burn+'%</b><span>نسبة الصرف</span></div></div>';
   h+='<div class="kpi-grid">';
-  var cards=[['🏦','محفظة القروض',f(loanPortfolio),'القروض النشطة'],['📁','المنح النشطة',activeGrants,'مشروعات فعالة'],['📊','الصرف الكلي',f(spent),'من '+f(totalBudget)],['📎','مستندات ناقصة',missingDocs,'تحتاج مراجعة'],['🔔','عقود قريبة',dueSoon,'خلال 30 يوم'],['👥','المستخدمون',users.length,'حسب الصلاحيات']];
+  var cards=[['🏦','محفظة القروض',fmt?fmt(loanPortfolio):loanPortfolio,'القروض النشطة'],['📁','المنح النشطة',activeGrants,'مشروعات فعالة'],['📊','الصرف الكلي',fmt?fmt(spent):spent,'من '+(fmt?fmt(totalBudget):totalBudget)],['📎','مستندات ناقصة',missingDocs,'تحتاج مراجعة'],['🔔','عقود قريبة',dueSoon,'خلال 30 يوم'],['👥','المستخدمون',users.length,'حسب الصلاحيات']];
   cards.forEach(function(c){h+='<div class="kpi"><div class="ico">'+c[0]+'</div><div><div class="v">'+c[2]+'</div><div class="n">'+c[1]+'</div><div class="s">'+c[3]+'</div></div></div>';});
   h+='</div>';
 
-  h+='<div class="module-grid-home">';
-  var mods=[
-    ['💰','المالية','قيود، بنوك، شيكات وتسويات','fin','pg'],
-    ['🎯','المشروعات و BVA','موازنات ومتابعة الصرف','proj','pg'],
-    ['👥','الموارد البشرية','مرتبات، إجازات وتايم شيت','employees','sub'],
-    ['📦','المخازن والأصول','استلام وصرف وحركة أصول','inventory','pg'],
-    ['📁','الأرشيف والامتثال','مرفقات وحزمة مراجعة','archive','sub'],
-    ['🤖','المساعد الذكي','تحليل وتنبيهات وتقارير','ai','sub'],
-    ['💵','التمويل متناهي الصغر','لوحة مستقلة للقروض والتحصيل','loans','sub']
-  ];
-  mods.forEach(function(m){
-    var click=m[4]==='pg'?'nav(\''+m[3]+'\')':'sub(\''+m[3]+'\')';
-    h+='<div class="home-module-card" onclick="'+click+'"><div class="hm-i">'+m[0]+'</div><div class="hm-t">'+m[1]+'</div><div class="hm-s">'+m[2]+'</div></div>';
-  });
-  h+='</div>';
-
-  h+='<div class="panel chart-panel"><div class="p-title">📈 مصروفات آخر 6 شهور</div><div class="chart-list">';
-  months.forEach(function(x){var pct=Math.max(4,Math.round((x.v/max)*100)); h+='<div class="chart-row"><div class="chart-label">'+x.m+'</div><div class="chart-track"><span style="width:'+pct+'%"></span></div><div class="chart-val">'+f(x.v)+'</div></div>';});
+  h+='<div class="panel chart-panel"><div class="p-title">مصروفات آخر 6 شهور</div><div class="mini-chart">';
+  months.forEach(function(x){var ht=Math.max(12,Math.round((x.v/max)*100)); h+='<div class="bar-wrap"><div class="bar-box"><div class="bar" style="height:'+ht+'%"></div></div><small>'+x.m+'</small><em>'+(fmt?fmt(x.v):x.v)+'</em></div>';});
   h+='</div></div>';
 
-  h+='<div class="panel"><div class="p-title">🔔 تنبيهات العقود والموردين والتشغيل</div>';
-  h+='<div class="alert-row yellow">عقود وموردون يحتاجون متابعة: '+dueSoon+'</div><div class="alert-row red">قيود بدون مستندات: '+missingDocs+'</div><div class="alert-row blue">قروض نشطة: '+activeLoans.length+'</div></div>';
+  h+='<div class="panel"><div class="p-title">تنبيهات العقود والموردين والتشغيل</div>';
+  h+='<div class="alert-row yellow">🔔 عقود وموردون يحتاجون متابعة: '+dueSoon+'</div><div class="alert-row red">📎 قيود بدون مستندات: '+missingDocs+'</div><div class="alert-row blue">💵 قروض نشطة: '+activeLoans.length+'</div><button class="btn" onclick="sub(\'finance_review\')" style="width:100%;margin-top:10px;">فتح مراجعة الشهر</button></div>';
   h+='</div>';
   return h;
 }
@@ -21165,6 +21139,172 @@ function seedLoansData(){ if(!DB.loans) DB.loans=[]; }
 /* ================= END ATHAR V23 FINAL SAFE PATCH ================= */
 </script>
 
+
+<script>
+/* ATHAR MICRO LOAN SAFE FINAL PATCH - appended to stable V23 */
+(function(){
+  function byId(id){return document.getElementById(id);} 
+  function safeNum(v){return parseFloat(v)||0;}
+  function safeInt(v){return parseInt(v,10)||0;}
+  function addM(dateStr,m){
+    var d=new Date(dateStr); if(isNaN(d.getTime())) d=new Date();
+    var day=d.getDate(); d.setMonth(d.getMonth()+m); if(d.getDate()<day)d.setDate(0);
+    return d.toISOString().slice(0,10);
+  }
+  function money(v){try{return fmtN(v);}catch(e){return (safeNum(v)).toLocaleString('ar-EG');}}
+  function dt(v){try{return fmtDate2(v);}catch(e){return v||'';}}
+  function t(msg){try{toast(msg);}catch(e){alert(msg);}}
+  function ensure(){ if(!window.DB) window.DB={}; if(!DB.loans) DB.loans=[]; if(!DB.entries) DB.entries=[]; }
+  function activeLoan(l){return !l.status || ['active','open','جاري','نشط','متأخر'].indexOf(l.status)>-1;}
+  function normalizeId(x){return String(x||'').replace(/\D/g,'').trim();}
+
+  window.buildLoanSchedule=function(principal,adminRate,months,startDate,freq){
+    principal=safeNum(principal); adminRate=safeNum(adminRate); months=Math.max(1,safeInt(months)); freq=freq||'monthly';
+    var adminFee=Math.round(principal*(adminRate/100));
+    var schedule=[];
+    if(freq==='biannual' || freq==='bullet'){
+      schedule.push({installNo:1,dueDate:addM(startDate,1),amount:adminFee,principalPart:0,interestPart:adminFee,status:'pending',paidDate:null,paidAmount:0,interestPaid:0});
+      schedule.push({installNo:2,dueDate:addM(startDate,months),amount:principal,principalPart:principal,interestPart:0,status:'pending',paidDate:null,paidAmount:0,interestPaid:0});
+    }else{
+      schedule.push({installNo:1,dueDate:addM(startDate,1),amount:adminFee,principalPart:0,interestPart:adminFee,status:'pending',paidDate:null,paidAmount:0,interestPaid:0});
+      var count=Math.max(1,months-1), remaining=principal;
+      for(var i=1;i<=count;i++){
+        var p=(i===count)?remaining:Math.round((principal/count)*100)/100;
+        schedule.push({installNo:i+1,dueDate:addM(startDate,i+1),amount:p,principalPart:p,interestPart:0,status:'pending',paidDate:null,paidAmount:0,interestPaid:0});
+        remaining=Math.round((remaining-p)*100)/100;
+      }
+    }
+    return {totalInterest:adminFee,schedule:schedule};
+  };
+
+  function duplicateMessage(loan,kind,id){
+    var paid=(loan.schedule||[]).filter(function(s){return s.status==='paid';}).reduce(function(a,s){return a+(s.principalPart||0);},0);
+    var rem=Math.max(0,(loan.principal||0)-paid);
+    return '⚠️ لا يمكن إنشاء الطلب\n\n'+kind+' مستخدم في قرض مفتوح بالفعل.\n\nرقم القرض: '+loan.id+'\nالعميل: '+(loan.clientName||'')+'\nتاريخ القرض: '+(loan.startDate||loan.createdAt||'')+'\nالحالة: '+(loan.status||'نشط')+'\nالرصيد المتبقي: '+money(rem)+'\n\nرقم البطاقة: '+id;
+  }
+  function findDuplicate(clientId,guarantorId){
+    ensure(); clientId=normalizeId(clientId); guarantorId=normalizeId(guarantorId);
+    for(var i=0;i<DB.loans.length;i++){
+      var l=DB.loans[i]; if(!activeLoan(l)) continue;
+      var c=normalizeId(l.clientId), g=normalizeId(l.guarantorId);
+      if(clientId && (clientId===c || clientId===g)) return {loan:l,kind:(clientId===c?'طالب القرض':'طالب القرض مسجل كضامن سابق'),id:clientId};
+      if(guarantorId && (guarantorId===c || guarantorId===g)) return {loan:l,kind:(guarantorId===c?'الضامن مسجل كطالب قرض سابق':'الضامن'),id:guarantorId};
+    }
+    return null;
+  }
+
+  window.loanModalHtml=function(){
+    return '<div class="mb" style="max-width:620px;"><div class="mh"><span class="mt">＋ قرض جديد</span><button class="mx" id="cls-moloan">✕</button></div><div class="mbdy">'
+    +'<div class="sd">بيانات طالب القرض</div>'
+    +'<div class="fg"><label>اسم العميل *</label><input id="ln-name" placeholder="الاسم كاملاً"></div>'
+    +'<div class="fr"><div class="fg"><label>رقم بطاقة طالب القرض *</label><input id="ln-cid" placeholder="الرقم القومي"></div><div class="fg"><label>رقم الهاتف</label><input id="ln-phone" placeholder="01xxxxxxxxx"></div></div>'
+    +'<div class="fg"><label>العنوان</label><input id="ln-addr" placeholder="العنوان التفصيلي"></div>'
+    +'<div class="fr"><div class="fg"><label>المحافظة</label><input id="ln-gov" placeholder="مثال: سوهاج"></div><div class="fg"><label>المركز</label><input id="ln-center" placeholder="مثال: طهطا"></div></div>'
+    +'<div class="sd">بيانات الضامن</div>'
+    +'<div class="fg"><label>اسم الضامن *</label><input id="ln-gname" placeholder="اسم الضامن"></div>'
+    +'<div class="fr"><div class="fg"><label>رقم بطاقة الضامن *</label><input id="ln-gid" placeholder="الرقم القومي للضامن"></div><div class="fg"><label>رقم تلفون الضامن</label><input id="ln-gphone" placeholder="01xxxxxxxxx"></div></div>'
+    +'<div class="fr"><div class="fg"><label>العلاقة</label><input id="ln-grel" placeholder="أخ / زوج / قريب..."></div><div class="fg"><label>الوظيفة</label><input id="ln-gjob" placeholder="وظيفة الضامن"></div></div>'
+    +'<div class="sd">بيانات المشروع ومسؤول التمويل</div>'
+    +'<div class="fr"><div class="fg"><label>نوع المشروع</label><select id="ln-project-type"><option value="تجارة">تجارة</option><option value="زراعة">زراعة</option><option value="مواشي">مواشي</option><option value="خياطة">خياطة</option><option value="خدمات">خدمات</option><option value="أخرى">أخرى</option></select></div><div class="fg"><label>مسؤول التمويل</label><input id="ln-officer" placeholder="اسم مسؤول التمويل"></div></div>'
+    +'<div class="fg"><label>وصف النشاط</label><input id="ln-project-desc" placeholder="وصف مختصر للنشاط"></div>'
+    +'<div class="fr"><div class="fg"><label>عنوان المشروع</label><input id="ln-project-addr" placeholder="مكان النشاط"></div><div class="fg"><label>الدخل الشهري التقريبي</label><input id="ln-income" type="number" placeholder="0"></div></div>'
+    +'<div class="sd">بيانات القرض والسداد</div>'
+    +'<div class="fr"><div class="fg"><label>مبلغ القرض (ج.م) *</label><input id="ln-principal" type="number" min="1" placeholder="5000"></div><div class="fg"><label>نسبة المصروفات الإدارية %</label><input id="ln-rate" type="number" min="0" step="0.1" placeholder="10"></div></div>'
+    +'<div class="fr"><div class="fg"><label>مدة القرض (أشهر) *</label><input id="ln-months" type="number" min="1" placeholder="12"></div><div class="fg"><label>دورية السداد</label><select id="ln-freq"><option value="monthly">شهري</option><option value="biannual">نصف سنوي / آخر المدة</option></select></div></div>'
+    +'<div class="fr"><div class="fg"><label>تاريخ الصرف *</label><input id="ln-start" type="date"></div><div class="fg"><label>ح/ صرف القرض من</label><select id="ln-accpay"><option value="1111">1111 — الخزينة</option><option value="1112">1112 — البنك الجاري</option></select></div></div>'
+    +'<div id="ln-dup" style="display:none;background:var(--rbg);color:var(--rd);border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;font-weight:700;white-space:pre-line;"></div>'
+    +'<div id="ln-preview" style="background:var(--skp);border-radius:10px;padding:12px;margin-bottom:12px;display:none;"><div style="font-weight:800;font-size:12px;color:var(--n);margin-bottom:6px;">📋 معاينة جدول السداد</div><div id="ln-preview-content" style="font-size:11px;color:var(--g5);"></div></div>'
+    +'<div style="display:flex;gap:8px;"><button type="button" onclick="previewLoanSchedule();return false;" style="background:var(--g1);color:var(--n);border:none;border-radius:8px;padding:10px 14px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer;flex:1;">👁️ معاينة</button><button type="button" onclick="saveLoan();return false;" style="background:var(--gr);color:white;border:none;border-radius:8px;padding:10px 14px;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;flex:2;">💾 حفظ وإنشاء الجدول</button></div>'
+    +'</div></div>';
+  };
+
+  window.openLoanModal=function(){
+    ensure();
+    if(!byId('mo-loan')){try{rقروضPage();}catch(e){}}
+    var mn=byId('mo-loan'); if(!mn) return t('⚠️ شاشة القروض غير جاهزة');
+    mn.innerHTML=window.loanModalHtml();
+    ['ln-name','ln-cid','ln-phone','ln-addr','ln-gov','ln-center','ln-gname','ln-gid','ln-gphone','ln-grel','ln-gjob','ln-officer','ln-project-desc','ln-project-addr','ln-income','ln-principal','ln-rate','ln-months'].forEach(function(id){var x=byId(id); if(x)x.value='';});
+    var st=byId('ln-start'); if(st) st.value=new Date().toISOString().slice(0,10);
+    var fr=byId('ln-freq'); if(fr) fr.value='monthly';
+    var pt=byId('ln-project-type'); if(pt) pt.value='تجارة';
+    mn.classList.add('on');
+  };
+
+  window.previewLoanSchedule=function(){
+    var principal=safeNum(byId('ln-principal')&&byId('ln-principal').value), rate=safeNum(byId('ln-rate')&&byId('ln-rate').value), months=safeInt(byId('ln-months')&&byId('ln-months').value), start=(byId('ln-start')&&byId('ln-start').value), freq=(byId('ln-freq')&&byId('ln-freq').value)||'monthly';
+    var box=byId('ln-preview'), content=byId('ln-preview-content'), dupBox=byId('ln-dup');
+    if(!principal||!months||!start) return t('⚠️ أدخل مبلغ القرض والمدة وتاريخ الصرف');
+    var dup=findDuplicate(byId('ln-cid')&&byId('ln-cid').value, byId('ln-gid')&&byId('ln-gid').value);
+    if(dup && dupBox){dupBox.style.display='block'; dupBox.textContent=duplicateMessage(dup.loan,dup.kind,dup.id);}
+    else if(dupBox){dupBox.style.display='none'; dupBox.textContent='';}
+    var res=window.buildLoanSchedule(principal,rate,months,start,freq), n=res.schedule.length;
+    var rows=res.schedule.slice(0,6).map(function(s){return '<tr><td>'+s.installNo+'</td><td>'+dt(s.dueDate)+'</td><td>'+money(s.principalPart)+'</td><td>'+money(s.interestPart)+'</td><td><b>'+money(s.amount)+'</b></td></tr>';}).join('');
+    if(n>6) rows+='<tr><td colspan="5" style="text-align:center;color:var(--g5);">... وباقي الأقساط حتى رقم '+n+'</td></tr>';
+    content.innerHTML='المصروفات الإدارية: <b style="color:var(--am);">'+money(res.totalInterest)+'</b> — القسط الأول مصروفات إدارية فقط.<br>أصل القرض: <b style="color:var(--n);">'+money(principal)+'</b> — '+(freq==='monthly'?'يوزع على باقي مدة القرض.':'يسدد كاملًا في آخر المدة.')+'<div style="overflow:auto;margin-top:8px;"><table style="width:100%;font-size:11px;"><thead><tr><th>#</th><th>التاريخ</th><th>أصل</th><th>مصروفات</th><th>القسط</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    if(box) box.style.display='block';
+  };
+
+  window.saveLoan=function(){
+    ensure();
+    var name=(byId('ln-name')&&byId('ln-name').value||'').trim(), clientId=(byId('ln-cid')&&byId('ln-cid').value||'').trim(), guarantorId=(byId('ln-gid')&&byId('ln-gid').value||'').trim();
+    var principal=safeNum(byId('ln-principal')&&byId('ln-principal').value), rate=safeNum(byId('ln-rate')&&byId('ln-rate').value), months=safeInt(byId('ln-months')&&byId('ln-months').value), start=(byId('ln-start')&&byId('ln-start').value), freq=(byId('ln-freq')&&byId('ln-freq').value)||'monthly';
+    if(!name) return t('⚠️ أدخل اسم العميل');
+    if(!normalizeId(clientId)) return t('⚠️ أدخل رقم بطاقة طالب القرض');
+    if(!normalizeId(guarantorId)) return t('⚠️ أدخل رقم بطاقة الضامن');
+    if(!principal||!months||!start) return t('⚠️ أكمل بيانات القرض');
+    var dup=findDuplicate(clientId,guarantorId);
+    if(dup){var msg=duplicateMessage(dup.loan,dup.kind,dup.id); var db=byId('ln-dup'); if(db){db.style.display='block';db.textContent=msg;} alert(msg); return;}
+    var res=window.buildLoanSchedule(principal,rate,months,start,freq), loanId='LN'+Date.now();
+    var accPay=(byId('ln-accpay')&&byId('ln-accpay').value)||'1111';
+    DB.entries.push({id:'E'+Date.now(),date:start,ref:loanId,narr:'صرف قرض صغير — '+name,lines:[{acc:'1126',dr:principal,cr:0,narr:'أصل القرض — '+name},{acc:accPay,dr:0,cr:principal,narr:'صرف من الخزينة/البنك'}],status:'posted',type:'journal',createdAt:new Date().toISOString()});
+    if(res.totalInterest>0){DB.entries.push({id:'E'+(Date.now()+1),date:start,ref:loanId,narr:'إثبات المصروفات الإدارية للقرض — '+name,lines:[{acc:'1127',dr:res.totalInterest,cr:0,narr:'مصروفات إدارية مستحقة — '+name},{acc:'4213',dr:0,cr:res.totalInterest,narr:'إيرادات مصروفات إدارية للقروض'}],status:'posted',type:'journal',createdAt:new Date().toISOString()});}
+    DB.loans.push({id:loanId,clientName:name,clientId:clientId,clientPhone:(byId('ln-phone')&&byId('ln-phone').value||'').trim(),clientAddr:(byId('ln-addr')&&byId('ln-addr').value||'').trim(),governorate:(byId('ln-gov')&&byId('ln-gov').value||'').trim(),center:(byId('ln-center')&&byId('ln-center').value||'').trim(),guarantorName:(byId('ln-gname')&&byId('ln-gname').value||'').trim(),guarantorId:guarantorId,guarantorPhone:(byId('ln-gphone')&&byId('ln-gphone').value||'').trim(),guarantorRelation:(byId('ln-grel')&&byId('ln-grel').value||'').trim(),guarantorJob:(byId('ln-gjob')&&byId('ln-gjob').value||'').trim(),projectType:(byId('ln-project-type')&&byId('ln-project-type').value||'').trim(),projectDesc:(byId('ln-project-desc')&&byId('ln-project-desc').value||'').trim(),projectAddress:(byId('ln-project-addr')&&byId('ln-project-addr').value||'').trim(),monthlyIncome:safeNum(byId('ln-income')&&byId('ln-income').value),loanOfficer:(byId('ln-officer')&&byId('ln-officer').value||'').trim(),principal:principal,interestRate:rate,months:months,payFreq:freq,startDate:start,totalInterest:res.totalInterest,schedule:res.schedule,status:'active',createdAt:new Date().toISOString()});
+    try{save();}catch(e){localStorage.setItem('atharDB',JSON.stringify(DB));}
+    var m=byId('mo-loan'); if(m)m.classList.remove('on');
+    t('✅ تم إنشاء القرض للعميل '+name);
+    try{rقروضPage();}catch(e){} try{rDash();}catch(e){}
+  };
+
+  window.renderقروضReports=function(){
+    ensure(); var loans=DB.loans||[];
+    var govs=[...new Set(loans.map(function(l){return l.governorate;}).filter(Boolean))];
+    var centers=[...new Set(loans.map(function(l){return l.center;}).filter(Boolean))];
+    var officers=[...new Set(loans.map(function(l){return l.loanOfficer;}).filter(Boolean))];
+    var pts=[...new Set(loans.map(function(l){return l.projectType;}).filter(Boolean))];
+    var h='<div style="background:white;border:1px solid var(--g2);border-radius:14px;padding:12px;margin-bottom:12px;box-shadow:0 2px 8px rgba(30,58,110,.06);"><div style="font-weight:900;color:var(--n);font-size:15px;margin-bottom:8px;">🔎 تقارير ذكية وفلاتر متعددة</div>';
+    function sel(id,label,arr){return '<div class="fg"><label>'+label+'</label><select id="'+id+'"><option value="">الكل</option>'+arr.map(function(x){return '<option value="'+x+'">'+x+'</option>';}).join('')+'</select></div>';}
+    h+='<div class="fg"><label>بحث ذكي</label><input id="loan-smart-q" placeholder="ابحث بالعميل، الضامن، الهاتف، رقم القرض، النشاط..."></div>'
+      +'<div class="fr">'+sel('loan-f-gov','المحافظة',govs)+sel('loan-f-center','المركز',centers)+'</div>'
+      +'<div class="fr">'+sel('loan-f-officer','مسؤول التمويل',officers)+sel('loan-f-project','نوع المشروع',pts)+'</div>'
+      +'<button onclick="renderLoanFilteredReport()" class="btn btn-sky btn-bl">تطبيق الفلاتر</button></div>'
+      +'<div id="loan-report-result">'+loanReportResultHtml(loans)+'</div>';
+    setTimeout(function(){var q=byId('loan-smart-q'); if(q) q.oninput=renderLoanFilteredReport;},50);
+    return h;
+  };
+  window.renderLoanFilteredReport=function(){
+    var q=(byId('loan-smart-q')&&byId('loan-smart-q').value||'').toLowerCase().trim(), gov=(byId('loan-f-gov')&&byId('loan-f-gov').value||''), center=(byId('loan-f-center')&&byId('loan-f-center').value||''), officer=(byId('loan-f-officer')&&byId('loan-f-officer').value||''), project=(byId('loan-f-project')&&byId('loan-f-project').value||'');
+    var rows=(DB.loans||[]).filter(function(l){
+      var text=[l.id,l.clientName,l.clientId,l.clientPhone,l.guarantorName,l.guarantorId,l.guarantorPhone,l.loanOfficer,l.projectType,l.projectDesc,l.governorate,l.center].join(' ').toLowerCase();
+      return (!q||text.indexOf(q)>-1)&&(!gov||l.governorate===gov)&&(!center||l.center===center)&&(!officer||l.loanOfficer===officer)&&(!project||l.projectType===project);
+    });
+    var box=byId('loan-report-result'); if(box) box.innerHTML=loanReportResultHtml(rows);
+  };
+  function loanReportResultHtml(rows){
+    var today=new Date(); today.setHours(0,0,0,0);
+    var active=rows.filter(activeLoan), total=rows.reduce(function(s,l){return s+(l.principal||0);},0), overdue=rows.filter(function(l){return activeLoan(l)&&(l.schedule||[]).some(function(x){return x.status==='pending'&&new Date(x.dueDate)<today;});});
+    var due=rows.reduce(function(s,l){return s+(l.schedule||[]).filter(function(x){return x.status==='pending';}).reduce(function(a,x){return a+(x.amount||0);},0);},0);
+    var paid=rows.reduce(function(s,l){return s+(l.schedule||[]).filter(function(x){return x.status==='paid';}).reduce(function(a,x){return a+(x.paidAmount||x.amount||0);},0);},0);
+    var h='<div class="sg"><div class="st"><div class="si">💼</div><div class="sv">'+rows.length+'</div><div class="sl">عدد القروض</div></div><div class="st"><div class="si">💰</div><div class="sv">'+money(total)+'</div><div class="sl">إجمالي المحفظة</div></div><div class="st"><div class="si">⚠️</div><div class="sv">'+overdue.length+'</div><div class="sl">قروض متأخرة</div></div><div class="st"><div class="si">📊</div><div class="sv">'+(due?Math.round(paid/(paid+due)*100):0)+'%</div><div class="sl">مؤشر التحصيل</div></div></div>';
+    var aging=[0,0,0,0]; rows.forEach(function(l){(l.schedule||[]).forEach(function(s){if(s.status==='pending'&&new Date(s.dueDate)<today){var d=Math.floor((today-new Date(s.dueDate))/86400000); if(d<=30)aging[0]+=s.amount||0; else if(d<=60)aging[1]+=s.amount||0; else if(d<=90)aging[2]+=s.amount||0; else aging[3]+=s.amount||0;}});});
+    h+='<div class="card"><div class="ct">تقرير المتأخرات حسب العمر</div><div class="fr"><div class="sb" style="background:#fef3c7;">1-30 يوم<br><b>'+money(aging[0])+'</b></div><div class="sb" style="background:#fed7aa;">31-60 يوم<br><b>'+money(aging[1])+'</b></div><div class="sb" style="background:#fecaca;">61-90 يوم<br><b>'+money(aging[2])+'</b></div><div class="sb" style="background:#fee2e2;">+90 يوم<br><b>'+money(aging[3])+'</b></div></div></div>';
+    h+='<div class="card"><div class="ct">نتائج البحث</div><div style="overflow:auto"><table><thead><tr><th>القرض</th><th>العميل</th><th>المحافظة</th><th>المركز</th><th>مسؤول التمويل</th><th>النشاط</th><th>الحالة</th></tr></thead><tbody>';
+    if(!rows.length) h+='<tr><td colspan="7" style="text-align:center;color:var(--g5);">لا توجد نتائج</td></tr>';
+    rows.slice(0,60).forEach(function(l){h+='<tr><td>'+l.id+'</td><td>'+l.clientName+'</td><td>'+(l.governorate||'-')+'</td><td>'+(l.center||'-')+'</td><td>'+(l.loanOfficer||'-')+'</td><td>'+(l.projectType||'-')+'</td><td>'+(l.status||'نشط')+'</td></tr>';});
+    h+='</tbody></table></div></div>';
+    return h;
+  }
+})();
+</script>
 
 </body>
 </html>
