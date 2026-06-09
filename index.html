@@ -21433,5 +21433,93 @@ function seedLoansData(){ if(!DB.loans) DB.loans=[]; }
 })();
 </script>
 
+
+
+<script>
+/* ===== ATHAR FINAL DRILLDOWN PATCH: clickable report numbers + finance journal + operations BVA ===== */
+(function(){
+  function ready(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn); else fn(); }
+  function E(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function M(n){try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG')+' ج.م';}catch(e){return (Number(n)||0)+' ج.م';}}
+  function F(n){return (typeof fmt==='function')?fmt(n):M(n);}
+  function accName(code){var a=(window.DB&&DB.accounts||[]).find(function(x){return x.c===code;});return a?(a.c+' — '+a.n):(code||'—');}
+  function projectName(code){var p=(window.DB&&DB.projects||[]).find(function(x){return x.code===code;});return p?(p.name||p.code):(code||'—');}
+  function getLineProject(e,l){return String((l&&(l.proj||l.project))||(e&&(e.proj||e.project))||'');}
+  function getLineDesc(e,l){return (e&&(e.desc||e.narr||e.description))||(l&&(l.desc||l.narr||l.an))||'';}
+  function txRows(opts){
+    opts=opts||{}; var rows=[];
+    (window.DB&&DB.entries||[]).forEach(function(e){
+      if(e.status && e.status!=='posted') return;
+      if(opts.from && e.date<opts.from) return;
+      if(opts.to && e.date>opts.to) return;
+      (e.lines||[]).forEach(function(l){
+        var acc=String(l.acc||l.account||'');
+        var pr=getLineProject(e,l);
+        var wbs=String(l.wbsCode||l.wbs||'');
+        if(opts.project && pr!==String(opts.project)) return;
+        if(opts.acc && acc!==String(opts.acc)) return;
+        if(opts.accPrefix && acc.indexOf(String(opts.accPrefix))!==0) return;
+        if(opts.wbs && !(wbs===String(opts.wbs)||wbs.indexOf(String(opts.wbs)+'.')===0)) return;
+        var dr=Number(l.dr||l.debit||0), cr=Number(l.cr||l.credit||0);
+        var amount=opts.side==='cr'?cr:(opts.side==='both'?(dr||cr):dr);
+        if(opts.onlyPositive!==false && amount<=0) return;
+        rows.push({id:e.id||e.ref||'',date:e.date||'',ref:e.ref||'',project:projectName(pr),projectCode:pr,account:accName(acc),wbs:wbs||'—',tp:l.tpName||l.tpId||'—',desc:getLineDesc(e,l),dr:dr,cr:cr,amount:amount});
+      });
+    });
+    return rows;
+  }
+  window.atharOpenTransactions=function(title, opts){
+    var rows=Array.isArray(opts)?opts:txRows(opts||{});
+    var total=rows.reduce(function(s,r){return s+(Number(r.amount)||0);},0);
+    var html='<div class="mo on" id="athar-tx-modal" style="display:flex"><div class="mb" style="width:97%;max-width:900px"><div class="mh"><div class="mt">'+E(title||'قائمة المعاملات')+'</div><button class="mx" onclick="document.getElementById(\'athar-tx-modal\').remove()">×</button></div><div class="mbdy">';
+    html+='<div class="sg" style="grid-template-columns:1fr 1fr"><div class="st"><div class="sv">'+rows.length+'</div><div class="sl">عدد المعاملات</div></div><div class="st"><div class="sv">'+M(total)+'</div><div class="sl">الإجمالي</div></div></div>';
+    if(!rows.length){ html+='<div class="card" style="text-align:center;color:#64748b">لا توجد معاملات مرتبطة بهذا الرقم</div>'; }
+    else{
+      html+='<div style="overflow:auto;max-height:60vh;border:1px solid #e5e7eb;border-radius:12px"><table><thead><tr><th>رقم القيد</th><th>التاريخ</th><th>المرجع</th><th>المشروع</th><th>الحساب</th><th>WBS</th><th>الطرف</th><th>البيان</th><th>مدين</th><th>دائن</th></tr></thead><tbody>';
+      rows.forEach(function(r){html+='<tr><td><b>'+E(r.id)+'</b></td><td>'+E(r.date)+'</td><td>'+E(r.ref)+'</td><td>'+E(r.project)+'</td><td>'+E(r.account)+'</td><td>'+E(r.wbs)+'</td><td>'+E(r.tp)+'</td><td>'+E(r.desc)+'</td><td class="tn">'+(r.dr?M(r.dr):'—')+'</td><td class="tn">'+(r.cr?M(r.cr):'—')+'</td></tr>';});
+      html+='</tbody></table></div>';
+    }
+    html+='<button class="btn" style="width:100%;margin-top:12px" onclick="document.getElementById(\'athar-tx-modal\').remove()">إغلاق</button></div></div></div>';
+    var d=document.createElement('div'); d.innerHTML=html; document.body.appendChild(d.firstChild);
+  };
+  window.drillDown=function(o){o=o||{}; if(typeof o.customFilter==='function'){
+    var rows=[];(DB.entries||[]).forEach(function(e){if(e.status&&e.status!=='posted')return;(e.lines||[]).forEach(function(l){if(o.customFilter(e,l)){rows.push({id:e.id||'',date:e.date||'',ref:e.ref||'',project:projectName(getLineProject(e,l)),account:accName(l.acc),wbs:l.wbsCode||'—',tp:l.tpName||l.tpId||'—',desc:getLineDesc(e,l),dr:Number(l.dr||0),cr:Number(l.cr||0),amount:Number(l.dr||l.cr||0)});}});}); return atharOpenTransactions(o.title||'قائمة المعاملات',rows);
+  } return atharOpenTransactions(o.title||'قائمة المعاملات',o);};
+
+  window.rptTrialBal=function(){
+    var B=(typeof bals==='function')?bals():{}; var tD=0,tC=0;
+    var h='<div style="overflow-x:auto"><table><thead><tr><th>الكود</th><th>الحساب</th><th>الطبيعة</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead><tbody>';
+    (DB.accounts||[]).forEach(function(a){var b=B[a.c]||{dr:0,cr:0}; if(!b.dr&&!b.cr)return; var net=a.nat==='dr'?b.dr-b.cr:b.cr-b.dr; tD+=b.dr;tC+=b.cr; h+='<tr><td><code>'+E(a.c)+'</code></td><td>'+E(a.n)+'</td><td><span class="badge '+(a.nat==='dr'?'bb':'bg')+'">'+(a.nat==='dr'?'مدين':'دائن')+'</span></td><td class="tn tx-click" onclick="atharOpenTransactions(\'حركات مدين — '+E(a.n)+'\',{acc:\''+E(a.c)+'\',side:\'dr\'})">'+(b.dr?F(b.dr):'—')+'</td><td class="tn tx-click" onclick="atharOpenTransactions(\'حركات دائن — '+E(a.n)+'\',{acc:\''+E(a.c)+'\',side:\'cr\'})">'+(b.cr?F(b.cr):'—')+'</td><td class="tn tx-click" onclick="atharOpenTransactions(\'كشف حساب — '+E(a.n)+'\',{acc:\''+E(a.c)+'\',side:\'both\'})"><b>'+F(Math.abs(net))+'</b></td></tr>';});
+    h+='</tbody><tfoot><tr style="background:var(--n);color:white"><td colspan="3" style="font-weight:900;padding:9px">الإجمالي</td><td class="tn" style="font-weight:900">'+F(tD)+'</td><td class="tn" style="font-weight:900">'+F(tC)+'</td><td class="tn" style="font-weight:900">'+F(Math.abs(tD-tC))+'</td></tr></tfoot></table></div>';
+    h+='<div style="font-size:10px;color:var(--g5);margin-top:8px">اضغط على أي رقم لعرض قائمة القيود والمعاملات الخاصة به.</div>';
+    if(typeof om==='function')om('⚖️ ميزان المراجعة',h);else atharOpenTransactions('ميزان المراجعة',[]);
+  };
+
+  window.rptBVAAll=function(){
+    if(typeof initWBS==='function')initWBS();
+    var h='<div style="font-weight:800;font-size:14px;margin-bottom:12px">📉 BVA — كل المشروعات</div><div style="overflow-x:auto"><table><thead><tr><th>المشروع</th><th>المانح</th><th>الموازنة</th><th>الصرف الفعلي</th><th>المتبقي</th><th>%</th><th>الحالة</th></tr></thead><tbody>';
+    (DB.projects||[]).forEach(function(p){var spent=(typeof getProjectSpent==='function')?getProjectSpent(p.code):0,budget=Number(p.budget||0),rem=budget-spent,pct=budget?Math.round(spent/budget*100):0,st=pct>100?{l:'تجاوز',c:'br'}:pct>85?{l:'تحذير',c:'ba'}:pct>30?{l:'طبيعي',c:'bb'}:{l:'منخفض',c:'bg'};h+='<tr><td><b>'+E(p.name)+'</b><br><code>'+E(p.code)+'</code></td><td>'+E(p.donor||'—')+'</td><td class="tn">'+F(budget)+'</td><td class="tn tx-click" onclick="atharOpenTransactions(\'معاملات الصرف — '+E(p.name)+'\',{project:\''+E(p.code)+'\',accPrefix:\'5\',side:\'dr\'})">'+F(spent)+'</td><td class="tn">'+F(rem)+'</td><td><b>'+pct+'%</b></td><td><span class="badge '+st.c+'">'+st.l+'</span></td></tr>';});
+    h+='</tbody></table></div><div style="font-size:10px;color:var(--g5);margin-top:8px">اضغط على رقم الصرف الفعلي لعرض القيود المكوّنة للرقم.</div>';
+    if(typeof om==='function')om('📉 BVA — كل المشروعات',h);
+  };
+
+  window.buildProjBVATab=function(projCode){
+    var p=(DB.projects||[]).find(function(x){return x.code===projCode;}); if(!p)return '';
+    var wbs=(p.wbs||[]).slice().sort(function(a,b){return a.code<b.code?-1:1;});
+    var h='<div style="font-weight:800;font-size:13px;margin-bottom:10px">📉 Budget vs فعلي (BVA)</div>';
+    if(!wbs.length)return h+'<div style="color:var(--g4);text-align:center;padding:16px">أضف موازنة تفصيلية أولاً</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>الكود</th><th>البند</th><th>الموازنة</th><th>الفعلي</th><th>الفرق</th><th>%</th><th>الحالة</th></tr></thead><tbody>';
+    wbs.forEach(function(item){var isParent=(typeof isWBSParent==='function')?isWBSParent(item.code,wbs):false;var budget=isParent&&typeof getWBSBudget==='function'?getWBSBudget(p,item.code,wbs):(Number(item.budget)||0);var actual=isParent&&typeof getWBSSpentWithChildren==='function'?getWBSSpentWithChildren(projCode,item.code,wbs):(typeof getWBSSpent==='function'?getWBSSpent(projCode,item.code):0);var diff=budget-actual,pct=budget?Math.round(actual/budget*100):0,depth=item.code.split('.').length-1,status=pct>100?{lbl:'تجاوز',cls:'br'}:pct>90?{lbl:'تحذير',cls:'ba'}:pct>50?{lbl:'طبيعي',cls:'bb'}:{lbl:'منخفض',cls:'bg'};h+='<tr style="background:'+(isParent?'var(--g1)':'white')+'"><td><code>'+E(item.code)+'</code></td><td style="font-weight:'+(isParent?'800':'600')+';padding-right:'+(depth*12+8)+'px">'+E(item.name)+'</td><td class="tn">'+(budget?F(budget):'—')+'</td><td class="tn tx-click" onclick="atharOpenTransactions(\'معاملات '+E(item.name)+' — '+E(p.name)+'\',{project:\''+E(projCode)+'\',wbs:\''+E(item.code)+'\',side:\'dr\'})">'+(actual?F(actual):'—')+'</td><td class="tn">'+(budget?F(Math.abs(diff))+(diff<0?' (تجاوز)':''):'—')+'</td><td>'+ (budget?pct+'%':'—') +'</td><td>'+(budget?'<span class="badge '+status.cls+'">'+status.lbl+'</span>':'')+'</td></tr>';});
+    h+='</tbody></table></div><div style="font-size:10px;color:var(--g5);margin:8px 0">اضغط على رقم الفعلي لعرض القيود والمعاملات المرتبطة بالبند.</div><div style="display:flex;gap:6px"><button class="btn btn-sm btn-gy" onclick="exportBVA(\''+E(projCode)+'\')" style="flex:1;font-size:11px">📥 CSV</button><button class="btn btn-sm" onclick="printProjectBVA(\''+E(projCode)+'\')" style="flex:1;font-size:11px;background:var(--sk)">🖨️ طباعة</button></div>';
+    return h;
+  };
+
+  window.rالماليةHub=function(){var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">💰 المالية</div>';var sections=[{title:'📝 القيود والعمليات',items:[{i:'📝',t:'قيود اليومية',n:'jour',pg:true},{i:'➕',t:'قيد جديد',n:'jour',pg:true},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},{title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},{title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'🔄',t:'سجل التسويات',n:'reconhist'}]},{title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
+
+  window.rOperationsHub=function(){var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">🎯 العمليات</div>';var sections=[{title:'🎯 المشروعات والممولين',items:[{i:'🎯',t:'المشروعات',n:'proj',pg:true},{i:'📊',t:'BVA',n:'bva'},{i:'📋',t:'حركات المشروع',n:'projtxn'},{i:'🌍',t:'دفتر المانحين',n:'donorledger'}]},{title:'👥 الموارد البشرية',items:[{i:'🏢',t:'الموظفين',n:'employees'},{i:'💳',t:'كشف الرواتب',n:'pay',pg:true},{i:'⏱️',t:'Timesheet',n:'timesheet'},{i:'🌴',t:'الإجازات',n:'myleaves'}]},{title:'🛒 المشتريات والمخازن',items:[{i:'🏭',t:'الموردون',n:'suppliers'},{i:'📋',t:'سجل العقود',n:'contracts'},{i:'📦',t:'المخازن',n:'inventory'},{i:'📥',t:'أذونات الحركة',n:'inv_receive'}]},{title:'💵 القروض الصغيرة',items:[{i:'💵',t:'إدارة القروض',n:'loans'}]},{title:'✅ الامتثال والأرشفة',items:[{i:'📁',t:'ملفات المنح',n:'grantfiles'},{i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive'},{i:'✅',t:'امتثال المستندات',n:'compliance'},{i:'📋',t:'نموذج 41',n:'form41'},{i:'🏢',t:'الأصول الثابتة',n:'assets'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
+
+  ready(function(){var css='.tx-click{cursor:pointer!important;text-decoration:underline;text-underline-offset:3px;color:#1e3a6e!important;font-weight:900!important}.tx-click:hover{background:#e8f6fd!important}.mb table th,.mb table td{white-space:nowrap}.mbdy{max-width:100%;overflow:hidden}';var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);});
+})();
+</script>
 </body>
 </html>
