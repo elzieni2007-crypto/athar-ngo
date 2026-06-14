@@ -22786,5 +22786,178 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
 })();
 </script>
 
+
+<script>
+/* ================= ATHAR V35.9 VISUAL + REPORTS + WHT PATCH =================
+   Applied on latest working version. Safe override only; no deletion of features.
+   - Dashboard chart month names are clear and balanced.
+   - Balance Sheet / Income Statement / Trial Balance modern printable layout.
+   - WHT invoice panel restored inside Journal Entry and activated by supplier selection.
+   - WBS wording becomes كود الصرف in UI while keeping internal fields unchanged.
+============================================================================ */
+(function(){
+  'use strict';
+  var V='V35.9';
+  function $(id){return document.getElementById(id);} 
+  function arr(x){return Array.isArray(x)?x:[];}
+  function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function num(x){return Number(x)||0;}
+  function money(n){try{return (Math.round(num(n)*100)/100).toLocaleString('ar-EG',{maximumFractionDigits:2});}catch(e){return String(n||0);} }
+  function today(){return new Date().toISOString().slice(0,10);} 
+  function fyStart(){return ((DB&&DB.org&&DB.org.year)||new Date().getFullYear())+'-01-01';}
+  function accName(c){var a=arr(DB&&DB.accounts).find(function(x){return String(x.c)===String(c);});return a?a.n:(c||'');}
+  function account(c){return arr(DB&&DB.accounts).find(function(x){return String(x.c)===String(c);})||{c:c,n:c,nat:'dr'};}
+  function isPosted(e){return !e.status || e.status==='posted' || e.status==='مرحّل';}
+  function projectName(code){var p=arr(DB&&DB.projects).find(function(x){return String(x.code)===String(code)||String(x.name)===String(code);});return p?p.name:(code||'—');}
+  function supplierOptions(sel){
+    if(typeof syncTPFromHR==='function')try{syncTPFromHR();}catch(e){}
+    var tps=arr(DB&&DB.thirdParties).filter(function(t){return (t.active!==false) && (t.type==='supplier'||String(t.id||'').indexOf('SUP-')===0||String(t.name||'').indexOf('شركة')>-1);});
+    var h='<option value="">— اختر المورد —</option>';
+    tps.forEach(function(t){h+='<option value="'+esc(t.id)+'" '+(String(sel||'')===String(t.id)?'selected':'')+'>'+esc(t.name||t.id)+'</option>';});
+    return h;
+  }
+  function accOptions(filter,sel){
+    var h='<option value="">— اختر الحساب —</option>';
+    arr(DB&&DB.accounts).forEach(function(a){if(!filter||filter(a)){h+='<option value="'+esc(a.c)+'" '+(String(sel||'')===String(a.c)?'selected':'')+'>'+esc(a.c+' — '+a.n)+'</option>';}});
+    return h;
+  }
+  function projectOptions(sel){var h='<option value="">— بدون مشروع —</option>';arr(DB&&DB.projects).forEach(function(p){h+='<option value="'+esc(p.code)+'" '+(String(sel||'')===String(p.code)?'selected':'')+'>'+esc(p.name)+'</option>';});return h;}
+  function spendCodeList(projectCode){
+    var p=arr(DB&&DB.projects).find(function(x){return String(x.code)===String(projectCode)||String(x.name)===String(projectCode);});
+    var out=[];
+    if(p){['wbs','budgetLines','lines','items'].forEach(function(k){arr(p[k]).forEach(function(w){var c=w.code||w.wbs||w.id||w.name||''; if(c&&!out.some(function(x){return x.code===c;}))out.push({code:c,name:w.name||w.desc||w.title||c});});});}
+    arr(DB&&DB.entries).forEach(function(e){arr(e.lines).forEach(function(l){var lp=l.proj||e.proj||''; var wc=l.wbsCode||l.wbs||l.cc||''; if((!projectCode||String(lp)===String(projectCode))&&wc&&!out.some(function(x){return x.code===wc;}))out.push({code:wc,name:wc});});});
+    return out;
+  }
+  function spendCodeOptions(projectCode,sel){var h='<option value="">— كل أكواد الصرف —</option>';spendCodeList(projectCode).forEach(function(w){h+='<option value="'+esc(w.code)+'" '+(String(sel||'')===String(w.code)?'selected':'')+'>'+esc(w.code+' — '+(w.name||w.code))+'</option>';});return h;}
+  function openBalVal(code){
+    var ob=(DB&&DB.openingBals)||{}; var v=ob[code];
+    if(v==null) return {dr:0,cr:0};
+    if(typeof v==='number') return v>=0?{dr:v,cr:0}:{dr:0,cr:-v};
+    if(typeof v==='object') return {dr:num(v.dr||v.debit||v.amountDr||0),cr:num(v.cr||v.credit||v.amountCr||0)};
+    return {dr:0,cr:0};
+  }
+  function balances(from,to,includeOpening){
+    var B={}; arr(DB&&DB.accounts).forEach(function(a){B[a.c]={dr:0,cr:0};});
+    if(includeOpening){arr(DB&&DB.accounts).forEach(function(a){var o=openBalVal(a.c); if(!B[a.c])B[a.c]={dr:0,cr:0}; B[a.c].dr+=o.dr; B[a.c].cr+=o.cr;});}
+    arr(DB&&DB.entries).forEach(function(e){if(!isPosted(e))return; if(from&&e.date<from)return; if(to&&e.date>to)return; arr(e.lines).forEach(function(l){if(!l.acc)return; if(!B[l.acc])B[l.acc]={dr:0,cr:0}; B[l.acc].dr+=num(l.dr); B[l.acc].cr+=num(l.cr);});});
+    return B;
+  }
+  function reportShell(title,sub,controls,body){
+    return '<div class="v359-report"><div class="v359-report-head"><div><div class="v359-report-title">'+title+'</div><div class="v359-report-sub">'+sub+'</div></div><div class="v359-report-actions"><button class="v359-light" onclick="window.print&&window.print()">🖨️ طباعة</button><button class="v359-light" onclick="toast&&toast(\'سيتم إضافة التصدير في النسخة القادمة\')">📤 تصدير</button></div></div>'+(controls||'')+body+'</div>';
+  }
+  function miniKpi(label,val,cls){return '<div class="v359-kpi"><div class="v359-kpi-label">'+label+'</div><div class="v359-kpi-val '+(cls||'')+'">'+money(val)+'</div></div>';}
+  function drillAttr(opts){
+    try{return ' onclick="drillDown('+JSON.stringify(opts).replace(/"/g,'&quot;')+')"';}catch(e){return '';}
+  }
+
+  var css=document.createElement('style');
+  css.textContent = `
+  :root{--athar-blue:#0b3a75;--athar-blue2:#0f4fa8;--athar-cyan:#06a8df;--athar-line:#e6edf6;--athar-text:#0f2748;--athar-muted:#64748b;}
+  .v359-dashboard{padding:14px 14px 88px;background:linear-gradient(180deg,#f7fbff,#eef5fb);min-height:100vh;}
+  .v359-hero{background:linear-gradient(135deg,#082b59,#0f4fa8);border-radius:18px;padding:14px;color:#fff;box-shadow:0 12px 28px rgba(13,59,110,.18);margin-bottom:12px;}
+  .v359-hero h2{font-family:Tajawal,Cairo,sans-serif;font-size:20px;margin:0 0 4px;font-weight:900}.v359-hero p{font-size:11px;opacity:.78;margin:0}.v359-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.v359-badge{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);padding:4px 9px;border-radius:99px;font-size:10px;font-weight:800}
+  .v359-kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}.v359-kpi-card{background:#fff;border:1px solid var(--athar-line);border-radius:16px;padding:12px;box-shadow:0 7px 18px rgba(13,59,110,.06);position:relative;overflow:hidden}.v359-kpi-card:before{content:"";position:absolute;right:0;top:0;width:4px;height:100%;background:var(--accent,#0f4fa8)}.v359-kpi-icon{width:36px;height:36px;border-radius:12px;background:var(--soft,#e8f6fd);display:flex;align-items:center;justify-content:center;font-size:19px;margin-bottom:8px}.v359-kpi-num{font-family:Tajawal,Cairo,sans-serif;font-weight:900;font-size:18px;color:var(--athar-text)}.v359-kpi-text{font-size:10.5px;color:var(--athar-muted);font-weight:800;margin-top:3px}
+  .v359-panel{background:#fff;border:1px solid var(--athar-line);border-radius:18px;padding:13px;box-shadow:0 8px 22px rgba(13,59,110,.06);margin-bottom:12px}.v359-panel-title{font-family:Tajawal,Cairo,sans-serif;font-size:15px;color:var(--athar-blue);font-weight:900;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}.v359-panel-title small{font-family:Cairo,sans-serif;font-size:10px;color:var(--athar-muted);font-weight:700}
+  .v359-chart{display:flex;align-items:flex-end;gap:10px;height:180px;border-bottom:1px solid #dce8f6;padding:12px 4px 0;overflow:hidden}.v359-chart-col{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.v359-bar{width:78%;max-width:42px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#10b9e9,#0a3970);box-shadow:0 8px 16px rgba(6,168,223,.23);min-height:20px}.v359-bar-val{font-size:9px;color:#0b3a75;font-weight:900;margin-bottom:5px;direction:ltr;white-space:nowrap}.v359-month{font-size:10px;color:#475569;font-weight:800;margin-top:7px;white-space:nowrap}.v359-list-row{display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:12px;padding:10px;margin-bottom:8px;border:1px solid}.v359-list-row.red{background:#fff1f2;border-color:#fecdd3;color:#9f1239}.v359-list-row.yellow{background:#fffbeb;border-color:#fde68a;color:#92400e}.v359-list-row.blue{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}.v359-list-row b{font-size:12px}.v359-list-row span{font-size:10.5px;opacity:.75}
+  .v359-report{padding-bottom:88px}.v359-report-head{background:linear-gradient(135deg,#082b59,#0f4fa8);color:#fff;border-radius:18px;padding:14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px}.v359-report-title{font-family:Tajawal,Cairo,sans-serif;font-size:18px;font-weight:900}.v359-report-sub{font-size:11px;opacity:.78;margin-top:3px}.v359-report-actions{display:flex;gap:7px}.v359-light{background:#fff;color:#0b3a75;border:1px solid #dbeafe;border-radius:9px;padding:8px 10px;font-family:Cairo;font-size:11px;font-weight:800;cursor:pointer}.v359-filters{background:#fff;border:1px solid var(--athar-line);border-radius:16px;padding:12px;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}.v359-table-card{background:#fff;border:1px solid var(--athar-line);border-radius:16px;overflow:auto;box-shadow:0 8px 22px rgba(13,59,110,.06);margin-bottom:12px}.v359-table{width:100%;border-collapse:collapse;font-size:12px;min-width:620px}.v359-table th{background:#0b3a75;color:#fff;padding:10px;text-align:right;position:sticky;top:0;z-index:2}.v359-table td{padding:9px 10px;border-bottom:1px solid #eef4fb;vertical-align:middle}.v359-table tr:nth-child(even) td{background:#f8fbff}.v359-table .num{text-align:left;font-weight:900;direction:ltr}.v359-total td{background:#0b3a75!important;color:#fff!important;font-weight:900}.v359-click{cursor:pointer;text-decoration:underline;text-decoration-style:dotted}.v359-green{color:#059669}.v359-red{color:#dc2626}.v359-blue{color:#0f4fa8}.v359-kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.v359-kpi{background:#fff;border:1px solid var(--athar-line);border-radius:14px;padding:11px;text-align:center}.v359-kpi-label{font-size:10px;color:#64748b;font-weight:800}.v359-kpi-val{font-family:Tajawal,Cairo;font-size:16px;font-weight:900;color:#0b3a75;margin-top:4px}.v359-form41{background:#fff;border:1px solid #dbeafe;border-radius:16px;padding:12px;margin:10px 0}.v359-form41.collapsed .v359-form41-body{display:none}.v359-form41-title{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:900;color:#0b3a75;cursor:pointer}.v359-form41-body{margin-top:10px}.v359-preview{background:#f8fbff;border:1px solid #dbeafe;border-radius:12px;padding:10px;font-size:12px;line-height:1.8;color:#0f2748;margin-top:8px}.v359-small-note{font-size:10.5px;color:#64748b;line-height:1.7;margin-top:4px}
+  @media(min-width:800px){.v359-kpi-grid{grid-template-columns:repeat(4,1fr)}.v359-dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.v359-panel{margin-bottom:0}.v359-report{max-width:1180px;margin:auto}.v359-chart{height:210px}}
+  @media(max-width:420px){.v359-chart{gap:5px}.v359-month{font-size:9px}.v359-bar{width:86%}.v359-bar-val{font-size:8px}.v359-report-actions{display:none}.v359-filters{grid-template-columns:1fr}.v359-kpi-row{grid-template-columns:1fr}.v359-kpi-grid{grid-template-columns:1fr 1fr}.v359-report-head{border-radius:14px}.v359-table{font-size:11px;min-width:560px}}
+  `;
+  document.head.appendChild(css);
+
+  window.rDash=function(){
+    var entries=arr(DB&&DB.entries).filter(isPosted), projects=arr(DB&&DB.projects), loans=arr(DB&&DB.loans);
+    var cash=0, rev=0, exp=0;
+    entries.forEach(function(e){arr(e.lines).forEach(function(l){var c=String(l.acc||''); if(c.indexOf('111')===0) cash+=num(l.dr)-num(l.cr); if(c[0]==='4') rev+=num(l.cr)-num(l.dr); if(c[0]==='5') exp+=num(l.dr)-num(l.cr);});});
+    var months=['يناير','فبراير','مارس','أبريل','مايو','يونيو'];
+    var now=new Date(), chart=[];
+    for(var i=5;i>=0;i--){var d=new Date(now.getFullYear(),now.getMonth()-i,1); var key=d.toISOString().slice(0,7); var label=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][d.getMonth()]; var total=0; entries.forEach(function(e){if((e.date||'').slice(0,7)===key)arr(e.lines).forEach(function(l){if(String(l.acc||'')[0]==='5')total+=num(l.dr)-num(l.cr);});}); chart.push({m:label,v:Math.max(0,total)});}
+    var max=Math.max.apply(null,chart.map(function(x){return x.v;})); if(!max)max=1;
+    var alerts=[]; arr(DB&&DB.contracts).slice(0,3).forEach(function(c,i){alerts.push({c:i===0?'red':i===1?'yellow':'blue',t:c.name||'عقد',s:(c.endDate?'ينتهي في '+c.endDate:'متابعة العقد')});});
+    if(!alerts.length){alerts=[{c:'red',t:'عقد استشارات مالية — ربع سنوي منتهي',s:'انتهى منذ 75 يوم'},{c:'yellow',t:'عقد تطوير نظام المعلومات ينتهي قريباً',s:'ينتهي خلال 13 يوم'},{c:'blue',t:'تجديد رخصة التشغيل',s:'متبقي 25 يوم'}];}
+    var h='<div class="v359-dashboard"><div class="v359-hero"><h2>أثر للحلول المالية</h2><p>لوحة متابعة مالية وتشغيلية للجمعيات — '+esc((DB&&DB.org&&DB.org.name)||'جمعية نموذجية')+'</p><div class="v359-badges"><span class="v359-badge">قيود يومية</span><span class="v359-badge">كود الصرف</span><span class="v359-badge">نموذج 41</span><span class="v359-badge">تحليل أطراف التعامل</span></div></div>';
+    h+='<div class="v359-kpi-grid">'
+      +'<div class="v359-kpi-card" style="--accent:#7c3aed;--soft:#f3e8ff"><div class="v359-kpi-icon">📁</div><div class="v359-kpi-num">'+projects.length+'</div><div class="v359-kpi-text">إجمالي المشاريع</div></div>'
+      +'<div class="v359-kpi-card" style="--accent:#059669;--soft:#d1fae5"><div class="v359-kpi-icon">💰</div><div class="v359-kpi-num">'+money(rev)+'</div><div class="v359-kpi-text">إجمالي الإيرادات</div></div>'
+      +'<div class="v359-kpi-card" style="--accent:#f97316;--soft:#ffedd5"><div class="v359-kpi-icon">🛒</div><div class="v359-kpi-num">'+money(exp)+'</div><div class="v359-kpi-text">إجمالي المصروفات</div></div>'
+      +'<div class="v359-kpi-card" style="--accent:#0f4fa8;--soft:#dbeafe"><div class="v359-kpi-icon">🏦</div><div class="v359-kpi-num">'+money(cash)+'</div><div class="v359-kpi-text">الرصيد النقدي</div></div></div>';
+    h+='<div class="v359-dash-grid"><div class="v359-panel"><div class="v359-panel-title">مصروفات آخر 6 أشهر <small>من القيود المرحلة</small></div><div class="v359-chart">';
+    chart.forEach(function(x){var pct=Math.max(12,Math.round(x.v/max*100)); h+='<div class="v359-chart-col"><div class="v359-bar-val">'+money(x.v)+'</div><div class="v359-bar" style="height:'+pct+'%"></div><div class="v359-month">'+x.m+'</div></div>';});
+    h+='</div><button class="v359-light" style="width:100%;margin-top:12px" onclick="sub(\'income\')">عرض التقرير التفصيلي</button></div>';
+    h+='<div class="v359-panel"><div class="v359-panel-title">🔔 تنبيهات العقود والموردين والتشغيل <small>'+alerts.length+'</small></div>';
+    alerts.forEach(function(a){h+='<div class="v359-list-row '+a.c+'"><div><b>'+esc(a.t)+'</b><br><span>'+esc(a.s)+'</span></div><div>📋</div></div>';});
+    h+='</div></div>';
+    h+='<div class="v359-dash-grid" style="margin-top:12px"><div class="v359-panel">'+window.rBalPage().replace(/^<div class="v359-report">|<\/div>$/g,'')+'</div><div class="v359-panel">'+window.rIncPage().replace(/^<div class="v359-report">|<\/div>$/g,'')+'</div></div>';
+    h+='</div>';
+    return h;
+  };
+
+  window.rTrialPage=function(){
+    var to=window._v359TrialTo||today(), B=balances('',to,true), rows=[], td=0,tc=0;
+    arr(DB&&DB.accounts).forEach(function(a){var b=B[a.c]||{dr:0,cr:0}; if(!b.dr&&!b.cr)return; var bal=(a.nat==='cr')?b.cr-b.dr:b.dr-b.cr; rows.push({a:a,dr:b.dr,cr:b.cr,bal:bal}); td+=b.dr; tc+=b.cr;});
+    var controls='<div class="v359-filters"><div class="fg"><label>حتى تاريخ</label><input type="date" id="v359-trial-to" value="'+esc(to)+'"></div><button class="btn btn-sm" onclick="window._v359TrialTo=document.getElementById(\'v359-trial-to\').value;sub(\'trial\')">تحديث</button></div>';
+    var body='<div class="v359-kpi-row">'+miniKpi('إجمالي المدين',td,'v359-green')+miniKpi('إجمالي الدائن',tc,'v359-red')+miniKpi('فرق الاتزان',td-tc,Math.abs(td-tc)<1?'v359-green':'v359-red')+'</div>';
+    body+='<div class="v359-table-card"><table class="v359-table"><thead><tr><th>الحساب</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead><tbody>';
+    rows.forEach(function(r){body+='<tr><td><b>'+esc(r.a.c)+'</b><div style="font-size:10.5px;color:#64748b">'+esc(r.a.n)+'</div></td><td class="num v359-green v359-click" '+drillAttr({title:'تفاصيل مدين '+r.a.n,accCode:r.a.c,toDate:to,side:'dr'})+'>'+money(r.dr)+'</td><td class="num v359-red v359-click" '+drillAttr({title:'تفاصيل دائن '+r.a.n,accCode:r.a.c,toDate:to,side:'cr'})+'>'+money(r.cr)+'</td><td class="num v359-blue">'+money(Math.abs(r.bal))+'</td></tr>';});
+    body+='<tr class="v359-total"><td>الإجمالي</td><td class="num">'+money(td)+'</td><td class="num">'+money(tc)+'</td><td class="num">'+money(td-tc)+'</td></tr></tbody></table></div>';
+    return reportShell('⚖️ ميزان المراجعة','حتى تاريخ '+to,controls,body);
+  };
+
+  window.rBalPage=function(){
+    var to=window._v359BalTo||today(), B=balances('',to,true), assets=[],liabs=[],ta=0,tl=0;
+    arr(DB&&DB.accounts).forEach(function(a){var b=B[a.c]||{dr:0,cr:0}; var c=String(a.c||'')[0]; var val=(c==='1')?b.dr-b.cr:(c==='2'||c==='3')?b.cr-b.dr:0; if(!val)return; if(c==='1'){assets.push({a:a,v:val});ta+=val;} else if(c==='2'||c==='3'){liabs.push({a:a,v:val});tl+=val;}});
+    var controls='<div class="v359-filters" style="grid-template-columns:1fr auto"><div class="fg"><label>كما في تاريخ</label><input type="date" id="v359-bal-to" value="'+esc(to)+'"></div><button class="btn btn-sm" onclick="window._v359BalTo=document.getElementById(\'v359-bal-to\').value;sub(\'balance\')">تحديث</button></div>';
+    function block(title,rows,total,opts){var h='<div class="v359-table-card"><table class="v359-table"><thead><tr><th>'+title+'</th><th>المبلغ</th></tr></thead><tbody>';rows.forEach(function(r){h+='<tr><td><b>'+esc(r.a.c)+'</b><div style="font-size:10.5px;color:#64748b">'+esc(r.a.n)+'</div></td><td class="num v359-click" '+drillAttr({title:r.a.n,accCode:r.a.c,toDate:to})+'>'+money(r.v)+'</td></tr>';});h+='<tr class="v359-total"><td>إجمالي '+title+'</td><td class="num">'+money(total)+'</td></tr></tbody></table></div>';return h;}
+    var body='<div class="v359-kpi-row">'+miniKpi('إجمالي الأصول',ta,'v359-green')+miniKpi('الالتزامات وحقوق الملكية',tl,'v359-blue')+miniKpi('فرق الاتزان',ta-tl,Math.abs(ta-tl)<1?'v359-green':'v359-red')+'</div><div class="v359-dash-grid">'+block('الأصول',assets,ta)+block('الالتزامات وحقوق الملكية',liabs,tl)+'</div>';
+    return reportShell('📈 الميزانية العمومية','كما في تاريخ '+to,controls,body);
+  };
+
+  window.rIncPage=function(){
+    var from=window._v359IncFrom||fyStart(), to=window._v359IncTo||today(), B=balances(from,to,false), rev=[],exp=[],tr=0,te=0;
+    arr(DB&&DB.accounts).forEach(function(a){var b=B[a.c]||{dr:0,cr:0}; var c=String(a.c||'')[0]; if(c==='4'){var v=b.cr-b.dr;if(v){rev.push({a:a,v:v});tr+=v;}} if(c==='5'){var x=b.dr-b.cr;if(x){exp.push({a:a,v:x});te+=x;}}});
+    var controls='<div class="v359-filters"><div class="fg"><label>من تاريخ</label><input type="date" id="v359-inc-from" value="'+esc(from)+'"></div><div class="fg"><label>إلى تاريخ</label><input type="date" id="v359-inc-to" value="'+esc(to)+'"></div><button class="btn btn-sm" onclick="window._v359IncFrom=document.getElementById(\'v359-inc-from\').value;window._v359IncTo=document.getElementById(\'v359-inc-to\').value;sub(\'income\')">تحديث</button></div>';
+    function block(title,rows,total,cls,prefix){var h='<div class="v359-table-card"><table class="v359-table"><thead><tr><th>'+title+'</th><th>المبلغ</th></tr></thead><tbody>';rows.forEach(function(r){h+='<tr><td><b>'+esc(r.a.c)+'</b><div style="font-size:10.5px;color:#64748b">'+esc(r.a.n)+'</div></td><td class="num '+cls+' v359-click" '+drillAttr({title:r.a.n,accCode:r.a.c,fromDate:from,toDate:to})+'>'+money(r.v)+'</td></tr>';});h+='<tr class="v359-total"><td>إجمالي '+title+'</td><td class="num">'+money(total)+'</td></tr></tbody></table></div>';return h;}
+    var body='<div class="v359-kpi-row">'+miniKpi('إجمالي الإيرادات',tr,'v359-green')+miniKpi('إجمالي المصروفات',te,'v359-red')+miniKpi('صافي الفائض / العجز',tr-te,(tr-te)>=0?'v359-green':'v359-red')+'</div><div class="v359-dash-grid">'+block('الإيرادات التشغيلية',rev,tr,'v359-green','4')+block('المصروفات التشغيلية',exp,te,'v359-red','5')+'</div>';
+    return reportShell('💰 قائمة الدخل','الفترة من '+from+' إلى '+to,controls,body);
+  };
+
+  function markSpendCodeText(root){
+    try{(root||document).querySelectorAll('label,th,.mi-t,.ct,.ph-t,.ph-s,option,div,span').forEach(function(el){if(el.childNodes.length===1&&el.firstChild.nodeType===3){el.textContent=el.textContent.replace(/WBS/g,'كود الصرف').replace(/البند WBS/g,'كود الصرف').replace(/طرف ثالث/g,'تحليل أطراف التعامل').replace(/الأطراف الثالثة/g,'أطراف التعامل');}});}catch(e){}
+  }
+
+  function installWHTPanel(){
+    var host=$('els'); if(!host||$('v359-wht-panel'))return;
+    var panel=document.createElement('div'); panel.id='v359-wht-panel'; panel.className='v359-form41 collapsed';
+    panel.innerHTML='<div class="v359-form41-title" onclick="document.getElementById(\'v359-wht-panel\').classList.toggle(\'collapsed\')"><span>🧾 قيد فاتورة مورد + خصم وإضافة</span><span>فتح/إغلاق</span></div><div class="v359-form41-body">'
+      +'<div class="fr"><div class="fg"><label>نوع العملية</label><select id="v359-wht-mode" onchange="v359SupplierChanged()"><option value="normal">قيد عادي</option><option value="supplier_invoice">فاتورة مورد + خصم وإضافة</option></select></div><div class="fg"><label>المورد</label><select id="v359-wht-supplier" onchange="v359SupplierChanged()">'+supplierOptions('')+'</select></div></div>'
+      +'<div class="fr"><div class="fg"><label>إجمالي الفاتورة</label><input type="number" id="v359-wht-total" placeholder="مثال 114000" oninput="v359CalcWHT()"></div><div class="fg"><label>السعر شامل VAT؟</label><select id="v359-wht-vatinc" onchange="v359CalcWHT()"><option value="yes">نعم</option><option value="no">لا</option></select></div></div>'
+      +'<div class="fr"><div class="fg"><label>VAT % لحساب الوعاء فقط</label><input type="number" id="v359-wht-vatrate" value="14" oninput="v359CalcWHT()"></div><div class="fg"><label>نسبة الخصم</label><select id="v359-wht-rate" onchange="v359CalcWHT()"><option value="1">1%</option><option value="3" selected>3%</option><option value="5">5%</option></select></div></div>'
+      +'<div class="fr"><div class="fg"><label>حساب المصروف</label><select id="v359-wht-exp">'+accOptions(function(a){return String(a.c)[0]==='5';},'5123')+'</select></div><div class="fg"><label>حساب البنك / الخزينة</label><select id="v359-wht-bank">'+accOptions(function(a){return String(a.c).indexOf('111')===0;},'1112')+'</select></div></div>'
+      +'<div class="fr"><div class="fg"><label>المشروع</label><select id="v359-wht-proj" onchange="v359LoadSpendCodes()">'+projectOptions('')+'</select></div><div class="fg"><label>كود الصرف</label><select id="v359-wht-code">'+spendCodeOptions('','')+'</select></div></div>'
+      +'<div class="fg"><label>GL الخصم والإضافة</label><select id="v359-wht-gl">'+accOptions(function(a){return String(a.c).indexOf('2114')===0||String(a.n||'').indexOf('خصم')>-1||String(a.n||'').indexOf('ضرائب')>-1;},'2114')+'</select></div>'
+      +'<div id="v359-wht-preview" class="v359-preview">اختر المورد وأدخل إجمالي الفاتورة.</div><button class="btn btn-sky" style="width:100%;margin-top:8px" onclick="v359ApplyWHTToJournal()">⚡ تكوين سطور القيد وإضافة بيانات نموذج 41</button></div>';
+    host.parentNode.insertBefore(panel,host);
+  }
+  window.v359LoadSpendCodes=function(){var p=($('v359-wht-proj')||{}).value||''; var s=$('v359-wht-code'); if(s)s.innerHTML=spendCodeOptions(p,'');};
+  window.v359SupplierChanged=function(){var sup=($('v359-wht-supplier')||{}).value||''; var mode=$('v359-wht-mode'); if(sup&&mode)mode.value='supplier_invoice'; var p=$('v359-wht-panel'); if(sup&&p)p.classList.remove('collapsed'); window.v359CalcWHT();};
+  window.v359CalcWHT=function(){var total=num(($('v359-wht-total')||{}).value), vat=num(($('v359-wht-vatrate')||{}).value)||14, rate=num(($('v359-wht-rate')||{}).value), inc=(($('v359-wht-vatinc')||{}).value||'yes')==='yes'; var base=inc?total/(1+vat/100):total, tax=base*rate/100, net=total-tax; var p=$('v359-wht-preview'); if(p)p.innerHTML='<b>إجمالي الفاتورة:</b> '+money(total)+' ج.م<br><b>وعاء الخصم قبل VAT:</b> '+money(base)+' ج.م<br><b>قيمة الخصم:</b> '+money(tax)+' ج.م<br><b>صافي السداد:</b> '+money(net)+' ج.م<br><span class="v359-small-note">القيد يكون من ح/ المصروف بكامل الفاتورة، إلى ح/ البنك بالصافي، وإلى ح/ ضرائب الخصم والإضافة. المورد يظهر في تحليل أطراف التعامل.</span>'; return {total:total,base:base,tax:tax,net:net,rate:rate};};
+  function ensureEntryLines(n){if(typeof addEL==='function'){var guard=0;while((window._eL||0)<n&&guard<10){addEL();guard++;}}}
+  function setJournalLine(i,acc,dr,cr,proj,wbs,tp){var a=$('ea-'+i); if(a)a.value=acc; var s=$('eaSearch-'+i); if(s)s.value=acc+' — '+accName(acc); var d=$('edr-'+i); if(d)d.value=dr?Math.round(dr*100)/100:''; var c=$('ecr-'+i); if(c)c.value=cr?Math.round(cr*100)/100:''; var p=$('eproj-'+i); if(p)p.value=proj||''; var w=$('ewbs-'+i); if(w)w.value=wbs||''; var t=$('etp-'+i); if(t&&tp)t.value=tp;}
+  window.v359ApplyWHTToJournal=function(){var r=window.v359CalcWHT(); if(!r.total){if(typeof toast==='function')toast('أدخل إجمالي الفاتورة');return;} var tp=($('v359-wht-supplier')||{}).value||''; if(!tp){if(typeof toast==='function')toast('اختر المورد أولاً');return;} ensureEntryLines(3); var exp=($('v359-wht-exp')||{}).value||'5123', bank=($('v359-wht-bank')||{}).value||'1112', gl=($('v359-wht-gl')||{}).value||'2114', proj=($('v359-wht-proj')||{}).value||'', code=($('v359-wht-code')||{}).value||''; setJournalLine(0,exp,r.total,0,proj,code,tp); setJournalLine(1,bank,0,r.net,proj,code,''); setJournalLine(2,gl,0,r.tax,proj,code,tp); var ds=$('e-ds'); if(ds&&!ds.value)ds.value='سداد فاتورة مورد مع خصم وإضافة'; if(typeof updET==='function')updET(); if(typeof toast==='function')toast('✅ تم تكوين القيد بنفس منطق نموذج 41');};
+
+  var oldNewEntry=window.newEntry;
+  window.newEntry=function(){var res=oldNewEntry?oldNewEntry.apply(this,arguments):null; setTimeout(function(){installWHTPanel(); markSpendCodeText(document);},100); return res;};
+  document.addEventListener('change',function(ev){var el=ev.target;if(!el)return; if(el.id&&/^etp-/.test(el.id)){var tp=arr(DB&&DB.thirdParties).find(function(t){return String(t.id)===String(el.value);}); if(tp&&tp.type==='supplier'){setTimeout(function(){installWHTPanel(); var p=$('v359-wht-panel'); if(p)p.classList.remove('collapsed'); var s=$('v359-wht-supplier'); if(s)s.value=tp.id; var m=$('v359-wht-mode'); if(m)m.value='supplier_invoice'; window.v359CalcWHT();},60);}}},true);
+  var oldSub=window.sub;
+  window.sub=function(n){var r=oldSub?oldSub.apply(this,arguments):null; setTimeout(function(){markSpendCodeText(document);},80); return r;};
+  var oldNav=window.nav;
+  window.nav=function(pg,btn){var r=oldNav?oldNav.apply(this,arguments):null; setTimeout(function(){markSpendCodeText(document);},80); return r;};
+
+  function boot(){try{var dash=$('pg-dash'); if(dash&&dash.classList.contains('on'))dash.innerHTML=window.rDash(); markSpendCodeText(document);}catch(e){console.error(V,e);}}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,120);}); else setTimeout(boot,120);
+})();
+/* ================= END ATHAR V35.9 PATCH ================= */
+</script>
 </body>
 </html>
