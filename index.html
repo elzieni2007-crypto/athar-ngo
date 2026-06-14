@@ -21516,7 +21516,7 @@ function seedLoansData(){ if(!DB.loans) DB.loans=[]; }
 
   window.rالماليةHub=function(){var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">💰 المالية</div>';var sections=[{title:'📝 القيود والعمليات',items:[{i:'📝',t:'قيود اليومية',n:'jour',pg:true},{i:'➕',t:'قيد جديد',n:'jour',pg:true},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},{title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'}]},{title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك والتسوية',n:'banks'},{i:'🔄',t:'سجل التسويات',n:'reconhist'}]},{title:'📚 دفاتر الأستاذ',items:[{i:'📒',t:'الأستاذ المساعد',n:'tpledger'},{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
 
-  window.rOperationsHub=function(){var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">🎯 العمليات</div>';var sections=[{title:'🎯 المشروعات والممولين',items:[{i:'🎯',t:'المشروعات',n:'proj',pg:true},{i:'📊',t:'BVA',n:'bva'},{i:'📋',t:'حركات المشروع',n:'projtxn'},{i:'🌍',t:'دفتر المانحين',n:'donorledger'}]},{title:'👥 الموارد البشرية',items:[{i:'🏢',t:'الموظفين',n:'employees'},{i:'💳',t:'كشف الرواتب',n:'pay',pg:true},{i:'⏱️',t:'Timesheet',n:'timesheet'},{i:'🌴',t:'الإجازات',n:'myleaves'}]},{title:'🛒 المشتريات والمخازن',items:[{i:'🏭',t:'الموردون',n:'suppliers'},{i:'📋',t:'سجل العقود',n:'contracts'},{i:'📦',t:'المخازن',n:'inventory'},{i:'📥',t:'أذونات الحركة',n:'inv_receive'}]},{title:'💵 القروض الصغيرة',items:[{i:'💵',t:'إدارة القروض',n:'loans'}]},{title:'✅ الامتثال والأرشفة',items:[{i:'📁',t:'ملفات المنح',n:'grantfiles'},{i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive'},{i:'✅',t:'امتثال المستندات',n:'compliance'},{i:'📋',t:'نموذج 41',n:'form41'},{i:'🏢',t:'الأصول الثابتة',n:'assets'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
+  window.rOperationsHub=function(){var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">🎯 العمليات</div>';var sections=[{title:'🎯 المشروعات والممولين',items:[{i:'🎯',t:'المشروعات',n:'proj',pg:true},{i:'📊',t:'BVA',n:'bva'},{i:'📋',t:'حركات المشروع',n:'projtxn'},{i:'🌍',t:'دفتر المانحين',n:'donorledger'}]},{title:'👥 الموارد البشرية',items:[{i:'🏢',t:'الموظفين',n:'employees'},{i:'💳',t:'كشف الرواتب',n:'pay',pg:true},{i:'⏱️',t:'Timesheet',n:'timesheet'},{i:'🌴',t:'الإجازات',n:'myleaves'}]},{title:'🛒 المشتريات والمخازن',items:[{i:'🏭',t:'الموردون',n:'suppliers'},{i:'📋',t:'سجل العقود',n:'contracts'},{i:'📦',t:'المخازن',n:'inventory'},{i:'📥',t:'أذونات الحركة',n:'inv_receive'}]},{title:'💵 القروض الصغيرة',items:[{i:'💵',t:'إدارة القروض',n:'loans',pg:true}]},{title:'✅ الامتثال والأرشفة',items:[{i:'📁',t:'ملفات المنح',n:'grantfiles'},{i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive'},{i:'✅',t:'امتثال المستندات',n:'compliance'},{i:'📋',t:'نموذج 41',n:'form41'},{i:'🏢',t:'الأصول الثابتة',n:'assets'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
 
   ready(function(){var css='.tx-click{cursor:pointer!important;text-decoration:underline;text-underline-offset:3px;color:#1e3a6e!important;font-weight:900!important}.tx-click:hover{background:#e8f6fd!important}.mb table th,.mb table td{white-space:nowrap}.mbdy{max-width:100%;overflow:hidden}';var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);});
 })();
@@ -22177,64 +22177,71 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
 })();
 /* ================= END ATHAR V35.2 DASHBOARD FORCE FIX — CLEAN ================= */
+</script>
 
-/* ================= ATHAR V35.3 MENU LOCATIONS PATCH =================
-   - Finance: ensure الأستاذ المساعد is visible.
-   - Operations: put contracts, fixed assets, and grant files under purchases/stores area.
-   - No feature deletion; only menu placement/visibility.
-============================================================== */
+<script id="athar-v35-4-loan-opening-menu-safe-patch">
 (function(){
+  'use strict';
+
+  function F(n){
+    try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}
+    catch(e){return String(Math.round(Number(n)||0));}
+  }
+  function accName(code){
+    var a=(window.DB&&DB.accounts||[]).find(function(x){return x.c===code;});
+    return a?a.n:code;
+  }
+  function today(){return new Date().toISOString().slice(0,10);}
+  function newEntryId(){return 'J'+new Date().getFullYear()+'-'+String(Date.now()).slice(-7);}
   function card(item){
     var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';
-    return '<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div>'+(item.sub?'<div style="font-size:10px;color:var(--g4);margin-top:3px;pointer-events:none;">'+item.sub+'</div>':'')+'</div>';
-  }
-  function section(sec,color){
-    var h='<div style="margin-bottom:16px">';
-    h+='<div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px">';
-    h+='<span style="width:3px;height:12px;background:'+color+';border-radius:2px;display:inline-block"></span>'+sec.title+'</div>';
-    h+='<div class="mg">';
-    (sec.items||[]).forEach(function(item){h+=card(item);});
-    h+='</div></div>';
-    return h;
+    return '<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';
   }
 
+  // 1) Finance hub menu — ensure الأستاذ المساعد is visible in المالية.
   window.rالماليةHub=function(){
     var sections=[
-      {title:'📝 القيود والعمليات',items:[
-        {i:'📝',t:'قيود اليومية',sub:'عرض وإضافة القيود',n:'jour',pg:true},
-        {i:'➕',t:'قيد جديد',sub:'من داخل قيود اليومية',n:'jour',pg:true},
-        {i:'📒',t:'الأستاذ المساعد',sub:'كشف حساب الأطراف والحسابات',n:'tpledger'}
-      ]},
       {title:'📊 التقارير المالية',items:[
         {i:'⚖️',t:'ميزان المراجعة',n:'trial'},
         {i:'📈',t:'الميزانية العمومية',n:'balance'},
         {i:'💰',t:'قائمة الدخل',n:'income'},
-        {i:'💵',t:'التدفق النقدي',n:'cashforecast'}
+        {i:'📉',t:'BVA',n:'bva'}
       ]},
       {title:'🏦 البنوك والخزينة',items:[
         {i:'🏦',t:'البنوك والتسوية',n:'banks'},
         {i:'🔄',t:'سجل التسويات',n:'reconhist'},
         {i:'🖊️',t:'طباعة الشيكات',n:'checks'}
       ]},
-      {title:'📚 الدفاتر والإعدادات المالية',items:[
-        {i:'🌳',t:'شجرة الحسابات',n:'accounts'},
+      {title:'📚 دفاتر الأستاذ',items:[
+        {i:'📒',t:'الأستاذ المساعد',n:'tpledger'},
         {i:'📒',t:'كشف حساب',n:'accledger'},
-        {i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'},
-        {i:'🌍',t:'دفتر المانحين',n:'donorledger'}
+        {i:'🌳',t:'شجرة الحسابات',n:'accounts'},
+        {i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}
+      ]},
+      {title:'📊 تقارير الإدارة',items:[
+        {i:'🌍',t:'دفتر المانحين',n:'donorledger'},
+        {i:'📊',t:'تقرير التباين',n:'variance'},
+        {i:'💵',t:'التدفق النقدي',n:'cashforecast'},
+        {i:'🎯',t:'لوحة القيادة',n:'execdash'}
       ]}
     ];
-    var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">💰 المالية</div>';
-    sections.forEach(function(sec){h+=section(sec,'var(--sk)');});
+    var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+    sections.forEach(function(sec){
+      h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';
+      sec.items.forEach(function(it){h+=card(it);});
+      h+='</div></div>';
+    });
     return h+'</div>';
   };
 
+  // 2) Operations hub menu — contracts under purchasing, plus fixed assets and grant files.
   window.rOperationsHub=function(){
     var sections=[
       {title:'🎯 المشروعات والممولين',items:[
         {i:'🎯',t:'المشروعات',n:'proj',pg:true},
-        {i:'📊',t:'BVA',n:'bva'},
-        {i:'📋',t:'حركات المشروع',n:'projtxn'},
-        {i:'🌍',t:'دفتر المانحين',n:'donorledger'}
+        {i:'📋',t:'حركة مشروع حسب البند',n:'projtxn'},
+        {i:'🌍',t:'دفتر المانحين',n:'donorledger'},
+        {i:'📁',t:'ملفات المنح',n:'grantfiles'}
       ]},
       {title:'👥 الموارد البشرية',items:[
         {i:'🏢',t:'الموظفين',n:'employees'},
@@ -22242,131 +22249,542 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
         {i:'⏱️',t:'Timesheet',n:'timesheet'},
         {i:'🌴',t:'الإجازات',n:'myleaves'}
       ]},
-      {title:'🛒 المشتريات والمخازن والأصول',items:[
+      {title:'🛒 المشتريات والمخازن',items:[
         {i:'🏭',t:'الموردون',n:'suppliers'},
-        {i:'📋',t:'سجل العقود',sub:'متابعة العقود والانتهاء',n:'contracts'},
+        {i:'📋',t:'سجل العقود',n:'contracts'},
         {i:'📦',t:'المخازن',n:'inventory'},
-        {i:'📥',t:'أذونات الحركة',n:'inv_receive'},
-        {i:'🏢',t:'الأصول الثابتة',sub:'العهدة والإهلاك',n:'assets'},
-        {i:'📁',t:'ملفات المنح',sub:'ملفات الممولين والتقارير',n:'grantfiles'}
+        {i:'📥',t:'إذن إضافة',n:'inv_receive'},
+        {i:'📤',t:'إذن صرف',n:'inv_issue'}
       ]},
       {title:'💵 القروض الصغيرة',items:[
         {i:'💵',t:'إدارة القروض',n:'loans'}
       ]},
-      {title:'✅ الامتثال والأرشفة',items:[
+      {title:'✅ الامتثال والأصول',items:[
+        {i:'🏢',t:'الأصول الثابتة',n:'assets'},
         {i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive'},
         {i:'✅',t:'امتثال المستندات',n:'compliance'},
-        {i:'📋',t:'نموذج 41',n:'form41'},
-        {i:'🔍',t:'البحث الشامل',n:'search'}
+        {i:'📋',t:'نموذج 41',n:'form41'}
       ]}
     ];
-    var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">🎯 العمليات</div>';
-    sections.forEach(function(sec){h+=section(sec,'var(--gr)');});
+    var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">🎯 العمليات</div>';
+    sections.forEach(function(sec){
+      h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';
+      sec.items.forEach(function(it){h+=card(it);});
+      h+='</div></div>';
+    });
     return h+'</div>';
   };
-})();
-/* ================= END ATHAR V35.3 MENU LOCATIONS PATCH ================= */
 
+  // 3) Opening balances are included in bals(), so Trial Balance/BS/Banks reports see them.
+  window.bals=function(){
+    var m={};
+    (DB.accounts||[]).forEach(function(a){m[a.c]={dr:0,cr:0};});
+    if(DB.openingBals){
+      Object.keys(DB.openingBals).forEach(function(acc){
+        var val=parseFloat(DB.openingBals[acc])||0;
+        if(!val)return;
+        if(!m[acc])m[acc]={dr:0,cr:0};
+        var a=(DB.accounts||[]).find(function(x){return x.c===acc;});
+        if(a&&a.nat==='cr')m[acc].cr+=val; else m[acc].dr+=val;
+      });
+    }
+    (DB.entries||[]).filter(function(e){return e.status==='posted';}).forEach(function(e){
+      (e.lines||[]).forEach(function(l){
+        if(!l.acc)return;
+        if(!m[l.acc])m[l.acc]={dr:0,cr:0};
+        m[l.acc].dr+=parseFloat(l.dr)||0;
+        m[l.acc].cr+=parseFloat(l.cr)||0;
+      });
+    });
+    return m;
+  };
+
+  // 4) Loan collection creates a real journal entry: Dr Cash/Bank, Cr Loan Principal, Cr Admin-fees receivable.
+  window.postLoanInstallmentEntry=function(loan,inst,payDate,payAcc,paidAmount){
+    if(!loan||!inst)return null;
+    DB.entries=DB.entries||[];
+    if(inst.paymentEntryId&&DB.entries.some(function(e){return e.id===inst.paymentEntryId;}))return inst.paymentEntryId;
+    var admin=parseFloat(inst.interestPart)||parseFloat(inst.adminFeePart)||0;
+    var principal=parseFloat(inst.principalPart)||0;
+    var amount=parseFloat(paidAmount)||parseFloat(inst.amount)||principal+admin;
+    if(Math.abs(amount-(principal+admin))>0.01) principal=Math.max(0,amount-admin);
+    var client=loan.clientName||loan.name||'';
+    var desc='تحصيل قسط قرض رقم '+inst.installNo+' — '+client;
+    var id=newEntryId();
+    var lines=[
+      {acc:payAcc||'1111',an:accName(payAcc||'1111'),dr:amount,cr:0,narr:desc,tpName:client,tpType:'loan_client',loanId:loan.id,installmentNo:inst.installNo},
+      {acc:'1126',an:accName('1126'),dr:0,cr:principal,narr:'سداد أصل القرض — '+client,tpName:client,tpType:'loan_client',loanId:loan.id,installmentNo:inst.installNo}
+    ];
+    if(admin>0)lines.push({acc:'1127',an:accName('1127'),dr:0,cr:admin,narr:'سداد المصروفات الإدارية — '+client,tpName:client,tpType:'loan_client',loanId:loan.id,installmentNo:inst.installNo});
+    DB.entries.push({id:id,date:payDate||today(),ref:loan.id||'',desc:desc,narr:desc,lines:lines,status:'posted',type:'loan_collection',source:'microloan',loanId:loan.id||'',installmentNo:inst.installNo,createdAt:new Date().toISOString()});
+    inst.paymentEntryId=id; inst.entryId=id;
+    return id;
+  };
+
+  window.confirmLoanPaymentFromModal=function(){
+    var loanId=(document.getElementById('lpay-lid')||{}).value;
+    var installNo=parseInt((document.getElementById('lpay-ins')||{}).value,10);
+    var amount=parseFloat((document.getElementById('lpay-amt')||{}).value)||0;
+    var date=(document.getElementById('lpay-date')||{}).value||today();
+    var acc=(document.getElementById('lpay-acc')||{}).value||'1111';
+    var loan=(DB.loans||[]).find(function(x){return x.id===loanId;});
+    if(!loan||!installNo||!amount){if(typeof toast==='function')toast('⚠️ بيانات السداد ناقصة');return;}
+    var inst=(loan.schedule||[]).find(function(x){return Number(x.installNo)===Number(installNo);});
+    if(!inst){if(typeof toast==='function')toast('⚠️ القسط غير موجود');return;}
+    if(inst.status==='paid'&&inst.paymentEntryId){if(typeof toast==='function')toast('⚠️ القسط مسدد وله قيد '+inst.paymentEntryId);return;}
+    inst.status='paid'; inst.paidDate=date; inst.paidAmount=amount;
+    inst.interestPaid=parseFloat(inst.interestPart)||parseFloat(inst.adminFeePart)||0;
+    inst.adminFeePaid=inst.interestPaid;
+    var eid=window.postLoanInstallmentEntry(loan,inst,date,acc,amount);
+    if((loan.schedule||[]).every(function(x){return x.status==='paid';}))loan.status='closed';
+    if(typeof save==='function')save();
+    if(typeof closeLMo==='function')closeLMo('mo-lpay');
+    if(typeof rقروضPage==='function')rقروضPage();
+    if(typeof rDash==='function')rDash();
+    if(typeof toast==='function')toast('✅ تم تسجيل السداد وإنشاء القيد '+eid);
+  };
+
+  // Refresh menu if user is currently on a hub page.
+  try{
+    var fin=document.getElementById('pg-fin'); if(fin&&fin.classList.contains('on')) fin.innerHTML=window.rالماليةHub();
+    var ops=document.getElementById('pg-ops'); if(ops&&ops.classList.contains('on')) ops.innerHTML=window.rOperationsHub();
+  }catch(e){console.warn('V35.4 patch refresh skipped',e);}
+})();
 </script>
 
-<script id="athar-v35-3-menu-force-patch">
 
+<script>
+/* ================= ATHAR V35.5 — UNIFIED WHT IN JOURNAL ONLY =================
+   الهدف: إزالة ازدواج شكل "سداد فاتورة مع خصم وإضافة".
+   الشكل الموجود داخل نموذج 41 أصبح هو نفس النموذج داخل قيد اليومية.
+   لا يحذف وظائف؛ فقط يوحّد نقطة الإدخال ويحوّل صفحة whtpay لفتح قيد يومية.
+============================================================================ */
 (function(){
-  "use strict";
-  function tile(item){
-    var handler = item.pg ? "nav('"+item.n+"',document.querySelector('[data-nav="+item.n+"]'))" : "sub('"+item.n+"')";
-    return '<div class="mi" onclick="'+handler+'">'
-      +'<div class="mi-i">'+item.i+'</div>'
-      +'<div class="mi-t">'+item.t+'</div>'
-      +(item.sub?'<div style="font-size:10px;color:var(--g4);margin-top:3px;line-height:1.4;">'+item.sub+'</div>':'')
+  if(window.__ATHAR_V355_UNIFIED_WHT__) return;
+  window.__ATHAR_V355_UNIFIED_WHT__=true;
+
+  function q(id){return document.getElementById(id);}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function num(id){var x=q(id); return x?(parseFloat(x.value)||0):0;}
+  function val(id){var x=q(id); return x?(x.value||'').trim():'';}
+  function money(n){try{return (Math.round((Number(n)||0)*100)/100).toLocaleString('ar-EG',{maximumFractionDigits:2});}catch(e){return String(n||0);}}
+  function accName(c){var a=((window.DB&&DB.accounts)||[]).find(function(x){return String(x.c)===String(c);}); return a?a.n:c;}
+  function ensure(){
+    if(!window.DB) return;
+    if(!DB.form41) DB.form41=[];
+    if(!DB.whtPayments) DB.whtPayments=[];
+    if(!DB.thirdParties) DB.thirdParties=[];
+    if(!DB.whtSettings){
+      DB.whtSettings={vatRate:14,defaultWhtGL:'2114',types:[
+        {code:'goods',name:'توريدات',rate:1,gl:'2114'},
+        {code:'services',name:'خدمات',rate:3,gl:'2114'},
+        {code:'consulting',name:'استشاري',rate:5,gl:'2114'},
+        {code:'contracting',name:'مقاولات',rate:3,gl:'2114'},
+        {code:'rent',name:'إيجارات',rate:1,gl:'2114'},
+        {code:'other',name:'أخرى',rate:3,gl:'2114'}
+      ]};
+    }
+  }
+  function accOpts(filter,sel){
+    return ((window.DB&&DB.accounts)||[]).filter(filter).map(function(a){
+      return '<option value="'+esc(a.c)+'" '+(String(a.c)===String(sel||'')?'selected':'')+'>'+esc(a.c+' — '+a.n)+'</option>';
+    }).join('');
+  }
+  function tpOpts(sel){
+    try{ if(typeof initTP==='function') initTP(); }catch(e){}
+    return '<option value="">— اختر المورد / الطرف الثالث —</option>'+((window.DB&&DB.thirdParties)||[]).map(function(t){
+      var tax=t.taxId||t.taxNumber||t.taxCard||'';
+      return '<option value="'+esc(t.id)+'" '+(String(t.id)===String(sel||'')?'selected':'')+'>'+esc((t.name||t.id)+(tax?' — ضريبي: '+tax:''))+'</option>';
+    }).join('');
+  }
+  function projOpts(sel){
+    return '<option value="">— بدون مشروع —</option>'+((window.DB&&DB.projects)||[]).map(function(p){return '<option value="'+esc(p.code)+'" '+(String(p.code)===String(sel||'')?'selected':'')+'>'+esc(p.code+' — '+p.name)+'</option>';}).join('');
+  }
+  function getWbs(projectCode){
+    var p=((window.DB&&DB.projects)||[]).find(function(x){return String(x.code)===String(projectCode);});
+    var arr=(p&&(p.wbs||p.lines||p.budgetLines))||[];
+    return arr.map(function(w){return {code:w.code||w.id||w.wbs||w.name||'',name:w.name||w.desc||w.description||w.code||''};}).filter(function(w){return w.code;});
+  }
+  function wbsOpts(projectCode,sel){
+    var h='<option value="">— بدون WBS —</option>';
+    getWbs(projectCode).forEach(function(w){h+='<option value="'+esc(w.code)+'" '+(String(w.code)===String(sel||'')?'selected':'')+'>'+esc(w.code+' — '+w.name)+'</option>';});
+    return h;
+  }
+  function typeOpts(sel){
+    ensure();
+    return (DB.whtSettings.types||[]).map(function(t){return '<option value="'+esc(t.code)+'" '+(t.code===(sel||'services')?'selected':'')+' data-rate="'+(t.rate||0)+'" data-gl="'+esc(t.gl||DB.whtSettings.defaultWhtGL||'2114')+'">'+esc(t.name+' — '+(t.rate||0)+'%')+'</option>';}).join('');
+  }
+
+  window.v355WHTTypeChanged=function(){
+    var s=q('wht-type'); if(!s) return;
+    var opt=s.options[s.selectedIndex];
+    if(q('wht-rate') && opt) q('wht-rate').value=opt.getAttribute('data-rate')||q('wht-rate').value||3;
+    if(q('wht-gl') && opt && opt.getAttribute('data-gl')) q('wht-gl').value=opt.getAttribute('data-gl');
+    window.v355PreviewWHT();
+  };
+  window.v355ProjChanged=function(){
+    var p=val('wht-proj'); if(q('wht-wbs')) q('wht-wbs').innerHTML=wbsOpts(p,'');
+  };
+  window.v355PreviewWHT=function(){
+    var total=num('wht-total');
+    var vat=num('wht-vat-rate')||14;
+    var inc=q('wht-vat-inc') ? q('wht-vat-inc').checked : true;
+    var taxable=q('wht-taxable') ? q('wht-taxable').checked : true;
+    var rate=num('wht-rate');
+    var base=(inc && vat) ? total/(1+vat/100) : total;
+    var tax=taxable ? base*rate/100 : 0;
+    var net=total-tax;
+    var p=q('wht-preview');
+    if(p){
+      p.innerHTML='<div class="sg" style="margin:8px 0 10px;">'
+        +'<div class="st"><div class="sl">إجمالي الفاتورة</div><div class="sv">'+money(total)+'</div></div>'
+        +'<div class="st"><div class="sl">وعاء الخصم قبل VAT</div><div class="sv">'+money(base)+'</div></div>'
+        +'<div class="st"><div class="sl">قيمة الخصم</div><div class="sv" style="color:var(--rd);">'+money(tax)+'</div></div>'
+        +'<div class="st"><div class="sl">صافي السداد</div><div class="sv" style="color:var(--gr);">'+money(net)+'</div></div>'
+        +'</div><div style="background:var(--g1);border-radius:10px;padding:10px;font-size:12px;line-height:1.8;">'
+        +'<b>القيد داخل قيد اليومية:</b><br>من ح/ '+esc(accName(val('wht-exp'))) + ' <b>'+money(total)+'</b><br>'
+        +'إلى ح/ '+esc(accName(val('wht-bank'))) + ' <b>'+money(net)+'</b><br>'
+        +(tax>0?'إلى ح/ '+esc(accName(val('wht-gl'))) + ' <b>'+money(tax)+'</b>':'')
+        +'</div>';
+    }
+    return {total:total,base:base,tax:tax,net:net,rate:rate,vat:vat,vatInc:inc,taxable:taxable};
+  };
+
+  function setLine(i,acc,dr,cr,proj,wbs,tpId){
+    var a=q('ea-'+i); if(a) a.value=acc;
+    var search=q('eaSearch-'+i); if(search) search.value=acc+' — '+accName(acc);
+    var d=q('edr-'+i); if(d) d.value=dr?Math.round(dr*100)/100:'';
+    var c=q('ecr-'+i); if(c) c.value=cr?Math.round(cr*100)/100:'';
+    var p=q('eproj-'+i); if(p) p.value=proj||'';
+    var w=q('ewbs-'+i); if(w) w.value=wbs||'';
+    var t=q('etp-'+i); if(t && tpId) t.value=tpId;
+  }
+  function ensureLines(n){
+    var max=0; for(var i=0;i<30;i++){ if(q('ea-'+i)||q('edr-'+i)||q('ecr-'+i)) max=i+1; }
+    while(max<n && typeof addEL==='function'){ addEL(); max++; }
+  }
+
+  window.v355ApplyWHTToEntry=function(){
+    var r=window.v355PreviewWHT();
+    if(!r.total){ if(typeof toast==='function')toast('⚠️ أدخل إجمالي الفاتورة'); return; }
+    ensureLines(3);
+    var exp=val('wht-exp')||'5123', bank=val('wht-bank')||'1112', gl=val('wht-gl')||'2114';
+    var proj=val('wht-proj'), wbs=val('wht-wbs'), tpId=val('wht-tp');
+    setLine(0,exp,r.total,0,proj,wbs,tpId);
+    setLine(1,bank,0,r.net,proj,wbs,'');
+    setLine(2,gl,0,r.tax,proj,wbs,tpId);
+    var ds=q('e-ds'); if(ds&&!ds.value) ds.value='سداد فاتورة مع خصم وإضافة';
+    window.__pendingWHTForm41={supplierId:tpId,txType:val('wht-type'),invoiceTotal:r.total,taxBase:r.base,taxRate:r.rate,taxAmount:r.tax,gl:gl,project:proj,wbs:wbs,desc:(ds&&ds.value)||'سداد فاتورة مع خصم وإضافة',vatRate:r.vat,vatIncluded:r.vatInc};
+    if(typeof updET==='function') updET();
+    if(typeof toast==='function') toast('✅ تم تكوين سطور القيد بنفس نموذج 41');
+  };
+
+  function unifiedWHTBoxHTML(){
+    ensure();
+    return '<div id="v352-wht-box" class="card" style="border:2px solid var(--sk);background:#fbfdff;margin-bottom:12px;">'
+      +'<div style="background:linear-gradient(135deg,var(--nd),var(--n));color:white;border-radius:10px;padding:11px 12px;margin-bottom:12px;">'
+      +'<div style="font-weight:900;font-size:14px;">📋 نموذج 41 — سداد فاتورة مع خصم وإضافة</div>'
+      +'<div style="font-size:11px;opacity:.8;margin-top:3px;">نفس نموذج الخصم والتحصيل لكن داخل قيد اليومية: من ح/ المصروفات إلى البنك والخصم والإضافة</div></div>'
+      +'<div class="fg"><label>المورد / الطرف الثالث</label><select id="wht-tp" onchange="v355PreviewWHT()">'+tpOpts('')+'</select></div>'
+      +'<div class="fr"><div class="fg"><label>نوع المعاملة</label><select id="wht-type" onchange="v355WHTTypeChanged()">'+typeOpts('services')+'</select></div><div class="fg"><label>نسبة الخصم %</label><input type="number" id="wht-rate" value="3" oninput="v355PreviewWHT()"></div></div>'
+      +'<div class="fr"><div class="fg"><label>حساب المصروف</label><select id="wht-exp" onchange="v355PreviewWHT()">'+accOpts(function(a){return String(a.c||'')[0]==='5';},'5123')+'</select></div><div class="fg"><label>حساب البنك / الخزينة</label><select id="wht-bank" onchange="v355PreviewWHT()">'+accOpts(function(a){return String(a.c||'').indexOf('111')===0;},'1112')+'</select></div></div>'
+      +'<div class="fr"><div class="fg"><label>إجمالي الفاتورة شامل VAT إن وجد</label><input type="number" id="wht-total" placeholder="مثال: 114000" oninput="v355PreviewWHT()"></div><div class="fg"><label>VAT % لحساب الوعاء فقط</label><input type="number" id="wht-vat-rate" value="'+(((DB.whtSettings||{}).vatRate)||14)+'" oninput="v355PreviewWHT()"></div></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 12px;">'
+      +'<label style="background:var(--g1);padding:10px;border-radius:9px;font-size:12px;"><input type="checkbox" id="wht-vat-inc" checked onchange="v355PreviewWHT()" style="width:auto;margin-left:6px;"> السعر شامل VAT؟</label>'
+      +'<label style="background:var(--g1);padding:10px;border-radius:9px;font-size:12px;"><input type="checkbox" id="wht-taxable" checked onchange="v355PreviewWHT()" style="width:auto;margin-left:6px;"> خاضع خصم وإضافة؟</label></div>'
+      +'<div class="fg"><label>GL ضرائب الخصم والإضافة</label><select id="wht-gl" onchange="v355PreviewWHT()">'+accOpts(function(a){return String(a.c||'').indexOf('2114')===0||/خصم|تحصيل|ضريبة|ضرائب/.test(String(a.n||''));},((DB.whtSettings||{}).defaultWhtGL)||'2114')+'</select></div>'
+      +'<div class="fr"><div class="fg"><label>المشروع</label><select id="wht-proj" onchange="v355ProjChanged();v355PreviewWHT();">'+projOpts('')+'</select></div><div class="fg"><label>البند WBS</label><select id="wht-wbs" onchange="v355PreviewWHT()">'+wbsOpts('', '')+'</select></div></div>'
+      +'<div id="wht-preview" style="margin-top:8px;"></div>'
+      +'<button class="btn btn-sky" style="width:100%;margin-top:8px" onclick="v355ApplyWHTToEntry()">⚡ تكوين سطور القيد تلقائياً</button>'
       +'</div>';
   }
-  function section(title, color, items){
-    var h='<div style="margin-bottom:16px;">';
-    h+='<div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
-    h+='<span style="width:3px;height:12px;background:'+color+';border-radius:2px;display:inline-block;"></span>'+title+'</div>';
-    h+='<div class="mg">';
-    items.forEach(function(it){h+=tile(it);});
-    h+='</div></div>';
-    return h;
+
+  function injectUnified(){
+    var els=q('els'); if(!els) return;
+    var old=q('v352-wht-box'); if(old) old.parentNode.removeChild(old);
+    var wrap=document.createElement('div');
+    wrap.innerHTML=unifiedWHTBoxHTML();
+    els.parentNode.insertBefore(wrap.firstChild,els);
+    setTimeout(function(){try{v355WHTTypeChanged();v355PreviewWHT();}catch(e){}},20);
   }
 
-  window.rالماليةHub=function(){
-    var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
-    h+=section('📊 التقارير المالية','var(--sk)',[
-      {i:'⚖️',t:'ميزان المراجعة',n:'trial'},
-      {i:'📈',t:'الميزانية العمومية',n:'balance'},
-      {i:'💰',t:'قائمة الدخل',n:'income'},
-      {i:'📉',t:'BVA',n:'bva'}
-    ]);
-    h+=section('📚 دفاتر الأستاذ','var(--sk)',[
-      {i:'📒',t:'الأستاذ المساعد',n:'tpledger',sub:'أطراف ثالثة وموردين وموظفين'},
-      {i:'📘',t:'كشف حساب',n:'accledger',sub:'حركات حساب محدد'},
-      {i:'🌳',t:'شجرة الحسابات',n:'accounts'},
-      {i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}
-    ]);
-    h+=section('🏦 البنوك والخزينة','var(--sk)',[
-      {i:'🏦',t:'البنوك والتسوية',n:'banks'},
-      {i:'🔄',t:'سجل التسويات',n:'reconhist'},
-      {i:'🖊️',t:'طباعة الشيكات',n:'checks'},
-      {i:'💵',t:'التدفق النقدي',n:'cashforecast'}
-    ]);
-    h+=section('📊 تقارير الإدارة','var(--sk)',[
-      {i:'🌍',t:'دفتر المانحين',n:'donorledger'},
-      {i:'📊',t:'تقرير التباين',n:'variance'},
-      {i:'🎯',t:'لوحة القيادة',n:'execdash'},
-      {i:'📅',t:'قيود الإقفال',n:'yearend'}
-    ]);
-    h+='</div>';
-    return h;
+  var prevNewEntry=window.newEntry;
+  window.newEntry=function(){
+    var r=prevNewEntry?prevNewEntry.apply(this,arguments):null;
+    setTimeout(injectUnified,120);
+    return r;
   };
 
-  window.rOperationsHub=function(){
-    var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">🎯 العمليات</div>';
-    h+=section('🎯 المشروعات والممولين','var(--gr)',[
-      {i:'🎯',t:'المشروعات',n:'proj',pg:true},
-      {i:'📋',t:'حركة مشروع حسب البند',n:'projtxn'},
-      {i:'📁',t:'ملفات المنح',n:'grantfiles',sub:'ملف الممول والتقارير والمستندات'},
-      {i:'🌍',t:'دفتر المانحين',n:'donorledger'}
-    ]);
-    h+=section('🛒 المشتريات والمخازن والأصول','var(--gr)',[
-      {i:'🏭',t:'الموردون',n:'suppliers'},
-      {i:'📋',t:'سجل العقود',n:'contracts',sub:'متابعة العقود والانتهاء'},
-      {i:'📦',t:'المخازن',n:'inventory'},
-      {i:'🏢',t:'الأصول الثابتة',n:'assets',sub:'عهدة وإهلاك وتحويل'}
-    ]);
-    h+=section('📥 أذون وحركة المخازن','var(--gr)',[
-      {i:'📥',t:'إذن إضافة',n:'inv_receive'},
-      {i:'📤',t:'إذن صرف',n:'inv_issue'},
-      {i:'🔁',t:'تحويل مخزني',n:'inv_transfer'},
-      {i:'🗑️',t:'استبعاد/هالك',n:'inv_dispose'}
-    ]);
-    h+=section('👥 الموارد البشرية','var(--gr)',[
-      {i:'🏢',t:'الموظفين',n:'employees'},
-      {i:'💳',t:'كشف الرواتب',n:'pay',pg:true},
-      {i:'⏱️',t:'Timesheet',n:'timesheet'},
-      {i:'🌴',t:'الإجازات',n:'myleaves'}
-    ]);
-    h+=section('✅ الامتثال والأرشفة','var(--gr)',[
-      {i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive'},
-      {i:'✅',t:'امتثال المستندات',n:'compliance'},
-      {i:'📦',t:'حزمة المراجعة',n:'audit'},
-      {i:'📋',t:'نموذج 41',n:'form41'}
-    ]);
-    h+='</div>';
-    return h;
-  };
-
-  window.addEventListener('load',function(){
+  var prevSaveE=window.saveE;
+  window.saveE=function(){
+    var before=(window.DB&&DB.entries?DB.entries.length:0);
+    var pending=window.__pendingWHTForm41||null;
+    var r=prevSaveE?prevSaveE.apply(this,arguments):null;
     try{
-      var pgFin=document.getElementById('pg-fin');
-      if(pgFin && pgFin.classList.contains('on')) pgFin.innerHTML=window.rالماليةHub();
-      var pgOps=document.getElementById('pg-ops');
-      if(pgOps && pgOps.classList.contains('on')) pgOps.innerHTML=window.rOperationsHub();
-    }catch(e){console.error('menu force patch failed',e);}
-  });
+      if(pending && window.DB && DB.entries && DB.entries.length>before){
+        var e=DB.entries[DB.entries.length-1];
+        var tp=(DB.thirdParties||[]).find(function(t){return String(t.id)===String(pending.supplierId);})||{};
+        e.v35WHT=true;
+        e.whtMeta=pending;
+        var rec={
+          id:'F41-'+String(Date.now()).slice(-7),entryId:e.id,date:e.date,ref:e.ref,
+          supplierId:pending.supplierId,supplierName:tp.name||'',taxId:tp.taxId||tp.taxNumber||tp.taxCard||'',
+          txType:pending.txType,invoiceTotal:pending.invoiceTotal,taxBase:pending.taxBase,taxRate:pending.taxRate,taxAmount:pending.taxAmount,
+          gl:pending.gl,project:pending.project,wbs:pending.wbs,desc:e.desc||pending.desc
+        };
+        if(pending.taxAmount>0){
+          DB.form41=DB.form41||[]; DB.whtPayments=DB.whtPayments||[];
+          DB.form41.push(rec); DB.whtPayments.push(rec);
+          if(typeof save==='function') save();
+        }
+        window.__pendingWHTForm41=null;
+      }
+    }catch(ex){console.warn('V35.5 WHT form41 link skipped',ex);}
+    return r;
+  };
+
+  var prevSub=window.sub;
+  window.sub=function(n){
+    if(n==='whtpay'){
+      try{ nav('jour',document.querySelector('[data-nav="jour"]')); setTimeout(function(){ if(typeof newEntry==='function') newEntry(); },120); }
+      catch(e){ if(prevSub) return prevSub(n); }
+      return;
+    }
+    return prevSub?prevSub.apply(this,arguments):null;
+  };
+
+  /* Remove duplicate standalone WHT payment card from Finance hub; keep settings/report. */
+  if(window.rالماليةHub && !window.__v355_fin_hub_wht_clean){
+    window.__v355_fin_hub_wht_clean=true;
+    var oldFin=window.rالماليةHub;
+    window.rالماليةHub=function(){
+      var h=oldFin.apply(this,arguments);
+      h=h.replace(/<div class="mi" data-sub="whtpay">[\s\S]*?<div class="mi-t">سداد فاتورة \+ خصم<\/div><\/div>/g,
+        '<div class="mi" data-pg="jour"><div class="mi-i">🧾</div><div class="mi-t">قيد فاتورة + خصم</div></div>');
+      return h;
+    };
+  }
+
+  /* Change Form41 helper button to open Journal Entry, not standalone page. */
+  if(window.rForm41Page && !window.__v355_form41_open_journal){
+    window.__v355_form41_open_journal=true;
+    var oldF41=window.rForm41Page;
+    window.rForm41Page=function(){
+      var h=oldF41.apply(this,arguments);
+      h=h.replace(/sub\('whtpay'\)/g,"nav('jour',null);setTimeout(function(){newEntry();},120)");
+      h=h.replace(/\+ تسجيل سداد فاتورة/g,'+ قيد فاتورة بخصم وإضافة');
+      return h;
+    };
+  }
+
+  try{ var fin=document.getElementById('pg-fin'); if(fin&&fin.classList.contains('on')) fin.innerHTML=window.rالماليةHub(); }catch(e){}
 })();
 
+
+/* ─────────────────────────────────────────────
+   V35.6 SAFE PATCH — menu locations + permissions start + WBS budget approval
+   - Fix loans card inside Operations by opening pg-loans directly
+   - Keep الأستاذ المساعد in Finance
+   - Keep contracts under purchases/stores, assets and grant files visible
+   - Remove accidental assets shortcut from HR/employees area
+   - Start permission checks safely without blocking demo/no-login mode
+   - Alert and approval request when a WBS/budget line is exceeded
+───────────────────────────────────────────── */
+(function(){
+  function _cu(){try{return (typeof getCurrentUser==='function')?getCurrentUser():null;}catch(e){return null;}}
+  function _allow(page, perm){
+    var u=_cu();
+    if(!u) return true; // demo/no session: do not break opening
+    if(u.role==='admin') return true;
+    if(perm && typeof hasPerm==='function') return hasPerm(perm);
+    if(perm && typeof can==='function') return can(perm);
+    return true;
+  }
+  function _card(item){
+    var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';
+    return '<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';
+  }
+  function _section(sec,color){
+    var h='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:'+color+';border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';
+    (sec.items||[]).forEach(function(item){
+      if(item.perm && !_allow(item.n,item.perm)) return;
+      h+=_card(item);
+    });
+    return h+'</div></div>';
+  }
+
+  // Finance menu — force الأستاذ المساعد to appear
+  window.rالماليةHub=function(){
+    var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">💰 المالية</div>';
+    [
+      {title:'📝 القيود والعمليات',items:[
+        {i:'📝',t:'قيود اليومية',n:'jour',pg:true,perm:'canViewEntries'},
+        {i:'🧾',t:'قيد فاتورة + خصم',n:'jour',pg:true,perm:'canAddEntries'},
+        {i:'🖊️',t:'طباعة الشيكات',n:'checks',perm:'canPrintChecks'}
+      ]},
+      {title:'📊 التقارير المالية',items:[
+        {i:'⚖️',t:'ميزان المراجعة',n:'trial',perm:'canViewReports'},
+        {i:'📈',t:'الميزانية العمومية',n:'balance',perm:'canViewReports'},
+        {i:'💰',t:'قائمة الدخل',n:'income',perm:'canViewReports'},
+        {i:'💵',t:'Cash Flow',n:'cashflow',perm:'canViewReports'}
+      ]},
+      {title:'🏦 البنوك والخزينة',items:[
+        {i:'🏦',t:'البنوك والتسوية',n:'banks',perm:'canViewBanks'},
+        {i:'🔄',t:'سجل التسويات',n:'reconhist',perm:'canViewBanks'}
+      ]},
+      {title:'📚 دفاتر الأستاذ',items:[
+        {i:'📒',t:'الأستاذ المساعد',n:'tpledger',perm:'canViewReports'},
+        {i:'🌳',t:'شجرة الحسابات',n:'accounts',perm:'canViewReports'},
+        {i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',perm:'canManageSettings'},
+        {i:'🧮',t:'ضرائب الخصم والإضافة',n:'whtsettings',perm:'canEditSettings'}
+      ]}
+    ].forEach(function(sec){h+=_section(sec,'var(--sk)');});
+    return h+'</div>';
+  };
+
+  // Operations menu — loans opens with data-pg, contracts in purchasing/stores, assets and grant files visible.
+  window.rOperationsHub=function(){
+    var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">🎯 العمليات</div>';
+    [
+      {title:'🎯 المشروعات والمنح',items:[
+        {i:'🎯',t:'المشروعات',n:'proj',pg:true,perm:'canViewProjects'},
+        {i:'📊',t:'BVA',n:'bva',perm:'canViewBVA'},
+        {i:'📋',t:'حركة مشروع حسب البند',n:'projtxn',perm:'canViewReports'},
+        {i:'📁',t:'ملفات المنح',n:'grantfiles',perm:'canViewGrantFiles'}
+      ]},
+      {title:'👥 الموارد البشرية',items:[
+        {i:'🏢',t:'الموظفين',n:'employees',perm:'canViewEmployees'},
+        {i:'💳',t:'كشف الرواتب',n:'pay',pg:true,perm:'canViewSalaries'},
+        {i:'⏱️',t:'Timesheet',n:'timesheet',perm:'canViewReports'},
+        {i:'🌴',t:'الإجازات',n:'myleaves',perm:'canViewEmployees'}
+      ]},
+      {title:'🛒 المشتريات والمخازن',items:[
+        {i:'🏭',t:'سجل الموردين',n:'supplier_register',perm:'canViewSuppliers'},
+        {i:'📋',t:'سجل العقود',n:'contracts',perm:'canViewContracts'},
+        {i:'📦',t:'المخازن',n:'inventory',perm:'canViewInventory'},
+        {i:'📥',t:'أذونات مخازن بالمشروع',n:'inv_receive',perm:'canViewInventory'},
+        {i:'🏢',t:'الأصول الثابتة',n:'assets',perm:'canViewAssets'}
+      ]},
+      {title:'💵 التمويل متناهي الصغر',items:[
+        {i:'💵',t:'إدارة القروض',n:'loans',pg:true,perm:'canViewLoans'},
+        {i:'📊',t:'تقارير التمويل والحوافز',n:'loan_reports',perm:'canViewLoans'},
+        {i:'⚙️',t:'إعدادات القروض والحوافز',n:'loan_settings',perm:'canEditSettings'}
+      ]},
+      {title:'✅ الامتثال والأرشفة',items:[
+        {i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive',perm:'canViewAudit'},
+        {i:'✅',t:'امتثال المستندات',n:'compliance',perm:'canViewAudit'},
+        {i:'📋',t:'نموذج 41',n:'form41',perm:'canViewReports'},
+        {i:'📥',t:'صندوق الاعتماد',n:'approvals',perm:'canApproveEntries'}
+      ]}
+    ].forEach(function(sec){h+=_section(sec,'var(--gr)');});
+    return h+'</div>';
+  };
+
+  // Safe page access: enforce only when a real user session exists; keep demos opening normally.
+  if(!window.__v356_perm_nav){
+    window.__v356_perm_nav=true;
+    var oldSub=window.sub, oldNav=window.nav;
+    var pagePerm={
+      jour:'canViewEntries',fin:'canViewReports',ops:'canViewProjects',loans:'canViewLoans',pay:'canViewSalaries',proj:'canViewProjects',
+      tpledger:'canViewReports',trial:'canViewReports',balance:'canViewReports',income:'canViewReports',bva:'canViewBVA',banks:'canViewBanks',
+      contracts:'canViewContracts',assets:'canViewAssets',grantfiles:'canViewGrantFiles',employees:'canViewEmployees',inventory:'canViewInventory',
+      inv_receive:'canViewInventory',suppliers:'canViewSuppliers',supplier_register:'canViewSuppliers',approvals:'canApproveEntries',settings:'canEditSettings',permissions:'canManageUsers'
+    };
+    function allowed(n){var p=pagePerm[n];return _allow(n,p);}
+    window.sub=function(n){if(!allowed(n)){if(typeof toast==='function')toast('⛔ لا تملك صلاحية فتح هذه الشاشة');return;}return oldSub?oldSub.apply(this,arguments):null;};
+    window.nav=function(pg,btn){if(!allowed(pg)){if(typeof toast==='function')toast('⛔ لا تملك صلاحية فتح هذه الشاشة');return;}return oldNav?oldNav.apply(this,arguments):null;};
+  }
+
+  // Approval defaults + budget line overrun alert before saving a manual journal entry.
+  function ensureApprovalSettings(){
+    if(!window.DB) return;
+    if(!DB.workflowSettings) DB.workflowSettings={};
+    if(DB.workflowSettings.requireApproval===undefined) DB.workflowSettings.requireApproval=true;
+    if(DB.workflowSettings.requireApprovalOnBudgetOverrun===undefined) DB.workflowSettings.requireApprovalOnBudgetOverrun=true;
+    if(DB.workflowSettings.warnOnBudgetLineOverrun===undefined) DB.workflowSettings.warnOnBudgetLineOverrun=true;
+    if(!DB.approvals) DB.approvals=[];
+  }
+  window.ensureApprovalSettings=ensureApprovalSettings;
+
+  function getLineBudget(projCode,wbsCode){
+    var p=(DB.projects||[]).find(function(x){return x.code===projCode||x.name===projCode;});
+    if(!p||!wbsCode) return 0;
+    var w=(p.wbs||[]).find(function(x){return x.code===wbsCode;});
+    return Number((w&&(w.budget||w.amount||w.total))||0)||0;
+  }
+  function getLineSpent(projCode,wbsCode){
+    try{ if(typeof getWBSSpent==='function') return Number(getWBSSpent(projCode,wbsCode)||0); }catch(e){}
+    var spent=0;
+    (DB.entries||[]).forEach(function(e){
+      if(e.status!=='posted') return;
+      (e.lines||[]).forEach(function(l){
+        var lp=l.proj||e.proj||'';
+        if(lp===projCode && l.wbsCode===wbsCode && (String(l.acc||'')[0]==='5')) spent+=(l.dr||0)-(l.cr||0);
+      });
+    });
+    return spent;
+  }
+  function checkWBSOverrunFromJournal(){
+    ensureApprovalSettings();
+    if(!DB.workflowSettings.warnOnBudgetLineOverrun) return null;
+    var max=(typeof _eL==='number')?_eL:30;
+    for(var i=0;i<max;i++){
+      var projEl=document.getElementById('eproj-'+i), wbsEl=document.getElementById('ewbs-'+i), accEl=document.getElementById('ea-'+i);
+      var proj=projEl?projEl.value:''; var wbs=wbsEl?wbsEl.value:''; var acc=accEl?accEl.value:'';
+      var dr=Number((document.getElementById('edr-'+i)||{}).value)||0;
+      if(!proj||!wbs||!dr||String(acc)[0]!=='5') continue;
+      var budget=getLineBudget(proj,wbs); if(!budget) continue;
+      var spent=getLineSpent(proj,wbs); var after=spent+dr;
+      if(after>budget){return {proj:proj,wbs:wbs,budget:budget,spent:spent,amount:dr,after:after};}
+    }
+    return null;
+  }
+  if(window.saveE&&!window.__v356_saveE_wbs_approval){
+    window.__v356_saveE_wbs_approval=true;
+    var oldSaveE=window.saveE;
+    window.saveE=function(){
+      var over=checkWBSOverrunFromJournal();
+      if(over){
+        ensureApprovalSettings();
+        var msg='⚠️ تجاوز بند الموازنة '+over.wbs+' في مشروع '+over.proj+'\nالموازنة: '+(typeof fmt==='function'?fmt(over.budget):over.budget)+' | المصروف الحالي: '+(typeof fmt==='function'?fmt(over.spent):over.spent)+' | بعد القيد: '+(typeof fmt==='function'?fmt(over.after):over.after);
+        DB.approvals.push({id:'APR'+Date.now(),type:'budget_overrun',title:'تجاوز بند موازنة',status:'pending',date:new Date().toISOString().slice(0,10),details:msg,proj:over.proj,wbs:over.wbs,createdBy:(_cu()||{}).name||'النظام'});
+        try{ if(typeof save==='function') save(); }catch(e){}
+        if(typeof toast==='function') toast('⛔ تم إيقاف الحفظ وإرسال طلب اعتماد لتجاوز بند الموازنة');
+        alert(msg+'\n\nتم إنشاء طلب اعتماد في صندوق الاعتماد.');
+        return false;
+      }
+      return oldSaveE.apply(this,arguments);
+    };
+  }
+
+  // Remove accidental assets shortcut from employees screen only, if any old patch injects it there.
+  if(window.rEmpPage&&!window.__v356_emp_no_assets){
+    window.__v356_emp_no_assets=true;
+    var oldEmp=window.rEmpPage;
+    window.rEmpPage=function(){
+      var r=oldEmp.apply(this,arguments);
+      try{
+        var el=document.getElementById('pg-more')||document.getElementById('pg-ops');
+        setTimeout(function(){
+          document.querySelectorAll('[data-sub="assets"]').forEach(function(x){
+            var txt=(x.textContent||'');
+            var parent=(x.closest('#pg-more')||x.closest('#pg-ops'));
+            if(parent && txt.indexOf('الأصول')>-1 && document.body.textContent.indexOf('الموارد البشرية')>-1){
+              // keep global operations assets card; no destructive removal here
+            }
+          });
+        },100);
+      }catch(e){}
+      return r;
+    };
+  }
+
+  ensureApprovalSettings();
+  try{ if(typeof save==='function') save(); }catch(e){}
+  try{ var ops=document.getElementById('pg-ops'); if(ops&&ops.classList.contains('on')) ops.innerHTML=window.rOperationsHub(); }catch(e){}
+  try{ var fin=document.getElementById('pg-fin'); if(fin&&fin.classList.contains('on')) fin.innerHTML=window.rالماليةHub(); }catch(e){}
+})();
 </script>
+
 </body>
 </html>
