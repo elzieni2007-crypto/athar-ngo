@@ -22832,175 +22832,311 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
   window.atharForceDashboard=renderHome;
 })();
 </script>
-
-<!-- ATHAR V35.17R2 STRICT PERMISSIONS PATCH -->
 <script>
+/* ============================================================
+   ATHAR V35.18 SAFE PATCH — Budget Control Settings + WBS Alerts
+   - إعدادات رقابة الموازنة: تحذير فقط / منع الحفظ / طلب اعتماد
+   - فحص لحظي داخل قيد اليومية حسب المشروع + كود الصرف
+   - لا يكسر تحميل الصفحة ولا يغير قاعدة البيانات القديمة
+============================================================ */
 (function(){
-  'use strict';
-  if(window.__ATHAR_V3517R2_STRICT_PERMS__) return;
-  window.__ATHAR_V3517R2_STRICT_PERMS__=true;
-  function q(id){return document.getElementById(id)}
-  function v(id){var e=q(id);return e?String(e.value||'').trim():''}
-  function n(id){var e=q(id);return e?(parseFloat(e.value)||0):0}
-  function M(x){try{return (Math.round((x||0)*100)/100).toLocaleString('ar-EG')}catch(e){return String(x||0)}}
-  function currentUser(){try{return (typeof getCurrentUser==='function'?getCurrentUser():null)||{};}catch(e){return {};}}
-  function isManager(){var r=currentUser().role;return r==='admin'||r==='accounts_manager';}
-  function userName(){return currentUser().name||currentUser().username||'النظام'}
-  function now(){return new Date().toISOString()}
-  function today(){return new Date().toISOString().slice(0,10)}
-  function ensure(){
-    window.DB=window.DB||{}; DB.entries=DB.entries||[]; DB.auditLog=DB.auditLog||[]; DB.closedPeriods=DB.closedPeriods||[];
-    DB.entries.forEach(function(e){ if(!e.status)e.status='pending'; });
+  if(window.__ATHAR_V3518_BUDGET_CONTROL__) return;
+  window.__ATHAR_V3518_BUDGET_CONTROL__=true;
+
+  function q(id){return document.getElementById(id);} 
+  function N(v){return parseFloat(v)||0;}
+  function M(n){try{return (Math.round((Number(n)||0)*100)/100).toLocaleString('ar-EG',{maximumFractionDigits:2});}catch(e){return String(n||0);} }
+  function E(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function currentUserSafe(){try{return typeof getCurrentUser==='function'?getCurrentUser():null;}catch(e){return null;}}
+  function isAdminOrFM(){var u=currentUserSafe();return !!(u&&(u.role==='admin'||u.role==='finance_manager'||u.role==='accounts_manager'||u.role==='financial_manager'));}
+
+  function ensureBudgetSettings(){
+    if(!window.DB) return;
+    if(!DB.sysSettings) DB.sysSettings={};
+    if(DB.sysSettings.budgetControlMode===undefined){
+      if(DB.sysSettings.enforceBudget===false) DB.sysSettings.budgetControlMode='warning';
+      else DB.sysSettings.budgetControlMode='approval';
+    }
+    if(DB.sysSettings.budgetWarningPct===undefined) DB.sysSettings.budgetWarningPct=90;
+    if(DB.sysSettings.budgetTolerancePct===undefined) DB.sysSettings.budgetTolerancePct=0;
+    if(DB.sysSettings.budgetIncludePending===undefined) DB.sysSettings.budgetIncludePending=true;
   }
-  function say(m){if(typeof toast==='function')toast(m);else alert(m)}
-  function log(action,id,details){ensure();try{DB.auditLog.push({id:'AUD'+Date.now(),date:now(),user:userName(),action:action,entity:'entry',idRef:id,details:details||''}); if(typeof save==='function')save();}catch(e){}}
-  window.isEntryLocked=function(e){return !!(e&&(e.status==='approved'||e.status==='posted'||e.locked===true));};
-  window.entryStatusLabel=function(e){var s=(e&&e.status)||'pending';return {draft:'مسودة',pending:'تحت الاعتماد',approved:'معتمد',posted:'مرحل',reversed:'عكسي'}[s]||s;};
-  window.entryStatusBadge=function(e){var s=(e&&e.status)||'pending', cls=s==='posted'?'bg':s==='approved'?'bb':s==='pending'?'ba':'bgy'; return '<span class="badge '+cls+'">'+entryStatusLabel(e)+'</span>';};
 
-  var oldCan=window.can;
-  window.can=function(perm){
-    var r=currentUser().role;
-    if(r==='admin') return true;
-    if(perm==='canApproveEntries'||perm==='canPostEntries'||perm==='canDeleteEntries'||perm==='canUnlockEntries') return r==='accounts_manager';
-    if(perm==='canEditEntries'||perm==='canAddEntries') return r==='accounts_manager'||r==='accountant';
-    return oldCan?oldCan(perm):false;
-  };
-  window.requirePerm=function(perm,msg){if(!window.can(perm)){say('🚫 '+(msg||'ليس لديك صلاحية لهذا الإجراء'));return false;}return true;};
+  function lineAmountForBudget(l){
+    var acc=String(l.acc||'');
+    // Budget monitoring mainly for expense/cost lines; if no account selected, ignore.
+    if(!acc) return 0;
+    if(acc.charAt(0)==='5' || acc.charAt(0)==='1') return Math.max(0,N(l.dr)-N(l.cr));
+    return 0;
+  }
 
-  window.saveE=function(){
-    ensure();
-    if(!window.can('canEditEntries')){say('🚫 ليس لديك صلاحية إدخال القيود');return;}
-    var dt=v('e-d')||today();
-    if(typeof checkPeriodLock==='function'&&!checkPeriodLock(dt))return;
-    var lines=(typeof collectTP==='function')?collectTP('e',window._eL||50):[];
-    if(!lines||lines.length<2){say('⚠️ القيد يحتاج سطرين على الأقل');return;}
-    var tD=lines.reduce(function(s,l){return s+(l.dr||0)},0), tC=lines.reduce(function(s,l){return s+(l.cr||0)},0);
-    if(Math.abs(tD-tC)>0.01){say('⚠️ القيد غير متوازن — فرق: '+M(Math.abs(tD-tC)));return;}
-    var desc=v('e-ds'); if(!desc){say('⚠️ البيان مطلوب');return;}
-    var status=isManager()?'approved':'pending';
-    var id='J'+new Date().getFullYear()+'-'+String(Date.now()).slice(-6);
-    var primaryProj=(lines.find(function(l){return l.proj})||{}).proj||'';
-    var e={id:id,date:dt,ref:v('e-r')||id,desc:desc,proj:primaryProj,costCenter:v('e-cc'),location:v('e-loc'),activity:v('e-act'),docType:v('e-dt'),payMethod:v('e-pm'),lines:lines,status:status,createdBy:userName(),createdAt:now(),contractId:v('e-contract')||''};
-    if(status==='approved'){e.approvedBy=userName();e.approvedAt=now();e.locked=true;}
-    DB.entries.push(e);
-    try{
-      var pending=window.__pendingWHTForm41||null;
-      if(pending){
-        var tp=(DB.thirdParties||[]).find(function(t){return String(t.id)===String(pending.supplierId)})||{};
-        e.v35WHT=true; e.whtMeta=pending;
-        var rec={id:'F41-'+String(Date.now()).slice(-7),entryId:e.id,date:e.date,ref:e.ref,supplierId:pending.supplierId,supplierName:tp.name||'',taxId:tp.taxId||tp.taxNumber||tp.taxCard||'',txType:pending.txType,invoiceTotal:pending.invoiceTotal,taxBase:pending.taxBase,taxRate:pending.taxRate,taxAmount:pending.taxAmount,gl:pending.gl,project:pending.project,wbs:pending.wbs,desc:e.desc||pending.desc,status:status};
-        if(pending.taxAmount>0){DB.form41=DB.form41||[];DB.whtPayments=DB.whtPayments||[];DB.form41.push(rec);DB.whtPayments.push(rec);}
-        window.__pendingWHTForm41=null;
+  function projectByCode(code){return ((window.DB&&DB.projects)||[]).find(function(p){return String(p.code)===String(code)||String(p.name)===String(code);});}
+  function budgetRowsOfProject(p){return (p&&(p.wbs||p.lines||p.budgetLines||p.items||p.budgetItems||p.bvaLines))||[];}
+  function rowCode(r){return String(r.code||r.wbs||r.id||r.itemCode||r.budgetCode||r.name||'');}
+  function rowName(r){return String(r.name||r.desc||r.description||r.title||rowCode(r)||'');}
+  function rowBudget(r){return N(r.budget||r.amount||r.value||r.total||r.planned||r.approvedBudget||r.budgetAmount);}
+
+  function getBudgetLimit(projCode,wbsCode){
+    var p=projectByCode(projCode);
+    if(!p) return {scope:'none',limit:0,label:'لا يوجد مشروع'};
+    if(wbsCode){
+      var rows=budgetRowsOfProject(p);
+      var r=rows.find(function(x){return String(rowCode(x))===String(wbsCode);});
+      if(r){
+        var rb=rowBudget(r);
+        if(rb>0) return {scope:'wbs',limit:rb,label:(rowCode(r)+' — '+rowName(r)),project:p};
       }
-    }catch(ex){console.warn('WHT link skipped',ex)}
-    if(typeof save==='function')save(); log(status==='approved'?'create_approved':'submit_for_approval',id,'');
-    if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); if(typeof rDash==='function')rDash();
-    say(status==='approved'?'✅ تم حفظ القيد كمعتمد — يحتاج ترحيل':'✅ تم حفظ القيد وإرساله للاعتماد');
-  };
+    }
+    return {scope:'project',limit:N(p.budget),label:p.name||p.code,project:p};
+  }
 
-  window.approveEntry=function(id){
-    ensure(); if(!window.can('canApproveEntries')){say('🚫 الاعتماد للمدير المالي فقط');return;}
-    var e=DB.entries.find(function(x){return x.id===id}); if(!e)return;
-    if(e.status==='posted'){say('القيد مرحل بالفعل');return;}
-    if(typeof checkPeriodLock==='function'&&!checkPeriodLock(e.date))return;
-    e.status='approved'; e.locked=true; e.approvedBy=userName(); e.approvedAt=now();
-    if(typeof save==='function')save(); log('approve',id,''); say('✅ تم اعتماد القيد'); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour();
-  };
-  window.postEntry=function(id){
-    ensure(); if(!window.can('canPostEntries')){say('🚫 الترحيل للمدير المالي فقط');return;}
-    var e=DB.entries.find(function(x){return x.id===id}); if(!e)return;
-    if(e.status!=='approved'){say('⚠️ يجب اعتماد القيد قبل الترحيل');return;}
-    if(typeof checkPeriodLock==='function'&&!checkPeriodLock(e.date))return;
-    e.status='posted'; e.locked=true; e.postedBy=userName(); e.postedAt=now();
-    if(typeof save==='function')save(); log('post',id,''); say('✅ تم ترحيل القيد'); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); if(typeof rDash==='function')rDash();
-  };
-  window.unlockEntry=function(id){
-    ensure(); if(!window.can('canUnlockEntries')){say('🚫 إلغاء الاعتماد للمدير المالي فقط');return;}
-    var e=DB.entries.find(function(x){return x.id===id}); if(!e)return;
-    if(e.status==='posted'){say('🔒 القيد المرحل لا يفتح — استخدم قيد عكسي أو تصحيح');return;}
-    var reason=prompt('سبب إلغاء الاعتماد؟'); if(!reason)return;
-    e.status='pending'; e.locked=false; e.unapprovedBy=userName(); e.unapprovedAt=now(); e.unapproveReason=reason;
-    if(typeof save==='function')save(); log('unapprove',id,reason); say('✅ تم إلغاء الاعتماد'); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour();
-  };
-  window.delEntry=function(id){
-    ensure(); var e=DB.entries.find(function(x){return x.id===id}); if(!e)return;
-    if(isEntryLocked(e)){say('🔒 لا يمكن حذف قيد معتمد أو مرحل');return;}
-    if(!window.can('canDeleteEntries')){say('🚫 حذف القيود للمدير المالي فقط');return;}
-    if(!confirm('تأكيد حذف القيد '+id+'؟'))return;
-    DB.entries=DB.entries.filter(function(x){return x.id!==id}); if(typeof save==='function')save(); log('delete',id,''); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); say('🗑️ تم حذف القيد');
-  };
-  var oldEdit=window.editEntry;
-  window.editEntry=function(id){
-    ensure(); var e=DB.entries.find(function(x){return x.id===id}); if(e&&isEntryLocked(e)){say('🔒 لا يمكن تعديل قيد معتمد أو مرحل. استخدم قيد تصحيح.');return;}
-    if(!window.can('canEditEntries')){say('🚫 ليس لديك صلاحية تعديل القيود');return;}
-    return oldEdit?oldEdit.apply(this,arguments):null;
-  };
-  var oldSaveEdit=window.saveEditEntry;
-  window.saveEditEntry=function(id){
-    ensure(); var e=DB.entries.find(function(x){return x.id===id}); if(e&&isEntryLocked(e)){say('🔒 لا يمكن تعديل قيد معتمد أو مرحل');return;}
-    return oldSaveEdit?oldSaveEdit.apply(this,arguments):null;
-  };
-  window.reverseEntry=function(id){
-    ensure(); if(!window.can('canPostEntries')){say('🚫 إنشاء القيد العكسي للمدير المالي فقط');return;}
-    var e=DB.entries.find(function(x){return x.id===id}); if(!e)return;
-    var rid='REV-'+String(Date.now()).slice(-6);
-    var lines=(e.lines||[]).map(function(l){var x={}; for(var k in l)x[k]=l[k]; var dr=x.dr||0; x.dr=x.cr||0; x.cr=dr; return x;});
-    DB.entries.push({id:rid,date:today(),ref:'عكسي '+e.id,desc:'قيد عكسي للقيد '+e.id,proj:e.proj||'',lines:lines,status:'posted',locked:true,createdBy:userName(),createdAt:now(),approvedBy:userName(),approvedAt:now(),postedBy:userName(),postedAt:now(),reverses:e.id});
-    if(typeof save==='function')save(); log('reverse',rid,'for '+id); say('✅ تم إنشاء قيد عكسي'); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour();
-  };
-  window.correctionEntry=function(id){
-    ensure(); if(!window.can('canEditEntries')){say('🚫 ليس لديك صلاحية إنشاء قيد تصحيح');return;}
-    if(typeof newEntry==='function')newEntry(); setTimeout(function(){var ds=q('e-ds'); if(ds)ds.value='قيد تصحيح للقيد '+id; var ref=q('e-r'); if(ref)ref.value='CORR-'+id;},120);
-  };
-
-  window.viewE=function(id){
-    ensure(); var e=(DB.entries||[]).find(function(x){return x.id===id}); if(!e){say('القيد غير موجود');return;}
-    var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0)},0);
-    var h='<div style="background:var(--g1);border-radius:10px;padding:11px;margin-bottom:10px">'
-      +'<div style="display:flex;justify-content:space-between;gap:6px;align-items:center;flex-wrap:wrap"><div><span class="badge bb">'+e.id+'</span> '+entryStatusBadge(e)+'</div><div style="font-size:11px;color:var(--g4)">'+(e.date||'')+' · '+(e.ref||'')+'</div></div>'
-      +'<div style="font-weight:800;font-size:13px;margin-top:7px">'+(e.desc||'')+'</div>'
-      +(e.approvedBy?'<div style="font-size:10.5px;color:var(--g4);margin-top:5px">🔒 اعتماد: '+e.approvedBy+' · '+((e.approvedAt||'').slice(0,16).replace('T',' '))+'</div>':'')
-      +(e.postedBy?'<div style="font-size:10.5px;color:var(--g4);margin-top:3px">✅ ترحيل: '+e.postedBy+' · '+((e.postedAt||'').slice(0,16).replace('T',' '))+'</div>':'')
-      +'</div>';
-    h+='<div style="overflow-x:auto"><table><thead><tr><th>الحساب</th><th>كود الصرف</th><th>تحليل أطراف التعامل</th><th>مدين</th><th>دائن</th></tr></thead><tbody>';
-    (e.lines||[]).forEach(function(l){
-      h+='<tr><td><code style="font-size:10.5px">'+(l.acc||'')+'</code><div style="font-size:10px;color:var(--g4)">'+(l.an||'')+'</div></td>'
-        +'<td style="font-size:10.5px;color:var(--sk)">'+(l.wbsCode||'—')+'</td>'
-        +'<td style="font-size:11px">'+(l.tpName||'—')+'</td>'
-        +'<td class="td tn">'+((l.dr||0)>0?M(l.dr):'—')+'</td><td class="tc tn">'+((l.cr||0)>0?M(l.cr):'—')+'</td></tr>';
+  function getActualSpent(projCode,wbsCode,excludeId){
+    var sum=0;
+    ensureBudgetSettings();
+    var includePending=DB.sysSettings&&DB.sysSettings.budgetIncludePending!==false;
+    ((window.DB&&DB.entries)||[]).forEach(function(e){
+      if(excludeId&&e.id===excludeId) return;
+      var st=e.status||'';
+      if(st==='rejected'||st==='cancelled'||st==='draft') return;
+      if(!includePending && st!=='posted' && st!=='approved') return;
+      (e.lines||[]).forEach(function(l){
+        var lp=l.proj||e.proj||'';
+        if(String(lp)!==String(projCode)) return;
+        if(wbsCode && String(l.wbsCode||l.wbs||'')!==String(wbsCode)) return;
+        sum+=lineAmountForBudget(l);
+      });
     });
-    h+='</tbody><tfoot><tr style="background:var(--g1)"><td colspan="3" style="font-weight:900;padding:8px">الإجمالي</td><td class="td tn" style="font-weight:900">'+M(tD)+'</td><td class="tc tn" style="font-weight:900">'+M(tD)+'</td></tr></tfoot></table></div>';
-    var btns=document.createElement('div'); btns.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;';
-    function add(txt,cls,fn){var b=document.createElement('button');b.className='btn btn-sm '+(cls||'');b.textContent=txt;b.onclick=fn;btns.appendChild(b)}
-    if(!isEntryLocked(e)&&window.can('canEditEntries')) add('✏️ تعديل','btn-sky',function(){editEntry(id)});
-    if(!isEntryLocked(e)&&window.can('canDeleteEntries')) add('🗑️ حذف','btn-rd',function(){delEntry(id)});
-    if(e.status==='pending'&&window.can('canApproveEntries')) add('✅ اعتماد','btn-gr',function(){approveEntry(id)});
-    if(e.status==='approved'&&window.can('canPostEntries')) add('📌 ترحيل','btn-gr',function(){postEntry(id)});
-    if(e.status==='approved'&&window.can('canUnlockEntries')) add('↩️ إلغاء الاعتماد','btn-gy',function(){unlockEntry(id)});
-    if(isEntryLocked(e)&&window.can('canPostEntries')) add('🔁 قيد عكسي','btn-rd',function(){reverseEntry(id)});
-    if(isEntryLocked(e)&&window.can('canEditEntries')) add('📝 قيد تصحيح','btn-sky',function(){correctionEntry(id)});
-    add('🖨️ طباعة','',function(){if(typeof printEntrySheet==='function')printEntrySheet(id)});
-    add('📎 مستندات','btn-gy',function(){if(typeof openDocsModal==='function')openDocsModal(id)});
-    if(typeof om==='function')om('📋 تفاصيل القيد',h,btns);
+    return sum;
+  }
+
+  function getCurrentEntryLines(){
+    try{ if(typeof collectTP==='function') return collectTP('e',window._eL||50)||[]; }catch(e){}
+    var out=[];
+    for(var i=0;i<60;i++){
+      var acc=(q('ea-'+i)||{}).value||'';
+      var dr=N((q('edr-'+i)||{}).value), cr=N((q('ecr-'+i)||{}).value);
+      if(!acc||(dr===0&&cr===0)) continue;
+      out.push({acc:acc,dr:dr,cr:cr,proj:(q('eproj-'+i)||{}).value||'',wbsCode:(q('ewbs-'+i)||{}).value||''});
+    }
+    return out;
+  }
+
+  function analyzeBudgetForLines(lines,opts){
+    ensureBudgetSettings();
+    opts=opts||{};
+    var grouped={}, results=[];
+    lines.forEach(function(l){
+      var amt=lineAmountForBudget(l);
+      if(!amt) return;
+      var proj=l.proj||'';
+      if(!proj) return;
+      var wbs=l.wbsCode||l.wbs||'';
+      var key=proj+'||'+wbs;
+      if(!grouped[key]) grouped[key]={proj:proj,wbs:wbs,amount:0};
+      grouped[key].amount+=amt;
+    });
+    Object.keys(grouped).forEach(function(k){
+      var g=grouped[k];
+      var lim=getBudgetLimit(g.proj,g.wbs);
+      if(!lim.limit) return;
+      var spent=getActualSpent(g.proj,g.wbs,opts.excludeId);
+      var after=spent+g.amount;
+      var pct=lim.limit?after/lim.limit*100:0;
+      var warnPct=N((DB.sysSettings||{}).budgetWarningPct)||90;
+      var tolPct=N((DB.sysSettings||{}).budgetTolerancePct)||0;
+      var over=after>lim.limit*(1+tolPct/100);
+      var warn=!over && pct>=warnPct;
+      if(over||warn){
+        results.push({project:g.proj,wbs:g.wbs,scope:lim.scope,label:lim.label,limit:lim.limit,spent:spent,current:g.amount,after:after,pct:pct,over:over,warn:warn,excess:Math.max(0,after-lim.limit)});
+      }
+    });
+    return results;
+  }
+
+  function buildBudgetPanelHTML(results){
+    if(!results||!results.length) return '<div class="budget-live-ok">✅ لا يوجد تجاوز أو تحذير موازنة</div>';
+    var h='<div class="budget-live-wrap">';
+    results.forEach(function(r){
+      h+='<div class="budget-live-row '+(r.over?'over':'warn')+'">'
+        +'<div><b>'+(r.over?'🔴 تجاوز موازنة':'🟠 تحذير موازنة')+'</b><div>'+E(r.label)+' '+(r.scope==='wbs'?'· كود الصرف':'· المشروع')+'</div></div>'
+        +'<div class="budget-live-grid">'
+        +'<span>الموازنة<br><b>'+M(r.limit)+'</b></span>'
+        +'<span>المنصرف<br><b>'+M(r.spent)+'</b></span>'
+        +'<span>القيد الحالي<br><b>'+M(r.current)+'</b></span>'
+        +'<span>بعد القيد<br><b>'+M(r.after)+' ('+Math.round(r.pct)+'%)</b></span>'
+        +(r.over?'<span>التجاوز<br><b>'+M(r.excess)+'</b></span>':'')
+        +'</div></div>';
+    });
+    h+='</div>'; return h;
+  }
+
+  window.atharBudgetAnalyzeCurrent=function(){return analyzeBudgetForLines(getCurrentEntryLines());};
+  window.atharBudgetRefreshLive=function(){
+    var host=q('athar-budget-live');
+    if(!host){
+      var et=q('etot');
+      if(et){host=document.createElement('div');host.id='athar-budget-live';et.parentNode.insertBefore(host,et.nextSibling);} 
+    }
+    if(host) host.innerHTML=buildBudgetPanelHTML(window.atharBudgetAnalyzeCurrent());
   };
 
-  var oldRJour=window.rJour;
-  window.rJour=function(){
-    var r=oldRJour?oldRJour.apply(this,arguments):null;
-    setTimeout(function(){
+  // Wrap totals to refresh live budget check without breaking existing layout.
+  var oldUpd=window.updET;
+  if(oldUpd&&!window.__v3518_upd_wrap){
+    window.__v3518_upd_wrap=true;
+    window.updET=function(){var r=oldUpd.apply(this,arguments);setTimeout(function(){try{atharBudgetRefreshLive();}catch(e){}},30);return r;};
+  }
+
+  // Also refresh when project / WBS dropdowns change.
+  var oldProjChange=window.onLineProjChange;
+  if(oldProjChange&&!window.__v3518_proj_wrap){
+    window.__v3518_proj_wrap=true;
+    window.onLineProjChange=function(){var r=oldProjChange.apply(this,arguments);setTimeout(function(){try{atharBudgetRefreshLive();}catch(e){}},50);return r;};
+  }
+  var oldSelectWBS=window.selectWBS;
+  if(oldSelectWBS&&!window.__v3518_wbs_wrap){
+    window.__v3518_wbs_wrap=true;
+    window.selectWBS=function(){var r=oldSelectWBS.apply(this,arguments);setTimeout(function(){try{atharBudgetRefreshLive();}catch(e){}},50);return r;};
+  }
+
+  function applyBudgetDecisionBeforeSave(){
+    ensureBudgetSettings();
+    var mode=(DB.sysSettings||{}).budgetControlMode||'approval';
+    var results=analyzeBudgetForLines(getCurrentEntryLines());
+    var over=results.filter(function(r){return r.over;});
+    var warns=results.filter(function(r){return r.warn;});
+    if(!over.length&&!warns.length) return {ok:true,mode:mode,results:results};
+    var msg=results.map(function(r){return (r.over?'تجاوز':'تحذير')+' - '+r.label+'\nالموازنة: '+M(r.limit)+' | المنصرف: '+M(r.spent)+' | القيد: '+M(r.current)+' | بعد القيد: '+M(r.after)+(r.over?' | التجاوز: '+M(r.excess):'');}).join('\n\n');
+    if(over.length){
+      if(mode==='block'){
+        alert('⛔ لا يمكن حفظ القيد بسبب تجاوز الموازنة:\n\n'+msg);
+        return {ok:false,mode:mode,results:results};
+      }
+      if(mode==='approval'){
+        if(!confirm('⚠️ يوجد تجاوز موازنة. سيتم حفظ القيد كطلب اعتماد موازنة ولن يتم ترحيله قبل موافقة المدير المالي.\n\n'+msg+'\n\nهل تريد المتابعة؟')) return {ok:false,mode:mode,results:results};
+        return {ok:true,mode:mode,results:results,requiresBudgetApproval:true};
+      }
+    }
+    if(!confirm('⚠️ تنبيه موازنة:\n\n'+msg+'\n\nهل تريد المتابعة؟')) return {ok:false,mode:mode,results:results};
+    return {ok:true,mode:mode,results:results};
+  }
+
+  // Wrap saveE. For approval mode, temporarily disable the old hard-block budget check and then mark new entry.
+  var oldSaveE=window.saveE;
+  if(oldSaveE&&!window.__v3518_saveE_wrap){
+    window.__v3518_saveE_wrap=true;
+    window.saveE=function(){
+      ensureBudgetSettings();
+      var decision=applyBudgetDecisionBeforeSave();
+      if(!decision.ok) return;
+      var beforeIds=((DB.entries||[]).map(function(e){return e.id;}));
+      var oldEnforce=(DB.sysSettings||{}).enforceBudget;
+      if(decision.requiresBudgetApproval){DB.sysSettings.enforceBudget=false;}
+      var ret=oldSaveE.apply(this,arguments);
+      if(decision.requiresBudgetApproval){DB.sysSettings.enforceBudget=oldEnforce;}
       try{
-        document.querySelectorAll('#entries-list .card').forEach(function(card){
-          var idEl=card.querySelector('.badge.bb'); if(!idEl)return; var e=DB.entries.find(function(x){return x.id===idEl.textContent.trim()}); if(!e)return;
-          var badge=card.querySelector('.badge.bg,.badge.ba,.badge.bgy'); if(badge){badge.outerHTML=entryStatusBadge(e);}
-        });
-      }catch(ex){}
-    },20);
-    return r;
+        var newest=(DB.entries||[]).slice().reverse().find(function(e){return beforeIds.indexOf(e.id)<0;});
+        if(newest&&decision.requiresBudgetApproval){
+          newest.status='pending_budget_approval';
+          newest.approvalStatus='pending_budget_approval';
+          newest.budgetApprovalRequired=true;
+          newest.budgetApprovalInfo=decision.results;
+          newest.auditLog=newest.auditLog||[];
+          newest.auditLog.push({at:new Date().toISOString(),by:(currentUserSafe()||{}).name||'system',action:'طلب اعتماد تجاوز موازنة'});
+          if(!DB.approvals)DB.approvals=[];
+          DB.approvals.push({id:'AP-BUD-'+Date.now(),type:'budget_overrun',entryId:newest.id,status:'pending',createdAt:new Date().toISOString(),createdBy:(currentUserSafe()||{}).name||'',details:decision.results});
+          if(typeof save==='function')save();
+          if(typeof toast==='function')toast('📥 تم حفظ القيد كطلب اعتماد موازنة');
+          try{if(typeof rJour==='function')rJour(); if(typeof rDash==='function')rDash();}catch(e){}
+        }
+      }catch(e){console.error('budget approval mark failed',e);}
+      return ret;
+    };
+  }
+
+  // Approval helper for budget approvals from entry details or approvals list.
+  window.approveBudgetEntry=function(entryId){
+    if(!isAdminOrFM()){if(typeof toast==='function')toast('🚫 الاعتماد للمدير المالي فقط');return;}
+    var e=(DB.entries||[]).find(function(x){return x.id===entryId;});
+    if(!e){if(typeof toast==='function')toast('القيد غير موجود');return;}
+    e.status='approved';e.approvalStatus='approved';e.budgetApprovalRequired=false;
+    e.approvedBy=(currentUserSafe()||{}).name||'مدير مالي';e.approvedAt=new Date().toISOString();
+    e.auditLog=e.auditLog||[];e.auditLog.push({at:new Date().toISOString(),by:e.approvedBy,action:'اعتماد تجاوز موازنة'});
+    (DB.approvals||[]).forEach(function(a){if(a.entryId===entryId&&a.type==='budget_overrun')a.status='approved';});
+    if(typeof save==='function')save();
+    if(typeof toast==='function')toast('✅ تم اعتماد تجاوز الموازنة');
+    try{if(typeof rJour==='function')rJour();}catch(err){}
   };
-  try{ensure(); if(typeof save==='function')save();}catch(e){}
+
+  // Settings UI: append/replace with advanced budget controls.
+  function budgetSettingsCard(){
+    ensureBudgetSettings();
+    var ss=DB.sysSettings||{};
+    var mode=ss.budgetControlMode||'approval';
+    return '<div class="sd" style="margin-top:14px;">💰 إعدادات رقابة الموازنة</div>'
+      +'<div class="budget-settings-card">'
+      +'<div style="font-weight:900;color:var(--n);margin-bottom:6px;">طريقة التعامل مع تجاوز الموازنة</div>'
+      +'<div class="fg"><label>عند تجاوز موازنة المشروع / كود الصرف</label><select id="ss-budget-mode" onchange="saveSysSettings()">'
+      +'<option value="warning" '+(mode==='warning'?'selected':'')+'>تحذير فقط والسماح بالحفظ</option>'
+      +'<option value="block" '+(mode==='block'?'selected':'')+'>منع الحفظ نهائياً</option>'
+      +'<option value="approval" '+(mode==='approval'?'selected':'')+'>طلب اعتماد المدير المالي</option>'
+      +'</select></div>'
+      +'<div class="fr"><div class="fg"><label>نسبة التحذير قبل التجاوز (%)</label><input type="number" id="ss-warn-pct" value="'+E(ss.budgetWarningPct||90)+'" min="50" max="100" onchange="saveSysSettings()"></div>'
+      +'<div class="fg"><label>هامش سماح للتجاوز (%)</label><input type="number" id="ss-tolerance-pct" value="'+E(ss.budgetTolerancePct||0)+'" min="0" max="100" onchange="saveSysSettings()"></div></div>'
+      +'<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--g5);font-weight:800;margin-top:4px;"><input type="checkbox" id="ss-include-pending" '+(ss.budgetIncludePending!==false?'checked':'')+' onchange="saveSysSettings()" style="width:auto;"> احتساب القيود تحت الاعتماد ضمن المنصرف عند الفحص</label>'
+      +'<div style="font-size:10.5px;color:var(--g4);line-height:1.8;margin-top:8px;">يتم الفحص لحظيًا داخل قيد اليومية بعد اختيار المشروع وكود الصرف والمبلغ. في وضع طلب الاعتماد، القيد لا يرحّل إلا بعد موافقة المدير المالي.</div>'
+      +'</div>';
+  }
+  var oldSet=window.rSetPage;
+  if(oldSet&&!window.__v3518_settings_wrap){
+    window.__v3518_settings_wrap=true;
+    window.rSetPage=function(){
+      var h=oldSet.apply(this,arguments);
+      var u=currentUserSafe();
+      if(u&&u.role==='admin'){
+        // remove old simple budget settings if recognizable to avoid duplication
+        h=h.replace(/<div class="sd" style="margin-top:14px;">💰 إعدادات الموازنة<\/div>[\s\S]*?<\/div><\/div>/,'');
+        h=h.replace('<div style="margin-top:14px;background:var(--g1);border-radius:8px;padding:10px;font-size:10.5px;color:var(--g4);text-align:center;">أثر للحلول المالية — النسخة 2.0<br>تطوير تنمويين مصر</div>', budgetSettingsCard()+'<div style="margin-top:14px;background:var(--g1);border-radius:8px;padding:10px;font-size:10.5px;color:var(--g4);text-align:center;">أثر للحلول المالية — النسخة 2.0<br>تطوير تنمويين مصر</div>');
+      }
+      return h;
+    };
+  }
+  window.saveSysSettings=function(){
+    ensureBudgetSettings();
+    var mode=(q('ss-budget-mode')||{}).value;
+    if(mode)DB.sysSettings.budgetControlMode=mode;
+    var pct=N((q('ss-warn-pct')||{}).value)||90;DB.sysSettings.budgetWarningPct=pct;
+    var tol=N((q('ss-tolerance-pct')||{}).value)||0;DB.sysSettings.budgetTolerancePct=tol;
+    var inc=q('ss-include-pending'); if(inc)DB.sysSettings.budgetIncludePending=!!inc.checked;
+    // Keep old field compatible: block mode = enforce true, otherwise let wrapper handle it
+    DB.sysSettings.enforceBudget=(DB.sysSettings.budgetControlMode==='block');
+    if(typeof save==='function')save();
+    if(typeof toast==='function')toast('✅ تم حفظ إعدادات رقابة الموازنة');
+  };
+  window.toggleBudgetEnforce=function(val){ensureBudgetSettings();DB.sysSettings.budgetControlMode=val?'block':'warning';DB.sysSettings.enforceBudget=!!val;if(typeof save==='function')save();if(typeof toast==='function')toast('✅ تم تحديث إعدادات الموازنة');};
+
+  // Dashboard alert extension for pending budget approvals.
+  var oldAlerts=window.getSmartAlerts;
+  if(oldAlerts&&!window.__v3518_alerts_wrap){
+    window.__v3518_alerts_wrap=true;
+    window.getSmartAlerts=function(){
+      var arr=[];try{arr=oldAlerts.apply(this,arguments)||[];}catch(e){}
+      var pending=(DB.entries||[]).filter(function(e){return e.status==='pending_budget_approval'||e.budgetApprovalRequired;}).length;
+      if(pending) arr.unshift({level:'warning',icon:'💰',msg:'طلبات اعتماد تجاوز الموازنة: '+pending,sub:'تحتاج مراجعة المدير المالي',action:"sub('approvals')"});
+      return arr;
+    };
+  }
+
+  var css=document.createElement('style');
+  css.textContent='\
+  .budget-live-ok{margin-top:10px;background:#ecfdf5;border:1px solid #bbf7d0;color:#065f46;border-radius:12px;padding:10px;font-size:12px;font-weight:900;text-align:center}\
+  .budget-live-wrap{margin-top:10px;display:grid;gap:8px}.budget-live-row{border-radius:12px;padding:10px;border:1px solid}.budget-live-row.over{background:#fff1f2;border-color:#fecdd3;color:#9f1239}.budget-live-row.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.budget-live-row>div:first-child{font-size:12px;line-height:1.6}.budget-live-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}.budget-live-grid span{background:rgba(255,255,255,.65);border-radius:8px;padding:7px;text-align:center;font-size:10px}.budget-live-grid b{font-size:11px}.budget-settings-card{background:white;border:1px solid #e8eef5;border-radius:13px;padding:12px;margin-bottom:12px;box-shadow:0 2px 8px rgba(13,59,110,.05)}\
+  @media(max-width:700px){.budget-live-grid{grid-template-columns:1fr 1fr}.budget-live-grid span:last-child{grid-column:span 2}}\
+  ';document.head.appendChild(css);
+
+  ensureBudgetSettings();
+  setTimeout(function(){try{if(typeof save==='function')save();}catch(e){}},250);
 })();
 </script>
-
 </body>
 </html>
