@@ -22832,161 +22832,173 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
   window.atharForceDashboard=renderHome;
 })();
 </script>
-<!-- V35.16R SAFE PATCH — Approval Lock + Audit Trail -->
+
+<!-- ATHAR V35.17R2 STRICT PERMISSIONS PATCH -->
 <script>
 (function(){
   'use strict';
-  function nowISO(){return new Date().toISOString();}
-  function today(){return new Date().toISOString().slice(0,10);}
-  function userName(){try{var u=(typeof getCurrentUser==='function')?getCurrentUser():null;return (u&&u.name)||'النظام';}catch(e){return 'النظام';}}
+  if(window.__ATHAR_V3517R2_STRICT_PERMS__) return;
+  window.__ATHAR_V3517R2_STRICT_PERMS__=true;
+  function q(id){return document.getElementById(id)}
+  function v(id){var e=q(id);return e?String(e.value||'').trim():''}
+  function n(id){var e=q(id);return e?(parseFloat(e.value)||0):0}
+  function M(x){try{return (Math.round((x||0)*100)/100).toLocaleString('ar-EG')}catch(e){return String(x||0)}}
+  function currentUser(){try{return (typeof getCurrentUser==='function'?getCurrentUser():null)||{};}catch(e){return {};}}
+  function isManager(){var r=currentUser().role;return r==='admin'||r==='accounts_manager';}
+  function userName(){return currentUser().name||currentUser().username||'النظام'}
+  function now(){return new Date().toISOString()}
+  function today(){return new Date().toISOString().slice(0,10)}
   function ensure(){
-    if(!window.DB) return;
-    DB.auditLog=DB.auditLog||[];
-    DB.closedPeriods=DB.closedPeriods||[];
-    (DB.entries||[]).forEach(function(e){ if(!e.status)e.status='draft'; });
+    window.DB=window.DB||{}; DB.entries=DB.entries||[]; DB.auditLog=DB.auditLog||[]; DB.closedPeriods=DB.closedPeriods||[];
+    DB.entries.forEach(function(e){ if(!e.status)e.status='pending'; });
   }
-  function log(action,entity,id,details){
-    ensure();
-    try{DB.auditLog.push({id:'AUD'+Date.now(),date:nowISO(),user:userName(),action:action,entity:entity,idRef:id,details:details||''}); if(typeof save==='function')save();}catch(e){}
-  }
-  window.isEntryLocked=function(e){ return !!(e && (e.status==='approved'||e.status==='posted'||e.locked===true)); };
-  window.entryStatusLabel=function(e){
-    if(!e) return 'غير معروف';
-    if(e.status==='posted') return 'مرحل';
-    if(e.status==='approved') return 'معتمد';
-    return 'مسودة';
-  };
-  window.entryStatusBadge=function(e){
-    var s=entryStatusLabel(e), cls=(e&&e.status==='posted')?'bg':(e&&e.status==='approved')?'bb':'ba';
-    return '<span class="badge '+cls+'">'+s+'</span>';
-  };
+  function say(m){if(typeof toast==='function')toast(m);else alert(m)}
+  function log(action,id,details){ensure();try{DB.auditLog.push({id:'AUD'+Date.now(),date:now(),user:userName(),action:action,entity:'entry',idRef:id,details:details||''}); if(typeof save==='function')save();}catch(e){}}
+  window.isEntryLocked=function(e){return !!(e&&(e.status==='approved'||e.status==='posted'||e.locked===true));};
+  window.entryStatusLabel=function(e){var s=(e&&e.status)||'pending';return {draft:'مسودة',pending:'تحت الاعتماد',approved:'معتمد',posted:'مرحل',reversed:'عكسي'}[s]||s;};
+  window.entryStatusBadge=function(e){var s=(e&&e.status)||'pending', cls=s==='posted'?'bg':s==='approved'?'bb':s==='pending'?'ba':'bgy'; return '<span class="badge '+cls+'">'+entryStatusLabel(e)+'</span>';};
 
-  var oldCheck=window.checkPeriodLock;
-  window.checkPeriodLock=function(dateStr){
-    ensure();
-    var ym=String(dateStr||'').slice(0,7);
-    var locked=(DB.closedPeriods||[]).some(function(p){return (typeof p==='string'?p:p.month)===ym && (typeof p==='string'||p.locked!==false);});
-    if(locked){ if(typeof toast==='function')toast('🔒 الفترة '+ym+' مغلقة — لا يمكن الإضافة أو التعديل'); return false; }
-    if(typeof oldCheck==='function') return oldCheck(dateStr);
-    return true;
+  var oldCan=window.can;
+  window.can=function(perm){
+    var r=currentUser().role;
+    if(r==='admin') return true;
+    if(perm==='canApproveEntries'||perm==='canPostEntries'||perm==='canDeleteEntries'||perm==='canUnlockEntries') return r==='accounts_manager';
+    if(perm==='canEditEntries'||perm==='canAddEntries') return r==='accounts_manager'||r==='accountant';
+    return oldCan?oldCan(perm):false;
   };
+  window.requirePerm=function(perm,msg){if(!window.can(perm)){say('🚫 '+(msg||'ليس لديك صلاحية لهذا الإجراء'));return false;}return true;};
 
-  var oldEdit=window.editEntry;
-  window.editEntry=function(id){
-    var e=(DB.entries||[]).find(function(x){return x.id===id;});
-    if(isEntryLocked(e)){ if(typeof toast==='function')toast('🔒 لا يمكن تعديل قيد معتمد أو مرحل — استخدم قيد تصحيح/عكسي'); return; }
-    return oldEdit.apply(this,arguments);
-  };
-  var oldSaveEdit=window.saveEditEntry;
-  window.saveEditEntry=function(id){
-    var e=(DB.entries||[]).find(function(x){return x.id===id;});
-    if(isEntryLocked(e)){ if(typeof toast==='function')toast('🔒 القيد مقفول بعد الاعتماد/الترحيل'); return; }
-    return oldSaveEdit.apply(this,arguments);
-  };
-  var oldDel=window.delEntry;
-  window.delEntry=function(id){
-    var e=(DB.entries||[]).find(function(x){return x.id===id;});
-    if(isEntryLocked(e)){ if(typeof toast==='function')toast('🔒 لا يمكن حذف قيد معتمد أو مرحل'); return; }
-    return oldDel.apply(this,arguments);
+  window.saveE=function(){
+    ensure();
+    if(!window.can('canEditEntries')){say('🚫 ليس لديك صلاحية إدخال القيود');return;}
+    var dt=v('e-d')||today();
+    if(typeof checkPeriodLock==='function'&&!checkPeriodLock(dt))return;
+    var lines=(typeof collectTP==='function')?collectTP('e',window._eL||50):[];
+    if(!lines||lines.length<2){say('⚠️ القيد يحتاج سطرين على الأقل');return;}
+    var tD=lines.reduce(function(s,l){return s+(l.dr||0)},0), tC=lines.reduce(function(s,l){return s+(l.cr||0)},0);
+    if(Math.abs(tD-tC)>0.01){say('⚠️ القيد غير متوازن — فرق: '+M(Math.abs(tD-tC)));return;}
+    var desc=v('e-ds'); if(!desc){say('⚠️ البيان مطلوب');return;}
+    var status=isManager()?'approved':'pending';
+    var id='J'+new Date().getFullYear()+'-'+String(Date.now()).slice(-6);
+    var primaryProj=(lines.find(function(l){return l.proj})||{}).proj||'';
+    var e={id:id,date:dt,ref:v('e-r')||id,desc:desc,proj:primaryProj,costCenter:v('e-cc'),location:v('e-loc'),activity:v('e-act'),docType:v('e-dt'),payMethod:v('e-pm'),lines:lines,status:status,createdBy:userName(),createdAt:now(),contractId:v('e-contract')||''};
+    if(status==='approved'){e.approvedBy=userName();e.approvedAt=now();e.locked=true;}
+    DB.entries.push(e);
+    try{
+      var pending=window.__pendingWHTForm41||null;
+      if(pending){
+        var tp=(DB.thirdParties||[]).find(function(t){return String(t.id)===String(pending.supplierId)})||{};
+        e.v35WHT=true; e.whtMeta=pending;
+        var rec={id:'F41-'+String(Date.now()).slice(-7),entryId:e.id,date:e.date,ref:e.ref,supplierId:pending.supplierId,supplierName:tp.name||'',taxId:tp.taxId||tp.taxNumber||tp.taxCard||'',txType:pending.txType,invoiceTotal:pending.invoiceTotal,taxBase:pending.taxBase,taxRate:pending.taxRate,taxAmount:pending.taxAmount,gl:pending.gl,project:pending.project,wbs:pending.wbs,desc:e.desc||pending.desc,status:status};
+        if(pending.taxAmount>0){DB.form41=DB.form41||[];DB.whtPayments=DB.whtPayments||[];DB.form41.push(rec);DB.whtPayments.push(rec);}
+        window.__pendingWHTForm41=null;
+      }
+    }catch(ex){console.warn('WHT link skipped',ex)}
+    if(typeof save==='function')save(); log(status==='approved'?'create_approved':'submit_for_approval',id,'');
+    if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); if(typeof rDash==='function')rDash();
+    say(status==='approved'?'✅ تم حفظ القيد كمعتمد — يحتاج ترحيل':'✅ تم حفظ القيد وإرساله للاعتماد');
   };
 
   window.approveEntry=function(id){
-    ensure();
-    var e=(DB.entries||[]).find(function(x){return x.id===id;});
-    if(!e){toast('القيد غير موجود');return;}
-    if(e.status==='posted'){toast('القيد مرحل بالفعل');return;}
-    e.status='approved'; e.approvedBy=userName(); e.approvedAt=nowISO(); e.locked=true;
-    log('اعتماد قيد','entry',id,'تم اعتماد القيد ومنع التعديل');
-    if(typeof save==='function')save(); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); if(typeof rDash==='function')rDash(); toast('✅ تم اعتماد القيد وقفل التعديل');
+    ensure(); if(!window.can('canApproveEntries')){say('🚫 الاعتماد للمدير المالي فقط');return;}
+    var e=DB.entries.find(function(x){return x.id===id}); if(!e)return;
+    if(e.status==='posted'){say('القيد مرحل بالفعل');return;}
+    if(typeof checkPeriodLock==='function'&&!checkPeriodLock(e.date))return;
+    e.status='approved'; e.locked=true; e.approvedBy=userName(); e.approvedAt=now();
+    if(typeof save==='function')save(); log('approve',id,''); say('✅ تم اعتماد القيد'); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour();
   };
   window.postEntry=function(id){
-    ensure();
-    var e=(DB.entries||[]).find(function(x){return x.id===id;});
-    if(!e){toast('القيد غير موجود');return;}
-    e.status='posted'; e.postedBy=userName(); e.postedAt=nowISO(); e.locked=true;
-    if(!e.approvedBy){e.approvedBy=userName(); e.approvedAt=nowISO();}
-    log('ترحيل قيد','entry',id,'تم ترحيل القيد وقفل التعديل');
-    if(typeof save==='function')save(); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); if(typeof rDash==='function')rDash(); toast('✅ تم ترحيل القيد');
+    ensure(); if(!window.can('canPostEntries')){say('🚫 الترحيل للمدير المالي فقط');return;}
+    var e=DB.entries.find(function(x){return x.id===id}); if(!e)return;
+    if(e.status!=='approved'){say('⚠️ يجب اعتماد القيد قبل الترحيل');return;}
+    if(typeof checkPeriodLock==='function'&&!checkPeriodLock(e.date))return;
+    e.status='posted'; e.locked=true; e.postedBy=userName(); e.postedAt=now();
+    if(typeof save==='function')save(); log('post',id,''); say('✅ تم ترحيل القيد'); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); if(typeof rDash==='function')rDash();
   };
-  window.unapproveEntry=function(id){
-    ensure();
-    var reason=prompt('سبب إلغاء الاعتماد؟'); if(reason===null)return;
-    var e=(DB.entries||[]).find(function(x){return x.id===id;});
-    if(!e){toast('القيد غير موجود');return;}
-    if(e.status==='posted'){toast('لا يمكن إلغاء اعتماد قيد مرحل — استخدم قيد عكسي');return;}
-    e.status='draft'; e.locked=false; e.unapprovedBy=userName(); e.unapprovedAt=nowISO(); e.unapproveReason=reason;
-    log('إلغاء اعتماد','entry',id,reason);
-    if(typeof save==='function')save(); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); toast('✅ تم إلغاء الاعتماد');
+  window.unlockEntry=function(id){
+    ensure(); if(!window.can('canUnlockEntries')){say('🚫 إلغاء الاعتماد للمدير المالي فقط');return;}
+    var e=DB.entries.find(function(x){return x.id===id}); if(!e)return;
+    if(e.status==='posted'){say('🔒 القيد المرحل لا يفتح — استخدم قيد عكسي أو تصحيح');return;}
+    var reason=prompt('سبب إلغاء الاعتماد؟'); if(!reason)return;
+    e.status='pending'; e.locked=false; e.unapprovedBy=userName(); e.unapprovedAt=now(); e.unapproveReason=reason;
+    if(typeof save==='function')save(); log('unapprove',id,reason); say('✅ تم إلغاء الاعتماد'); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour();
+  };
+  window.delEntry=function(id){
+    ensure(); var e=DB.entries.find(function(x){return x.id===id}); if(!e)return;
+    if(isEntryLocked(e)){say('🔒 لا يمكن حذف قيد معتمد أو مرحل');return;}
+    if(!window.can('canDeleteEntries')){say('🚫 حذف القيود للمدير المالي فقط');return;}
+    if(!confirm('تأكيد حذف القيد '+id+'؟'))return;
+    DB.entries=DB.entries.filter(function(x){return x.id!==id}); if(typeof save==='function')save(); log('delete',id,''); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); say('🗑️ تم حذف القيد');
+  };
+  var oldEdit=window.editEntry;
+  window.editEntry=function(id){
+    ensure(); var e=DB.entries.find(function(x){return x.id===id}); if(e&&isEntryLocked(e)){say('🔒 لا يمكن تعديل قيد معتمد أو مرحل. استخدم قيد تصحيح.');return;}
+    if(!window.can('canEditEntries')){say('🚫 ليس لديك صلاحية تعديل القيود');return;}
+    return oldEdit?oldEdit.apply(this,arguments):null;
+  };
+  var oldSaveEdit=window.saveEditEntry;
+  window.saveEditEntry=function(id){
+    ensure(); var e=DB.entries.find(function(x){return x.id===id}); if(e&&isEntryLocked(e)){say('🔒 لا يمكن تعديل قيد معتمد أو مرحل');return;}
+    return oldSaveEdit?oldSaveEdit.apply(this,arguments):null;
   };
   window.reverseEntry=function(id){
-    ensure();
-    var e=(DB.entries||[]).find(function(x){return x.id===id;});
-    if(!e){toast('القيد غير موجود');return;}
-    if(!confirm('إنشاء قيد عكسي للقيد '+id+'؟'))return;
-    var nid='REV-'+String(Date.now()).slice(-7);
-    var ne=JSON.parse(JSON.stringify(e));
-    ne.id=nid; ne.ref='عكس '+id; ne.date=today(); ne.desc='قيد عكسي للقيد '+id+' — '+(e.desc||'');
-    ne.status='draft'; ne.locked=false; ne.approvedBy=''; ne.approvedAt=''; ne.postedBy=''; ne.postedAt=''; ne.reversalOf=id;
-    ne.lines=(ne.lines||[]).map(function(l){var x=Object.assign({},l); var d=x.dr||0,c=x.cr||0; x.dr=c; x.cr=d; return x;});
-    DB.entries.push(ne); log('إنشاء قيد عكسي','entry',nid,'عكس للقيد '+id);
-    if(typeof save==='function')save(); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); toast('✅ تم إنشاء قيد عكسي');
+    ensure(); if(!window.can('canPostEntries')){say('🚫 إنشاء القيد العكسي للمدير المالي فقط');return;}
+    var e=DB.entries.find(function(x){return x.id===id}); if(!e)return;
+    var rid='REV-'+String(Date.now()).slice(-6);
+    var lines=(e.lines||[]).map(function(l){var x={}; for(var k in l)x[k]=l[k]; var dr=x.dr||0; x.dr=x.cr||0; x.cr=dr; return x;});
+    DB.entries.push({id:rid,date:today(),ref:'عكسي '+e.id,desc:'قيد عكسي للقيد '+e.id,proj:e.proj||'',lines:lines,status:'posted',locked:true,createdBy:userName(),createdAt:now(),approvedBy:userName(),approvedAt:now(),postedBy:userName(),postedAt:now(),reverses:e.id});
+    if(typeof save==='function')save(); log('reverse',rid,'for '+id); say('✅ تم إنشاء قيد عكسي'); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour();
   };
   window.correctionEntry=function(id){
-    ensure();
-    var e=(DB.entries||[]).find(function(x){return x.id===id;});
-    if(!e){toast('القيد غير موجود');return;}
-    var nid='COR-'+String(Date.now()).slice(-7);
-    var ne={id:nid,date:today(),ref:'تصحيح '+id,desc:'قيد تصحيح للقيد '+id,proj:e.proj||'',status:'draft',locked:false,correctionOf:id,lines:[]};
-    DB.entries.push(ne); log('إنشاء قيد تصحيح','entry',nid,'تصحيح للقيد '+id);
-    if(typeof save==='function')save(); if(typeof cm==='function')cm(); if(typeof rJour==='function')rJour(); toast('✅ تم إنشاء قيد تصحيح فارغ');
-    try{ if(typeof editEntry==='function') setTimeout(function(){editEntry(nid);},100); }catch(ex){}
+    ensure(); if(!window.can('canEditEntries')){say('🚫 ليس لديك صلاحية إنشاء قيد تصحيح');return;}
+    if(typeof newEntry==='function')newEntry(); setTimeout(function(){var ds=q('e-ds'); if(ds)ds.value='قيد تصحيح للقيد '+id; var ref=q('e-r'); if(ref)ref.value='CORR-'+id;},120);
   };
 
-  var oldView=window.viewE;
   window.viewE=function(id){
-    oldView.apply(this,arguments);
+    ensure(); var e=(DB.entries||[]).find(function(x){return x.id===id}); if(!e){say('القيد غير موجود');return;}
+    var tD=(e.lines||[]).reduce(function(s,l){return s+(l.dr||0)},0);
+    var h='<div style="background:var(--g1);border-radius:10px;padding:11px;margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;gap:6px;align-items:center;flex-wrap:wrap"><div><span class="badge bb">'+e.id+'</span> '+entryStatusBadge(e)+'</div><div style="font-size:11px;color:var(--g4)">'+(e.date||'')+' · '+(e.ref||'')+'</div></div>'
+      +'<div style="font-weight:800;font-size:13px;margin-top:7px">'+(e.desc||'')+'</div>'
+      +(e.approvedBy?'<div style="font-size:10.5px;color:var(--g4);margin-top:5px">🔒 اعتماد: '+e.approvedBy+' · '+((e.approvedAt||'').slice(0,16).replace('T',' '))+'</div>':'')
+      +(e.postedBy?'<div style="font-size:10.5px;color:var(--g4);margin-top:3px">✅ ترحيل: '+e.postedBy+' · '+((e.postedAt||'').slice(0,16).replace('T',' '))+'</div>':'')
+      +'</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>الحساب</th><th>كود الصرف</th><th>تحليل أطراف التعامل</th><th>مدين</th><th>دائن</th></tr></thead><tbody>';
+    (e.lines||[]).forEach(function(l){
+      h+='<tr><td><code style="font-size:10.5px">'+(l.acc||'')+'</code><div style="font-size:10px;color:var(--g4)">'+(l.an||'')+'</div></td>'
+        +'<td style="font-size:10.5px;color:var(--sk)">'+(l.wbsCode||'—')+'</td>'
+        +'<td style="font-size:11px">'+(l.tpName||'—')+'</td>'
+        +'<td class="td tn">'+((l.dr||0)>0?M(l.dr):'—')+'</td><td class="tc tn">'+((l.cr||0)>0?M(l.cr):'—')+'</td></tr>';
+    });
+    h+='</tbody><tfoot><tr style="background:var(--g1)"><td colspan="3" style="font-weight:900;padding:8px">الإجمالي</td><td class="td tn" style="font-weight:900">'+M(tD)+'</td><td class="tc tn" style="font-weight:900">'+M(tD)+'</td></tr></tfoot></table></div>';
+    var btns=document.createElement('div'); btns.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;';
+    function add(txt,cls,fn){var b=document.createElement('button');b.className='btn btn-sm '+(cls||'');b.textContent=txt;b.onclick=fn;btns.appendChild(b)}
+    if(!isEntryLocked(e)&&window.can('canEditEntries')) add('✏️ تعديل','btn-sky',function(){editEntry(id)});
+    if(!isEntryLocked(e)&&window.can('canDeleteEntries')) add('🗑️ حذف','btn-rd',function(){delEntry(id)});
+    if(e.status==='pending'&&window.can('canApproveEntries')) add('✅ اعتماد','btn-gr',function(){approveEntry(id)});
+    if(e.status==='approved'&&window.can('canPostEntries')) add('📌 ترحيل','btn-gr',function(){postEntry(id)});
+    if(e.status==='approved'&&window.can('canUnlockEntries')) add('↩️ إلغاء الاعتماد','btn-gy',function(){unlockEntry(id)});
+    if(isEntryLocked(e)&&window.can('canPostEntries')) add('🔁 قيد عكسي','btn-rd',function(){reverseEntry(id)});
+    if(isEntryLocked(e)&&window.can('canEditEntries')) add('📝 قيد تصحيح','btn-sky',function(){correctionEntry(id)});
+    add('🖨️ طباعة','',function(){if(typeof printEntrySheet==='function')printEntrySheet(id)});
+    add('📎 مستندات','btn-gy',function(){if(typeof openDocsModal==='function')openDocsModal(id)});
+    if(typeof om==='function')om('📋 تفاصيل القيد',h,btns);
+  };
+
+  var oldRJour=window.rJour;
+  window.rJour=function(){
+    var r=oldRJour?oldRJour.apply(this,arguments):null;
     setTimeout(function(){
       try{
-        var e=(DB.entries||[]).find(function(x){return x.id===id;}); if(!e)return;
-        var body=document.getElementById('mo-b'); if(!body)return;
-        var box=document.createElement('div');
-        var locked=isEntryLocked(e);
-        box.style.cssText='margin-top:10px;padding:10px;border-radius:10px;background:'+(locked?'#fff7ed':'#eff6ff')+';border:1px solid '+(locked?'#fed7aa':'#bfdbfe')+';font-size:12px;color:#1e3a6e;';
-        box.innerHTML='<div style="font-weight:900;margin-bottom:6px;">'+(locked?'🔒 القيد مقفول':'📝 القيد قابل للاعتماد')+' — '+entryStatusBadge(e)+'</div>'+
-          (e.approvedBy?'<div>اعتماد: '+e.approvedBy+' · '+(e.approvedAt||'')+'</div>':'')+
-          (e.postedBy?'<div>ترحيل: '+e.postedBy+' · '+(e.postedAt||'')+'</div>':'')+
-          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">'+
-          (!locked?'<button class="btn btn-sm btn-gr" onclick="approveEntry(\''+id+'\')">✅ اعتماد</button>':'')+
-          (e.status!=='posted'?'<button class="btn btn-sm" onclick="postEntry(\''+id+'\')">📌 ترحيل</button>':'')+
-          (e.status==='approved'?'<button class="btn btn-sm btn-gy" onclick="unapproveEntry(\''+id+'\')">🔓 إلغاء الاعتماد</button>':'')+
-          (locked?'<button class="btn btn-sm btn-rd" onclick="reverseEntry(\''+id+'\')">↩️ قيد عكسي</button><button class="btn btn-sm btn-sky" onclick="correctionEntry(\''+id+'\')">✏️ قيد تصحيح</button>':'')+
-          '</div>';
-        body.appendChild(box);
-      }catch(ex){console.error(ex);}
-    },0);
+        document.querySelectorAll('#entries-list .card').forEach(function(card){
+          var idEl=card.querySelector('.badge.bb'); if(!idEl)return; var e=DB.entries.find(function(x){return x.id===idEl.textContent.trim()}); if(!e)return;
+          var badge=card.querySelector('.badge.bg,.badge.ba,.badge.bgy'); if(badge){badge.outerHTML=entryStatusBadge(e);}
+        });
+      }catch(ex){}
+    },20);
+    return r;
   };
-
-  window.rAuditLogPage=function(){
-    ensure();
-    var h='<div class="ph-t" style="margin-bottom:10px;">🧾 سجل المراجعة Audit Log</div>';
-    h+='<table><thead><tr><th>التاريخ</th><th>المستخدم</th><th>الإجراء</th><th>المرجع</th><th>التفاصيل</th></tr></thead><tbody>';
-    (DB.auditLog||[]).slice().reverse().forEach(function(a){h+='<tr><td style="font-size:10px;">'+(a.date||'')+'</td><td>'+a.user+'</td><td>'+a.action+'</td><td>'+a.idRef+'</td><td>'+a.details+'</td></tr>';});
-    h+='</tbody></table>'; return h;
-  };
-
-  // add audit page to sub router lightly
-  var oldSub=window.sub;
-  window.sub=function(n){
-    if(n==='auditlog'){
-      if(typeof nav==='function')nav('more',null);
-      var pg=document.getElementById('pg-more'); if(pg)pg.innerHTML='<div style="padding:14px 14px 80px;"><button class="btn btn-sm btn-gy" onclick="rMore()">‹ المزيد</button>'+rAuditLogPage()+'</div>';
-      return;
-    }
-    return oldSub.apply(this,arguments);
-  };
-
-  // safe boot
-  try{ensure();}catch(e){}
+  try{ensure(); if(typeof save==='function')save();}catch(e){}
 })();
 </script>
 
