@@ -561,8 +561,8 @@ var DB={
     {c:"5261",n:"مصروفات السفر والانتقالات",nat:"dr"},
     {c:"5262",n:"ضرائب ورسوم حكومية",nat:"dr"},
     {c:"5263",n:"مصروفات متنوعة",nat:"dr"},
-    {c:"5311",n:"إهلاك مبانى ومنشآت",nat:"dr"},
-    {c:"5312",n:"إهلاك أثاث وتجهيزات",nat:"dr"},
+    {c:"5311",n:"الرواتب والأجور",nat:"dr"},
+    {c:"5312",n:"التأمينات الاجتماعية",nat:"dr"},
     {c:"5313",n:"إهلاك أجهزة تكنولوجيا المعلومات",nat:"dr"},
     {c:"5314",n:"إهلاك آلات ومعدات",nat:"dr"},
     {c:"5315",n:"إهلاك وسائل النقل",nat:"dr"},
@@ -597,8 +597,8 @@ var DB={
     {c:"1411",n:"مصروفات مدفوعة مقدماً",nat:"dr"},
     {c:"3200",n:"فائض / عجز السنوات السابقة",nat:"cr"},
     {c:"5319",n:"مخصص مكافأة نهاية الخدمة",nat:"dr"},
-    {c:"5321",n:"إيجارات",nat:"dr"},
-    {c:"5322",n:"كهرباء وغاز ومياه",nat:"dr"},
+    {c:"5321",n:"الإيجارات",nat:"dr"},
+    {c:"5322",n:"الانتقالات والسفريات",nat:"dr"},
     {c:"5323",n:"اتصالات وإنترنت",nat:"dr"},
     {c:"5331",n:"صيانة وإصلاح",nat:"dr"},
     {c:"5342",n:"تأمين على الأصول",nat:"dr"},
@@ -1026,13 +1026,25 @@ function getEmpOverride(empId,monthKey){
 // BALANCES
 function bals(){
   var m={};
-  DB.accounts.forEach(function(a){m[a.c]={dr:0,cr:0};});
-  DB.entries.filter(function(e){return e.status==="posted";}).forEach(function(e){
+  (DB.accounts||[]).forEach(function(a){m[a.c]={dr:0,cr:0};});
+  /* الأرصدة الافتتاحية */
+  if(DB.openingBals){
+    Object.keys(DB.openingBals).forEach(function(acc){
+      var val=parseFloat(DB.openingBals[acc])||0;
+      if(!val) return;
+      if(!m[acc]) m[acc]={dr:0,cr:0};
+      var a=(DB.accounts||[]).find(function(x){return x.c===acc;});
+      if(a&&a.nat==='cr') m[acc].cr+=val;
+      else m[acc].dr+=val;
+    });
+  }
+  /* حركات القيود */
+  (DB.entries||[]).filter(function(e){return e.status==="posted";}).forEach(function(e){
     (e.lines||[]).forEach(function(l){
       if(!l.acc) return;
-      if(!m[l.acc]) m[l.acc]={dr:0,cr:0}; // include orphan accounts
-      m[l.acc].dr+=l.dr||0;
-      m[l.acc].cr+=l.cr||0;
+      if(!m[l.acc]) m[l.acc]={dr:0,cr:0};
+      m[l.acc].dr+=parseFloat(l.dr)||0;
+      m[l.acc].cr+=parseFloat(l.cr)||0;
     });
   });
   return m;
@@ -4080,6 +4092,21 @@ function rTrialPage(){
         +'</tr>';
     });
 
+    /* صف الأرصدة الافتتاحية — لتوازن الميزان (الدائن المقابل للأرصدة الافتتاحية) */
+    var openingNetDr = tOBdr - tOBcr;
+    if(openingNetDr > 0.01){
+      h+='<tr style="border-bottom:1px solid #f1f5f9;background:#f0f9ff;">'
+        +'<td style="padding:5px 6px;font-size:11px;color:var(--g4);">📂 صندوق / أرصدة افتتاحية</td>'
+        +'<td style="text-align:left;padding:5px;font-size:11px;">—</td>'
+        +'<td style="text-align:left;font-size:11px;">—</td>'
+        +'<td style="text-align:left;padding:5px;font-size:11px;border-left:1px solid #f1f5f9;">—</td>'
+        +'<td style="text-align:left;font-size:11px;">—</td>'
+        +'<td style="text-align:left;padding:5px;font-size:11.5px;font-weight:700;">—</td>'
+        +'<td style="text-align:left;font-size:11.5px;font-weight:700;color:var(--g4);">'+fmt(openingNetDr)+'</td>'
+        +'</tr>';
+      tCBcr += openingNetDr;
+    }
+
     var balanced=Math.abs(tCBdr-tCBcr)<0.01;
     var _fd=fromDate,_td=toDate;
     h+='</tbody><tfoot>';
@@ -4160,75 +4187,141 @@ function applyTBFilter(){
 // ── Balance Sheet ─────────────────────────────────────────────────
 function rBalPage(){
   var B=bals();
-  function gs(prefix,nat){
-    return DB.accounts.filter(function(a){return a.c&&a.c[0]===prefix;})
+  var fmt2=function(n){try{return Math.abs(Math.round(n||0)).toLocaleString('ar-EG');}catch(e){return '0';}};
+
+  // ── حساب الأرقام الرئيسية ──
+  function sumGroup(prefix, nat){
+    return (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]===prefix;})
       .reduce(function(s,a){
         var b=B[a.c]||{dr:0,cr:0};
         return s+(a.nat==='dr'?b.dr-b.cr:b.cr-b.dr);
       },0);
   }
-  var cash=gs('1','dr');
-  var liab=gs('2','cr');
-  var equity=gs('3','cr');
-  var rev=gs('4','cr');
-  var exp=gs('5','dr');
-  var surplus=rev-exp;
-  var totalAssets=cash;
-  var totalLiabEquity=liab+equity+surplus;
-  var diff=Math.abs(totalAssets-totalLiabEquity);
 
-  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-  h+='<div class="ph-t">📈 الميزانية العمومية</div>';
-  h+='<button onclick="printBalanceSheet()" class="btn btn-sm btn-gy" style="font-size:10.5px;">🖨️ طباعة</button>';
-  h+='</div>';
+  var totalAssets  = sumGroup('1','dr');
+  var totalLiab    = sumGroup('2','cr');
+  var totalEquity  = sumGroup('3','cr');
+  var totalRev     = sumGroup('4','cr');
+  var totalExp     = sumGroup('5','dr');
+  var surplus      = totalRev - totalExp;
 
-  // Two columns: Assets | Liabilities
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
-
-  // Assets
-  h+='<div style="background:white;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">';
-  h+='<div style="font-weight:900;color:#0D3B6E;font-size:13px;margin-bottom:10px;border-bottom:2px solid #0D3B6E;padding-bottom:6px;">الأصول</div>';
-  DB.accounts.filter(function(a){return a.c&&a.c[0]==='1';}).forEach(function(a){
-    var b=B[a.c]||{dr:0,cr:0};
-    var bal=b.dr-b.cr;
-    if(!bal) return;
-    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
-      +'<span style="color:var(--sk);cursor:pointer;text-decoration:underline;" onclick="viewAccLedger(\''+a.c+'\')"  >'+a.n+'</span>'
-      +'<span style="font-weight:700;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:a.n,accCode:a.c})">'+fmt(bal)+'</span></div>';
+  // الأرصدة الافتتاحية تُضاف لحقوق الملكية (صندوق افتتاحي)
+  var openingTotal = 0;
+  var opBals = DB.openingBals || {};
+  Object.keys(opBals).forEach(function(acc){
+    var a = (DB.accounts||[]).find(function(x){return x.c===acc;});
+    var nat = a ? a.nat : 'dr';
+    openingTotal += nat==='dr' ? (Number(opBals[acc])||0) : -(Number(opBals[acc])||0);
   });
-  h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #0D3B6E;">'
-    +'<span>إجمالي الأصول</span><span style="color:#0D3B6E;">'+fmt(totalAssets)+'</span></div>';
-  h+='</div>';
 
-  // Liabilities + Equity
-  h+='<div style="background:white;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">';
-  h+='<div style="font-weight:900;color:#0D3B6E;font-size:13px;margin-bottom:10px;border-bottom:2px solid #0D3B6E;padding-bottom:6px;">الالتزامات وحقوق الملكية</div>';
-  DB.accounts.filter(function(a){return a.c&&(a.c[0]==='2'||a.c[0]==='3');}).forEach(function(a){
-    var b=B[a.c]||{dr:0,cr:0};
-    var bal=b.cr-b.dr;
+  var totalLiabEquity = totalLiab + totalEquity + surplus + openingTotal;
+  var diff = Math.abs(totalAssets - totalLiabEquity);
+  var balanced = diff < 1;
+
+  var h = '';
+
+  // ── Header ──
+  var balDate = window._balTo || new Date().toISOString().split('T')[0];
+  h += '<div style="background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border-radius:14px;padding:16px;margin-bottom:14px;">'
+    + '<div style="font-size:18px;font-weight:900;font-family:Tajawal,Cairo,sans-serif;">📈 الميزانية العمومية</div>'
+    + '<div style="font-size:12px;opacity:.8;margin-top:3px;">كما في ' + balDate + '</div>'
+    + '</div>';
+
+  // ── Date filter ──
+  h += '<div style="display:flex;gap:8px;margin-bottom:14px;align-items:flex-end;">'
+    + '<div class="fg" style="margin:0;flex:1;"><label style="font-size:11px;">كما في تاريخ</label>'
+    + '<input type="date" id="bal-to" value="' + balDate + '" onchange="v35ApplyBalanceFilter()"></div>'
+    + '<button onclick="v35ApplyBalanceFilter()" class="btn btn-sm" style="margin-bottom:0;">🔍</button>'
+    + '</div>';
+
+  // ── Two-column layout ──
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+
+  // ── عمود الأصول ──
+  h += '<div style="background:white;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
+  h += '<div style="font-weight:900;color:#1d4ed8;font-size:12px;padding-bottom:7px;border-bottom:2px solid #1d4ed8;margin-bottom:8px;">🏦 الأصول</div>';
+
+  // الأصول من القيود
+  var assetRows = (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='1';});
+  assetRows.forEach(function(a){
+    var b = B[a.c]||{dr:0,cr:0};
+    var bal = b.dr - b.cr;
     if(!bal) return;
-    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
-      +'<span style="color:var(--sk);cursor:pointer;text-decoration:underline;" onclick="viewAccLedger(\''+a.c+'\')"  >'+a.n+'</span>'
-      +'<span style="font-weight:700;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:a.n,accCode:a.c})">'+fmt(bal)+'</span></div>';
+    h += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #f1f5f9;font-size:11px;">'
+      + '<span style="color:var(--sk);">' + a.n + '</span>'
+      + '<span style="font-weight:800;">' + (bal<0?'-':'') + fmt2(Math.abs(bal)) + '</span>'
+      + '</div>';
   });
-  // Add surplus
-  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
-    +'<span style="color:'+(surplus>=0?'#059669':'#dc2626')+';font-weight:700;">'+(surplus>=0?'فائض العام':'عجز العام')+'</span>'
-    +'<span style="font-weight:700;color:'+(surplus>=0?'#059669':'#dc2626')+';">'+fmt(Math.abs(surplus))+'</span></div>';
-  h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #0D3B6E;">'
-    +'<span>إجمالي الالتزامات</span><span style="color:#0D3B6E;">'+fmt(totalLiabEquity)+'</span></div>';
-  h+='</div></div>';
 
-  // Balance check
-  h+='<div style="background:'+(diff<0.01?'#f0fdf4':'#fff5f5')+';border-radius:10px;padding:10px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;">';
-  h+='<span style="font-weight:700;color:'+(diff<0.01?'#059669':'#dc2626')+';font-size:13px;">'
-    +(diff<0.01?'✅ الميزانية متوازنة':'⚠️ فرق: '+fmt(diff))+'</span>';
-  h+='<button onclick="printBalanceSheet()" class="btn btn-sm" style="background:#0D3B6E;color:white;font-size:10.5px;">🖨️ طباعة</button>';
-  h+='</div>';
+  h += '<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #1d4ed8;">'
+    + '<span>إجمالي الأصول</span><span style="color:#1d4ed8;">' + fmt2(totalAssets) + '</span></div>';
+  h += '</div>';
+
+  // ── عمود الالتزامات وحقوق الملكية ──
+  h += '<div style="background:white;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
+  h += '<div style="font-weight:900;color:#7c3aed;font-size:12px;padding-bottom:7px;border-bottom:2px solid #7c3aed;margin-bottom:8px;">💳 الالتزامات وحقوق الملكية</div>';
+
+  // الالتزامات 2xxx
+  var liabRows = (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='2';});
+  liabRows.forEach(function(a){
+    var b = B[a.c]||{dr:0,cr:0};
+    var bal = b.cr - b.dr;
+    if(!bal) return;
+    h += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #f1f5f9;font-size:11px;">'
+      + '<span style="color:var(--sk);">' + a.n + '</span>'
+      + '<span style="font-weight:800;">' + fmt2(Math.abs(bal)) + '</span>'
+      + '</div>';
+  });
+
+  // حقوق الملكية 3xxx
+  var eqRows = (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='3';});
+  eqRows.forEach(function(a){
+    var b = B[a.c]||{dr:0,cr:0};
+    var bal = b.cr - b.dr;
+    if(!bal) return;
+    h += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #f1f5f9;font-size:11px;">'
+      + '<span>' + a.n + '</span>'
+      + '<span style="font-weight:800;">' + fmt2(Math.abs(bal)) + '</span>'
+      + '</div>';
+  });
+
+  // الأرصدة الافتتاحية → صندوق افتتاحي
+  if(openingTotal){
+    h += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #f1f5f9;font-size:11px;">'
+      + '<span style="color:var(--g4);">📂 الأرصدة الافتتاحية</span>'
+      + '<span style="font-weight:800;">' + fmt2(openingTotal) + '</span>'
+      + '</div>';
+  }
+
+  // الفائض / العجز من قائمة الدخل
+  if(surplus !== 0){
+    var surplusColor = surplus > 0 ? '#059669' : '#dc2626';
+    h += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #f1f5f9;font-size:11px;">'
+      + '<span style="color:' + surplusColor + ';font-weight:700;">' + (surplus>0?'✅ الفائض السنوي':'⚠️ العجز السنوي') + '</span>'
+      + '<span style="font-weight:800;color:' + surplusColor + ';">' + fmt2(Math.abs(surplus)) + '</span>'
+      + '</div>';
+  }
+
+  h += '<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #7c3aed;">'
+    + '<span>إجمالي الالتزامات وحقوق الملكية</span>'
+    + '<span style="color:#7c3aed;">' + fmt2(totalLiabEquity) + '</span></div>';
+  h += '</div>';
+  h += '</div>'; // end grid
+
+  // ── مؤشر الاتزان ──
+  h += '<div style="margin-top:10px;border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;'
+    + (balanced ? 'background:#ecfdf5;border:1.5px solid #6ee7b7;' : 'background:#fff1f2;border:1.5px solid #fecaca;') + '">'
+    + '<span style="font-weight:800;font-size:13px;color:' + (balanced?'#065f46':'#991b1b') + ';">'
+    + (balanced ? '✅ الميزانية متوازنة' : '⚠️ فرق الاتزان') + '</span>'
+    + (balanced ? '' : '<span style="font-weight:900;color:#dc2626;">' + fmt2(diff) + '</span>')
+    + '</div>';
+
+  // ── زر الطباعة ──
+  h += '<button onclick="printBalanceSheet()" class="btn btn-sm btn-gy" style="width:100%;margin-top:10px;font-size:11px;">🖨️ طباعة الميزانية</button>';
+
   return h;
 }
 
-// ── Income Statement ──────────────────────────────────────────────
 function rIncPage(){
   var B=bals();
   var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
@@ -19091,9 +19184,21 @@ document.addEventListener('click',function(ev){
         }
       } else if(pg==='more'){
         var el=document.getElementById('pg-more');
-        if(el&&typeof rMore==='function'){
-          rMore();
+        if(el&&typeof rMore==='function') rMore();
+      } else if(pg==='loans'){
+        var el=document.getElementById('pg-loans');
+        if(el&&typeof rقروضPage==='function'){
+          /* rقروضPage يكتب مباشرة على pg-loans — فعّل الصفحة أولاً */
+          document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+          document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+          el.classList.add('on'); n.classList.add('on');
+          rقروضPage();
         }
+      } else if(pg==='dash'){
+        document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+        document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+        var el=document.getElementById('pg-dash');
+        if(el){ if(typeof rDash==='function')el.innerHTML=rDash(); el.classList.add('on'); n.classList.add('on'); }
       }
     },50);
     return;
@@ -21547,7 +21652,7 @@ window.saveVoucher=function(type){ensureV33();var id=val('vch-id'),date=val('vch
 window.rInvProjectReport=function(){ensureV33();var h='<div class="ph-t" style="margin-bottom:12px">📦 استهلاك المخزون حسب المشروع</div><table><thead><tr><th>التاريخ</th><th>الإذن</th><th>المشروع</th><th>الصنف</th><th>الكمية</th><th>Serial</th></tr></thead><tbody>';(DB.invMovements||[]).forEach(function(m){h+='<tr><td>'+E(m.date)+'</td><td>'+E(m.voucherId)+'</td><td>'+E(m.projectCode||m.proj||'—')+'</td><td>'+E(m.itemName||m.itemId)+'</td><td class="tn">'+E(m.qty)+'</td><td>'+E(m.serialNo||'—')+'</td></tr>';});h+='</tbody></table>';return h;};
 
 var oldSub=window.sub;
-window.sub=function(n){ensureV33();var pages={budgetmeta:rBudgetSettingsPage,supplier_register:rSupplierRegisterPage,cashflow:rCashFlowStatementPage,taxwh:rTaxWithholdingPage,reconpro:rBankReconProPage,loan_settings:rLoanSettingsPage,loan_reports:rLoanAdvancedReports,inv_project_report:rInvProjectReport,projtxn:rProjectTxnReport};if(pages[n]){nav('more',null);var el=document.getElementById('pg-more');if(el)el.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'ops\',null)" style="margin-bottom:10px">‹ رجوع</button>'+pages[n]()+'</div>';showTbBack&&showTbBack({type:'fn',pg:"nav('ops',null)"});return;}return oldSub?oldSub(n):null;};
+window.sub=function(n){ensureV33();var pages={reports:rReportsPage,budgetmeta:rBudgetSettingsPage,supplier_register:rSupplierRegisterPage,cashflow:rCashFlowStatementPage,taxwh:rTaxWithholdingPage,reconpro:rBankReconProPage,loan_settings:rLoanSettingsPage,loan_reports:rLoanAdvancedReports,inv_project_report:rInvProjectReport,projtxn:rProjectTxnReport};if(pages[n]){nav('more',null);var el=document.getElementById('pg-more');if(el)el.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'ops\',null)" style="margin-bottom:10px">‹ رجوع</button>'+pages[n]()+'</div>';showTbBack&&showTbBack({type:'fn',pg:"nav('ops',null)"});return;}return oldSub?oldSub(n):null;};
 
 window.rالماليةHub=function(){ensureV33();var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">💰 المالية</div>';var sections=[{title:'📝 القيود والعمليات',items:[{i:'📝',t:'قيود اليومية',n:'jour',pg:true},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},{title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'},{i:'💵',t:'Cash Flow',n:'cashflow'}]},{title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك',n:'banks'},{i:'✅',t:'تسوية بنكية محسنة',n:'reconpro'}]},{title:'📚 الإعدادات المالية',items:[{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'🧮',t:'ضرائب الخصم والإضافة',n:'taxwh'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
 window.rOperationsHub=function(){ensureV33();var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">🎯 العمليات</div>';var sections=[{title:'🎯 المشروعات والممولين',items:[{i:'🎯',t:'المشروعات',n:'proj',pg:true},{i:'📊',t:'BVA',n:'bva'},{i:'📋',t:'حركة مشروع حسب البند',n:'projtxn'},{i:'📅',t:'فترة/وصف الموازنة',n:'budgetmeta'}]},{title:'💵 التمويل متناهي الصغر',items:[{i:'💵',t:'إدارة القروض',n:'loans'},{i:'📊',t:'تقارير التمويل والحوافز',n:'loan_reports'},{i:'⚙️',t:'إعدادات القروض والحوافز',n:'loan_settings'}]},{title:'🛒 الموردون والمخازن',items:[{i:'🏭',t:'سجل الموردين',n:'supplier_register'},{i:'📦',t:'المخازن',n:'inventory'},{i:'📥',t:'أذونات مخازن بالمشروع',n:'inv_receive'},{i:'📊',t:'استهلاك حسب المشروع',n:'inv_project_report'}]},{title:'👥 الموارد البشرية والامتثال',items:[{i:'🏢',t:'الموظفين',n:'employees'},{i:'💳',t:'كشف الرواتب',n:'pay',pg:true},{i:'⏱️',t:'Timesheet',n:'timesheet'},{i:'🗂️',t:'الأرشيف',n:'archive'},{i:'✅',t:'الامتثال',n:'compliance'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
@@ -21853,399 +21958,99 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
 
   window.rBalPage=function(){
     var to=window._balTo||today();
-    var B=periodBals('',to), totalA=0,totalLC=0,h='';
-    h+='<div class="ph"><div><div class="ph-t">📈 الميزانية العمومية</div><div class="ph-s">كما في '+esc(to)+'</div></div></div>';
-    h+='<div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;"><div class="fg"><label>كما في تاريخ</label><input type="date" id="bal-to" value="'+to+'"></div><button class="btn btn-sm" onclick="v35ApplyBalanceFilter()" style="margin-top:18px;">🔍</button></div>';
-    h+='<div class="card"><div class="ct">الأصول</div>';
+    /* الأصول: bals() تشمل الأرصدة الافتتاحية */
+    var B=(typeof window.bals==='function')?window.bals():periodBals('',to);
+    /* الفائض: من القيود فقط */
+    var PB=periodBals('',to);
+    var totalA=0, totalLC=0, h='';
+
+    /* Header */
+    h+='<div style="background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border-radius:14px;padding:14px;margin-bottom:12px;">'
+      +'<div style="font-size:17px;font-weight:900;font-family:Tajawal,Cairo,sans-serif;">\u{1F4C8} \u0627\u0644\u0645\u064a\u0632\u0627\u0646\u064a\u0629 \u0627\u0644\u0639\u0645\u0648\u0645\u064a\u0629</div>'
+      +'<div style="font-size:11px;opacity:.8;margin-top:3px;">\u0643\u0645\u0627 \u0641\u064a '+esc(to)+'</div>'
+      +'</div>';
+    h+='<div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;">'
+      +'<div class="fg" style="margin:0;flex:1;"><label style="font-size:11px;">\u0643\u0645\u0627 \u0641\u064a \u062a\u0627\u0631\u064a\u062e</label>'
+      +'<input type="date" id="bal-to" value="'+to+'" onchange="v35ApplyBalanceFilter()"></div>'
+      +'<button onclick="v35ApplyBalanceFilter()" class="btn btn-sm" style="margin-bottom:0;">\uD83D\uDD0D</button>'
+      +'</div>';
+
+    /* حساب الأصول من bals() */
     (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='1';}).forEach(function(a){
-      var b=B[a.c]||{dr:0,cr:0}, val=b.dr-b.cr; if(!val) return; totalA+=val;
-      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #eee;padding:5px 0;"><span>'+esc(a.c+' — '+a.n)+'</span><span onclick="drillDown({title:\''+esc(a.n)+'\',accCode:\''+esc(a.c)+'\',toDate:\''+to+'\'})" style="font-weight:800;cursor:pointer;text-decoration:underline;">'+fmt2(val)+'</span></div>';
+      var b=B[a.c]||{dr:0,cr:0}; totalA+=b.dr-b.cr;
     });
-    h+='<div style="display:flex;justify-content:space-between;font-weight:900;padding-top:8px;"><span>إجمالي الأصول</span><span onclick="drillDown({title:\'تفاصيل الأصول\',accPrefix:\'1\',toDate:\''+to+'\'})" style="cursor:pointer;text-decoration:underline;">'+fmt2(totalA)+'</span></div></div>';
-    h+='<div class="card"><div class="ct">الالتزامات وحقوق الملكية</div>';
+
+    /* حساب الفائض من periodBals (قيود فقط) */
+    var rev=0,exp=0;
+    (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='4';}).forEach(function(a){
+      var b=PB[a.c]||{dr:0,cr:0}; rev+=b.cr-b.dr;
+    });
+    (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='5';}).forEach(function(a){
+      var b=PB[a.c]||{dr:0,cr:0}; exp+=b.dr-b.cr;
+    });
+    var surplus=rev-exp;
+
+    /* الالتزامات وحقوق الملكية من bals() */
+    var liab2=(DB.accounts||[]).filter(function(a){return a.c&&(a.c[0]==='2'||a.c[0]==='3');})
+      .reduce(function(s,a){var b=B[a.c]||{dr:0,cr:0};return s+(b.cr-b.dr);},0);
+
+    /* الأرصدة الافتتاحية المستقلة */
+    var openingTotal=Object.keys(DB.openingBals||{}).reduce(function(s,acc){
+      var a=(DB.accounts||[]).find(function(x){return x.c===acc;});
+      var nat=a?a.nat:'dr';
+      return s+(nat==='dr'?(Number(DB.openingBals[acc])||0):-(Number(DB.openingBals[acc])||0));
+    },0);
+
+    totalLC=liab2+surplus+openingTotal;
+
+    /* Grid */
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+
+    /* الأصول */
+    h+='<div style="background:white;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
+    h+='<div style="font-weight:900;color:#1d4ed8;font-size:12px;padding-bottom:6px;border-bottom:2px solid #1d4ed8;margin-bottom:8px;">\uD83C\uDFE6 \u0627\u0644\u0623\u0635\u0648\u0644</div>';
+    (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='1';}).forEach(function(a){
+      var b=B[a.c]||{dr:0,cr:0},val=b.dr-b.cr; if(!val) return;
+      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;cursor:pointer;" onclick="drillDown({title:\''+esc(a.n)+'\',accCode:\''+esc(a.c)+'\',toDate:\''+to+'\'})">'
+        +'<span style="color:var(--sk);">'+esc(a.n)+'</span>'
+        +'<span style="font-weight:800;">'+fmt2(Math.abs(val))+'</span></div>';
+    });
+    h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:6px;border-top:2px solid #1d4ed8;">'
+      +'<span>\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0623\u0635\u0648\u0644</span><span style="color:#1d4ed8;">'+fmt2(totalA)+'</span></div>';
+    h+='</div>';
+
+    /* الالتزامات وحقوق الملكية */
+    h+='<div style="background:white;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
+    h+='<div style="font-weight:900;color:#7c3aed;font-size:12px;padding-bottom:6px;border-bottom:2px solid #7c3aed;margin-bottom:8px;">\uD83D\uDCB3 \u0627\u0644\u0627\u0644\u062a\u0632\u0627\u0645\u0627\u062a \u0648\u062d\u0642\u0648\u0642 \u0627\u0644\u0645\u0644\u0643\u064a\u0629</div>';
     (DB.accounts||[]).filter(function(a){return a.c&&(a.c[0]==='2'||a.c[0]==='3');}).forEach(function(a){
-      var b=B[a.c]||{dr:0,cr:0}, val=b.cr-b.dr; if(!val) return; totalLC+=val;
-      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #eee;padding:5px 0;"><span>'+esc(a.c+' — '+a.n)+'</span><span onclick="drillDown({title:\''+esc(a.n)+'\',accCode:\''+esc(a.c)+'\',toDate:\''+to+'\'})" style="font-weight:800;cursor:pointer;text-decoration:underline;">'+fmt2(val)+'</span></div>';
+      var b=B[a.c]||{dr:0,cr:0},val=b.cr-b.dr; if(!val) return;
+      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;">'
+        +'<span>'+esc(a.n)+'</span><span style="font-weight:800;">'+fmt2(Math.abs(val))+'</span></div>';
     });
-    h+='<div style="display:flex;justify-content:space-between;font-weight:900;padding-top:8px;"><span>إجمالي الالتزامات وحقوق الملكية</span><span onclick="drillDown({title:\'تفاصيل الالتزامات وحقوق الملكية\',customFilter:function(e,l){return l.acc&&(l.acc[0]===\'2\'||l.acc[0]===\'3\')},toDate:\''+to+'\'})" style="cursor:pointer;text-decoration:underline;">'+fmt2(totalLC)+'</span></div></div>';
-    h+='<div class="card" style="background:'+(Math.abs(totalA-totalLC)<1?'var(--gbg)':'var(--rbg)')+';"><div style="display:flex;justify-content:space-between;font-weight:900;"><span>فرق الاتزان</span><span>'+fmt2(totalA-totalLC)+'</span></div></div>';
-    return h;
-  };
-
-  /* Patch hubs without removing existing items */
-  var _oldFin=window.rالماليةHub;
-  window.rالماليةHub=function(){
-    v35Ensure();
-    var h=(typeof _oldFin==='function')?_oldFin():'';
-    h+='<div style="margin:14px 0 18px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 0;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span style="width:3px;height:14px;background:var(--am);border-radius:2px;display:inline-block;"></span>🧾 ضرائب الخصم والإضافة</div><div class="mg">'
-      +'<div class="mi" data-sub="whtpay"><div class="mi-i">🧾</div><div class="mi-t">سداد فاتورة + خصم</div></div>'
-      +'<div class="mi" data-sub="whtreport"><div class="mi-i">📋</div><div class="mi-t">تقرير الخصم ونموذج 41</div></div>'
-      +'<div class="mi" data-sub="whtsettings"><div class="mi-i">⚙️</div><div class="mi-t">إعدادات الخصم</div></div>'
-      +'</div></div>';
-    return h;
-  };
-  var _oldOps=window.rOperationsHub;
-  window.rOperationsHub=function(){
-    v35Ensure();
-    var h=(typeof _oldOps==='function')?_oldOps():'';
-    h+='<div style="margin:14px 0 18px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 0;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span style="width:3px;height:14px;background:var(--am);border-radius:2px;display:inline-block;"></span>🧾 الضرائب والمدفوعات</div><div class="mg">'
-      +'<div class="mi" data-sub="whtpay"><div class="mi-i">🧾</div><div class="mi-t">سداد فاتورة</div></div>'
-      +'<div class="mi" data-sub="whtreport"><div class="mi-i">📋</div><div class="mi-t">نموذج 41</div></div>'
-      +'</div></div>';
-    return h;
-  };
-
-  /* Extend tax config page */
-  var _oldTax=window.rTaxConfig;
-  window.rTaxConfig=function(){
-    var h=(typeof _oldTax==='function')?_oldTax():'';
-    h+='<div class="card" style="margin-top:12px;"><div class="ct">🧾 ضرائب الخصم والإضافة</div><div style="font-size:12px;color:var(--g5);line-height:1.7;margin-bottom:10px;">هذه الإعدادات خاصة بفواتير الموردين. الاختيار النهائي يتم من شاشة سداد الفاتورة حسب نوع السلعة أو الخدمة.</div><button class="btn btn-sm" onclick="sub(\'whtsettings\')" style="width:100%;">فتح إعدادات الخصم والإضافة</button></div>';
-    return h;
-  };
-
-  /* Extend Form 41 page header while preserving old content */
-  var _oldF41=window.rForm41Page;
-  window.rForm41Page=function(){
-    v35Ensure();
-    var h='<div class="card" style="background:var(--skp);"><div class="ct">🔗 مصدر نموذج 41</div><div style="font-size:12px;color:var(--g5);line-height:1.8;">يتم تجميع نموذج 41 تلقائيًا من شاشة <b>سداد فاتورة + خصم وإضافة</b>. الخصم يحسب على وعاء الضريبة قبل VAT حتى لو الفاتورة شاملة VAT.</div><button class="btn btn-sm" onclick="sub(\'whtpay\')" style="margin-top:8px;">+ تسجيل سداد فاتورة</button> <button class="btn btn-sm btn-gy" onclick="sub(\'whtreport\')" style="margin-top:8px;">📋 تقرير الخصم</button></div>';
-    h+=(typeof _oldF41==='function')?_oldF41():'';
-    return h;
-  };
-
-  /* Route added pages safely */
-  var _oldSub=window.sub;
-  window.sub=function(n){
-    v35Ensure();
-    if(n==='whtpay'||n==='whtsettings'||n==='whtreport'){
-      var title={whtpay:'🧾 سداد فاتورة مع خصم وإضافة',whtsettings:'⚙️ إعدادات الخصم والإضافة',whtreport:'📋 تقرير الخصم ونموذج 41'}[n];
-      if(typeof nav==='function') nav('more',null);
-      var pgEl=document.getElementById('pg-more');
-      var body=n==='whtpay'?rWHTPaymentPage():n==='whtsettings'?rWHTSettingsPage():rWHTReportPage();
-      if(pgEl){
-        pgEl.innerHTML='<div style="padding:14px 14px 80px;">'
-          +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'
-          +'<button onclick="nav(\'fin\',null)" style="background:var(--g1);border:none;border-radius:8px;padding:7px 12px;cursor:pointer;font-family:Cairo,sans-serif;font-size:13px;">‹ المالية</button>'
-          +'<div style="font-weight:800;font-size:16px;color:var(--nd);">'+title+'</div></div>'+body+'</div>';
-      }
-      if(typeof showTbBack==='function') showTbBack({type:'fn',pg:"nav('fin',null)"});
-      return;
+    if(openingTotal){
+      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;">'
+        +'<span style="color:var(--g4);">\uD83D\uDCC2 \u0627\u0644\u0623\u0631\u0635\u062f\u0629 \u0627\u0644\u0627\u0641\u062a\u062a\u0627\u062d\u064a\u0629</span>'
+        +'<span style="font-weight:800;">'+fmt2(openingTotal)+'</span></div>';
     }
-    return _oldSub.apply(this,arguments);
-  };
-
-  /* Generic delegated click handler remains compatible with existing data-sub cards */
-  document.addEventListener('click',function(e){
-    var a=e.target.closest&&e.target.closest('[data-sub]');
-    if(a && a.getAttribute('data-sub') && typeof sub==='function'){
-      var n=a.getAttribute('data-sub');
-      if(['whtpay','whtsettings','whtreport'].indexOf(n)>-1){ e.preventDefault(); sub(n); }
+    if(surplus!==0){
+      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;">'
+        +'<span style="color:'+(surplus>0?'#059669':'#dc2626')+';font-weight:700;">'+(surplus>0?'\u2705 \u0627\u0644\u0641\u0627\u0626\u0636 \u0627\u0644\u0633\u0646\u0648\u064a':'\u26a0\ufe0f \u0627\u0644\u0639\u062c\u0632 \u0627\u0644\u0633\u0646\u0648\u064a')+'</span>'
+        +'<span style="font-weight:800;color:'+(surplus>0?'#059669':'#dc2626')+';">'+fmt2(Math.abs(surplus))+'</span></div>';
     }
-  },true);
+    h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:12px;margin-top:8px;padding-top:6px;border-top:2px solid #7c3aed;">'
+      +'<span>\u0625\u062c\u0645\u0627\u0644\u064a</span><span style="color:#7c3aed;">'+fmt2(totalLC)+'</span></div>';
+    h+='</div>';
+    h+='</div>';
 
-  try{v35Ensure(); if(typeof save==='function') save();}catch(e){}
-})();
-
-</script>
-
-<script>
-/* ================= ATHAR V35.2 JS FIXED PATCH =================
-   Built on V35.1 stable. Adds UX fullscreen, safe back stack, WHT in journal, smart project transaction report.
-   No removal of existing features. */
-(function(){
-  function q(id){return document.getElementById(id);} 
-  function money(n){try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}catch(e){return String(n||0);}}
-  function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-  function accName(code){var a=(window.DB&&DB.accounts||[]).find(function(x){return String(x.c)===String(code);});return a?a.n:'';}
-  function accOpts(filter){var arr=(window.DB&&DB.accounts)||[];var out='';arr.forEach(function(a){if(!filter||filter(a))out+='<option value="'+esc(a.c)+'">'+esc(a.c+' — '+a.n)+'</option>';});return out||'<option value="">—</option>';}
-  function projOpts(sel){var out='<option value="">— اختر المشروع —</option>';((window.DB&&DB.projects)||[]).forEach(function(p){out+='<option value="'+esc(p.code)+'" '+(String(sel||'')===String(p.code)?'selected':'')+'>'+esc(p.name)+'</option>';});return out;}
-  function getWbsList(projectCode){var pr=((window.DB&&DB.projects)||[]).find(function(p){return String(p.code)===String(projectCode);});var list=[];if(pr){['wbs','budgetLines','lines'].forEach(function(k){(pr[k]||[]).forEach(function(w){list.push({code:w.code||w.wbs||w.id||'',name:w.name||w.desc||w.title||''});});});}
-    if(!list.length){((window.DB&&DB.entries)||[]).forEach(function(e){(e.lines||[]).forEach(function(l){var lp=l.proj||e.proj||'';var wc=l.wbsCode||l.wbs||l.cc||'';if(lp===projectCode&&wc&&!list.find(function(x){return x.code===wc;}))list.push({code:wc,name:wc});});});}
-    return list;
-  }
-
-  /* Fixed header + fullscreen modal only by CSS, no navigation rewrite risk */
-  var css=document.createElement('style');
-  css.textContent='.topbar{position:sticky!important;top:0!important;z-index:160!important}.bnav{z-index:150!important}.content{padding-top:14px!important}.mo.on{align-items:stretch!important;justify-content:stretch!important}.mo.on .mb{width:100%!important;max-width:none!important;height:100vh!important;max-height:100vh!important;border-radius:0!important;display:flex!important;flex-direction:column!important}.mo.on .mh{border-radius:0!important;position:sticky!important;top:0!important;z-index:5!important}.mo.on .mbdy{flex:1!important;overflow:auto!important;padding-bottom:90px!important}.table-sticky thead th{position:sticky;top:0;z-index:2}.v352-click{cursor:pointer;text-decoration:underline;text-decoration-style:dotted}.v352-wht-box{background:#f8fbff;border:1px solid #dbeafe;border-radius:12px;padding:12px;margin:10px 0}.v352-wht-title{font-weight:900;color:#1e3a6e;margin-bottom:8px}.v352-preview{background:white;border-radius:9px;padding:10px;font-size:12px;color:#1e3a6e;border:1px solid #e2e8f0}';
-  document.head.appendChild(css);
-
-  /* Safer back: keep original behavior, add a small stack for sub pages */
-  if(!window._v352BackApplied){
-    window._v352BackApplied=true; window._atharStack=window._atharStack||[];
-    var oldNav=window.nav, oldSub=window.sub, oldGoBack=window.goBack;
-    window.nav=function(pg,btn){ if(window._trackBack!==false){window._atharStack.push({kind:'nav',pg:window._currentPage||'dash'});} window._currentPage=pg; return oldNav?oldNav.apply(this,arguments):null; };
-    window.sub=function(n){ if(window._trackBack!==false){window._atharStack.push({kind:'sub',pg:window._currentSub||window._currentPage||'dash'});} window._currentSub=n; return oldSub?oldSub.apply(this,arguments):null; };
-    window.goBack=function(){var last=(window._atharStack||[]).pop(); if(last){window._trackBack=false; try{ if(last.kind==='nav') window.nav(last.pg,null); else if(last.pg&&last.pg!=='dash') window.sub(last.pg); else window.nav('dash',null);}finally{window._trackBack=true;} return;} return oldGoBack?oldGoBack.apply(this,arguments): (oldNav?oldNav('dash',null):null);};
-  }
-
-  /* WHT inside Journal Entry */
-  function ensureLines(n){if(typeof addEL!=='function')return;var guard=0;while((window._eL||0)<n && guard<10){addEL();guard++;}}
-  function setLine(i,acc,dr,cr,proj,wbs){var a=q('ea-'+i); if(a)a.value=acc; var search=q('eaSearch-'+i); if(search)search.value=acc+' — '+accName(acc); var d=q('edr-'+i); if(d)d.value=dr?Math.round(dr*100)/100:''; var c=q('ecr-'+i); if(c)c.value=cr?Math.round(cr*100)/100:''; var p=q('eproj-'+i); if(p)p.value=proj||''; var w=q('ewbs-'+i); if(w)w.value=wbs||'';}
-  function injectWHTBox(){var els=q('els'); if(!els||q('v352-wht-box'))return;var box=document.createElement('div');box.id='v352-wht-box';box.className='v352-wht-box';box.innerHTML='<div class="v352-wht-title">🧾 سداد فاتورة مع خصم وإضافة داخل قيد اليومية</div>'+
-    '<div class="fr"><div class="fg"><label>إجمالي الفاتورة</label><input type="number" id="wht-total" placeholder="مثال 114000" oninput="v352PreviewWHT()"></div><div class="fg"><label>الفاتورة شاملة VAT؟</label><select id="wht-vat-inc" onchange="v352PreviewWHT()"><option value="yes">نعم</option><option value="no">لا</option></select></div></div>'+
-    '<div class="fr"><div class="fg"><label>VAT % لحساب الوعاء فقط</label><input type="number" id="wht-vat-rate" value="14" oninput="v352PreviewWHT()"></div><div class="fg"><label>نسبة الخصم والإضافة</label><select id="wht-rate" onchange="v352PreviewWHT()"><option value="1">1%</option><option value="3" selected>3%</option><option value="5">5%</option></select></div></div>'+
-    '<div class="fr"><div class="fg"><label>حساب المصروف</label><select id="wht-exp">'+accOpts(function(a){return String(a.c)[0]==='5';})+'</select></div><div class="fg"><label>حساب البنك/الخزينة</label><select id="wht-bank">'+accOpts(function(a){return String(a.c).indexOf('111')===0;})+'</select></div></div>'+
-    '<div class="fg"><label>GL الخصم والإضافة</label><select id="wht-gl">'+accOpts(function(a){return String(a.c).indexOf('2114')===0||String(a.n||'').indexOf('خصم')>-1||String(a.n||'').indexOf('ضرائب')>-1;})+'</select></div>'+
-    '<div class="fr"><div class="fg"><label>المشروع</label><select id="wht-proj" onchange="v352LoadWBS()"><option value="">— بدون مشروع —</option>'+((window.DB&&DB.projects)||[]).map(function(p){return '<option value="'+esc(p.code)+'">'+esc(p.name)+'</option>';}).join('')+'</select></div><div class="fg"><label>البند WBS</label><select id="wht-wbs"><option value="">كل/بدون بند</option></select></div></div>'+
-    '<div class="v352-preview" id="wht-preview">أدخل إجمالي الفاتورة لاحتساب الوعاء والخصم وصافي السداد.</div><button class="btn btn-sky" style="width:100%;margin-top:8px" onclick="v352ApplyWHTToEntry()">⚡ تكوين سطور القيد تلقائياً</button>';
-    els.parentNode.insertBefore(box,els);
-  }
-  window.v352LoadWBS=function(){var p=(q('wht-proj')||{}).value||'',s=q('wht-wbs');if(!s)return;s.innerHTML='<option value="">كل/بدون بند</option>';getWbsList(p).forEach(function(w){s.innerHTML+='<option value="'+esc(w.code)+'">'+esc(w.code+' — '+(w.name||w.code))+'</option>';});};
-  window.v352PreviewWHT=function(){var total=Number((q('wht-total')||{}).value)||0,vat=Number((q('wht-vat-rate')||{}).value)||14,rate=Number((q('wht-rate')||{}).value)||0;var inc=((q('wht-vat-inc')||{}).value||'yes')==='yes';var base=inc&&vat?total/(1+vat/100):total;var tax=base*rate/100,net=total-tax;var p=q('wht-preview');if(p)p.innerHTML='<b>إجمالي الفاتورة:</b> '+money(total)+' ج.م<br><b>وعاء الخصم قبل VAT:</b> '+money(base)+' ج.م<br><b>خصم وإضافة '+rate+'%:</b> '+money(tax)+' ج.م<br><b>صافي السداد:</b> '+money(net)+' ج.م<br><span style="color:#64748b">القيد: من ح/ المصروف بكامل الفاتورة، إلى ح/ البنك بالصافي، وإلى ح/ GL الخصم والإضافة.</span>';return {total:total,base:base,tax:tax,net:net};};
-  window.v352ApplyWHTToEntry=function(){var r=window.v352PreviewWHT();if(!r.total||r.total<=0){if(typeof toast==='function')toast('أدخل إجمالي الفاتورة');return;}ensureLines(3);var exp=(q('wht-exp')||{}).value||'5123',bank=(q('wht-bank')||{}).value||'1112',gl=(q('wht-gl')||{}).value||'2114';var proj=(q('wht-proj')||{}).value||'',wbs=(q('wht-wbs')||{}).value||'';setLine(0,exp,r.total,0,proj,wbs);setLine(1,bank,0,r.net,proj,wbs);setLine(2,gl,0,r.tax,proj,wbs);var ds=q('e-ds');if(ds&&!ds.value)ds.value='سداد فاتورة مع خصم وإضافة — صافي '+money(r.net)+' ج.م';if(typeof updET==='function')updET();if(typeof toast==='function')toast('✅ تم تكوين قيد السداد بالخصم والإضافة');};
-  var _oldNewEntry=window.newEntry;window.newEntry=function(){var r=_oldNewEntry?_oldNewEntry.apply(this,arguments):null;setTimeout(injectWHTBox,80);return r;};
-
-  /* Smart Project Transaction Report */
-  window.rProjectTxnReport=function(){var h='<div class="ph-t" style="margin-bottom:12px">📋 حركة مشروع حسب البند</div><div class="card"><div class="fr"><div class="fg"><label>من تاريخ</label><input type="date" id="rpt-from"></div><div class="fg"><label>إلى تاريخ</label><input type="date" id="rpt-to"></div></div><div class="fr"><div class="fg"><label>المشروع</label><select id="rpt-proj" onchange="v352UpdateWBSOptions()">'+projOpts('')+'</select></div><div class="fg"><label>البند</label><select id="rpt-wbs"><option value="">كل البنود</option></select></div></div><button onclick="v352GenerateProjectTxnReport()" class="btn btn-gr" style="width:100%">📋 عرض التقرير</button></div><div id="proj-txn-result"></div>';return h;};
-  window.v352UpdateWBSOptions=function(){var p=(q('rpt-proj')||{}).value||'',s=q('rpt-wbs');if(!s)return;s.innerHTML='<option value="">كل البنود</option>';getWbsList(p).forEach(function(w){s.innerHTML+='<option value="'+esc(w.code)+'">'+esc(w.code+' — '+(w.name||w.code))+'</option>';});};
-  window.v352GenerateProjectTxnReport=function(){var projCode=(q('rpt-proj')||{}).value||'',wbsCode=(q('rpt-wbs')||{}).value||'',fromDate=(q('rpt-from')||{}).value||'',toDate=(q('rpt-to')||{}).value||'',out=q('proj-txn-result');if(!out)return;if(!projCode){if(typeof toast==='function')toast('⚠️ اختر مشروعاً');return;}var pr=((window.DB&&DB.projects)||[]).find(function(p){return String(p.code)===String(projCode);});var rows=[];((window.DB&&DB.entries)||[]).forEach(function(e){if(e.status&&e.status!=='posted')return;if(fromDate&&e.date<fromDate)return;if(toDate&&e.date>toDate)return;(e.lines||[]).forEach(function(l){var lp=l.proj||e.proj||'',lw=l.wbsCode||l.wbs||l.cc||'';if(String(lp)!==String(projCode))return;if(wbsCode&&String(lw)!==String(wbsCode))return;rows.push({date:e.date,id:e.id,ref:e.ref||'',desc:e.desc||'',acc:l.acc||'',an:l.an||accName(l.acc),wbs:lw,tp:l.tpName||'',dr:Number(l.dr)||0,cr:Number(l.cr)||0});});});rows.sort(function(a,b){return a.date>b.date?1:-1;});var td=rows.reduce(function(s,r){return s+r.dr;},0),tc=rows.reduce(function(s,r){return s+r.cr;},0);var wName='كل البنود';if(wbsCode){var w=getWbsList(projCode).find(function(x){return String(x.code)===String(wbsCode);});wName=w?(w.code+' — '+(w.name||w.code)):wbsCode;}var h='<div class="card"><div style="font-weight:900;color:var(--n);font-size:15px">📋 حركة مشروع حسب البند</div><div style="font-size:11px;color:var(--g4);margin-top:3px">'+esc((pr&&pr.name)||projCode)+' · '+esc(wName)+' · '+(fromDate||'البداية')+' إلى '+(toDate||'اليوم')+'</div><div class="sg" style="margin-top:10px"><div class="st"><div class="sv">'+rows.length+'</div><div class="sl">حركة</div></div><div class="st"><div class="sv">'+money(td)+'</div><div class="sl">مدين</div></div><div class="st"><div class="sv">'+money(tc)+'</div><div class="sl">دائن</div></div><div class="st"><div class="sv">'+money(td-tc)+'</div><div class="sl">صافي</div></div></div></div>';if(!rows.length){out.innerHTML=h+'<div class="card" style="text-align:center;color:var(--g4);padding:25px">لا توجد حركات</div>';return;}h+='<div class="card" style="overflow:auto;padding:0"><table class="table-sticky"><thead><tr><th>التاريخ</th><th>القيد</th><th>الحساب</th><th>WBS</th><th>الطرف</th><th>البيان</th><th>مدين</th><th>دائن</th></tr></thead><tbody>';rows.forEach(function(r){h+='<tr style="cursor:pointer" onclick="viewE(\''+esc(r.id)+'\')"><td>'+esc(r.date)+'</td><td style="color:var(--sk);font-weight:800">'+esc(r.id)+'</td><td><code>'+esc(r.acc)+'</code><div style="font-size:10px;color:var(--g4)">'+esc(r.an)+'</div></td><td>'+esc(r.wbs||'—')+'</td><td>'+esc(r.tp||'—')+'</td><td>'+esc(r.desc)+'</td><td class="tn td">'+(r.dr?money(r.dr):'—')+'</td><td class="tn tc">'+(r.cr?money(r.cr):'—')+'</td></tr>';});h+='<tr style="background:var(--nd);color:white;font-weight:900"><td colspan="6">الإجمالي</td><td class="tn">'+money(td)+'</td><td class="tn">'+money(tc)+'</td></tr></tbody></table></div>';out.innerHTML=h;};
-  window.generateProjectTxnReport=window.v352GenerateProjectTxnReport;
-  window.updateWBSOptions=window.v352UpdateWBSOptions;
-
-  /* Hide budget period/description shortcut only, as requested */
-  if(window.rOperationsHub&&!window._v352OpsPatched){window._v352OpsPatched=true;var oldOps=window.rOperationsHub;window.rOperationsHub=function(){var h=oldOps.apply(this,arguments);h=h.replace(/<div class="mi" data-sub="budgetmeta">[\s\S]*?<\/div><\/div>/g,'');h=h.replace(/<div class="mi" data-sub="budgetmeta">[\s\S]*?<\/div>\s*<\/div>/g,'');h=h.replace(/<div class="mi"[^>]*>\s*<div class="mi-i">📅<\/div>\s*<div class="mi-t">فترة\/وصف الموازنة<\/div><\/div>/g,'');return h;};}
-
-  /* Force dashboard render after patch */
-  function boot(){try{ if(typeof rDash==='function')rDash(); }catch(e){console.error('V35.2 dashboard boot',e);} }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,60);}); else setTimeout(boot,60);
-})();
-/* ================= END ATHAR V35.2 JS FIXED PATCH ================= */
-</script>
-
-
-<script>
-/* ================= ATHAR V35.2 FINAL DASHBOARD FORCE FIX =================
-   Same successful V35.1 fix, applied AFTER all V35.2 patches.
-   Forces dashboard render after patches and prevents blank home screen.
-   No feature removal. */
-(function(){
-  function byId(id){return document.getElementById(id);} 
-  function hasSession(){
-    try{ return !!sessionStorage.getItem('atharUser') || !window.showLogin; }
-    catch(e){ return true; }
-  }
-  function m(n){try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}catch(e){return String(n||0);}}
-  function fallbackDash(){
-    var projects=(window.DB&&DB.projects)||[], entries=(window.DB&&DB.entries)||[], loans=(window.DB&&DB.loans)||[];
-    var spent=0;
-    entries.forEach(function(e){
-      if(e.status&&e.status!=='posted')return;
-      (e.lines||[]).forEach(function(l){var a=String(l.acc||''); if(a[0]==='5'||a[0]==='6') spent+=Number(l.dr||0);});
-    });
-    var activeLoans=loans.filter(function(l){return !l.status||l.status==='active'||l.status==='نشط';}).length;
-    return '<div class="dash-clean" dir="rtl" style="padding:14px 14px 90px;">'
-      +'<div class="hero-clean" style="background:linear-gradient(135deg,#152a52,#29abe2);color:white;border-radius:18px;padding:18px;margin-bottom:12px;"><div class="ttl" style="font-weight:900;font-size:20px;">أثر — مركز التحكم</div><div style="font-size:12px;opacity:.85;margin-top:6px;">تم تحميل الصفحة الرئيسية بنجاح</div></div>'
-      +'<div class="card athar-quick-actions"><div class="ct">⚡ الدخول السريع</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-      +'<button class="btn" onclick="nav(\'jour\',null)">➕ قيد يومية</button><button class="btn btn-gr" onclick="nav(\'pay\',null)">💰 إعداد مرتب</button><button class="btn btn-sky" onclick="sub(\'bva\')">📊 تقرير BVA</button><button class="btn btn-gy" onclick="sub(\'reports\')">📑 التقارير</button></div></div>'
-      +'<div class="sg"><div class="st"><div class="sv">'+projects.length+'</div><div class="sl">المشروعات</div></div><div class="st"><div class="sv">'+m(spent)+'</div><div class="sl">إجمالي الصرف</div></div><div class="st"><div class="sv">'+activeLoans+'</div><div class="sl">قروض نشطة</div></div><div class="st"><div class="sv">'+entries.length+'</div><div class="sl">قيود يومية</div></div></div>'
+    /* مؤشر الاتزان */
+    var diff=Math.abs(totalA-totalLC),balanced=diff<1;
+    h+='<div style="margin-top:10px;border-radius:10px;padding:10px 14px;'
+      +(balanced?'background:#ecfdf5;border:1.5px solid #6ee7b7;':'background:#fff1f2;border:1.5px solid #fecaca;')+'">'
+      +'<div style="font-weight:800;font-size:13px;color:'+(balanced?'#065f46':'#991b1b')+';"><b>'
+      +(balanced?'\u2705 \u0627\u0644\u0645\u064a\u0632\u0627\u0646\u064a\u0629 \u0645\u062a\u0648\u0627\u0632\u0646\u0629':'\u26a0\ufe0f \u0641\u0631\u0642 \u0627\u0644\u0627\u062a\u0632\u0627\u0646: '+fmt2(diff))+'</b></div>'
       +'</div>';
-  }
-  function forceDash(){
-    try{
-      var pg=byId('pg-dash'); if(!pg) return;
-      if(!hasSession() && typeof showLogin==='function'){ showLogin(); return; }
-      document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
-      pg.classList.add('on');
-      document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
-      var dashBtn=document.querySelector('[data-nav="dash"]'); if(dashBtn)dashBtn.classList.add('on');
-      var html='';
-      try{ if(typeof window.rDash==='function') html=window.rDash(); }catch(e){ console.error('V35.2 rDash failed',e); }
-      if(typeof html==='string' && html.trim()) pg.innerHTML=html;
-      if(!pg.innerHTML || pg.innerText.trim().length<20) pg.innerHTML=fallbackDash();
-      var content=document.querySelector('.content'); if(content) content.style.display='block';
-      var tb=document.querySelector('.topbar'); if(tb) tb.style.display='flex';
-      var bn=document.querySelector('.bnav'); if(bn) bn.style.display='flex';
-    }catch(e){console.error('ATHAR_V35_2_DASH_FORCE_ERROR',e);}
-  }
-  var oldNav=window.nav;
-  if(!window.__atharV352FinalNavWrapped){
-    window.__atharV352FinalNavWrapped=true;
-    window.nav=function(pg,btn){
-      var r;
-      try{ if(typeof oldNav==='function') r=oldNav.apply(this,arguments); }catch(e){console.error('nav failed',e);} 
-      if(pg==='dash') setTimeout(forceDash,40);
-      return r;
-    };
-  }
-  function boot(){
-    setTimeout(forceDash,250);
-    setTimeout(function(){var pg=byId('pg-dash'); if(pg && pg.classList.contains('on') && (!pg.innerHTML || pg.innerText.trim().length<20)) forceDash();},900);
-    setTimeout(function(){var pg=byId('pg-dash'); if(pg && pg.classList.contains('on') && (!pg.innerHTML || pg.innerText.trim().length<20)) forceDash();},1600);
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
-  window.atharForceDashboard=forceDash;
-})();
-/* ================= END ATHAR V35.2 FINAL DASHBOARD FORCE FIX ================= */
-</script>
-
-
-<script>
-/* ================= ATHAR V35.2 DASHBOARD FORCE FIX — CLEAN ================= */
-(function(){
-  function byId(id){return document.getElementById(id);} 
-  function m(n){try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}catch(e){return String(n||0);}}
-  function fallbackDash(){
-    var projects=(window.DB&&DB.projects)||[], entries=(window.DB&&DB.entries)||[], loans=(window.DB&&DB.loans)||[];
-    var spent=0;
-    entries.forEach(function(e){
-      if(e.status&&e.status!=='posted')return;
-      (e.lines||[]).forEach(function(l){var a=String(l.acc||''); if(a[0]==='5'||a[0]==='6') spent+=Number(l.dr||0);});
-    });
-    var activeLoans=loans.filter(function(l){return !l.status||l.status==='active'||l.status==='نشط';}).length;
-    return '<div class="dash-clean" dir="rtl" style="padding:14px 14px 90px;">'
-      +'<div class="hero-clean" style="background:linear-gradient(135deg,#152a52,#29abe2);color:white;border-radius:18px;padding:18px;margin-bottom:12px;"><div style="font-weight:900;font-size:20px;">أثر — مركز التحكم</div><div style="font-size:12px;opacity:.85;margin-top:6px;">تم تحميل الصفحة الرئيسية بنجاح</div></div>'
-      +'<div class="card athar-quick-actions"><div class="ct">⚡ الدخول السريع</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-      +'<button class="btn" onclick="nav(\'jour\',null)">➕ قيد يومية</button><button class="btn btn-gr" onclick="nav(\'pay\',null)">💰 إعداد مرتب</button><button class="btn btn-sky" onclick="sub(\'bva\')">📊 تقرير BVA</button><button class="btn btn-gy" onclick="sub(\'reports\')">📑 التقارير</button></div></div>'
-      +'<div class="sg"><div class="st"><div class="sv">'+projects.length+'</div><div class="sl">المشروعات</div></div><div class="st"><div class="sv">'+m(spent)+'</div><div class="sl">إجمالي الصرف</div></div><div class="st"><div class="sv">'+activeLoans+'</div><div class="sl">قروض نشطة</div></div><div class="st"><div class="sv">'+entries.length+'</div><div class="sl">قيود يومية</div></div></div>'
-      +'</div>';
-  }
-  function forceDash(){
-    try{
-      var pg=byId('pg-dash'); if(!pg) return;
-      var html='';
-      try{ if(typeof window.rDash==='function') html=window.rDash(); }catch(e){ console.error('rDash failed',e); }
-      if(typeof html==='string' && html.trim()) pg.innerHTML=html;
-      if(!pg.innerHTML || pg.innerText.trim().length<20) pg.innerHTML=fallbackDash();
-      document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
-      pg.classList.add('on');
-      document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
-      var home=document.querySelector('[data-nav="dash"]'); if(home) home.classList.add('on');
-      var content=document.querySelector('.content'); if(content) content.style.display='block';
-      var tb=document.querySelector('.topbar'); if(tb) tb.style.display='flex';
-      var bn=document.querySelector('.bnav'); if(bn) bn.style.display='flex';
-    }catch(e){console.error('ATHAR_DASH_FORCE_ERROR',e);}
-  }
-  var oldNav=window.nav;
-  window.nav=function(pg,btn){
-    if(typeof oldNav==='function') oldNav.apply(this,arguments);
-    if(pg==='dash') setTimeout(forceDash,30);
-  };
-  function boot(){
-    setTimeout(forceDash,250);
-    setTimeout(function(){var pg=byId('pg-dash'); if(pg && (!pg.innerHTML || pg.innerText.trim().length<20)) forceDash();},900);
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
-})();
-/* ================= END ATHAR V35.2 DASHBOARD FORCE FIX — CLEAN ================= */
-</script>
-
-<script id="athar-v35-4-loan-opening-menu-safe-patch">
-(function(){
-  'use strict';
-
-  function F(n){
-    try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}
-    catch(e){return String(Math.round(Number(n)||0));}
-  }
-  function accName(code){
-    var a=(window.DB&&DB.accounts||[]).find(function(x){return x.c===code;});
-    return a?a.n:code;
-  }
-  function today(){return new Date().toISOString().slice(0,10);}
-  function newEntryId(){return 'J'+new Date().getFullYear()+'-'+String(Date.now()).slice(-7);}
-  function card(item){
-    var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';
-    return '<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';
-  }
-
-  // 1) Finance hub menu — ensure الأستاذ المساعد is visible in المالية.
-  window.rالماليةHub=function(){
-    var sections=[
-      {title:'📊 التقارير المالية',items:[
-        {i:'⚖️',t:'ميزان المراجعة',n:'trial'},
-        {i:'📈',t:'الميزانية العمومية',n:'balance'},
-        {i:'💰',t:'قائمة الدخل',n:'income'},
-        {i:'📉',t:'BVA',n:'bva'}
-      ]},
-      {title:'🏦 البنوك والخزينة',items:[
-        {i:'🏦',t:'البنوك والتسوية',n:'banks'},
-        {i:'🔄',t:'سجل التسويات',n:'reconhist'},
-        {i:'🖊️',t:'طباعة الشيكات',n:'checks'}
-      ]},
-      {title:'📚 دفاتر الأستاذ',items:[
-        {i:'📒',t:'الأستاذ المساعد',n:'tpledger'},
-        {i:'📒',t:'كشف حساب',n:'accledger'},
-        {i:'🌳',t:'شجرة الحسابات',n:'accounts'},
-        {i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}
-      ]},
-      {title:'📊 تقارير الإدارة',items:[
-        {i:'🌍',t:'دفتر المانحين',n:'donorledger'},
-        {i:'📊',t:'تقرير التباين',n:'variance'},
-        {i:'💵',t:'التدفق النقدي',n:'cashforecast'},
-        {i:'🎯',t:'لوحة القيادة',n:'execdash'}
-      ]}
-    ];
-    var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
-    sections.forEach(function(sec){
-      h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';
-      sec.items.forEach(function(it){h+=card(it);});
-      h+='</div></div>';
-    });
-    return h+'</div>';
-  };
-
-  // 2) Operations hub menu — contracts under purchasing, plus fixed assets and grant files.
-  window.rOperationsHub=function(){
-    var sections=[
-      {title:'🎯 المشروعات والممولين',items:[
-        {i:'🎯',t:'المشروعات',n:'proj',pg:true},
-        {i:'📋',t:'حركة مشروع حسب البند',n:'projtxn'},
-        {i:'🌍',t:'دفتر المانحين',n:'donorledger'},
-        {i:'📁',t:'ملفات المنح',n:'grantfiles'}
-      ]},
-      {title:'👥 الموارد البشرية',items:[
-        {i:'🏢',t:'الموظفين',n:'employees'},
-        {i:'💳',t:'كشف الرواتب',n:'pay',pg:true},
-        {i:'⏱️',t:'Timesheet',n:'timesheet'},
-        {i:'🌴',t:'الإجازات',n:'myleaves'}
-      ]},
-      {title:'🛒 المشتريات والمخازن',items:[
-        {i:'🏭',t:'الموردون',n:'suppliers'},
-        {i:'📋',t:'سجل العقود',n:'contracts'},
-        {i:'📦',t:'المخازن',n:'inventory'},
-        {i:'📥',t:'إذن إضافة',n:'inv_receive'},
-        {i:'📤',t:'إذن صرف',n:'inv_issue'}
-      ]},
-      {title:'💵 القروض الصغيرة',items:[
-        {i:'💵',t:'إدارة القروض',n:'loans'}
-      ]},
-      {title:'✅ الامتثال والأصول',items:[
-        {i:'🏢',t:'الأصول الثابتة',n:'assets'},
-        {i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive'},
-        {i:'✅',t:'امتثال المستندات',n:'compliance'},
-        {i:'📋',t:'نموذج 41',n:'form41'}
-      ]}
-    ];
-    var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">🎯 العمليات</div>';
-    sections.forEach(function(sec){
-      h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';
-      sec.items.forEach(function(it){h+=card(it);});
-      h+='</div></div>';
-    });
-    return h+'</div>';
-  };
-
-  // 3) Opening balances are included in bals(), so Trial Balance/BS/Banks reports see them.
-  window.bals=function(){
-    var m={};
-    (DB.accounts||[]).forEach(function(a){m[a.c]={dr:0,cr:0};});
-    if(DB.openingBals){
-      Object.keys(DB.openingBals).forEach(function(acc){
-        var val=parseFloat(DB.openingBals[acc])||0;
-        if(!val)return;
-        if(!m[acc])m[acc]={dr:0,cr:0};
-        var a=(DB.accounts||[]).find(function(x){return x.c===acc;});
-        if(a&&a.nat==='cr')m[acc].cr+=val; else m[acc].dr+=val;
-      });
-    }
-    (DB.entries||[]).filter(function(e){return e.status==='posted';}).forEach(function(e){
-      (e.lines||[]).forEach(function(l){
-        if(!l.acc)return;
-        if(!m[l.acc])m[l.acc]={dr:0,cr:0};
-        m[l.acc].dr+=parseFloat(l.dr)||0;
-        m[l.acc].cr+=parseFloat(l.cr)||0;
-      });
-    });
-    return m;
+    h+='<button onclick="printBalanceSheet()" class="btn btn-sm btn-gy" style="width:100%;margin-top:10px;font-size:11px;">\uD83D\uDDA8\uFE0F \u0637\u0628\u0627\u0639\u0629</button>';
+    return h;
   };
 
   // 4) Loan collection creates a real journal entry: Dr Cash/Bank, Cr Loan Principal, Cr Admin-fees receivable.
@@ -24338,7 +24143,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     /* هل هي قائمة دخل؟ */
     var isIncome  = html.indexOf('قائمة الدخل') > -1 && html.indexOf('الإيرادات') > -1;
     /* هل هي ميزانية؟ */
-    var isBalance = html.indexOf('الميزانية العمومية') > -1 && html.indexOf('الأصول') > -1;
+    var isBalance = html.indexOf('الميزانية العمومية') > -1 && html.indexOf('الأصول') > -1 && html.indexOf('class="ct"') > -1; /* only old card format */
 
     if(!isIncome && !isBalance) return;
     /* تحقق إن لم نطبق التنسيق من قبل */
@@ -24770,25 +24575,69 @@ tbody td {
       /* أضف section التقارير لو مش موجود */
       if(pg.innerHTML.indexOf('v3525-reports') > -1) return;
 
-      var reportsSection = document.createElement('div');
-      reportsSection.className = 'v3525-reports';
-      reportsSection.style.cssText = 'margin-bottom:14px;';
-      reportsSection.innerHTML =
-        '<div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid #059669;">📊 التقارير المالية</div>'
-        + '<div class="mg">'
-        + '<div class="mi" data-sub="income"><div class="mi-i">💰</div><div class="mi-t">قائمة الدخل</div></div>'
-        + '<div class="mi" data-sub="balance"><div class="mi-i">📈</div><div class="mi-t">الميزانية العمومية</div></div>'
-        + '<div class="mi" data-sub="trial"><div class="mi-i">⚖️</div><div class="mi-t">ميزان المراجعة</div></div>'
-        + '<div class="mi" data-sub="cashflow"><div class="mi-i">💵</div><div class="mi-t">Cash Flow</div></div>'
-        + '<div class="mi" data-sub="bva"><div class="mi-i">📊</div><div class="mi-t">BVA — متابعة الموازنة</div></div>'
+      /* بناء التقارير بنفس تقسيم rReportsPage */
+      var sections = [
+        {title:'📒 تقارير المحاسبة', items:[
+          {i:'⚖️',t:'ميزان المراجعة',fn:"sub('trial')"},
+          {i:'💰',t:'قائمة الدخل',fn:"sub('income')"},
+          {i:'📈',t:'الميزانية العمومية',fn:"sub('balance')"},
+          {i:'💵',t:'Cash Flow',fn:"sub('cashflow')"},
+          {i:'📉',t:'BVA — متابعة الموازنة',fn:"sub('bva')"},
+          {i:'📒',t:'الأستاذ المساعد',fn:"sub('accounts')"},
+          {i:'🌳',t:'شجرة الحسابات',fn:"sub('accounts')"}
+        ]},
+        {title:'🎯 تقارير المشروعات', items:[
+          {i:'📉',t:'BVA — كل المشروعات',fn:"rptBVAAll&&rptBVAAll()"},
+          {i:'📋',t:'ملخص إنجاز المشروعات',fn:"rptProjectsSummary&&rptProjectsSummary()"},
+          {i:'💰',t:'المصروفات لكل مشروع',fn:"rptExpByProject&&rptExpByProject()"},
+          {i:'🌍',t:'تقرير المحاور الموضوعية',fn:"rptByThematic&&rptByThematic()"},
+          {i:'🎯',t:'تقرير الأنشطة',fn:"rptByActivity&&rptByActivity()"}
+        ]},
+        {title:'👥 تقارير الموارد البشرية', items:[
+          {i:'💰',t:'تقرير الرواتب والتكاليف',fn:"hrRptSalaries&&hrRptSalaries()"},
+          {i:'🏢',t:'توزيع الأقسام',fn:"hrRptByDept&&hrRptByDept()"},
+          {i:'⏰',t:'العقود القاربة على الانتهاء',fn:"hrRptExpiring&&hrRptExpiring()"},
+          {i:'🏦',t:'التأمينات والضرائب',fn:"hrRptInsurance&&hrRptInsurance()"},
+          {i:'📋',t:'سجل إعداد المرتبات',fn:"rptالمرتباتReport&&rptالمرتباتReport()"}
+        ]},
+        {title:'📊 تصدير Excel', items:[
+          {i:'📊',t:'ميزان المراجعة Excel',fn:"exportTrialBalanceExcel&&exportTrialBalanceExcel()"},
+          {i:'📊',t:'نموذج 41 Excel',fn:"sub('form41')"},
+          {i:'💰',t:'كشف الرواتب Excel',fn:"rptالمرتباتReport&&rptالمرتباتReport()"}
+        ]}
+      ];
+
+      var rSection = document.createElement('div');
+      rSection.className = 'v3525-reports';
+      rSection.style.cssText = 'margin-bottom:14px;';
+
+      var html = '<div style="font-size:13px;font-weight:900;color:var(--n);padding:6px 8px 10px;border-bottom:2px solid var(--g2);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">'
+        + '<span>📊 التقارير</span>'
         + '</div>';
 
-      /* أدخله أول شيء بعد العنوان */
+      sections.forEach(function(sec){
+        html += '<div style="margin-bottom:12px;">';
+        html += '<div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:6px;margin-bottom:6px;padding:0 4px;">'
+          + '<span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'
+          + sec.title + '</div>';
+        html += '<div class="mg">';
+        sec.items.forEach(function(item){
+          html += '<div class="mi" onclick="' + item.fn + '">'
+            + '<div class="mi-i">' + item.i + '</div>'
+            + '<div class="mi-t">' + item.t + '</div>'
+            + '</div>';
+        });
+        html += '</div></div>';
+      });
+
+      rSection.innerHTML = html;
+
+      /* أدخله أول شيء في pg-more */
       var phTitle = pg.querySelector('.ph-t');
       if(phTitle && phTitle.parentNode === pg){
-        pg.insertBefore(reportsSection, phTitle.nextSibling);
+        pg.insertBefore(rSection, phTitle.nextSibling);
       } else {
-        pg.insertBefore(reportsSection, pg.firstChild);
+        pg.insertBefore(rSection, pg.firstChild);
       }
     };
   }
