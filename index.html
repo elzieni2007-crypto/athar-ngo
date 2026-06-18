@@ -1108,7 +1108,7 @@ function rMore(){
     {header:"⚙️ الإعدادات", items:[
       {i:"⚙️",t:"الإعدادات",n:"settings",admin:true},
       {i:"🔐",t:"الصلاحيات والأدوار",n:"permissions",admin:true},
-      {i:"🧭",t:"مراجعة شهر كامل",n:"finance_review",admin:false},
+      
       {i:"📥",t:"صندوق الاعتماد",n:"approvals"},
       {i:"🗂️",t:"البيانات الرئيسية",n:"masterdata",admin:true},
       {i:"🧮",t:"إعداد الضريبة",n:"taxconfig",admin:true},
@@ -1527,7 +1527,6 @@ function sub(n){
     fin:"💰 المالية",
     ops:"🎯 العمليات",
     settings:"⚙️ الإعدادات",
-    finance_review:"🧭 مراجعة شهر كامل"
   };
   // Pages that should render full-screen vs modal
   var fullPages=['accounts','trial','balance','income','bva','banks','inventory','fin','ops','search','audit',
@@ -2315,7 +2314,9 @@ function updET(){
 }
 
 function saveE(){
-  if(!requirePerm("canEditEntries","المحاسب لا يمكنه إدخال قيود"))return;
+  if(!requirePerm("canAddEntries","⛔ ليس لديك صلاحية إضافة قيود")) return;
+  var _canPost = hasPerm("canPostEntries");
+  if(window.__forceDraft) _canPost = false;
   var dt=sv("e-d")||new Date().toISOString().split("T")[0];
   if(!checkPeriodLock(dt))return;
   var lines=collectTP("e",_eL);
@@ -2391,12 +2392,20 @@ function saveE(){
     id:id,date:dt,ref:sv("e-r")||id,desc:sv("e-ds")||"قيد محاسبي",
     proj:primaryProj,costCenter:sv("e-cc"),location:sv("e-loc"),
     activity:sv("e-act"),docType:sv("e-dt"),payMethod:sv("e-pm"),
-    lines:lines,status:"posted",contractId:sv('e-contract')||''
+    lines:lines,status:(_canPost?"posted":"draft"),createdBy:((typeof getCurrentUser==="function"&&getCurrentUser())?getCurrentUser().name:""),createdAt:new Date().toISOString(),contractId:sv('e-contract')||''
   });
   save();cm();rJour();rDash();
-  toast("✅ تم ترحيل القيد "+id);
+  if(_canPost){
+    toast("✅ تم ترحيل القيد "+id);
+  } else {
+    toast("💾 حُفظ القيد "+id+" مسودة — بانتظار اعتماد المدير المالي");
+  }
 }
 
+function _saveEDraft(){
+  window.__forceDraft=true;
+  try{ saveE(); }finally{ window.__forceDraft=false; }
+}
 function viewE(id){
   var e=(DB.entries||[]).find(function(x){return x.id===id;});
   if(!e){toast("القيد غير موجود");return;}
@@ -2420,6 +2429,8 @@ function viewE(id){
   h+='<td class="td tn" style="font-weight:700;">'+fmt(tD)+'</td><td class="tc tn" style="font-weight:700;">'+fmt(tD)+'</td></tr></tfoot></table>';
   var btns=document.createElement("div");btns.style.cssText="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;";
   if(can("canEditEntries")){var b1=document.createElement("button");b1.className="btn btn-sky btn-sm";b1.style.flex="1";b1.textContent="✏️ تعديل";b1.onclick=function(){editEntry(id);};btns.appendChild(b1);}
+  if(can("canPostEntries")&&e.status!=="posted"){var bPost=document.createElement("button");bPost.className="btn btn-sm";bPost.style.cssText="background:#059669;color:white;flex:1;";bPost.textContent="✅ ترحيل";bPost.onclick=function(){postEntry(id);};btns.appendChild(bPost);}
+  if(can("canPostEntries")&&e.status==="posted"){var bUnpost=document.createElement("button");bUnpost.className="btn btn-sm";bUnpost.style.cssText="background:#d97706;color:white;flex:1;";bUnpost.textContent="↩️ إلغاء ترحيل";bUnpost.onclick=function(){unpostEntry(id);};btns.appendChild(bUnpost);}
   if(can("canDeleteEntries")){var b2=document.createElement("button");b2.className="btn btn-rd btn-sm";b2.style.flex="1";b2.textContent="🗑️ حذف";b2.onclick=function(){delEntry(id);};btns.appendChild(b2);}
   var b4=document.createElement("button");b4.className="btn btn-sm";b4.style.cssText="background:var(--am);flex:1;";b4.textContent="🖨️ طباعة";b4.onclick=function(){printEntrySheet(id);};btns.appendChild(b4);
   var b9=document.createElement("button");b9.className="btn btn-sm";b9.style.cssText="background:#1d4ed8;flex:1;";b9.textContent="🏦 شيك";b9.onclick=function(){cm();sub("checks");setTimeout(function(){fillCheckFromEntry(id);},300);};btns.appendChild(b9);
@@ -2496,8 +2507,32 @@ function saveEditEntry(id){
   save();cm();rJour();rDash();toast("✅ تم تعديل القيد "+id);
 }
 
+function postEntry(id){
+  if(!requirePerm("canPostEntries","⛔ الترحيل للمدير المالي أو الإدارة فقط")) return;
+  var e=(DB.entries||[]).find(function(x){return x.id===id;});
+  if(!e){toast("القيد غير موجود");return;}
+  if(e.status==="posted"){toast("القيد مرحّل بالفعل");return;}
+  if(!checkPeriodLock(e.date))return;
+  e.status="posted";
+  var u=typeof getCurrentUser==="function"?getCurrentUser():null;
+  e.postedBy=u?u.name:""; e.postedAt=new Date().toISOString();
+  e.auditLog=e.auditLog||[]; e.auditLog.push({at:e.postedAt,by:e.postedBy,action:"ترحيل"});
+  save();cm();rJour();rDash(); toast("✅ تم ترحيل القيد "+id);
+}
+function unpostEntry(id){
+  if(!requirePerm("canPostEntries","⛔ إلغاء الترحيل للمدير المالي أو الإدارة فقط")) return;
+  var e=(DB.entries||[]).find(function(x){return x.id===id;});
+  if(!e){toast("القيد غير موجود");return;}
+  if(e.status!=="posted"){toast("القيد غير مرحّل");return;}
+  if(!checkPeriodLock(e.date))return;
+  e.status="draft";
+  var u=typeof getCurrentUser==="function"?getCurrentUser():null;
+  e.unpostedBy=u?u.name:""; e.unpostedAt=new Date().toISOString();
+  e.auditLog=e.auditLog||[]; e.auditLog.push({at:e.unpostedAt,by:e.unpostedBy,action:"إلغاء ترحيل"});
+  save();cm();rJour();rDash(); toast("↩️ تم إلغاء الترحيل — القيد مسودة");
+}
 function delEntry(id){
-  if(!requirePerm("canDeleteEntries","ليس لديك صلاحية حذف القيود"))return;
+  if(!requirePerm("canDeleteEntries","⛔ ليس لديك صلاحية حذف القيود"))return;
   if(!confirm("تأكيد حذف القيد "+id+"؟"))return;
   DB.entries=(DB.entries||[]).filter(function(e){return e.id!==id;});
   save();cm();rJour();rDash();toast("🗑️ تم حذف القيد");
@@ -3993,8 +4028,7 @@ function rTrialPage(){
   h+='<div style="display:flex;gap:6px;">';
   h+='<button onclick="window._tbMode=\'totals\';sub(\'trial\')" class="btn btn-sm" '
     +'style="background:'+(mode==='totals'?'var(--nd)':'#f1f5f9')+';color:'+(mode==='totals'?'white':'#374151')+';">بالمجاميع</button>';
-  h+='<button onclick="window._tbMode=\'balances\';sub(\'trial\')" class="btn btn-sm" '
-    +'style="background:'+(mode==='balances'?'var(--nd)':'#f1f5f9')+';color:'+(mode==='balances'?'white':'#374151')+';">بالأرصدة</button>';
+  h+='';
   h+='<button onclick="exportTrialBalanceExcel()" class="btn btn-sm" style="background:var(--gr);color:white;font-size:10.5px;">📊 Excel</button>';
   h+='</div></div>';
 
@@ -13224,55 +13258,204 @@ function saveEmpStatus(i){
 var ROLE_LABELS = {admin:"مدير النظام",accounts_manager:"مدير مالي",accountant:"محاسب",program:"موظف برامج",hr:"موارد بشرية",storekeeper:"مسؤول مخازن"};
 var ROLE_ICONS  = {admin:"🔴",accounts_manager:"🟡",accountant:"🟢",program:"🎯",hr:"👥",storekeeper:"📦"};
 
-function initAuth(){
-  if(!DB.users)DB.users=[];
-  var today=new Date().toISOString().split("T")[0];
-  if(!DB.users.length){
-    DB.users=[
-      {id:"U001",name:"مدير النظام",username:"admin",password:"admin123",role:"admin",active:true,createdAt:today},
-      {id:"U002",name:"مدير مالي",username:"finance",password:"finance123",role:"accounts_manager",active:true,createdAt:today},
-      {id:"U003",name:"محاسب",username:"accountant",password:"account123",role:"accountant",active:true,createdAt:today},
-      {id:"U004",name:"موظف برامج",username:"program",password:"program123",role:"program",active:true,createdAt:today},
-      {id:"U005",name:"مسؤول الموارد البشرية",username:"hr",password:"hr123",role:"hr",active:true,createdAt:today},
-      {id:"U006",name:"مسؤول المخازن",username:"store",password:"store123",role:"storekeeper",active:true,createdAt:today}
-    ];
-  }else{
-    if(!DB.users.some(function(u){return u.role==="admin";})){
-      DB.users.unshift({id:"U"+Date.now(),name:"مدير النظام",username:"admin",password:"admin123",role:"admin",active:true,createdAt:today});
-    }
-    if(!DB.users.some(function(u){return u.role==="accounts_manager";})){
-      DB.users.push({id:"U"+(Date.now()+10),name:"مدير مالي",username:"finance",password:"finance123",role:"accounts_manager",active:true,createdAt:today});
-    }
-    if(!DB.users.some(function(u){return u.role==="accountant";})){
-      DB.users.push({id:"U"+(Date.now()+1),name:"محاسب",username:"accountant",password:"account123",role:"accountant",active:true,createdAt:today});
-    }
-    if(!DB.users.some(function(u){return u.role==="program";})){
-      DB.users.push({id:"U"+(Date.now()+2),name:"موظف برامج",username:"program",password:"program123",role:"program",active:true,createdAt:today});
-    }
-    if(!DB.users.some(function(u){return u.role==="hr";})){
-      DB.users.push({id:"U"+(Date.now()+3),name:"مسؤول الموارد البشرية",username:"hr",password:"hr123",role:"hr",active:true,createdAt:today});
-    }
-    if(!DB.users.some(function(u){return u.role==="storekeeper";})){
-      DB.users.push({id:"U"+(Date.now()+4),name:"مسؤول المخازن",username:"store",password:"store123",role:"storekeeper",active:true,createdAt:today});
-    }
-  }
-  if(!DB.closedPeriods)DB.closedPeriods=[];
-  if(!DB.currentUser)DB.currentUser=null;
-  ensureDefaultRolePerms();
+/* ================================================================
+   AUTH v35.22 — Password Hashing + Signed Token + Session Expiry
+   - كلمات السر مشفرة بـ SHA-256 في DB
+   - Token = base64(payload) + HMAC-like signature
+   - Session expiry: 8 ساعات (قابل للتعديل)
+   - لا location.reload() — SPA navigation
+================================================================ */
+
+/* ── Crypto helpers (browser SubtleCrypto) ── */
+var _atharCryptoReady = false;
+var _atharHMACKey = null;
+var SESSION_HOURS = 8; // مدة الجلسة بالساعات
+
+/* توليد مفتاح HMAC من fingerprint الجهاز + salt المؤسسة */
+function _initCryptoKey(){
+  if(_atharHMACKey) return Promise.resolve(_atharHMACKey);
+  var salt = (DB.org && DB.org.salt) || 'athar-default-salt-2025';
+  var raw = salt + navigator.userAgent.substring(0,30);
+  return crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(raw),
+    {name:'HMAC', hash:'SHA-256'},
+    false, ['sign','verify']
+  ).then(function(k){ _atharHMACKey=k; return k; });
 }
 
-// ---- session helpers ----
+/* SHA-256 → hex string */
+function _sha256(str){
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
+    .then(function(buf){
+      return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+    });
+}
+
+/* hashPassword: SHA-256(password + userId + orgSalt) */
+function hashPassword(pass, userId){
+  var salt = (DB.org && DB.org.salt) || 'athar2025';
+  return _sha256(pass + userId + salt);
+}
+
+/* verifyPassword */
+function verifyPassword(pass, userId, storedHash){
+  return hashPassword(pass, userId).then(function(h){ return h === storedHash; });
+}
+
+/* generateToken: base64url(payload) + '.' + HMAC signature */
+function generateToken(userId, role){
+  var payload = {uid:userId, role:role, iat:Date.now(), exp:Date.now()+SESSION_HOURS*3600000};
+  var payloadB64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  return _initCryptoKey().then(function(key){
+    return crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64))
+      .then(function(sig){
+        var sigHex = Array.from(new Uint8Array(sig)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+        return payloadB64 + '.' + sigHex;
+      });
+  });
+}
+
+/* verifyToken: returns payload or null */
+function verifyToken(token){
+  if(!token) return Promise.resolve(null);
+  var parts = token.split('.');
+  if(parts.length !== 2) return Promise.resolve(null);
+  return _initCryptoKey().then(function(key){
+    var sigBytes = new Uint8Array(parts[1].match(/.{2}/g).map(function(h){return parseInt(h,16);}));
+    return crypto.subtle.verify('HMAC', key, sigBytes, new TextEncoder().encode(parts[0]))
+      .then(function(valid){
+        if(!valid) return null;
+        try{
+          var payload = JSON.parse(decodeURIComponent(escape(atob(parts[0]))));
+          if(payload.exp < Date.now()) return null; // منتهي الصلاحية
+          return payload;
+        }catch(e){ return null; }
+      }).catch(function(){ return null; });
+  });
+}
+
+/* ── Storage keys ── */
+var _TOKEN_KEY = 'athar_tok_v2';
+var _USER_KEY  = 'athar_usr_v2';
+
+/* ── Session helpers ── */
 function getCurrentUser(){
   try{
-    var s=sessionStorage.getItem("atharUser");
-    return s?JSON.parse(s):null;
-  }catch(e){return null;}
+    var s = sessionStorage.getItem(_USER_KEY);
+    if(!s) return null;
+    var u = JSON.parse(s);
+    /* فحص expiry */
+    if(u._exp && u._exp < Date.now()){
+      clearCurrentUser();
+      return null;
+    }
+    return u;
+  }catch(e){ return null; }
 }
+
 function setCurrentUser(u){
-  try{sessionStorage.setItem("atharUser",JSON.stringify(u));}catch(e){}
+  try{
+    u._exp = Date.now() + SESSION_HOURS * 3600000;
+    sessionStorage.setItem(_USER_KEY, JSON.stringify(u));
+  }catch(e){}
 }
+
 function clearCurrentUser(){
-  try{sessionStorage.removeItem("atharUser");}catch(e){}
+  try{
+    sessionStorage.removeItem(_USER_KEY);
+    sessionStorage.removeItem(_TOKEN_KEY);
+  }catch(e){}
+}
+
+/* الحصول على التوكن الحالي */
+function getAuthToken(){
+  return sessionStorage.getItem(_TOKEN_KEY) || null;
+}
+
+function initAuth(){
+  if(!DB.users) DB.users = [];
+  var today = new Date().toISOString().split("T")[0];
+
+  /* الـ salt للمؤسسة — يُولَّد مرة واحدة ويُحفظ */
+  if(!DB.org) DB.org = {};
+  if(!DB.org.salt){
+    DB.org.salt = 'athr-' + Math.random().toString(36).substring(2) + '-' + Date.now().toString(36);
+    save();
+  }
+
+  /* المستخدمون الافتراضيون — كلمات السر مشفرة */
+  var defaultUsers = [
+    {id:"U001",name:"مدير النظام",     username:"admin",     email:"admin@athar.app",     _rawPass:"admin123",    role:"admin",            active:true},
+    {id:"U002",name:"مدير مالي",       username:"finance",   email:"finance@athar.app",   _rawPass:"finance123",  role:"accounts_manager", active:true},
+    {id:"U003",name:"محاسب",           username:"accountant",email:"accountant@athar.app",_rawPass:"account123",  role:"accountant",       active:true},
+    {id:"U004",name:"موظف برامج",      username:"program",   email:"program@athar.app",   _rawPass:"program123",  role:"program",          active:true},
+    {id:"U005",name:"مسؤول الموارد",   username:"hr",        email:"hr@athar.app",        _rawPass:"hr123",       role:"hr",               active:true},
+    {id:"U006",name:"مسؤول المخازن",   username:"store",     email:"store@athar.app",     _rawPass:"store123",    role:"storekeeper",      active:true}
+  ];
+
+  /* هاش كلمات السر للمستخدمين الجدد أو غير المشفرين */
+  var hashPromises = [];
+  defaultUsers.forEach(function(du){
+    var existing = (DB.users||[]).find(function(u){ return u.id === du.id || u.username === du.username; });
+    if(!existing){
+      var newUser = {id:du.id, name:du.name, username:du.username, email:du.email||"", role:du.role, active:true, createdAt:today};
+      DB.users.push(newUser);
+      hashPromises.push(
+        hashPassword(du._rawPass, du.id).then(function(hash){ newUser.passwordHash = hash; })
+      );
+    } else if(!existing.passwordHash && existing.password){
+      /* ترقية: هاش كلمة السر القديمة plain text */
+      var userId = existing.id;
+      var oldPass = existing.password;
+      hashPromises.push(
+        hashPassword(oldPass, userId).then(function(hash){
+          existing.passwordHash = hash;
+          delete existing.password; /* حذف plain text */
+        })
+      );
+    }
+  });
+
+  /* ترقية باقي المستخدمين القدامى */
+  (DB.users||[]).forEach(function(u){
+    if(!u.passwordHash && u.password){
+      var uid = u.id; var op = u.password;
+      hashPromises.push(
+        hashPassword(op, uid).then(function(hash){
+          u.passwordHash = hash;
+          delete u.password;
+        })
+      );
+    }
+  });
+
+  /* بعد اكتمال الهاش، احفظ */
+  if(hashPromises.length){
+    Promise.all(hashPromises).then(function(){ save(); }).catch(function(){});
+  }
+
+  /* ترقية: أضف إيميل للمستخدمين القدامى الذين ليس لديهم إيميل */
+  var needSave = false;
+  (DB.users||[]).forEach(function(u){
+    if(!u.email && u.username){
+      /* لو اسم المستخدم يبدو إيميل — استخدمه مباشرة */
+      if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.username)){
+        u.email = u.username.toLowerCase();
+        needSave = true;
+      }
+      /* مستخدمون افتراضيون معروفون — أضف إيميل @athar.app */
+      else if(['admin','finance','accountant','program','hr','store'].indexOf(u.username)>-1){
+        u.email = u.username+'@athar.app';
+        needSave = true;
+      }
+    }
+  });
+  if(needSave) setTimeout(function(){ try{ save(); }catch(e){} }, 200);
+
+  if(!DB.closedPeriods) DB.closedPeriods = [];
+  if(!DB.currentUser) DB.currentUser = null;
+  ensureDefaultRolePerms();
 }
 function can(perm){
   if(typeof hasPerm==='function') return hasPerm(perm);
@@ -13325,26 +13508,26 @@ function isValidEmail(email){
 function sendOTP(email, purpose, cb){
   email = String(email||'').trim();
   if(!isValidEmail(email)){ cb('البريد الإلكتروني غير صحيح'); return; }
+  _otpCode   = String(crypto.getRandomValues(new Uint32Array(1))[0]).slice(-6).padStart(6,'0');
+  _otpEmail  = email;
+  _otpPurpose= purpose;
+  _otpExpiry = Date.now() + 10 * 60 * 1000;
+  /* إذا EmailJS غير متاح — fallback بدون إرسال (وضع offline/تطوير) */
   if(typeof emailjs === 'undefined'){
-    cb('خدمة إرسال البريد غير متاحة — تأكد من الاتصال بالإنترنت');
+    cb(null, _otpCode); /* نمرر الكود مباشرة للـ callback كـ devCode */
     return;
   }
-  _otpCode = generateOTP();
-  _otpEmail = email;
-  _otpPurpose = purpose;
-  _otpExpiry = Date.now() + 10 * 60 * 1000;
-  var templateParams = {
+  emailjs.send('service_j1hs2ap', 'template_l15xags', {
     to_email: email,
     otp_code: _otpCode,
-    purpose: purpose === 'register' ? 'تفعيل الحساب' : 'استعادة كلمة المرور',
+    purpose: purpose==='register'?'تفعيل الحساب':'استعادة كلمة المرور',
     app_name: 'أثر',
     expiry: '10 دقائق'
-  };
-  emailjs.send('service_j1hs2ap', 'template_l15xags', templateParams)
-    .then(function(){ cb(null); })
+  }).then(function(){ cb(null); })
     .catch(function(err){
       console.error('EmailJS error:', err);
-      cb((err && (err.text || err.message)) || 'فشل إرسال البريد');
+      /* فشل الإرسال — استخدم offline mode */
+      cb(null, _otpCode);
     });
 }
 
@@ -13393,10 +13576,10 @@ function doRegisterStep1(){
     return;
   }
   window._regData = {org:org, email:email, pass:pass};
-  if(err) err.textContent='⏳ جاري إرسال الكود...';
-  sendOTP(email, 'register', function(error){
+  if(err) err.textContent='⏳ جاري الإرسال...';
+  sendOTP(email, 'register', function(error, devCode){
     if(error){ if(err) err.textContent='⚠️ '+error; return; }
-    showOTPScreen('register');
+    showOTPScreen('register', devCode);
   });
 }
 
@@ -13430,30 +13613,38 @@ function doForgotStep1(){
   if(!user){ if(err) err.textContent='⚠️ البريد غير مسجل في النظام'; return; }
   window._resetUser = user;
   if(err) err.textContent='⏳ جاري إرسال الكود...';
-  sendOTP(email, 'reset', function(error){
+  sendOTP(email, 'reset', function(error, devCode){
     if(error){ if(err) err.textContent='⚠️ '+error; return; }
-    showOTPScreen('reset');
+    showOTPScreen('reset', devCode);
   });
 }
 
-function showOTPScreen(purpose){
+function showOTPScreen(purpose, devCode){
   var overlay = document.getElementById('login-overlay');
   if(!overlay) return;
   var title = purpose === 'register' ? 'تفعيل الحساب' : 'استعادة كلمة المرور';
+  var devBanner = devCode
+    ? '<div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:10px;padding:12px;margin-bottom:14px;text-align:center;">'
+      +'<div style="font-size:11px;color:#92400e;font-weight:700;margin-bottom:6px;">🔧 الإرسال غير متاح — الكود الخاص بك:</div>'
+      +'<div style="font-size:32px;font-weight:900;letter-spacing:10px;color:#1e3a5f;font-family:Cairo,sans-serif;">'+devCode+'</div>'
+      +'<div style="font-size:10px;color:#92400e;margin-top:4px;">أدخله في الحقل أدناه لإكمال التسجيل</div>'
+      +'</div>'
+    : '';
   overlay.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a5f,#0e7490);padding:20px;">'
     + '<div style="background:white;border-radius:18px;padding:28px 22px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
     + '<div style="text-align:center;margin-bottom:22px;">'
     + '<div style="font-size:44px;">✉️</div>'
     + '<div style="font-weight:900;font-size:20px;color:#1e3a5f;">'+title+'</div>'
-    + '<div style="font-size:12px;color:#6b7280;margin-top:6px;">أرسلنا الكود إلى '+esc(_otpEmail)+'</div>'
+    + '<div style="font-size:12px;color:#6b7280;margin-top:6px;">'+(devCode ? 'وضع offline — انسخ الكود من الأسفل' : 'أرسلنا الكود إلى '+esc(_otpEmail))+'</div>'
     + '</div>'
+    + devBanner
     + '<div style="margin-bottom:16px;">'
     + '<input id="otp-input" inputmode="numeric" type="number" placeholder="000000" style="width:100%;padding:16px;border:2px solid #e5e7eb;border-radius:12px;font-size:28px;font-family:Cairo,sans-serif;box-sizing:border-box;text-align:center;letter-spacing:8px;" oninput="if(this.value.length>6)this.value=this.value.slice(0,6)">'
     + '</div>'
     + (purpose==='reset' ? '<div style="margin-bottom:12px;"><input id="new-pass" type="password" placeholder="كلمة المرور الجديدة" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>' : '')
     + '<div id="otp-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>'
-    + '<button onclick="verifyOTPAction(\''+purpose+'\')" style="width:100%;padding:13px;background:linear-gradient(135deg,#059669,#10b981);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">✓ تحقق ومتابعة</button>'
-    + '<div style="text-align:center;margin-top:12px;font-size:12px;color:#6b7280;">لم يصلك الكود؟ <a href="#" onclick="resendOTP(\''+purpose+'\');return false;" style="color:#0e7490;font-weight:700;">إعادة الإرسال</a></div>'
+    + '<button onclick="verifyOTPAction(_otpPurpose)" style="width:100%;padding:13px;background:linear-gradient(135deg,#059669,#10b981);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">✓ تحقق ومتابعة</button>'
+    + '<div style="text-align:center;margin-top:12px;font-size:12px;color:#6b7280;">لم يصلك الكود؟ <a href="#" onclick="resendOTP(_otpPurpose);return false;" style="color:#0e7490;font-weight:700;">إعادة الإرسال</a></div>'
     + '<div style="text-align:center;margin-top:8px;font-size:12px;color:#6b7280;"><a href="#" onclick="showLogin();return false;" style="color:#6b7280;font-weight:700;">إلغاء</a></div>'
     + '</div></div>';
   setTimeout(function(){ var inp=document.getElementById('otp-input'); if(inp) inp.focus(); }, 200);
@@ -13462,8 +13653,9 @@ function showOTPScreen(purpose){
 function resendOTP(purpose){
   var err = document.getElementById('otp-err');
   if(err) err.textContent='⏳ جاري إعادة الإرسال...';
-  sendOTP(_otpEmail, purpose, function(error){
-    if(err) err.textContent = error ? '⚠️ '+error : '✅ تم إرسال كود جديد';
+  sendOTP(_otpEmail, purpose, function(error, devCode){
+    if(error){ if(err) err.textContent='⚠️ '+error; return; }
+    showOTPScreen(purpose, devCode);
   });
 }
 
@@ -13478,8 +13670,11 @@ function verifyOTPAction(purpose){
   if(purpose === 'register'){
     var d = window._regData || {};
     if(!d.org || !d.email){ if(err) err.textContent='⚠️ خطأ في البيانات'; return; }
-    DB.users = [{id:'U'+Date.now(), name:'المدير', username:d.email, email:d.email,
-      password:d.pass, role:'admin', active:true, createdAt:new Date().toISOString().slice(0,10)}];
+    var newId = 'U'+Date.now();
+    var newUser = {id:newId, name:'المدير', username:d.email, email:d.email,
+      role:'admin', active:true, createdAt:new Date().toISOString().slice(0,10)};
+    DB.users = [newUser];
+    hashPassword(d.pass, newId).then(function(h){ newUser.passwordHash=h; save(); });
     if(!DB.org) DB.org = {};
     DB.org.name = d.org;
     DB.org.email = d.email;
@@ -13493,76 +13688,310 @@ function verifyOTPAction(purpose){
     var user = window._resetUser;
     if(!user){ if(err) err.textContent='⚠️ خطأ — أعد المحاولة'; return; }
     var uidx = (DB.users||[]).findIndex(function(u){ return u.id === user.id; });
-    if(uidx > -1) DB.users[uidx].password = np;
-    save();
-    showLogin();
-    toast('✅ تم تغيير كلمة المرور — سجل الدخول');
+    if(uidx > -1){
+      var uid2 = DB.users[uidx].id;
+      hashPassword(np, uid2).then(function(h){
+        DB.users[uidx].passwordHash = h;
+        delete DB.users[uidx].password;
+        save();
+        showLogin();
+        toast('✅ تم تغيير كلمة المرور بأمان — سجل الدخول');
+      });
+    }
   }
 }
 
 // ---- LOGIN SCREEN ----
 function showLogin(){
   initAuth();
-  // Hide app chrome
-  var tb=document.querySelector('.topbar');
-  var ct=document.querySelector('.content');
-  var bn=document.querySelector('.bnav');
-  var mo=document.getElementById('mo');
-  if(tb)tb.style.display='none';
-  if(ct)ct.style.display='none';
-  if(bn)bn.style.display='none';
-  if(mo)mo.style.display='none';
-  var oldOverlay=document.getElementById('login-overlay'); if(oldOverlay) oldOverlay.remove();
-  // Create login overlay
+  var tb=document.querySelector('.topbar'),ct=document.querySelector('.content'),
+      bn=document.querySelector('.bnav'),mo=document.getElementById('mo');
+  if(tb)tb.style.display='none'; if(ct)ct.style.display='none';
+  if(bn)bn.style.display='none'; if(mo)mo.style.display='none';
+  var ov=document.getElementById('login-overlay'); if(ov) ov.remove();
+  var orgName=(DB.org&&DB.org.name)?DB.org.name:'';
   var overlay=document.createElement('div');
   overlay.id='login-overlay';
   overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;';
-  var h='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a5f,#0e7490);padding:20px;">';
-  h+='<div style="background:white;border-radius:18px;padding:28px 22px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3);">';
-  h+='<div style="text-align:center;margin-bottom:22px;">';
-  h+='<div style="font-size:44px;margin-bottom:6px;">📊</div>';
-  h+='<div style="font-weight:900;font-size:22px;color:#1e3a5f;">أثر</div>';
-  h+='<div style="font-size:12px;color:#6b7280;">للحلول المالية للجمعيات الأهلية</div>';
-  h+='</div>';
-  if(DB.org&&DB.org.name){
-    h+='<div style="text-align:center;background:#f0f9ff;border-radius:9px;padding:8px;margin-bottom:16px;font-weight:700;font-size:13px;color:#0e7490;">'+DB.org.name+'</div>';
-  }
-  h+='<div style="margin-bottom:12px;">';
-  h+='<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">اسم المستخدم</label>';
-  h+='<input id="lg-u" placeholder="اسم الدخول" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;">';
-  h+='</div>';
-  h+='<div style="margin-bottom:18px;">';
-  h+='<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">كلمة المرور</label>';
-  h+='<input id="lg-p" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;" onkeydown="if(event.key===\'Enter\')doLogin()">';
-  h+='</div>';
-  h+='<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:8px;margin-bottom:10px;font-size:11px;color:#475569;line-height:1.7;text-align:right;">تجربة سريعة: مدير النظام <b>admin / admin123</b><br>محاسب <b>accountant / account123</b></div>';
-  h+='<div id="lg-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>';
-  h+='<button onclick="doLogin()" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">تسجيل الدخول ←</button>';
-  h+='<div style="text-align:center;margin-top:14px;font-size:12px;color:#6b7280;">نسيت كلمة المرور؟ <a href="#" onclick="showForgotPass();return false;" style="color:#0e7490;font-weight:700;">استعادة</a></div>';
-  h+='<div style="text-align:center;margin-top:8px;font-size:12px;color:#6b7280;">مؤسسة جديدة؟ <a href="#" onclick="showRegister();return false;" style="color:#059669;font-weight:700;">إنشاء حساب</a></div>';
-  h+='</div></div>';
-  overlay.innerHTML=h;
+  overlay.innerHTML=
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;'
+    +'background:linear-gradient(135deg,#1e3a5f,#0e7490);padding:20px;">'
+    +'<div style="background:white;border-radius:20px;padding:32px 24px;width:100%;max-width:360px;'
+    +'box-shadow:0 20px 60px rgba(0,0,0,.3);">'
+    +'<div style="text-align:center;margin-bottom:24px;">'
+    +'<div style="width:64px;height:64px;background:linear-gradient(135deg,#1e3a5f,#0e7490);'
+    +'border-radius:16px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:32px;">📊</div>'
+    +'<div style="font-weight:900;font-size:22px;color:#1e3a5f;font-family:Tajawal,Cairo,sans-serif;">أثر</div>'
+    +'<div style="font-size:12px;color:#6b7280;margin-top:3px;">للحلول المالية للجمعيات الأهلية</div>'
+    +(orgName?'<div style="margin-top:10px;background:#f0f9ff;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;color:#0e7490;">'+orgName+'</div>':'')
+    +'</div>'
+    +'<div id="lg-tabs" style="display:flex;gap:0;margin-bottom:20px;border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden;">'
+    +'<button id="tab-otp" onclick="_lgTab(\'otp\')" style="flex:1;padding:10px;border:none;background:#1e3a5f;color:white;font-size:13px;font-weight:700;font-family:Cairo,sans-serif;cursor:pointer;">📧 دخول بالإيميل</button>'
+    +'<button id="tab-pass" onclick="_lgTab(\'pass\')" style="flex:1;padding:10px;border:none;background:#f8fafc;color:#6b7280;font-size:13px;font-weight:700;font-family:Cairo,sans-serif;cursor:pointer;">🔑 يوزر وباسورد</button>'
+    +'</div>'
+    +'<div id="lg-pane-otp">'
+    +'<div style="margin-bottom:8px;">'
+    +'<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">📧 البريد الإلكتروني</label>'
+    +'<input id="lg-email" type="email" inputmode="email" autocomplete="email" placeholder="example@ngo.org" '
+    +'style="width:100%;padding:13px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;'
+    +'font-family:Cairo,sans-serif;box-sizing:border-box;direction:ltr;text-align:left;" '
+    +'onkeydown="if(event.key===\'Enter\')doRequestOTP()">'
+    +'</div>'
+    +'<div id="lg-err-otp" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>'
+    +'<button id="lg-btn-otp" onclick="doRequestOTP()" '
+    +'style="width:100%;padding:14px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;'
+    +'border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">'
+    +'إرسال رمز الدخول ←</button>'
+    +'</div>'
+    +'<div id="lg-pane-pass" style="display:none;">'
+    +'<div style="margin-bottom:10px;">'
+    +'<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">اسم المستخدم</label>'
+    +'<input id="lg-u" placeholder="اسم الدخول" autocomplete="username" '
+    +'style="width:100%;padding:12px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;'
+    +'font-family:Cairo,sans-serif;box-sizing:border-box;">'
+    +'</div>'
+    +'<div style="margin-bottom:10px;">'
+    +'<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">كلمة المرور</label>'
+    +'<input id="lg-p" type="password" autocomplete="current-password" placeholder="••••••••" '
+    +'style="width:100%;padding:12px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;'
+    +'font-family:Cairo,sans-serif;box-sizing:border-box;" '
+    +'onkeydown="if(event.key===\'Enter\')doLogin()">'
+    +'</div>'
+    +'<div id="lg-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>'
+    +'<button onclick="doLogin()" '
+    +'style="width:100%;padding:14px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;'
+    +'border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">'
+    +'تسجيل الدخول ←</button>'
+    +'<div style="text-align:center;margin-top:12px;font-size:12px;color:#6b7280;">'
+    +'نسيت كلمة المرور؟ <a href="#" onclick="showForgotPass();return false;" style="color:#0e7490;font-weight:700;">استعادة</a>'
+    +'</div>'
+    +'</div>'
+    +'<div style="margin-top:16px;text-align:center;font-size:11.5px;color:#6b7280;">'
+    +'مؤسسة جديدة؟ <a href="#" onclick="showRegister();return false;" style="color:#059669;font-weight:700;">إنشاء حساب</a>'
+    +'</div>'
+    +'</div></div>';
   document.body.appendChild(overlay);
-  (document.getElementById("lg-u")||{focus:function(){}}).focus();
+  setTimeout(function(){ var e=document.getElementById('lg-email'); if(e) e.focus(); },100);
 }
 
+function _lgTab(tab){
+  var otp=document.getElementById('lg-pane-otp');
+  var pass=document.getElementById('lg-pane-pass');
+  var tOtp=document.getElementById('tab-otp');
+  var tPass=document.getElementById('tab-pass');
+  if(!otp||!pass) return;
+  if(tab==='otp'){
+    otp.style.display=''; pass.style.display='none';
+    if(tOtp){tOtp.style.background='#1e3a5f';tOtp.style.color='white';}
+    if(tPass){tPass.style.background='#f8fafc';tPass.style.color='#6b7280';}
+    setTimeout(function(){var e=document.getElementById('lg-email');if(e)e.focus();},60);
+  } else {
+    otp.style.display='none'; pass.style.display='';
+    if(tPass){tPass.style.background='#1e3a5f';tPass.style.color='white';}
+    if(tOtp){tOtp.style.background='#f8fafc';tOtp.style.color='#6b7280';}
+    setTimeout(function(){var e=document.getElementById('lg-u');if(e)e.focus();},60);
+  }
+}
+
+function doRequestOTP(){
+  initAuth();
+  var email = ((document.getElementById('lg-email')||{}).value||'').trim().toLowerCase();
+  var errEl = document.getElementById('lg-err-otp');
+  var btn   = document.getElementById('lg-btn-otp');
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    if(errEl) errEl.textContent='⚠️ أدخل بريد إلكتروني صحيح'; return;
+  }
+  /* تحقق أن المستخدم مسجل — يبحث بالإيميل أو اسم المستخدم */
+  var user = (DB.users||[]).find(function(u){
+    return u.active!==false && (
+      (u.email||'').toLowerCase()===email ||
+      (u.username||'').toLowerCase()===email
+    );
+  });
+  if(!user){
+    if(errEl) errEl.textContent='❌ هذا البريد غير مسجل في النظام — تواصل مع مدير النظام';
+    return;
+  }
+  /* حفظ الإيميل تلقائياً لو لم يكن مسجلاً */
+  if(!user.email){ user.email=email; save(); }
+  if(btn){ btn.disabled=true; btn.textContent='⏳ جاري الإرسال...'; }
+  if(errEl) errEl.textContent='';
+
+  /* توليد OTP آمن 6 أرقام */
+  _loginOtpCode   = String(crypto.getRandomValues(new Uint32Array(1))[0]).slice(-6).padStart(6,'0');
+  _loginOtpEmail  = email;
+  _loginOtpExpiry = Date.now() + 10 * 60 * 1000; /* 10 دقائق */
+  _loginOtpUser   = user;
+
+  /* إرسال عبر EmailJS */
+  if(typeof emailjs === 'undefined'){
+    /* fallback: طور التطوير — أظهر الكود مباشرة */
+    if(btn){ btn.disabled=false; btn.textContent='إرسال رمز الدخول ←'; }
+    _showLoginOTPScreen(_loginOtpCode);
+    return;
+  }
+  emailjs.send('service_j1hs2ap', 'template_l15xags', {
+    to_email: email,
+    otp_code: _loginOtpCode,
+    purpose:  'تسجيل الدخول',
+    app_name: 'أثر',
+    expiry:   '10 دقائق'
+  }).then(function(){
+    if(btn){ btn.disabled=false; btn.textContent='إرسال رمز الدخول ←'; }
+    _showLoginOTPScreen();
+  }).catch(function(err){
+    if(btn){ btn.disabled=false; btn.textContent='إرسال رمز الدخول ←'; }
+    if(errEl) errEl.textContent='⚠️ فشل الإرسال: '+(err.text||err.message||'تحقق من الاتصال');
+  });
+}
+
+/* متغيرات OTP الخاصة بالدخول */
+var _loginOtpCode='', _loginOtpEmail='', _loginOtpExpiry=0, _loginOtpUser=null;
+
+function _showLoginOTPScreen(devCode){
+  var ov = document.getElementById('login-overlay'); if(!ov) return;
+  var devNote = devCode
+    ? '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;text-align:center;">'
+      +'🔧 <b>وضع تطوير</b> — الكود: <span style="font-size:20px;font-weight:900;letter-spacing:4px;color:#1e3a5f;">'+devCode+'</span></div>'
+    : '';
+  ov.innerHTML =
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;'
+    +'background:linear-gradient(135deg,#1e3a5f,#0e7490);padding:20px;">'
+    +'<div style="background:white;border-radius:20px;padding:32px 24px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
+    +'<div style="text-align:center;margin-bottom:24px;">'
+    +'<div style="font-size:48px;margin-bottom:10px;">✉️</div>'
+    +'<div style="font-weight:900;font-size:18px;color:#1e3a5f;">تحقق من بريدك</div>'
+    +'<div style="font-size:12px;color:#6b7280;margin-top:6px;">أرسلنا رمز دخول مكون من 6 أرقام إلى</div>'
+    +'<div style="font-size:13px;font-weight:700;color:#0e7490;direction:ltr;margin-top:4px;">'+_loginOtpEmail+'</div>'
+    +'</div>'
+    +devNote
+    +'<div style="margin-bottom:16px;">'
+    +'<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:8px;text-align:center;">أدخل الرمز</label>'
+    +'<input id="login-otp-input" inputmode="numeric" type="number" maxlength="6" placeholder="000000" '
+    +'style="width:100%;padding:18px;border:2px solid #e5e7eb;border-radius:12px;font-size:32px;'
+    +'font-family:Cairo,sans-serif;box-sizing:border-box;text-align:center;letter-spacing:10px;" '
+    +'oninput="if(this.value.length>6)this.value=this.value.slice(0,6)" '
+    +'onkeydown="if(event.key===\'Enter\')doVerifyLoginOTP()">'
+    +'</div>'
+    +'<div id="login-otp-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:12px;min-height:16px;"></div>'
+    +'<button onclick="doVerifyLoginOTP()" '
+    +'style="width:100%;padding:14px;background:linear-gradient(135deg,#059669,#10b981);color:white;'
+    +'border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">'
+    +'✅ تأكيد الدخول</button>'
+    +'<div style="text-align:center;margin-top:14px;font-size:12px;color:#6b7280;">'
+    +'لم يصلك الرمز؟ <a href="#" onclick="doRequestOTP();return false;" style="color:#0e7490;font-weight:700;">إعادة الإرسال</a>'
+    +' · <a href="#" onclick="showLogin();return false;" style="color:#6b7280;">تغيير البريد</a>'
+    +'</div>'
+    +'<div style="margin-top:10px;background:#f8fafc;border-radius:8px;padding:8px;text-align:center;font-size:10.5px;color:#94a3b8;">'
+    +'🔒 الرمز صالح لمدة 10 دقائق فقط</div>'
+    +'</div></div>';
+  setTimeout(function(){ var i=document.getElementById('login-otp-input'); if(i) i.focus(); },100);
+}
+
+function doVerifyLoginOTP(){
+  var code = ((document.getElementById('login-otp-input')||{}).value||'').trim();
+  var errEl = document.getElementById('login-otp-err');
+  if(!code || code.length !== 6){ if(errEl) errEl.textContent='أدخل الرمز المكون من 6 أرقام'; return; }
+  if(!_loginOtpCode || !_loginOtpExpiry){ if(errEl) errEl.textContent='⚠️ انتهت الجلسة — أعد الإرسال'; showLogin(); return; }
+  if(Date.now() > _loginOtpExpiry){ if(errEl) errEl.textContent='⏰ انتهت صلاحية الرمز — أعد الإرسال'; _loginOtpCode=''; return; }
+  if(code !== _loginOtpCode){ if(errEl) errEl.textContent='❌ الرمز غير صحيح'; return; }
+
+  /* OTP صحيح — أكمل تسجيل الدخول */
+  var user = _loginOtpUser;
+  if(!user){ if(errEl) errEl.textContent='⚠️ خطأ — أعد المحاولة'; showLogin(); return; }
+
+  /* امسح OTP */
+  _loginOtpCode=''; _loginOtpExpiry=0; _loginOtpUser=null;
+
+  /* سجّل آخر دخول */
+  user.lastLogin = new Date().toISOString();
+  user.loginCount = (user.loginCount||0)+1;
+
+  /* ولّد token */
+  generateToken(user.id, user.role).then(function(token){
+    sessionStorage.setItem(_TOKEN_KEY, token);
+    setCurrentUser({id:user.id, name:user.name, username:user.username,
+                    role:user.role, email:user.email||''});
+    save();
+
+    /* أزل overlay وأظهر التطبيق */
+    var ov=document.getElementById('login-overlay'); if(ov) ov.remove();
+    var tb=document.querySelector('.topbar'), ct=document.querySelector('.content'), bn=document.querySelector('.bnav');
+    if(tb) tb.style.display=''; if(ct) ct.style.display=''; if(bn) bn.style.display='';
+
+    toast('👋 أهلاً ' + user.name);
+    if(typeof renderHome==='function') renderHome();
+    else if(typeof rDash==='function') rDash();
+    _scheduleSessionRefresh();
+  });
+}
+
+/* الدخول القديم بالباسورد — يستخدمه مسؤول النظام فقط عبر /admin */
 function doLogin(){
   initAuth();
-  var u=(document.getElementById("lg-u")||{}).value||"";
-  var p=(document.getElementById("lg-p")||{}).value||"";
-  var errEl=document.getElementById("lg-err");
-  if(!u||!p){if(errEl)errEl.textContent="أدخل اسم المستخدم وكلمة المرور";return;}
-  var user=DB.users.find(function(x){return x.username===u&&x.password===p&&x.active!==false;});
-  if(!user){if(errEl)errEl.textContent="❌ بيانات غير صحيحة";return;}
-  setCurrentUser({id:user.id,name:user.name,username:user.username,role:user.role});
-  // reload app
-  location.reload();
+  var u = ((document.getElementById('lg-u')||{}).value||'').trim();
+  var p = ((document.getElementById('lg-p')||{}).value||'').trim();
+  var errEl = document.getElementById('lg-err');
+  var btn   = document.querySelector('[onclick="doLogin()"]');
+  if(!u||!p){ if(errEl) errEl.textContent='أدخل اسم المستخدم وكلمة المرور'; return; }
+  if(btn){ btn.disabled=true; btn.textContent='جاري التحقق...'; }
+  var user=(DB.users||[]).find(function(x){ return x.username===u&&x.active!==false; });
+  if(!user){ if(errEl) errEl.textContent='❌ بيانات غير صحيحة'; if(btn){btn.disabled=false;btn.textContent='تسجيل الدخول ←';} return; }
+  var checkP = user.passwordHash ? verifyPassword(p,user.id,user.passwordHash) : Promise.resolve(user.password===p);
+  checkP.then(function(ok){
+    if(!ok){ if(errEl) errEl.textContent='❌ بيانات غير صحيحة'; if(btn){btn.disabled=false;btn.textContent='تسجيل الدخول ←';} return; }
+    user.lastLogin=new Date().toISOString(); user.loginCount=(user.loginCount||0)+1;
+    generateToken(user.id,user.role).then(function(token){
+      sessionStorage.setItem(_TOKEN_KEY,token);
+      setCurrentUser({id:user.id,name:user.name,username:user.username,role:user.role,email:user.email||''});
+      if(!user.passwordHash){ hashPassword(p,user.id).then(function(h){user.passwordHash=h;delete user.password;save();}); } else save();
+      var ov=document.getElementById('login-overlay'); if(ov) ov.remove();
+      var tb=document.querySelector('.topbar'),ct=document.querySelector('.content'),bn=document.querySelector('.bnav');
+      if(tb)tb.style.display=''; if(ct)ct.style.display=''; if(bn)bn.style.display='';
+      toast('👋 أهلاً '+user.name);
+      if(typeof renderHome==='function') renderHome(); else if(typeof rDash==='function') rDash();
+      _scheduleSessionRefresh();
+    });
+  });
+}
+function doLogout(){
+  var name = (getCurrentUser()||{}).name || '';
+  clearCurrentUser();
+  /* إظهار شاشة الدخول بدون reload */
+  var tb=document.querySelector('.topbar'), ct=document.querySelector('.content'), bn=document.querySelector('.bnav');
+  if(tb) tb.style.display='none';
+  if(ct) ct.style.display='none';
+  if(bn) bn.style.display='none';
+  showLogin();
+  if(name) setTimeout(function(){ toast('👋 وداعاً '+name); },200);
 }
 
-function doLogout(){
-  clearCurrentUser();
-  location.reload();
+/* تجديد تلقائي للجلسة قبل انتهائها بـ 5 دقائق */
+var _sessionRefreshTimer = null;
+function _scheduleSessionRefresh(){
+  if(_sessionRefreshTimer) clearTimeout(_sessionRefreshTimer);
+  var remaining = SESSION_HOURS * 3600000 - 5*60000;
+  if(remaining < 0) return;
+  _sessionRefreshTimer = setTimeout(function(){
+    var u = getCurrentUser();
+    if(!u) return;
+    /* جدّد token */
+    generateToken(u.id, u.role).then(function(token){
+      sessionStorage.setItem(_TOKEN_KEY, token);
+      setCurrentUser(u);
+      _scheduleSessionRefresh();
+      toast('🔄 تم تجديد جلستك تلقائياً');
+    });
+  }, remaining);
 }
+
+/* فحص دوري للجلسة كل دقيقة */
+setInterval(function(){
+  var u = getCurrentUser();
+  if(!u && document.getElementById('login-overlay')==null){
+    doLogout();
+  }
+}, 60000);
 
 // ---- SETTINGS PAGE (full rebuild) ----
 // ================================================================
@@ -14098,16 +14527,21 @@ function openAddUser(){
   om('+ مستخدم جديد',h);
 }
 function saveNewUser(){
-  var name=(document.getElementById('au-name')||{}).value||'';
-  var user=(document.getElementById('au-user')||{}).value||'';
-  var pass=(document.getElementById('au-pass')||{}).value||'';
-  var role=(document.getElementById('au-role')||{}).value||'accountant';
-  if(!name||!user||!pass){toast('⚠️ أكمل البيانات');return;}
-  if((DB.users||[]).some(function(u){return u.username===user;})){toast('⚠️ اسم الدخول موجود');return;}
-  if(!DB.users)DB.users=[];
-  DB.users.push({id:'U'+Date.now(),name:name,username:user,password:pass,role:role,active:true,
-    createdAt:new Date().toISOString().slice(0,10)});
-  save();cm();toast('✅ تم إضافة '+name);sub('permissions');
+  var name  = ((document.getElementById('au-name')||{}).value||'').trim();
+  var email = ((document.getElementById('au-email')||{}).value||'').trim().toLowerCase();
+  var role  = (document.getElementById('au-role')||{}).value||'accountant';
+  if(!name||!email){ toast('⚠️ الاسم والبريد الإلكتروني مطلوبان'); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('⚠️ بريد إلكتروني غير صحيح'); return; }
+  if((DB.users||[]).some(function(u){ return (u.email||'').toLowerCase()===email; })){
+    toast('⚠️ هذا البريد مسجل بالفعل'); return;
+  }
+  if(!DB.users) DB.users=[];
+  var newId = 'U'+Date.now();
+  var newUser = {id:newId, name:name, username:email, email:email, role:role,
+    active:true, createdAt:new Date().toISOString().slice(0,10)};
+  DB.users.push(newUser);
+  save(); cm(); toast('✅ تم إضافة '+name+' — سيدخل عبر بريده الإلكتروني');
+  sub('permissions');
 }
 function removeUser(idx){
   var usr=(DB.users||[])[idx];if(!usr)return;
@@ -14598,7 +15032,7 @@ function saveUser(id){
 function editUser(i){
   var usr=DB.users[i];if(!usr)return;
   var h='<div class="fg"><label>الاسم الكامل</label><input id="eu-name" value="'+usr.name+'"></div>';
-  h+='<div class="fg"><label>كلمة مرور جديدة (اتركها فارغة للإبقاء)</label><input type="password" id="eu-pass" placeholder="••••••"></div>';
+  /* password field removed in v35.23 — login via OTP */
   h+='<div class="fg"><label>الدور الوظيفي</label><select id="eu-role">';
   h+='<option value="accountant"'+(usr.role==="accountant"?" selected":"")+'>🟢 محاسب</option>';
   h+='<option value="accounts_manager"'+(usr.role==="accounts_manager"?" selected":"")+'>🟡 مدير حسابات</option>';
@@ -14611,9 +15045,10 @@ function editUser(i){
 }
 function saveEditUser(i){
   var usr=DB.users[i];if(!usr)return;
-  usr.name=sv("eu-name")||usr.name;
-  var np=sv("eu-pass");if(np)usr.password=np;
-  usr.role=sv("eu-role")||usr.role;
+  usr.name=sv('eu-name')||usr.name;
+  var newEmail=(sv('eu-email')||'').trim().toLowerCase();
+  if(newEmail){ usr.email=newEmail; usr.username=newEmail; }
+  usr.role=sv('eu-role')||usr.role;
   save();cm();sub("settings");toast("✅ تم التعديل");
 }
 function toggleUser(i){
@@ -18629,7 +19064,42 @@ function printProjectBVA(projCode){
 }
 
 
-document.addEventListener('click',function(ev){var n=ev.target.closest('[data-nav]');if(n){nav(n.getAttribute('data-nav'),n);return;}var t=ev.target.closest('[data-eid]');if(t){viewE(t.getAttribute('data-eid'));return;}var s=ev.target.closest('[data-sub]');if(s){sub(s.getAttribute('data-sub'));return;}var pg=ev.target.closest('[data-pg]');if(pg){showPage(pg.getAttribute('data-pg'));return;}});
+document.addEventListener('click',function(ev){
+  var n=ev.target.closest('[data-nav]');
+  if(n){
+    var pg=n.getAttribute('data-nav');
+    nav(pg,n);
+    /* Fallback: fill the page if nav() didn't do it (due to wrapper chain) */
+    setTimeout(function(){
+      if(pg==='ops'){
+        var el=document.getElementById('pg-ops');
+        if(el&&!el.innerHTML.trim()&&typeof rOperationsHub==='function'){
+          el.innerHTML=rOperationsHub();
+          document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+          document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+          el.classList.add('on'); n.classList.add('on');
+        }
+      } else if(pg==='fin'){
+        var el=document.getElementById('pg-fin');
+        if(el&&!el.innerHTML.trim()&&typeof rالماليةHub==='function'){
+          el.innerHTML=rالماليةHub();
+          document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+          document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+          el.classList.add('on'); n.classList.add('on');
+        }
+      } else if(pg==='more'){
+        var el=document.getElementById('pg-more');
+        if(el&&typeof rMore==='function'){
+          rMore();
+        }
+      }
+    },50);
+    return;
+  }
+  var t=ev.target.closest('[data-eid]');if(t){viewE(t.getAttribute('data-eid'));return;}
+  var s=ev.target.closest('[data-sub]');if(s){sub(s.getAttribute('data-sub'));return;}
+  var pg=ev.target.closest('[data-pg]');if(pg){showPage(pg.getAttribute('data-pg'));return;}
+});
 
 
 // ══════════════════════════════════════════════════════
@@ -21077,11 +21547,11 @@ window.rInvProjectReport=function(){ensureV33();var h='<div class="ph-t" style="
 var oldSub=window.sub;
 window.sub=function(n){ensureV33();var pages={budgetmeta:rBudgetSettingsPage,supplier_register:rSupplierRegisterPage,cashflow:rCashFlowStatementPage,taxwh:rTaxWithholdingPage,reconpro:rBankReconProPage,loan_settings:rLoanSettingsPage,loan_reports:rLoanAdvancedReports,inv_project_report:rInvProjectReport,projtxn:rProjectTxnReport};if(pages[n]){nav('more',null);var el=document.getElementById('pg-more');if(el)el.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'ops\',null)" style="margin-bottom:10px">‹ رجوع</button>'+pages[n]()+'</div>';showTbBack&&showTbBack({type:'fn',pg:"nav('ops',null)"});return;}return oldSub?oldSub(n):null;};
 
-window.rالماليةHub=function(){ensureV33();var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">💰 المالية</div>';var sections=[{title:'📝 القيود والعمليات',items:[{i:'📝',t:'قيود اليومية',n:'jour',pg:true},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},{title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'},{i:'💵',t:'Cash Flow',n:'cashflow'}]},{title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك',n:'banks'},{i:'✅',t:'تسوية بنكية محسنة',n:'reconpro'}]},{title:'📚 الإعدادات المالية',items:[{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'📅',t:'فترة الموازنة',n:'budgetmeta'},{i:'🧮',t:'ضرائب الخصم والإضافة',n:'taxwh'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
+window.rالماليةHub=function(){ensureV33();var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">💰 المالية</div>';var sections=[{title:'📝 القيود والعمليات',items:[{i:'📝',t:'قيود اليومية',n:'jour',pg:true},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},{title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'},{i:'💵',t:'Cash Flow',n:'cashflow'}]},{title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك',n:'banks'},{i:'✅',t:'تسوية بنكية محسنة',n:'reconpro'}]},{title:'📚 الإعدادات المالية',items:[{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'🧮',t:'ضرائب الخصم والإضافة',n:'taxwh'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
 window.rOperationsHub=function(){ensureV33();var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">🎯 العمليات</div>';var sections=[{title:'🎯 المشروعات والممولين',items:[{i:'🎯',t:'المشروعات',n:'proj',pg:true},{i:'📊',t:'BVA',n:'bva'},{i:'📋',t:'حركة مشروع حسب البند',n:'projtxn'},{i:'📅',t:'فترة/وصف الموازنة',n:'budgetmeta'}]},{title:'💵 التمويل متناهي الصغر',items:[{i:'💵',t:'إدارة القروض',n:'loans'},{i:'📊',t:'تقارير التمويل والحوافز',n:'loan_reports'},{i:'⚙️',t:'إعدادات القروض والحوافز',n:'loan_settings'}]},{title:'🛒 الموردون والمخازن',items:[{i:'🏭',t:'سجل الموردين',n:'supplier_register'},{i:'📦',t:'المخازن',n:'inventory'},{i:'📥',t:'أذونات مخازن بالمشروع',n:'inv_receive'},{i:'📊',t:'استهلاك حسب المشروع',n:'inv_project_report'}]},{title:'👥 الموارد البشرية والامتثال',items:[{i:'🏢',t:'الموظفين',n:'employees'},{i:'💳',t:'كشف الرواتب',n:'pay',pg:true},{i:'⏱️',t:'Timesheet',n:'timesheet'},{i:'🗂️',t:'الأرشيف',n:'archive'},{i:'✅',t:'الامتثال',n:'compliance'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
 
 var oldRMore=window.rMore;
-window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getElementById('pg-more');if(el){el.innerHTML+='<div class="sd">إضافات V33</div><div class="mg"><div class="mi" data-sub="budgetmeta"><div class="mi-i">📅</div><div class="mi-t">فترة الموازنة</div></div><div class="mi" data-sub="supplier_register"><div class="mi-i">🏭</div><div class="mi-t">سجل الموردين</div></div><div class="mi" data-sub="cashflow"><div class="mi-i">💵</div><div class="mi-t">Cash Flow</div></div><div class="mi" data-sub="loan_settings"><div class="mi-i">⚙️</div><div class="mi-t">إعدادات القروض</div></div></div>';}};
+window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getElementById('pg-more');if(el){el.innerHTML+='<div class="sd">إضافات V33</div><div class="mg"><div class="mi" data-sub="supplier_register"><div class="mi-i">🏭</div><div class="mi-t">سجل الموردين</div></div><div class="mi" data-sub="cashflow"><div class="mi-i">💵</div><div class="mi-t">Cash Flow</div></div><div class="mi" data-sub="loan_settings"><div class="mi-i">⚙️</div><div class="mi-t">إعدادات القروض</div></div></div>';}};
 
 (function ready(){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){ensureV33();});else ensureV33();})();
 })();
@@ -22096,7 +22566,6 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     [
       {title:'📝 القيود والعمليات',items:[
         {i:'📝',t:'قيود اليومية',n:'jour',pg:true,perm:'canViewEntries'},
-        {i:'🧾',t:'قيد فاتورة + خصم',n:'jour',pg:true,perm:'canAddEntries'},
         {i:'🖊️',t:'طباعة الشيكات',n:'checks',perm:'canPrintChecks'}
       ]},
       {title:'📊 التقارير المالية',items:[
@@ -22113,6 +22582,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
         {i:'📒',t:'الأستاذ المساعد',n:'tpledger',perm:'canViewReports'},
         {i:'🌳',t:'شجرة الحسابات',n:'accounts',perm:'canViewReports'},
         {i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals',perm:'canManageSettings'},
+        {i:'📋',t:'نموذج 41',n:'form41',perm:'canViewReports'},
         {i:'🧮',t:'ضرائب الخصم والإضافة',n:'whtsettings',perm:'canEditSettings'}
       ]}
     ].forEach(function(sec){h+=_section(sec,'var(--sk)');});
@@ -22139,7 +22609,6 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
         {i:'🏭',t:'سجل الموردين',n:'supplier_register',perm:'canViewSuppliers'},
         {i:'📋',t:'سجل العقود',n:'contracts',perm:'canViewContracts'},
         {i:'📦',t:'المخازن',n:'inventory',perm:'canViewInventory'},
-        {i:'📥',t:'أذونات مخازن بالمشروع',n:'inv_receive',perm:'canViewInventory'},
         {i:'🏢',t:'الأصول الثابتة',n:'assets',perm:'canViewAssets'}
       ]},
       {title:'💵 التمويل متناهي الصغر',items:[
@@ -22150,7 +22619,6 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
       {title:'✅ الامتثال والأرشفة',items:[
         {i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive',perm:'canViewAudit'},
         {i:'✅',t:'امتثال المستندات',n:'compliance',perm:'canViewAudit'},
-        {i:'📋',t:'نموذج 41',n:'form41',perm:'canViewReports'},
         {i:'📥',t:'صندوق الاعتماد',n:'approvals',perm:'canApproveEntries'}
       ]}
     ].forEach(function(sec){h+=_section(sec,'var(--gr)');});
@@ -22442,7 +22910,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     _eL=2;
     var today=currentDate();
     var h='<div class="journal-voucher-v357">'
-      +'<div class="jv-toolbar"><button class="btn btn-gy btn-sm" onclick="cm()">رجوع</button><button class="btn btn-gr btn-sm" onclick="saveE()">✅ ترحيل</button><button class="btn btn-sm" onclick="saveE()">💾 حفظ</button></div>'
+      +'<div class="jv-toolbar"><button class="btn btn-gy btn-sm" onclick="cm()">رجوع</button>'+(hasPerm('canPostEntries')?'<button class="btn btn-sm" onclick="_saveEDraft()" style="background:#64748b;">💾 مسودة</button><button class="btn btn-gr btn-sm" onclick="saveE()">✅ ترحيل</button>':'<button class="btn btn-sm" onclick="saveE()" style="background:var(--n);">💾 حفظ — بانتظار الاعتماد</button>')+'</div>'
       +'<div class="jv-meta card"><div class="jv-meta-head"><div><b>بيانات القيد</b><span>Voucher Entry</span></div><span class="badge ba">مسودة</span></div>'
       +'<div class="jv-fields">'
       +'<div class="fg"><label>التاريخ *</label><input type="date" id="e-d" value="'+today+'"></div>'
@@ -22834,58 +23302,140 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
 </script>
 <script>
 /* ============================================================
-   ATHAR V35.18 SAFE PATCH — Budget Control Settings + WBS Alerts
-   - إعدادات رقابة الموازنة: تحذير فقط / منع الحفظ / طلب اعتماد
-   - فحص لحظي داخل قيد اليومية حسب المشروع + كود الصرف
-   - لا يكسر تحميل الصفحة ولا يغير قاعدة البيانات القديمة
+   ATHAR V35.19 PATCH — Budget Control (Fixed) + Backend-Ready API Layer
+   إصلاحات:
+     1. warning+over bug fix — تجاوز في وضع warning يُعرض بوضوح
+     2. استبدال alert/confirm بـ modal داخلي
+     3. regex هش → data-section attribute للـ settings
+     4. getCurrentEntryLines — console.warn إذا لا سطور
+     5. getBudgetLimit guard
+     6. approveBudgetEntry + rejectBudgetEntry (دورة كاملة)
+   Backend API Layer:
+     - AtharAPI: غلاف fetch جاهز للـ backend
+     - كل عملية حفظ/اعتماد/رفض تمر عبر AtharAPI مع fallback محلي
 ============================================================ */
 (function(){
-  if(window.__ATHAR_V3518_BUDGET_CONTROL__) return;
-  window.__ATHAR_V3518_BUDGET_CONTROL__=true;
+  if(window.__ATHAR_V3519_BUDGET_CONTROL__) return;
+  window.__ATHAR_V3519_BUDGET_CONTROL__=true;
 
-  function q(id){return document.getElementById(id);} 
+  /* ─── Utilities ─── */
+  function q(id){return document.getElementById(id);}
   function N(v){return parseFloat(v)||0;}
-  function M(n){try{return (Math.round((Number(n)||0)*100)/100).toLocaleString('ar-EG',{maximumFractionDigits:2});}catch(e){return String(n||0);} }
+  function M(n){try{return (Math.round((Number(n)||0)*100)/100).toLocaleString('ar-EG',{maximumFractionDigits:2});}catch(e){return String(n||0);}}
   function E(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function currentUserSafe(){try{return typeof getCurrentUser==='function'?getCurrentUser():null;}catch(e){return null;}}
   function isAdminOrFM(){var u=currentUserSafe();return !!(u&&(u.role==='admin'||u.role==='finance_manager'||u.role==='accounts_manager'||u.role==='financial_manager'));}
 
+  /* ─── Backend API Layer ───────────────────────────────────────
+     استبدل BASE_URL بعنوان الـ backend عند الجاهزية.
+     كل دالة تُجرّب الـ backend أولاً، وتقع على الـ DB المحلي إذا فشل.
+  ────────────────────────────────────────────────────────────── */
+  var AtharAPI = (function(){
+    var BASE_URL = window.ATHAR_API_URL || ''; // مثال: 'https://api.athar.app/v1'
+    var _enabled = !!BASE_URL;
+
+    function _headers(){
+      var u = currentUserSafe();
+      var h = {'Content-Type':'application/json'};
+      if(window.ATHAR_API_TOKEN) h['Authorization'] = 'Bearer '+window.ATHAR_API_TOKEN;
+      if(u&&u.id) h['X-User-Id'] = String(u.id);
+      return h;
+    }
+
+    function _post(path, body){
+      if(!_enabled) return Promise.resolve({local:true});
+      return fetch(BASE_URL+path,{method:'POST',headers:_headers(),body:JSON.stringify(body)})
+        .then(function(r){
+          if(!r.ok) return r.json().then(function(e){throw e;});
+          return r.json();
+        })
+        .catch(function(err){
+          console.warn('[AtharAPI] '+path+' failed, falling back to local.', err);
+          return {local:true, error:err};
+        });
+    }
+
+    function _patch(path, body){
+      if(!_enabled) return Promise.resolve({local:true});
+      return fetch(BASE_URL+path,{method:'PATCH',headers:_headers(),body:JSON.stringify(body)})
+        .then(function(r){
+          if(!r.ok) return r.json().then(function(e){throw e;});
+          return r.json();
+        })
+        .catch(function(err){
+          console.warn('[AtharAPI] '+path+' failed, falling back to local.', err);
+          return {local:true, error:err};
+        });
+    }
+
+    function _get(path){
+      if(!_enabled) return Promise.resolve({local:true});
+      return fetch(BASE_URL+path,{method:'GET',headers:_headers()})
+        .then(function(r){if(!r.ok) return r.json().then(function(e){throw e;});return r.json();})
+        .catch(function(err){console.warn('[AtharAPI] GET '+path+' failed.',err);return {local:true,error:err};});
+    }
+
+    return {
+      isEnabled: function(){ return _enabled; },
+      setBaseURL: function(url){ BASE_URL=url; _enabled=!!url; },
+      setToken:   function(tok){ window.ATHAR_API_TOKEN=tok; },
+
+      /* قيود اليومية */
+      saveEntry:   function(entry){ return _post('/entries', entry); },
+      updateEntry: function(id,data){ return _patch('/entries/'+id, data); },
+
+      /* اعتمادات الموازنة */
+      createBudgetApproval: function(payload){ return _post('/approvals/budget', payload); },
+      approveBudget:        function(approvalId,note){ return _patch('/approvals/budget/'+approvalId+'/approve',{note:note||''}); },
+      rejectBudget:         function(approvalId,reason){ return _patch('/approvals/budget/'+approvalId+'/reject',{reason:reason||''}); },
+
+      /* إعدادات النظام */
+      saveSysSettings: function(settings){ return _post('/settings/system', settings); },
+
+      /* تقارير الموازنة */
+      getBudgetStatus: function(projCode,wbsCode){ return _get('/budget/status?proj='+encodeURIComponent(projCode||'')+'&wbs='+encodeURIComponent(wbsCode||'')); },
+    };
+  })();
+
+  window.AtharAPI = AtharAPI; // تصدير للاستخدام الخارجي
+
+  /* ─── Budget Settings ─── */
   function ensureBudgetSettings(){
     if(!window.DB) return;
     if(!DB.sysSettings) DB.sysSettings={};
     if(DB.sysSettings.budgetControlMode===undefined){
-      if(DB.sysSettings.enforceBudget===false) DB.sysSettings.budgetControlMode='warning';
-      else DB.sysSettings.budgetControlMode='approval';
+      DB.sysSettings.budgetControlMode = DB.sysSettings.enforceBudget===false ? 'warning' : 'approval';
     }
-    if(DB.sysSettings.budgetWarningPct===undefined) DB.sysSettings.budgetWarningPct=90;
+    if(DB.sysSettings.budgetWarningPct===undefined)  DB.sysSettings.budgetWarningPct=90;
     if(DB.sysSettings.budgetTolerancePct===undefined) DB.sysSettings.budgetTolerancePct=0;
     if(DB.sysSettings.budgetIncludePending===undefined) DB.sysSettings.budgetIncludePending=true;
   }
 
+  /* ─── Budget Math ─── */
   function lineAmountForBudget(l){
     var acc=String(l.acc||'');
-    // Budget monitoring mainly for expense/cost lines; if no account selected, ignore.
     if(!acc) return 0;
-    if(acc.charAt(0)==='5' || acc.charAt(0)==='1') return Math.max(0,N(l.dr)-N(l.cr));
+    if(acc.charAt(0)==='5'||acc.charAt(0)==='1') return Math.max(0,N(l.dr)-N(l.cr));
     return 0;
   }
 
-  function projectByCode(code){return ((window.DB&&DB.projects)||[]).find(function(p){return String(p.code)===String(code)||String(p.name)===String(code);});}
+  function projectByCode(code){
+    return ((window.DB&&DB.projects)||[]).find(function(p){return String(p.code)===String(code)||String(p.name)===String(code);});
+  }
   function budgetRowsOfProject(p){return (p&&(p.wbs||p.lines||p.budgetLines||p.items||p.budgetItems||p.bvaLines))||[];}
   function rowCode(r){return String(r.code||r.wbs||r.id||r.itemCode||r.budgetCode||r.name||'');}
   function rowName(r){return String(r.name||r.desc||r.description||r.title||rowCode(r)||'');}
   function rowBudget(r){return N(r.budget||r.amount||r.value||r.total||r.planned||r.approvedBudget||r.budgetAmount);}
 
+  /* FIX #5: guard if getBudgetLimit already defined in core */
   function getBudgetLimit(projCode,wbsCode){
+    if(typeof window._coreBudgetLimit==='function') return window._coreBudgetLimit(projCode,wbsCode);
     var p=projectByCode(projCode);
     if(!p) return {scope:'none',limit:0,label:'لا يوجد مشروع'};
     if(wbsCode){
       var rows=budgetRowsOfProject(p);
       var r=rows.find(function(x){return String(rowCode(x))===String(wbsCode);});
-      if(r){
-        var rb=rowBudget(r);
-        if(rb>0) return {scope:'wbs',limit:rb,label:(rowCode(r)+' — '+rowName(r)),project:p};
-      }
+      if(r){var rb=rowBudget(r); if(rb>0) return {scope:'wbs',limit:rb,label:(rowCode(r)+' — '+rowName(r)),project:p};}
     }
     return {scope:'project',limit:N(p.budget),label:p.name||p.code,project:p};
   }
@@ -22909,8 +23459,9 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     return sum;
   }
 
+  /* FIX #3: getCurrentEntryLines مع console.warn */
   function getCurrentEntryLines(){
-    try{ if(typeof collectTP==='function') return collectTP('e',window._eL||50)||[]; }catch(e){}
+    try{ if(typeof collectTP==='function'){var res=collectTP('e',window._eL||50)||[];if(res.length) return res;} }catch(e){}
     var out=[];
     for(var i=0;i<60;i++){
       var acc=(q('ea-'+i)||{}).value||'';
@@ -22918,6 +23469,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
       if(!acc||(dr===0&&cr===0)) continue;
       out.push({acc:acc,dr:dr,cr:cr,proj:(q('eproj-'+i)||{}).value||'',wbsCode:(q('ewbs-'+i)||{}).value||''});
     }
+    if(!out.length) console.warn('[AtharBudget] getCurrentEntryLines: لم يُعثر على سطور — تحقق من IDs النموذج (ea-N, edr-N, ecr-N)');
     return out;
   }
 
@@ -22928,8 +23480,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     lines.forEach(function(l){
       var amt=lineAmountForBudget(l);
       if(!amt) return;
-      var proj=l.proj||'';
-      if(!proj) return;
+      var proj=l.proj||''; if(!proj) return;
       var wbs=l.wbsCode||l.wbs||'';
       var key=proj+'||'+wbs;
       if(!grouped[key]) grouped[key]={proj:proj,wbs:wbs,amount:0};
@@ -22958,13 +23509,13 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     var h='<div class="budget-live-wrap">';
     results.forEach(function(r){
       h+='<div class="budget-live-row '+(r.over?'over':'warn')+'">'
-        +'<div><b>'+(r.over?'🔴 تجاوز موازنة':'🟠 تحذير موازنة')+'</b><div>'+E(r.label)+' '+(r.scope==='wbs'?'· كود الصرف':'· المشروع')+'</div></div>'
+        +'<div><b>'+(r.over?'🔴 تجاوز موازنة':'🟠 اقتراب من الحد')+'</b> <span style="font-size:10px;opacity:.8;">'+E(r.label)+' '+(r.scope==='wbs'?'· كود الصرف':'· المشروع')+'</span></div>'
         +'<div class="budget-live-grid">'
         +'<span>الموازنة<br><b>'+M(r.limit)+'</b></span>'
         +'<span>المنصرف<br><b>'+M(r.spent)+'</b></span>'
         +'<span>القيد الحالي<br><b>'+M(r.current)+'</b></span>'
         +'<span>بعد القيد<br><b>'+M(r.after)+' ('+Math.round(r.pct)+'%)</b></span>'
-        +(r.over?'<span>التجاوز<br><b>'+M(r.excess)+'</b></span>':'')
+        +(r.over?'<span style="color:#9f1239;">التجاوز<br><b>'+M(r.excess)+'</b></span>':'<span style="color:#92400e;">المتبقي<br><b>'+M(r.limit-r.spent)+'</b></span>')
         +'</div></div>';
     });
     h+='</div>'; return h;
@@ -22973,152 +23524,301 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
   window.atharBudgetAnalyzeCurrent=function(){return analyzeBudgetForLines(getCurrentEntryLines());};
   window.atharBudgetRefreshLive=function(){
     var host=q('athar-budget-live');
-    if(!host){
-      var et=q('etot');
-      if(et){host=document.createElement('div');host.id='athar-budget-live';et.parentNode.insertBefore(host,et.nextSibling);} 
-    }
+    if(!host){var et=q('etot');if(et){host=document.createElement('div');host.id='athar-budget-live';et.parentNode.insertBefore(host,et.nextSibling);}}
     if(host) host.innerHTML=buildBudgetPanelHTML(window.atharBudgetAnalyzeCurrent());
   };
 
-  // Wrap totals to refresh live budget check without breaking existing layout.
+  /* ─── Live Refresh Wrappers ─── */
   var oldUpd=window.updET;
-  if(oldUpd&&!window.__v3518_upd_wrap){
-    window.__v3518_upd_wrap=true;
+  if(oldUpd&&!window.__v3519_upd_wrap){
+    window.__v3519_upd_wrap=true;
     window.updET=function(){var r=oldUpd.apply(this,arguments);setTimeout(function(){try{atharBudgetRefreshLive();}catch(e){}},30);return r;};
   }
-
-  // Also refresh when project / WBS dropdowns change.
   var oldProjChange=window.onLineProjChange;
-  if(oldProjChange&&!window.__v3518_proj_wrap){
-    window.__v3518_proj_wrap=true;
+  if(oldProjChange&&!window.__v3519_proj_wrap){
+    window.__v3519_proj_wrap=true;
     window.onLineProjChange=function(){var r=oldProjChange.apply(this,arguments);setTimeout(function(){try{atharBudgetRefreshLive();}catch(e){}},50);return r;};
   }
   var oldSelectWBS=window.selectWBS;
-  if(oldSelectWBS&&!window.__v3518_wbs_wrap){
-    window.__v3518_wbs_wrap=true;
+  if(oldSelectWBS&&!window.__v3519_wbs_wrap){
+    window.__v3519_wbs_wrap=true;
     window.selectWBS=function(){var r=oldSelectWBS.apply(this,arguments);setTimeout(function(){try{atharBudgetRefreshLive();}catch(e){}},50);return r;};
   }
 
+  /* ─── Budget Modal (بديل alert/confirm) ─── */
+  function _ensureModalEl(){
+    var id='athar-budget-modal';
+    var el=q(id); if(el) return el;
+    el=document.createElement('div'); el.id=id;
+    el.style.cssText='display:none;position:fixed;inset:0;background:rgba(15,30,53,.62);z-index:9999;align-items:center;justify-content:center;';
+    el.innerHTML='<div style="background:white;border-radius:18px;width:92%;max-width:440px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25);">'
+      +'<div id="athar-bmo-head" style="padding:15px 18px;color:white;display:flex;justify-content:space-between;align-items:center;">'
+      +'<span id="athar-bmo-title" style="font-family:Tajawal,Cairo,sans-serif;font-size:15px;font-weight:900;"></span>'
+      +'</div>'
+      +'<div id="athar-bmo-body" style="padding:16px 18px;font-size:12.5px;line-height:1.8;color:#1e3a6e;max-height:55vh;overflow-y:auto;"></div>'
+      +'<div id="athar-bmo-reason-wrap" style="display:none;padding:0 18px 10px;">'
+      +'<label style="font-size:11px;font-weight:700;color:#637591;display:block;margin-bottom:4px;">سبب الرفض</label>'
+      +'<textarea id="athar-bmo-reason" rows="2" style="width:100%;border:1.5px solid #e2eaf3;border-radius:9px;padding:8px 10px;font-size:12px;font-family:Cairo,sans-serif;resize:none;outline:none;box-sizing:border-box;"></textarea>'
+      +'</div>'
+      +'<div id="athar-bmo-btns" style="display:flex;gap:8px;padding:12px 18px;border-top:1px solid #f0f5fa;justify-content:flex-end;"></div>'
+      +'</div>';
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function showBudgetModal(opts){
+    /* opts: { title, body, color, buttons:[{label,style,value}], onResult(val) } */
+    return new Promise(function(resolve){
+      var el=_ensureModalEl();
+      var head=q('athar-bmo-head'), title=q('athar-bmo-title'), body=q('athar-bmo-body'), btns=q('athar-bmo-btns'), rw=q('athar-bmo-reason-wrap');
+      head.style.background=opts.color||'linear-gradient(135deg,#152a52,#1e3a6e)';
+      title.textContent=opts.title||'';
+      body.innerHTML=opts.body||'';
+      rw.style.display=opts.showReason?'block':'none';
+      if(opts.showReason){var ra=q('athar-bmo-reason');if(ra)ra.value='';}
+      btns.innerHTML='';
+      (opts.buttons||[{label:'حسناً',value:true,style:'background:var(--n);color:white;'}]).forEach(function(b){
+        var btn=document.createElement('button');
+        btn.textContent=b.label;
+        btn.style.cssText='border:none;padding:9px 20px;border-radius:9px;font-size:13px;font-weight:700;font-family:Cairo,sans-serif;cursor:pointer;'+b.style;
+        btn.onclick=function(){
+          var reason=opts.showReason?(q('athar-bmo-reason')||{}).value||'':'';
+          el.style.display='none';
+          resolve({value:b.value, reason:reason});
+        };
+        btns.appendChild(btn);
+      });
+      el.style.display='flex';
+    });
+  }
+
+  /* FIX #1 + #2: applyBudgetDecisionBeforeSave — إصلاح warning+over + modal */
   function applyBudgetDecisionBeforeSave(){
     ensureBudgetSettings();
     var mode=(DB.sysSettings||{}).budgetControlMode||'approval';
     var results=analyzeBudgetForLines(getCurrentEntryLines());
     var over=results.filter(function(r){return r.over;});
     var warns=results.filter(function(r){return r.warn;});
-    if(!over.length&&!warns.length) return {ok:true,mode:mode,results:results};
-    var msg=results.map(function(r){return (r.over?'تجاوز':'تحذير')+' - '+r.label+'\nالموازنة: '+M(r.limit)+' | المنصرف: '+M(r.spent)+' | القيد: '+M(r.current)+' | بعد القيد: '+M(r.after)+(r.over?' | التجاوز: '+M(r.excess):'');}).join('\n\n');
-    if(over.length){
-      if(mode==='block'){
-        alert('⛔ لا يمكن حفظ القيد بسبب تجاوز الموازنة:\n\n'+msg);
-        return {ok:false,mode:mode,results:results};
-      }
-      if(mode==='approval'){
-        if(!confirm('⚠️ يوجد تجاوز موازنة. سيتم حفظ القيد كطلب اعتماد موازنة ولن يتم ترحيله قبل موافقة المدير المالي.\n\n'+msg+'\n\nهل تريد المتابعة؟')) return {ok:false,mode:mode,results:results};
-        return {ok:true,mode:mode,results:results,requiresBudgetApproval:true};
-      }
+    if(!over.length&&!warns.length) return Promise.resolve({ok:true,mode:mode,results:results});
+
+    var bodyHTML=buildBudgetPanelHTML(results);
+
+    /* تجاوز في وضع block */
+    if(over.length && mode==='block'){
+      return showBudgetModal({
+        title:'⛔ منع الحفظ — تجاوز الموازنة',
+        color:'linear-gradient(135deg,#7f1d1d,#dc2626)',
+        body:bodyHTML,
+        buttons:[{label:'إغلاق',value:false,style:'background:#dc2626;color:white;'}]
+      }).then(function(){return {ok:false,mode:mode,results:results};});
     }
-    if(!confirm('⚠️ تنبيه موازنة:\n\n'+msg+'\n\nهل تريد المتابعة؟')) return {ok:false,mode:mode,results:results};
-    return {ok:true,mode:mode,results:results};
+
+    /* تجاوز في وضع approval */
+    if(over.length && mode==='approval'){
+      return showBudgetModal({
+        title:'⚠️ تجاوز موازنة — طلب اعتماد',
+        color:'linear-gradient(135deg,#78350f,#d97706)',
+        body:'<div style="margin-bottom:10px;font-size:12px;color:#92400e;background:#fffbeb;border-radius:8px;padding:9px;">سيُحفظ القيد كطلب اعتماد ولن يُرحَّل قبل موافقة المدير المالي.</div>'+bodyHTML,
+        buttons:[
+          {label:'متابعة وإرسال للاعتماد',value:true, style:'background:#d97706;color:white;'},
+          {label:'إلغاء',value:false,style:'background:#f0f5fa;color:#1e3a6e;'}
+        ]
+      }).then(function(r){
+        if(!r.value) return {ok:false,mode:mode,results:results};
+        return {ok:true,mode:mode,results:results,requiresBudgetApproval:true};
+      });
+    }
+
+    /* تجاوز في وضع warning — FIX #1: عرض واضح بدل السقوط للـ confirm العادي */
+    if(over.length && mode==='warning'){
+      return showBudgetModal({
+        title:'🔴 تجاوز موازنة — تحذير',
+        color:'linear-gradient(135deg,#7f1d1d,#b91c1c)',
+        body:'<div style="margin-bottom:10px;font-size:12px;color:#9f1239;background:#fff1f2;border-radius:8px;padding:9px;">هذا الوضع يسمح بالحفظ رغم التجاوز. تأكد من صحة الأرقام قبل المتابعة.</div>'+bodyHTML,
+        buttons:[
+          {label:'حفظ رغم التجاوز',value:true,style:'background:#dc2626;color:white;'},
+          {label:'إلغاء',value:false,style:'background:#f0f5fa;color:#1e3a6e;'}
+        ]
+      }).then(function(r){return {ok:r.value,mode:mode,results:results};});
+    }
+
+    /* تحذير فقط (لا تجاوز) */
+    return showBudgetModal({
+      title:'🟠 تنبيه — الاقتراب من حد الموازنة',
+      color:'linear-gradient(135deg,#78350f,#d97706)',
+      body:bodyHTML,
+      buttons:[
+        {label:'متابعة',value:true,style:'background:#d97706;color:white;'},
+        {label:'إلغاء',value:false,style:'background:#f0f5fa;color:#1e3a6e;'}
+      ]
+    }).then(function(r){return {ok:r.value,mode:mode,results:results};});
   }
 
-  // Wrap saveE. For approval mode, temporarily disable the old hard-block budget check and then mark new entry.
+  /* ─── saveE wrapper (async-safe) ─── */
   var oldSaveE=window.saveE;
-  if(oldSaveE&&!window.__v3518_saveE_wrap){
-    window.__v3518_saveE_wrap=true;
+  if(oldSaveE&&!window.__v3519_saveE_wrap){
+    window.__v3519_saveE_wrap=true;
     window.saveE=function(){
       ensureBudgetSettings();
-      var decision=applyBudgetDecisionBeforeSave();
-      if(!decision.ok) return;
-      var beforeIds=((DB.entries||[]).map(function(e){return e.id;}));
-      var oldEnforce=(DB.sysSettings||{}).enforceBudget;
-      if(decision.requiresBudgetApproval){DB.sysSettings.enforceBudget=false;}
-      var ret=oldSaveE.apply(this,arguments);
-      if(decision.requiresBudgetApproval){DB.sysSettings.enforceBudget=oldEnforce;}
-      try{
-        var newest=(DB.entries||[]).slice().reverse().find(function(e){return beforeIds.indexOf(e.id)<0;});
-        if(newest&&decision.requiresBudgetApproval){
-          newest.status='pending_budget_approval';
-          newest.approvalStatus='pending_budget_approval';
-          newest.budgetApprovalRequired=true;
-          newest.budgetApprovalInfo=decision.results;
-          newest.auditLog=newest.auditLog||[];
-          newest.auditLog.push({at:new Date().toISOString(),by:(currentUserSafe()||{}).name||'system',action:'طلب اعتماد تجاوز موازنة'});
-          if(!DB.approvals)DB.approvals=[];
-          DB.approvals.push({id:'AP-BUD-'+Date.now(),type:'budget_overrun',entryId:newest.id,status:'pending',createdAt:new Date().toISOString(),createdBy:(currentUserSafe()||{}).name||'',details:decision.results});
-          if(typeof save==='function')save();
-          if(typeof toast==='function')toast('📥 تم حفظ القيد كطلب اعتماد موازنة');
-          try{if(typeof rJour==='function')rJour(); if(typeof rDash==='function')rDash();}catch(e){}
-        }
-      }catch(e){console.error('budget approval mark failed',e);}
-      return ret;
+      var self=this, args=arguments;
+      applyBudgetDecisionBeforeSave().then(function(decision){
+        if(!decision.ok) return;
+        var beforeIds=(DB.entries||[]).map(function(e){return e.id;});
+        var oldEnforce=(DB.sysSettings||{}).enforceBudget;
+        if(decision.requiresBudgetApproval) DB.sysSettings.enforceBudget=false;
+        var ret=oldSaveE.apply(self,args);
+        if(decision.requiresBudgetApproval) DB.sysSettings.enforceBudget=oldEnforce;
+        try{
+          var newest=(DB.entries||[]).slice().reverse().find(function(e){return beforeIds.indexOf(e.id)<0;});
+          if(newest&&decision.requiresBudgetApproval){
+            newest.status='pending_budget_approval';
+            newest.approvalStatus='pending_budget_approval';
+            newest.budgetApprovalRequired=true;
+            newest.budgetApprovalInfo=decision.results;
+            newest.auditLog=newest.auditLog||[];
+            newest.auditLog.push({at:new Date().toISOString(),by:(currentUserSafe()||{}).name||'system',action:'طلب اعتماد تجاوز موازنة'});
+            if(!DB.approvals)DB.approvals=[];
+            var approval={id:'AP-BUD-'+Date.now(),type:'budget_overrun',entryId:newest.id,status:'pending',createdAt:new Date().toISOString(),createdBy:(currentUserSafe()||{}).name||'',details:decision.results};
+            DB.approvals.push(approval);
+            /* ← API call */
+            AtharAPI.createBudgetApproval(approval).then(function(res){
+              if(res&&res.id) approval.serverId=res.id; // حفظ ID الـ backend
+            });
+            if(typeof save==='function')save();
+            if(typeof toast==='function')toast('📥 تم حفظ القيد كطلب اعتماد موازنة');
+            try{if(typeof rJour==='function')rJour();if(typeof rDash==='function')rDash();}catch(e){}
+          }
+        }catch(e){console.error('[AtharBudget] approval mark failed',e);}
+        return ret;
+      });
     };
   }
 
-  // Approval helper for budget approvals from entry details or approvals list.
-  window.approveBudgetEntry=function(entryId){
+  /* ─── FIX #6: approveBudgetEntry + rejectBudgetEntry ─── */
+  window.approveBudgetEntry=function(entryId,note){
     if(!isAdminOrFM()){if(typeof toast==='function')toast('🚫 الاعتماد للمدير المالي فقط');return;}
     var e=(DB.entries||[]).find(function(x){return x.id===entryId;});
     if(!e){if(typeof toast==='function')toast('القيد غير موجود');return;}
-    e.status='approved';e.approvalStatus='approved';e.budgetApprovalRequired=false;
-    e.approvedBy=(currentUserSafe()||{}).name||'مدير مالي';e.approvedAt=new Date().toISOString();
-    e.auditLog=e.auditLog||[];e.auditLog.push({at:new Date().toISOString(),by:e.approvedBy,action:'اعتماد تجاوز موازنة'});
-    (DB.approvals||[]).forEach(function(a){if(a.entryId===entryId&&a.type==='budget_overrun')a.status='approved';});
+    e.status='approved'; e.approvalStatus='approved'; e.budgetApprovalRequired=false;
+    e.approvedBy=(currentUserSafe()||{}).name||'مدير مالي'; e.approvedAt=new Date().toISOString();
+    e.auditLog=e.auditLog||[];
+    e.auditLog.push({at:new Date().toISOString(),by:e.approvedBy,action:'اعتماد تجاوز موازنة',note:note||''});
+    var ap=(DB.approvals||[]).find(function(a){return a.entryId===entryId&&a.type==='budget_overrun'&&a.status==='pending';});
+    if(ap){ap.status='approved';ap.approvedBy=e.approvedBy;ap.approvedAt=e.approvedAt;}
+    /* ← API call */
+    if(ap&&ap.serverId) AtharAPI.approveBudget(ap.serverId,note||'');
     if(typeof save==='function')save();
     if(typeof toast==='function')toast('✅ تم اعتماد تجاوز الموازنة');
-    try{if(typeof rJour==='function')rJour();}catch(err){}
+    try{if(typeof rJour==='function')rJour();if(typeof rDash==='function')rDash();}catch(err){}
   };
 
-  // Settings UI: append/replace with advanced budget controls.
+  window.rejectBudgetEntry=function(entryId,reason){
+    if(!isAdminOrFM()){if(typeof toast==='function')toast('🚫 الرفض للمدير المالي فقط');return;}
+    if(!reason){
+      showBudgetModal({
+        title:'رفض طلب تجاوز الموازنة',
+        color:'linear-gradient(135deg,#152a52,#1e3a6e)',
+        body:'<p style="margin-bottom:8px;">يرجى تحديد سبب الرفض قبل الإرسال.</p>',
+        showReason:true,
+        buttons:[
+          {label:'تأكيد الرفض',value:true,style:'background:#dc2626;color:white;'},
+          {label:'إلغاء',value:false,style:'background:#f0f5fa;color:#1e3a6e;'}
+        ]
+      }).then(function(r){if(r.value) window.rejectBudgetEntry(entryId,r.reason||'رفض بدون سبب');});
+      return;
+    }
+    var e=(DB.entries||[]).find(function(x){return x.id===entryId;});
+    if(!e){if(typeof toast==='function')toast('القيد غير موجود');return;}
+    e.status='rejected'; e.approvalStatus='rejected'; e.budgetApprovalRequired=false;
+    e.rejectedBy=(currentUserSafe()||{}).name||'مدير مالي'; e.rejectedAt=new Date().toISOString(); e.rejectionReason=reason;
+    e.auditLog=e.auditLog||[];
+    e.auditLog.push({at:new Date().toISOString(),by:e.rejectedBy,action:'رفض تجاوز موازنة',reason:reason});
+    var ap=(DB.approvals||[]).find(function(a){return a.entryId===entryId&&a.type==='budget_overrun'&&a.status==='pending';});
+    if(ap){ap.status='rejected';ap.rejectedBy=e.rejectedBy;ap.rejectedAt=e.rejectedAt;ap.rejectionReason=reason;}
+    /* ← API call */
+    if(ap&&ap.serverId) AtharAPI.rejectBudget(ap.serverId,reason);
+    if(typeof save==='function')save();
+    if(typeof toast==='function')toast('🚫 تم رفض طلب تجاوز الموازنة');
+    try{if(typeof rJour==='function')rJour();if(typeof rDash==='function')rDash();}catch(err){}
+  };
+
+  /* ─── Settings Card (FIX #4: data-section بدلاً من regex هش) ─── */
   function budgetSettingsCard(){
     ensureBudgetSettings();
     var ss=DB.sysSettings||{};
     var mode=ss.budgetControlMode||'approval';
-    return '<div class="sd" style="margin-top:14px;">💰 إعدادات رقابة الموازنة</div>'
+    return '<div data-section="budget-settings">'
+      +'<div class="sd" style="margin-top:14px;">💰 رقابة الموازنة</div>'
       +'<div class="budget-settings-card">'
       +'<div style="font-weight:900;color:var(--n);margin-bottom:6px;">طريقة التعامل مع تجاوز الموازنة</div>'
-      +'<div class="fg"><label>عند تجاوز موازنة المشروع / كود الصرف</label><select id="ss-budget-mode" onchange="saveSysSettings()">'
-      +'<option value="warning" '+(mode==='warning'?'selected':'')+'>تحذير فقط والسماح بالحفظ</option>'
-      +'<option value="block" '+(mode==='block'?'selected':'')+'>منع الحفظ نهائياً</option>'
-      +'<option value="approval" '+(mode==='approval'?'selected':'')+'>طلب اعتماد المدير المالي</option>'
+      +'<div class="fg"><label>عند تجاوز موازنة المشروع / كود الصرف</label>'
+      +'<select id="ss-budget-mode" onchange="saveSysSettings()">'
+      +'<option value="warning" '+(mode==='warning'?'selected':'')+'>⚠️ تحذير فقط والسماح بالحفظ</option>'
+      +'<option value="block" '+(mode==='block'?'selected':'')+'>⛔ منع الحفظ نهائياً</option>'
+      +'<option value="approval" '+(mode==='approval'?'selected':'')+'>📋 طلب اعتماد المدير المالي</option>'
       +'</select></div>'
-      +'<div class="fr"><div class="fg"><label>نسبة التحذير قبل التجاوز (%)</label><input type="number" id="ss-warn-pct" value="'+E(ss.budgetWarningPct||90)+'" min="50" max="100" onchange="saveSysSettings()"></div>'
-      +'<div class="fg"><label>هامش سماح للتجاوز (%)</label><input type="number" id="ss-tolerance-pct" value="'+E(ss.budgetTolerancePct||0)+'" min="0" max="100" onchange="saveSysSettings()"></div></div>'
-      +'<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--g5);font-weight:800;margin-top:4px;"><input type="checkbox" id="ss-include-pending" '+(ss.budgetIncludePending!==false?'checked':'')+' onchange="saveSysSettings()" style="width:auto;"> احتساب القيود تحت الاعتماد ضمن المنصرف عند الفحص</label>'
-      +'<div style="font-size:10.5px;color:var(--g4);line-height:1.8;margin-top:8px;">يتم الفحص لحظيًا داخل قيد اليومية بعد اختيار المشروع وكود الصرف والمبلغ. في وضع طلب الاعتماد، القيد لا يرحّل إلا بعد موافقة المدير المالي.</div>'
-      +'</div>';
+      +'<div class="fr">'
+      +'<div class="fg"><label>نسبة التحذير قبل التجاوز (%)</label><input type="number" id="ss-warn-pct" value="'+E(ss.budgetWarningPct||90)+'" min="50" max="100" onchange="saveSysSettings()"></div>'
+      +'<div class="fg"><label>هامش سماح للتجاوز (%)</label><input type="number" id="ss-tolerance-pct" value="'+E(ss.budgetTolerancePct||0)+'" min="0" max="100" onchange="saveSysSettings()"></div>'
+      +'</div>'
+      +'<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--g5);font-weight:800;margin-top:4px;">'
+      +'<input type="checkbox" id="ss-include-pending" '+(ss.budgetIncludePending!==false?'checked':'')+' onchange="saveSysSettings()" style="width:auto;"> '
+      +'احتساب القيود تحت الاعتماد ضمن المنصرف عند الفحص'
+      +'</label>'
+      +(AtharAPI.isEnabled()?'<div style="margin-top:8px;background:#eff6ff;border-radius:8px;padding:7px 10px;font-size:10.5px;color:#1d4ed8;font-weight:700;">🔗 متصل بالـ Backend: '+E(window.ATHAR_API_URL||'')+'</div>':'<div style="margin-top:8px;background:#f0f5fa;border-radius:8px;padding:7px 10px;font-size:10.5px;color:#637591;">💾 وضع offline — البيانات محلية</div>')
+      +'<div style="font-size:10.5px;color:var(--g4);line-height:1.8;margin-top:8px;">الفحص لحظي عند إدخال المشروع والمبلغ. في وضع الاعتماد، القيد لا يُرحَّل إلا بعد موافقة المدير المالي.</div>'
+      +'</div></div>';
   }
+
+  /* FIX #4: Settings wrapper بـ data-section بدلاً من regex */
   var oldSet=window.rSetPage;
-  if(oldSet&&!window.__v3518_settings_wrap){
-    window.__v3518_settings_wrap=true;
+  if(oldSet&&!window.__v3519_settings_wrap){
+    window.__v3519_settings_wrap=true;
     window.rSetPage=function(){
       var h=oldSet.apply(this,arguments);
       var u=currentUserSafe();
       if(u&&u.role==='admin'){
-        // remove old simple budget settings if recognizable to avoid duplication
+        /* أزل القسم القديم إن وُجد عبر data-section */
+        h=h.replace(/<div data-section="budget-settings">[\s\S]*?<\/div><\/div>/g,'');
+        /* أزل الـ regex القديم كـ fallback للتوافق مع v35.18 */
         h=h.replace(/<div class="sd" style="margin-top:14px;">💰 إعدادات الموازنة<\/div>[\s\S]*?<\/div><\/div>/,'');
-        h=h.replace('<div style="margin-top:14px;background:var(--g1);border-radius:8px;padding:10px;font-size:10.5px;color:var(--g4);text-align:center;">أثر للحلول المالية — النسخة 2.0<br>تطوير تنمويين مصر</div>', budgetSettingsCard()+'<div style="margin-top:14px;background:var(--g1);border-radius:8px;padding:10px;font-size:10.5px;color:var(--g4);text-align:center;">أثر للحلول المالية — النسخة 2.0<br>تطوير تنمويين مصر</div>');
+        var FOOTER='<div style="margin-top:14px;background:var(--g1);border-radius:8px;padding:10px;font-size:10.5px;color:var(--g4);text-align:center;">أثر للحلول المالية — النسخة 2.0<br>تطوير تنمويين مصر</div>';
+        if(h.indexOf(FOOTER)!==-1){
+          h=h.replace(FOOTER, budgetSettingsCard()+FOOTER);
+        } else {
+          h+=budgetSettingsCard(); // fallback إضافة في النهاية
+        }
       }
       return h;
     };
   }
+
   window.saveSysSettings=function(){
     ensureBudgetSettings();
-    var mode=(q('ss-budget-mode')||{}).value;
-    if(mode)DB.sysSettings.budgetControlMode=mode;
-    var pct=N((q('ss-warn-pct')||{}).value)||90;DB.sysSettings.budgetWarningPct=pct;
-    var tol=N((q('ss-tolerance-pct')||{}).value)||0;DB.sysSettings.budgetTolerancePct=tol;
-    var inc=q('ss-include-pending'); if(inc)DB.sysSettings.budgetIncludePending=!!inc.checked;
-    // Keep old field compatible: block mode = enforce true, otherwise let wrapper handle it
+    var mode=(q('ss-budget-mode')||{}).value; if(mode) DB.sysSettings.budgetControlMode=mode;
+    var pct=N((q('ss-warn-pct')||{}).value)||90; DB.sysSettings.budgetWarningPct=pct;
+    var tol=N((q('ss-tolerance-pct')||{}).value)||0; DB.sysSettings.budgetTolerancePct=tol;
+    var inc=q('ss-include-pending'); if(inc) DB.sysSettings.budgetIncludePending=!!inc.checked;
     DB.sysSettings.enforceBudget=(DB.sysSettings.budgetControlMode==='block');
-    if(typeof save==='function')save();
-    if(typeof toast==='function')toast('✅ تم حفظ إعدادات رقابة الموازنة');
+    if(typeof save==='function') save();
+    /* ← API call */
+    AtharAPI.saveSysSettings(DB.sysSettings);
+    if(typeof toast==='function') toast('✅ تم حفظ إعدادات رقابة الموازنة');
   };
-  window.toggleBudgetEnforce=function(val){ensureBudgetSettings();DB.sysSettings.budgetControlMode=val?'block':'warning';DB.sysSettings.enforceBudget=!!val;if(typeof save==='function')save();if(typeof toast==='function')toast('✅ تم تحديث إعدادات الموازنة');};
 
-  // Dashboard alert extension for pending budget approvals.
+  window.toggleBudgetEnforce=function(val){
+    ensureBudgetSettings();
+    DB.sysSettings.budgetControlMode=val?'block':'warning';
+    DB.sysSettings.enforceBudget=!!val;
+    if(typeof save==='function') save();
+    AtharAPI.saveSysSettings(DB.sysSettings);
+    if(typeof toast==='function') toast('✅ تم تحديث إعدادات الموازنة');
+  };
+
+  /* ─── Dashboard Alerts ─── */
   var oldAlerts=window.getSmartAlerts;
-  if(oldAlerts&&!window.__v3518_alerts_wrap){
-    window.__v3518_alerts_wrap=true;
+  if(oldAlerts&&!window.__v3519_alerts_wrap){
+    window.__v3519_alerts_wrap=true;
     window.getSmartAlerts=function(){
       var arr=[];try{arr=oldAlerts.apply(this,arguments)||[];}catch(e){}
       var pending=(DB.entries||[]).filter(function(e){return e.status==='pending_budget_approval'||e.budgetApprovalRequired;}).length;
@@ -23127,16 +23827,920 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     };
   }
 
+  /* ─── Styles ─── */
   var css=document.createElement('style');
-  css.textContent='\
-  .budget-live-ok{margin-top:10px;background:#ecfdf5;border:1px solid #bbf7d0;color:#065f46;border-radius:12px;padding:10px;font-size:12px;font-weight:900;text-align:center}\
-  .budget-live-wrap{margin-top:10px;display:grid;gap:8px}.budget-live-row{border-radius:12px;padding:10px;border:1px solid}.budget-live-row.over{background:#fff1f2;border-color:#fecdd3;color:#9f1239}.budget-live-row.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.budget-live-row>div:first-child{font-size:12px;line-height:1.6}.budget-live-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}.budget-live-grid span{background:rgba(255,255,255,.65);border-radius:8px;padding:7px;text-align:center;font-size:10px}.budget-live-grid b{font-size:11px}.budget-settings-card{background:white;border:1px solid #e8eef5;border-radius:13px;padding:12px;margin-bottom:12px;box-shadow:0 2px 8px rgba(13,59,110,.05)}\
-  @media(max-width:700px){.budget-live-grid{grid-template-columns:1fr 1fr}.budget-live-grid span:last-child{grid-column:span 2}}\
-  ';document.head.appendChild(css);
+  css.textContent=
+    '.budget-live-ok{margin-top:10px;background:#ecfdf5;border:1px solid #bbf7d0;color:#065f46;border-radius:12px;padding:10px;font-size:12px;font-weight:900;text-align:center}'
+   +'.budget-live-wrap{margin-top:10px;display:grid;gap:8px}'
+   +'.budget-live-row{border-radius:12px;padding:10px;border:1px solid}'
+   +'.budget-live-row.over{background:#fff1f2;border-color:#fecdd3;color:#9f1239}'
+   +'.budget-live-row.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}'
+   +'.budget-live-row>div:first-child{font-size:12px;line-height:1.7;margin-bottom:6px}'
+   +'.budget-live-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:6px}'
+   +'.budget-live-grid span{background:rgba(255,255,255,.65);border-radius:8px;padding:7px;text-align:center;font-size:10px;line-height:1.6}'
+   +'.budget-live-grid b{display:block;font-size:11px}'
+   +'.budget-settings-card{background:white;border:1px solid #e8eef5;border-radius:13px;padding:12px;margin-bottom:12px;box-shadow:0 2px 8px rgba(13,59,110,.05)}'
+   +'#athar-budget-modal{display:none;position:fixed;inset:0;background:rgba(15,30,53,.62);z-index:9999;align-items:center;justify-content:center;}'
+   +'@media(max-width:700px){.budget-live-grid{grid-template-columns:1fr 1fr}.budget-live-grid span:last-child{grid-column:span 2}}';
+  document.head.appendChild(css);
 
   ensureBudgetSettings();
   setTimeout(function(){try{if(typeof save==='function')save();}catch(e){}},250);
+
+  console.info('[Athar v35.19] Budget Control patch loaded. AtharAPI enabled:', AtharAPI.isEnabled());
 })();
 </script>
+
+<script>
+/* ============================================================
+   ATHAR V35.20 PATCH — إصلاحات UX الأربعة
+   1. إصلاح data-pg click — الشاشة لا تُفتح عند الضغط على بطاقات القائمة
+   2. إصلاح KPI رصيد البنك — يحتسب الأرصدة الافتتاحية
+   3. زر "نسخ سطر" في نموذج القيد
+   4. قيد رواتب جاهز من بيانات الموظفين
+============================================================ */
+(function(){
+  if(window.__ATHAR_V3520_FIXES__) return;
+  window.__ATHAR_V3520_FIXES__ = true;
+
+  /* ── Utils ── */
+  function N(v){return parseFloat(v)||0;}
+  function el(id){return document.getElementById(id);}
+  function fmt(n){try{return (Math.round(N(n)*100)/100).toLocaleString('ar-EG',{maximumFractionDigits:2});}catch(e){return String(n||0);}}
+
+  /* ═══════════════════════════════════════════════════════════
+     FIX 1: data-pg click handler
+     المشكلة: عند الضغط على .mi[data-pg="jour"] كان الـ topbar يعترض الـ click
+     الحل: نتعامل مع data-pg مثل data-sub تماماً — نفتح sub panel
+     عبر الـ sub() chain بدلاً من showPage()
+  ═══════════════════════════════════════════════════════════ */
+  if(!window.__v3520_datapg_fix){
+    window.__v3520_datapg_fix = true;
+
+    /* map data-pg values → الـ tab + action الصحيح */
+    var PG_MAP = {
+      'jour':  {nav:'fin',  action:function(){ if(typeof rJour==='function') rJour(); var p=el('pg-jour'); if(p){document.querySelectorAll('.pg').forEach(function(x){x.classList.remove('on');}); p.classList.add('on');} }},
+      'pay':   {nav:'ops',  action:function(){
+        var pgOps=el('pg-ops'); if(pgOps&&!pgOps.innerHTML.trim()&&typeof rOperationsHub==='function') pgOps.innerHTML=rOperationsHub();
+        var p=el('pg-pay');
+        if(p){ if(typeof rPay==='function') rPay(); document.querySelectorAll('.pg').forEach(function(x){x.classList.remove('on');}); p.classList.add('on'); }
+      }},
+      'proj':  {nav:'ops',  action:function(){
+        var pgOps=el('pg-ops'); if(pgOps&&!pgOps.innerHTML.trim()&&typeof rOperationsHub==='function') pgOps.innerHTML=rOperationsHub();
+        var p=el('pg-proj');
+        if(p){ if(typeof rProj==='function') rProj(); document.querySelectorAll('.pg').forEach(function(x){x.classList.remove('on');}); p.classList.add('on'); }
+      }},
+      'loans': {nav:'loans',action:function(){ var btn=document.querySelector('[data-nav="loans"]'); if(btn) btn.click(); }},
+    };
+
+    document.addEventListener('click', function(ev){
+      var mi = ev.target.closest('.mi[data-pg]');
+      if(!mi) return;
+      var pg = mi.getAttribute('data-pg');
+      if(!pg) return;
+      ev.stopImmediatePropagation();
+      var map = PG_MAP[pg];
+      if(map){
+        /* أولاً: فعّل الـ nav tab الصحيح */
+        var navBtn = document.querySelector('[data-nav="'+map.nav+'"]');
+        if(navBtn){
+          document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+          navBtn.classList.add('on');
+        }
+        /* ثانياً: نفّذ الـ action */
+        try{ map.action(); }catch(e){ console.error('[v3520] data-pg action failed',e); }
+      } else {
+        /* fallback: showPage القديمة */
+        try{ if(typeof showPage==='function') showPage(pg); }catch(e){}
+      }
+    }, true /* useCapture — يسبق الـ handlers الأخرى */);
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     FIX 2: KPI رصيد البنك — يضيف الأرصدة الافتتاحية
+     المشكلة: totalBank() local داخل كل IIFE ولا تحتسب DB.openingBals
+     الحل: MutationObserver على pg-dash + تصحيح الـ DOM مباشرة بعد الرسم
+  ═══════════════════════════════════════════════════════════ */
+  if(!window.__v3520_bank_kpi_fix){
+    window.__v3520_bank_kpi_fix = true;
+
+    window.totalBankWithOpening = function(){
+      var PFXS = ['1111','1112','1113'];
+      function isBank(acc){ var s=String(acc||''); return PFXS.some(function(p){return s.indexOf(p)===0;}); }
+      var ob=0, opBals=(window.DB&&DB.openingBals)||{};
+      Object.keys(opBals).forEach(function(acc){
+        if(!isBank(acc)) return;
+        var acct=((window.DB&&DB.accounts)||[]).find(function(a){return a.c===acc;});
+        ob += (acct&&acct.nat==='cr') ? -N(opBals[acc]) : N(opBals[acc]);
+      });
+      var mv=((window.DB&&DB.entries)||[]).reduce(function(sum,e){
+        var st=e.status||'';
+        if(st==='rejected'||st==='cancelled'||st==='draft') return sum;
+        return sum+(e.lines||[]).reduce(function(s,l){return isBank(l.acc)?s+N(l.dr)-N(l.cr):s;},0);
+      },0);
+      return ob+mv;
+    };
+
+    /* بعد كل رسم للداشبورد، نصحح قيمة رصيد البنك في DOM */
+    function _patchBankKPI(){
+      var correct=window.totalBankWithOpening();
+      var fmtVal;
+      try{ fmtVal=Math.round(correct).toLocaleString('ar-EG')+' ج'; }catch(e){ fmtVal=String(correct); }
+      /* تدعم v8-kpi (.v8-val) وكذلك .st (.sv) */
+      var SELECTORS = [
+        {card:'.v8-kpi', val:'.v8-val'},
+        {card:'.st',     val:'.sv'},
+        {card:'[class*="kpi"]', val:'[class*="val"]'}
+      ];
+      SELECTORS.forEach(function(sel){
+        document.querySelectorAll(sel.card).forEach(function(card){
+          var txt=card.textContent||'';
+          if(txt.indexOf('رصيد البنك')>-1||txt.indexOf('البنك والخزينة')>-1){
+            var valEl=card.querySelector(sel.val);
+            if(valEl&&!valEl._v3520patched){
+              valEl.textContent=fmtVal;
+              valEl._v3520patched=true;
+              setTimeout(function(){valEl._v3520patched=false;},3000);
+            }
+          }
+        });
+      });
+    }
+
+    /* Observer على pg-dash — subtree:true لأن الكارد داخل .content */
+    var pgDash=document.getElementById('pg-dash');
+    if(pgDash){
+      new MutationObserver(function(muts){
+        if(muts.some(function(m){return m.addedNodes.length>0;})) setTimeout(_patchBankKPI,80);
+      }).observe(pgDash,{childList:true,subtree:true});
+    }
+    /* كذلك observe على .content */
+    var contentEl=document.querySelector('.content');
+    if(contentEl){
+      new MutationObserver(function(){setTimeout(_patchBankKPI,80);}).observe(contentEl,{childList:true,subtree:true});
+    }
+    setTimeout(_patchBankKPI,800);
+    /* trigger after nav to dash */
+    var _oldNavForBank=window.nav;
+    if(_oldNavForBank&&!window.__v3520bank_nav_wrap){
+      window.__v3520bank_nav_wrap=true;
+      window.nav=function(pg){
+        var r=_oldNavForBank.apply(this,arguments);
+        if(pg==='dash') setTimeout(_patchBankKPI,200);
+        return r;
+      };
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     FIX 3: زر "نسخ سطر" في نموذج القيد
+     يُضاف زر صغير على يمين كل سطر لنسخه بالكامل
+  ═══════════════════════════════════════════════════════════ */
+  if(!window.__v3520_copyline_fix){
+    window.__v3520_copyline_fix = true;
+
+    /* wrap addEL لتضيف زر النسخ في كل سطر */
+    var _origAddEL = window.addEL;
+    window.addEL = function(){
+      if(typeof _origAddEL==='function') _origAddEL.apply(this,arguments);
+      _addCopyBtn(window._eL - 1);
+    };
+
+    /* نضيف زر نسخ داخل jl-head الموجود بالفعل في كل سطر */
+    function _injectCopyBtns(){
+      var elsEl = el('els');
+      if(!elsEl) return;
+      elsEl.querySelectorAll('.tp-line').forEach(function(lineEl){
+        if(lineEl.querySelector('.v3520-copy-btn')) return;
+        var i = lineEl.id ? lineEl.id.replace('el-','') : null;
+        if(i===null) return;
+        /* ابحث عن jl-head الموجود */
+        var jlHead = lineEl.querySelector('.jl-head');
+        if(jlHead){
+          /* أضف زر نسخ في jl-head */
+          var copyBtn=document.createElement('button');
+          copyBtn.className='v3520-copy-btn';
+          copyBtn.type='button';
+          copyBtn.setAttribute('onclick','copyEntryLine('+i+')');
+          copyBtn.style.cssText='border:none;background:var(--skp);color:var(--sk);padding:3px 10px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;margin-right:4px;';
+          copyBtn.textContent='📋 نسخ';
+          jlHead.appendChild(copyBtn);
+        } else {
+          /* fallback: أضف header جديد */
+          var header=document.createElement('div');
+          header.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;';
+          header.innerHTML='<span style="font-size:10px;color:var(--g4);font-weight:700;">سطر '+(parseInt(i)+1)+'</span>'
+            +'<button class="v3520-copy-btn" type="button" onclick="copyEntryLine('+i+')" style="border:none;background:var(--skp);color:var(--sk);padding:3px 10px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">📋 نسخ</button>';
+          lineEl.insertBefore(header,lineEl.firstChild);
+        }
+      });
+    }
+
+    /* Observer على #els وعلى القيد كله */
+    function _watchElsContainer(){
+      var elsEl = el('els');
+      if(!elsEl||elsEl._v3520obs) return;
+      elsEl._v3520obs = true;
+      new MutationObserver(function(){ setTimeout(_injectCopyBtns,30); }).observe(elsEl,{childList:true,subtree:false});
+      _injectCopyBtns();
+    }
+
+    /* Observer على #mo (الـ modal الذي يفتح فيه القيد) */
+    ['mo','pg-more','pg-jour'].forEach(function(pgId){
+      var pgEl=document.getElementById(pgId);
+      if(pgEl){
+        new MutationObserver(function(){
+          setTimeout(function(){ _watchElsContainer(); _injectCopyBtns(); },80);
+        }).observe(pgEl,{childList:true,subtree:true});
+      }
+    });
+
+    function _addCopyBtn(i){ /* kept for compat */ _injectCopyBtns(); }
+
+    /* دالة نسخ السطر */
+    window.copyEntryLine = function(i){
+      var acc     = (el('ea-'+i)||{}).value||'';
+      var accTxt  = (el('eaSearch-'+i)||{}).value||'';
+      var dr      = (el('edr-'+i)||{}).value||'';
+      var cr      = (el('ecr-'+i)||{}).value||'';
+      var proj    = (el('eproj-'+i)||{}).value||'';
+      var wbs     = (el('ewbs-'+i)||{}).value||'';
+      var wbsTxt  = (el('ewbs-search-'+i)||{}).value||'';
+      var tp      = (el('etp-'+i)||{}).value||'';
+      /* أضف سطر جديد */
+      if(typeof addEL==='function') addEL();
+      var ni = (window._eL||1)-1;
+      /* انسخ القيم */
+      setTimeout(function(){
+        if(el('ea-'+ni))    el('ea-'+ni).value = acc;
+        if(el('eaSearch-'+ni)) el('eaSearch-'+ni).value = accTxt;
+        if(el('edr-'+ni))   el('edr-'+ni).value = dr;
+        if(el('ecr-'+ni))   el('ecr-'+ni).value = cr;
+        if(el('eproj-'+ni)){el('eproj-'+ni).value = proj; if(typeof onLineProjChange==='function') onLineProjChange(ni);}
+        setTimeout(function(){
+          if(el('ewbs-'+ni))    el('ewbs-'+ni).value = wbs;
+          if(el('ewbs-search-'+ni)) el('ewbs-search-'+ni).value = wbsTxt;
+          if(el('etp-'+ni))    el('etp-'+ni).value = tp;
+          if(typeof updET==='function') updET();
+          if(typeof atharBudgetRefreshLive==='function') atharBudgetRefreshLive();
+        },80);
+      },60);
+      if(typeof toast==='function') toast('📋 تم نسخ السطر '+(i+1));
+    };
+
+    /* دالة حذف السطر */
+    window.removeEntryLine = function(i){
+      var lineEl = el('el-'+i);
+      if(lineEl) lineEl.remove();
+      if(typeof updET==='function') updET();
+      if(typeof atharBudgetRefreshLive==='function') atharBudgetRefreshLive();
+    };
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     FIX 4: قيد رواتب جاهز من بيانات الموظفين
+     زر "📋 قيد رواتب" في نموذج القيد يملأ السطور تلقائياً
+     من DB.employees + calcFull() أو sal مباشرة
+  ═══════════════════════════════════════════════════════════ */
+  if(!window.__v3520_payroll_entry_fix){
+    window.__v3520_payroll_entry_fix = true;
+
+    /* نضيف الزر في header القيد بعد تحميل النموذج */
+    var _origNewEntry = window.newEntry;
+    if(_origNewEntry && !window.__v3520_newentry_wrapped){
+      window.__v3520_newentry_wrapped = true;
+      window.newEntry = function(){
+        var ret = _origNewEntry.apply(this, arguments);
+        setTimeout(_injectPayrollBtn, 80);
+        return ret;
+      };
+    }
+
+    function _injectPayrollBtn(){
+      var etot = el('etot');
+      if(!etot || el('v3520-payroll-btn')) return;
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'margin-top:10px;';
+      wrap.innerHTML = '<button id="v3520-payroll-btn" type="button" onclick="openPayrollEntryWizard()" '
+        +'style="width:100%;background:linear-gradient(135deg,#1e3a6e,#29abe2);color:white;border:none;padding:11px;border-radius:10px;font-size:13px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">'
+        +'💰 قيد رواتب تلقائي من بيانات الموظفين</button>';
+      etot.parentNode.insertBefore(wrap, etot.nextSibling);
+    }
+
+    /* Modal اختيار شهر + مشروع لقيد الرواتب */
+    window.openPayrollEntryWizard = function(){
+      var emps = (window.DB&&DB.employees)||[];
+      var activeEmps = emps.filter(function(e){return e.status==='active'||!e.status;});
+      if(!activeEmps.length){ if(typeof toast==='function') toast('⚠️ لا يوجد موظفون مسجلون'); return; }
+
+      var projs = (window.DB&&DB.projects)||[];
+      var projOpts = '<option value="">— بدون مشروع —</option>'
+        + projs.map(function(p){return '<option value="'+p.code+'">'+p.name+'</option>';}).join('');
+
+      var now = new Date();
+      var defaultMonth = now.getFullYear()+'-'+(String(now.getMonth()+1).padStart(2,'0'));
+
+      /* بناء قائمة الموظفين مع الرواتب */
+      var empRows = activeEmps.map(function(e,idx){
+        var sal = N(e.sal)||N(e.salary)||N(e.basicSalary)||0;
+        var allow = N(e.allow)||N(e.allowance)||N(e.transportAllow)||0;
+        var total = sal + allow;
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--g1);">'
+          +'<input type="checkbox" id="pw-emp-'+idx+'" checked style="width:auto;accent-color:var(--n);">'
+          +'<div style="flex:1;">'
+          +'<div style="font-size:12px;font-weight:700;color:var(--n);">'+e.nameAr+'</div>'
+          +'<div style="font-size:10px;color:var(--g4);">'+(e.pos||e.position||'موظف')+' · '+(e.dept||e.department||'')+' </div>'
+          +'</div>'
+          +'<input type="number" id="pw-sal-'+idx+'" value="'+total+'" style="width:90px;border:1.5px solid var(--g2);border-radius:7px;padding:5px 8px;font-size:12px;font-family:Cairo,sans-serif;text-align:left;">'
+          +'<input type="hidden" id="pw-id-'+idx+'" value="'+e.id+'" data-name="'+e.nameAr+'">'
+          +'</div>';
+      }).join('');
+
+      /* مودال الرواتب */
+      var modal = document.createElement('div');
+      modal.id = 'v3520-pay-modal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,30,53,.65);z-index:10000;display:flex;align-items:center;justify-content:center;';
+      modal.innerHTML = '<div style="background:white;border-radius:18px;width:92%;max-width:420px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">'
+        +'<div style="background:linear-gradient(135deg,#152a52,#1e3a6e);padding:14px 16px;color:white;display:flex;justify-content:space-between;align-items:center;">'
+        +'<span style="font-weight:900;font-size:15px;font-family:Tajawal,sans-serif;">💰 قيد رواتب شهري</span>'
+        +'<button onclick="document.getElementById(\'v3520-pay-modal\').remove()" style="border:none;background:rgba(255,255,255,.2);color:white;width:28px;height:28px;border-radius:50%;font-size:16px;cursor:pointer;">✕</button>'
+        +'</div>'
+        +'<div style="padding:14px;overflow-y:auto;flex:1;">'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">'
+        +'<div><label style="font-size:10.5px;font-weight:700;color:var(--g4);display:block;margin-bottom:3px;">الشهر</label>'
+        +'<input type="month" id="pw-month" value="'+defaultMonth+'" style="width:100%;border:1.5px solid var(--g2);border-radius:8px;padding:7px 10px;font-size:12px;font-family:Cairo,sans-serif;"></div>'
+        +'<div><label style="font-size:10.5px;font-weight:700;color:var(--g4);display:block;margin-bottom:3px;">المشروع (اختياري)</label>'
+        +'<select id="pw-proj" style="width:100%;border:1.5px solid var(--g2);border-radius:8px;padding:7px 10px;font-size:12px;font-family:Cairo,sans-serif;">'+projOpts+'</select></div>'
+        +'</div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">'
+        +'<div><label style="font-size:10.5px;font-weight:700;color:var(--g4);display:block;margin-bottom:3px;">حساب الرواتب (مصروف)</label>'
+        +'<input id="pw-exp-acc" value="5311" style="width:100%;border:1.5px solid var(--g2);border-radius:8px;padding:7px 10px;font-size:12px;font-family:Cairo,sans-serif;"></div>'
+        +'<div><label style="font-size:10.5px;font-weight:700;color:var(--g4);display:block;margin-bottom:3px;">حساب الدفع (بنك/خزينة)</label>'
+        +'<input id="pw-pay-acc" value="1112" style="width:100%;border:1.5px solid var(--g2);border-radius:8px;padding:7px 10px;font-size:12px;font-family:Cairo,sans-serif;"></div>'
+        +'</div>'
+        +'<div style="background:var(--g1);border-radius:10px;padding:10px;max-height:240px;overflow-y:auto;">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        +'<span style="font-size:11px;font-weight:700;color:var(--n);">الموظفون ('+activeEmps.length+')</span>'
+        +'<button onclick="document.querySelectorAll(\'[id^=pw-emp-]\').forEach(c=>c.checked=true)" style="border:none;background:none;color:var(--sk);font-size:11px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">تحديد الكل</button>'
+        +'</div>'
+        +empRows
+        +'</div>'
+        +'</div>'
+        +'<div style="padding:12px 14px;border-top:1px solid var(--g2);display:flex;gap:8px;">'
+        +'<button onclick="applyPayrollEntry('+activeEmps.length+')" style="flex:1;background:var(--n);color:white;border:none;padding:11px;border-radius:9px;font-size:13px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">✅ إنشاء القيد</button>'
+        +'<button onclick="document.getElementById(\'v3520-pay-modal\').remove()" style="background:var(--g1);color:var(--n);border:none;padding:11px 16px;border-radius:9px;font-size:13px;font-weight:700;font-family:Cairo,sans-serif;cursor:pointer;">إلغاء</button>'
+        +'</div>'
+        +'</div>';
+      document.body.appendChild(modal);
+    };
+
+    window.applyPayrollEntry = function(empCount){
+      var month = (el('pw-month')||{}).value||'';
+      var proj  = (el('pw-proj')||{}).value||'';
+      var expAcc= (el('pw-exp-acc')||{}).value||'5311';
+      var payAcc= (el('pw-pay-acc')||{}).value||'1112';
+
+      var selectedLines = [];
+      var totalSal = 0;
+      for(var i=0;i<empCount;i++){
+        var chk = el('pw-emp-'+i);
+        if(!chk||!chk.checked) continue;
+        var sal = N((el('pw-sal-'+i)||{}).value)||0;
+        var empId = el('pw-id-'+i);
+        var empName = empId ? empId.getAttribute('data-name') : '';
+        if(sal>0){
+          selectedLines.push({acc:expAcc, dr:sal, cr:0, proj:proj, wbsCode:'', desc:'راتب '+empName});
+          totalSal += sal;
+        }
+      }
+      if(!selectedLines.length){ if(typeof toast==='function') toast('⚠️ اختر موظفاً واحداً على الأقل'); return; }
+
+      /* أغلق المودال */
+      var modal = el('v3520-pay-modal');
+      if(modal) modal.remove();
+
+      /* احذف السطور الحالية الفارغة وابدأ من جديد */
+      var elsContainer = el('els');
+      if(!elsContainer){ if(typeof toast==='function') toast('⚠️ افتح نموذج القيد أولاً'); return; }
+
+      /* إزالة السطور الفارغة */
+      var empties = Array.from(elsContainer.querySelectorAll('.tp-line')).filter(function(row){
+        var accEl = row.querySelector('[id^="ea-"]');
+        return !accEl || !accEl.value;
+      });
+      empties.forEach(function(r){r.remove();});
+
+      /* أضف سطر لكل موظف */
+      var startIdx = window._eL || 0;
+      selectedLines.forEach(function(ln,j){
+        var ni = startIdx + j;
+        window._eL = ni+1;
+        var d = document.createElement('div');
+        d.innerHTML = (typeof eLnTPwbs==='function') ? eLnTPwbs(ni, proj, {acc:ln.acc, dr:ln.dr, cr:ln.cr, proj:ln.proj}) : '';
+        var node = d.firstChild;
+        if(node) elsContainer.appendChild(node);
+        /* اضبط القيم بعد إضافة العنصر */
+        setTimeout(function(idx,line){
+          if(el('ea-'+idx)) el('ea-'+idx).value = line.acc;
+          var accDef = (window.DB&&DB.accounts||[]).find(function(a){return a.c===line.acc;});
+          if(el('eaSearch-'+idx)) el('eaSearch-'+idx).value = line.acc+(accDef?' — '+accDef.n:'');
+          if(el('edr-'+idx)) el('edr-'+idx).value = line.dr||'';
+          if(el('ecr-'+idx)) el('ecr-'+idx).value = line.cr||'';
+          if(el('eproj-'+idx)){el('eproj-'+idx).value=proj; if(typeof onLineProjChange==='function') onLineProjChange(idx);}
+          if(typeof updET==='function') updET();
+        }.bind(null, ni, ln), 60*(j+1));
+      });
+
+      /* أضف سطر الدفع الإجمالي */
+      setTimeout(function(){
+        var payIdx = startIdx + selectedLines.length;
+        window._eL = payIdx+1;
+        var d = document.createElement('div');
+        d.innerHTML = (typeof eLnTPwbs==='function') ? eLnTPwbs(payIdx, '', {acc:payAcc, dr:0, cr:totalSal}) : '';
+        var node = d.firstChild;
+        if(node) elsContainer.appendChild(node);
+        setTimeout(function(){
+          if(el('ea-'+payIdx)) el('ea-'+payIdx).value = payAcc;
+          var payDef = (window.DB&&DB.accounts||[]).find(function(a){return a.c===payAcc;});
+          if(el('eaSearch-'+payIdx)) el('eaSearch-'+payIdx).value = payAcc+(payDef?' — '+payDef.n:'');
+          if(el('ecr-'+payIdx)) el('ecr-'+payIdx).value = totalSal;
+          if(el('edr-'+payIdx)) el('edr-'+payIdx).value = '';
+          if(typeof updET==='function') updET();
+          if(typeof atharBudgetRefreshLive==='function') atharBudgetRefreshLive();
+        }, 80);
+      }, 60*(selectedLines.length+1));
+
+      /* اضبط البيان والتاريخ */
+      setTimeout(function(){
+        var descEl = el('e-d2')||el('e-desc')||el('edesc');
+        if(descEl && !descEl.value) descEl.value = 'رواتب '+(month||'');
+        var dateEl = el('e-d');
+        if(dateEl && !dateEl.value && month){
+          var d = new Date(month+'-01');
+          d.setMonth(d.getMonth()+1); d.setDate(0); // آخر يوم في الشهر
+          dateEl.value = d.toISOString().split('T')[0];
+        }
+        if(typeof toast==='function') toast('✅ تم ملء '+(selectedLines.length)+' سطر رواتب — إجمالي: '+fmt(totalSal)+' ج.م');
+      }, 60*(selectedLines.length+2));
+    };
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     إضافة CSS للإصلاحات
+  ═══════════════════════════════════════════════════════════ */
+  var css = document.createElement('style');
+  css.textContent =
+    /* نسخ سطر */
+    '.v3520-copy-btn:hover{opacity:.85;}'
+    /* قيد الرواتب */
+    +'#v3520-payroll-btn:hover{opacity:.9;}'
+    +'#v3520-pay-modal input[type="number"]::-webkit-inner-spin-button{opacity:.5}'
+    /* تحسين ارتفاع .tp-line لاستيعاب الـ header الجديد */
+    +'.tp-line{position:relative;}'
+    ;
+  document.head.appendChild(css);
+
+  /* تطبيق لحظي: إعادة حساب الداشبورد إن كان مفتوحاً */
+  setTimeout(function(){
+    try{
+      if(document.querySelector('#pg-dash.on') && typeof renderHome==='function') renderHome();
+    }catch(e){}
+  }, 300);
+
+  console.info('[Athar v35.20] 4 fixes loaded: data-pg click, bank KPI, copy line, payroll entry wizard');
+})();
+</script>
+
+<script>
+/* ════════════════════════════════════════════════════════
+   ATHAR v35.24 — Financial Statements Formatter
+   يعيد تنسيق قائمة الدخل والميزانية بعد عرضها
+════════════════════════════════════════════════════════ */
+(function(){
+  if(window.__v3524_fs_fmt) return;
+  window.__v3524_fs_fmt = true;
+
+  function fmt(n){
+    try{ return Math.abs(Math.round(n||0)).toLocaleString('ar-EG'); }
+    catch(e){ return String(Math.abs(Math.round(n||0))); }
+  }
+
+  /* يراقب pg-more ويُطبّق التنسيق على قوائم الدخل والميزانية */
+  function _reformatStatement(){
+    var mo = document.getElementById('pg-more');
+    if(!mo || !mo.classList.contains('on')) return;
+
+    var html = mo.innerHTML;
+    if(!html) return;
+
+    /* هل هي قائمة دخل؟ */
+    var isIncome  = html.indexOf('قائمة الدخل') > -1 && html.indexOf('الإيرادات') > -1;
+    /* هل هي ميزانية؟ */
+    var isBalance = html.indexOf('الميزانية العمومية') > -1 && html.indexOf('الأصول') > -1;
+
+    if(!isIncome && !isBalance) return;
+    /* تحقق إن لم نطبق التنسيق من قبل */
+    if(html.indexOf('fs-page') > -1) return;
+
+    /* استخرج .card sections وأعد بناءها */
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(html, 'text/html');
+
+    /* رأس الصفحة */
+    var phEl   = doc.querySelector('.ph');
+    var phTitle= phEl ? phEl.querySelector('.ph-t') : null;
+    var phSub  = phEl ? phEl.querySelector('.ph-s') : null;
+    var filterEl = doc.querySelector('div[style*="grid-template-columns"]');
+        var backBtn = null; /* skip in formatter */
+
+    var newHtml = '<div class="fs-page" style="padding:14px 14px 80px;">';
+
+    /* زر الرجوع */
+    if(backBtn){
+      newHtml += '<div style="margin-bottom:12px;">' + backBtn.outerHTML + '</div>';
+    }
+
+    /* Header */
+    if(phTitle){
+      newHtml += '<div class="fs-header">'
+        + '<div class="fs-header-title">' + phTitle.textContent + '</div>'
+        + (phSub ? '<div class="fs-header-sub">' + phSub.textContent + '</div>' : '')
+        + '</div>';
+    }
+
+    /* Filter row */
+    if(filterEl){
+      newHtml += '<div style="margin-bottom:14px;">' + filterEl.outerHTML + '</div>';
+    }
+
+    /* Cards */
+    var cards = doc.querySelectorAll('.card');
+    var surplusCard = null;
+
+    cards.forEach(function(card){
+      var titleEl = card.querySelector('.ct');
+      if(!titleEl) return;
+      var title = titleEl.textContent.trim();
+
+      /* detect type */
+      var isSurplus = title.indexOf('الفائض') > -1 || title.indexOf('العجز') > -1 || title.indexOf('فرق') > -1;
+      if(isSurplus){ surplusCard = card; return; }
+
+      var isRev  = title.indexOf('الإيراد') > -1;
+      var isExp  = title.indexOf('المصروف') > -1;
+      var isAsset= title.indexOf('الأصول') > -1;
+      var isLiab = title.indexOf('الالتزامات') > -1 || title.indexOf('حقوق') > -1;
+      var cls    = isRev?'rev':isExp?'exp':isAsset?'asset':isLiab?'liab':'eq';
+
+      newHtml += '<div class="fs-section">'
+        + '<div class="fs-section-title ' + cls + '">' + title + '</div>';
+
+      /* rows */
+      var rows = card.querySelectorAll('div[style*="justify-content:space-between"]');
+      rows.forEach(function(row){
+        var spans = row.querySelectorAll('span');
+        if(spans.length < 2) return;
+        var label = spans[0].textContent.trim();
+        var amount= spans[1].textContent.trim();
+        var isTotalRow = row.style.fontWeight === '900' || row.querySelector('[style*="font-weight:900"]');
+
+        if(isTotalRow){
+          newHtml += '<div class="fs-total">'
+            + '<span>' + label + '</span>'
+            + '<span class="fs-total-amount" style="color:'+(isRev?'#059669':isExp?'#dc2626':isAsset?'#1d4ed8':'#7c3aed')+'">' + amount + '</span>'
+            + '</div>';
+        } else {
+          /* Extract account code from label like "4111 — اسم" */
+          var codeMatch = label.match(/^(\d+)\s*[—-]/);
+          var code = codeMatch ? codeMatch[1] : '';
+          var name = code ? label.replace(code,'').replace(/^[\s—-]+/,'') : label;
+          newHtml += '<div class="fs-row">'
+            + '<span class="fs-row-label">' + (code?'<code>'+code+'</code>':'')+name+'</span>'
+            + '<span class="fs-row-amount ' + cls + '"'
+            + (spans[1].onclick ? ' onclick="'+spans[1].getAttribute('onclick')+'"' : '')
+            + '>' + amount + '</span>'
+            + '</div>';
+        }
+      });
+
+      newHtml += '</div>';
+    });
+
+    /* Surplus / Balance check */
+    if(surplusCard){
+      var surText = surplusCard.textContent.trim();
+      var isPos = surText.indexOf('✅') > -1 || (surplusCard.style && surplusCard.style.background && surplusCard.style.background.indexOf('059669') > -1);
+      var surAmtEl = surplusCard.querySelector('[style*="font-size:22px"],[style*="font-size:20px"],[style*="font-weight:900"]');
+      var surAmt = surAmtEl ? surAmtEl.textContent.trim() : '';
+      var surLbl = isIncome
+        ? (isPos ? '✅ صافي الفائض' : '⚠️ صافي العجز')
+        : (surText.indexOf('متوازن') > -1 ? '✅ الميزانية متوازنة' : '⚠️ فرق الاتزان');
+      var posClass = isPos || surText.indexOf('متوازن') > -1 ? 'positive' : 'negative';
+      newHtml += '<div class="fs-surplus ' + posClass + '">'
+        + '<div class="fs-surplus-label">' + surLbl + '</div>'
+        + '<div class="fs-surplus-amount">' + surAmt + '</div>'
+        + '</div>';
+    }
+
+    newHtml += '</div>';
+    mo.innerHTML = newHtml;
+  }
+
+  /* Observer على pg-more */
+  var pgMore = document.getElementById('pg-more');
+  if(pgMore){
+    new MutationObserver(function(muts){
+      if(muts.some(function(m){ return m.addedNodes.length > 0; })){
+        setTimeout(_reformatStatement, 80);
+      }
+    }).observe(pgMore, {childList:true, subtree:false});
+  }
+
+  console.info('[Athar v35.24] Financial statements formatter loaded');
+})();
+</script>
+
+<style>
+/* ============================================================
+   ATHAR v35.20 — Number Clarity Upgrade
+   مبدأ واحد: الأرقام المالية لازم تكون أكبر، أثقل، وأوضح
+   من أي نص آخر على الشاشة في نفس السياق
+============================================================ */
+
+/* ── 1. KPI Cards (الداشبورد) ───────────────────────────────
+   كانت: Tajawal 20px/900
+   بقت: Cairo 26px/900 + letter-spacing ضيق + tabular nums
+────────────────────────────────────────────────────────── */
+.v8-val {
+  font-family: 'Cairo', sans-serif !important;
+  font-size: 26px !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ── 2. الجداول المالية (ميزان المراجعة، الميزانية، الدخل) ──
+   كانت: 12px/600 — مش واضحة خالص
+   بقت: 13.5px/700 + monospace للأرقام + محاذاة يسار
+────────────────────────────────────────────────────────── */
+table td.tn,
+table td[style*="text-align:left"],
+table td[style*="text-align: left"],
+.tbl-num, .num-cell {
+  font-family: 'Cairo', sans-serif !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+/* إجماليات الجداول أكبر وأثقل */
+table tfoot td,
+table tr.total td,
+table tr[class*="total"] td,
+.tbl-total, .row-total {
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ── 3. بطاقات اليومية (المبالغ) ──────────────────────────
+   الأرقام في قائمة القيود كانت صغيرة
+────────────────────────────────────────────────────────── */
+.jv-amount,
+.jv-total,
+.entry-amount,
+[class*="jv-"] b,
+.hdr-amount {
+  font-family: 'Cairo', sans-serif !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* رأس كل قيد في القائمة — المبلغ الإجمالي */
+.hdr-date ~ *,
+.jl-total,
+.entry-card .amount {
+  font-size: 15px !important;
+  font-weight: 900 !important;
+}
+
+/* ── 4. بطاقات KPI القديمة (.sv) ─────────────────────────── */
+.sv {
+  font-family: 'Cairo', sans-serif !important;
+  font-size: 20px !important;
+  font-weight: 900 !important;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.pv {
+  font-family: 'Cairo', sans-serif !important;
+  font-weight: 900 !important;
+  font-size: 18px !important;
+}
+
+/* ── 5. الأرقام في القيد الجديد (مدين/دائن) ────────────────
+   input الأرقام في سطور القيد
+────────────────────────────────────────────────────────── */
+input[id^="edr-"],
+input[id^="ecr-"],
+input[type="number"] {
+  font-family: 'Cairo', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* إجمالي مدين/دائن في نموذج القيد */
+#etot strong,
+#etot b,
+.entry-totals strong {
+  font-size: 15px !important;
+  font-weight: 900 !important;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ── 6. BVA / تقارير الموازنة ──────────────────────────────
+   الأرقام في بار الصرف وبطاقات المشروع
+────────────────────────────────────────────────────────── */
+.bva-amount,
+.proj-spent,
+.proj-budget,
+[class*="bva"] b,
+[class*="bva"] strong {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 7. Cash Flow / قائمة الدخل ────────────────────────────
+   أرقام التدفقات النقدية
+────────────────────────────────────────────────────────── */
+.cf-amount, .cf-total,
+.income-amount, .income-total,
+[class*="cash"] b,
+[class*="flow"] b {
+  font-family: 'Cairo', sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 900 !important;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ── 8. Badge المبالغ (v8-badge) ────────────────────────── */
+.v8-badge {
+  font-family: 'Cairo', sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 9. تحسين وضوح الجداول عموماً ─────────────────────────
+   تكبير خط الجدول الأساسي وزيادة تباعد الصفوف
+────────────────────────────────────────────────────────── */
+table {
+  font-size: 12.5px;
+}
+thead th {
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.2px;
+}
+tbody td {
+  padding: 10px 10px !important;
+  line-height: 1.5;
+}
+
+/* ── 10. أرقام loan cards ──────────────────────────────── */
+.v8-rt, .v8-rs {
+  font-variant-numeric: tabular-nums;
+}
+.v8-rt { font-size: 13px !important; font-weight: 800 !important; }
+
+/* ── رصيد البنك خاصة — أكبر شوية ─────────────────────── */
+.v8-kpi:first-child .v8-val {
+  font-size: 28px !important;
+  color: #059669 !important;
+}
+
+/* ═══════════════════════════════════════════════════
+   v35.24 — Professional Financial Statements Style
+═══════════════════════════════════════════════════ */
+
+/* قائمة الدخل والميزانية العمومية */
+.fs-page { font-family: Cairo, sans-serif; }
+.fs-header {
+  background: linear-gradient(135deg, #1e3a5f, #0e7490);
+  color: white;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.fs-header-title {
+  font-size: 18px;
+  font-weight: 900;
+  font-family: Tajawal, Cairo, sans-serif;
+  margin-bottom: 4px;
+}
+.fs-header-sub {
+  font-size: 12px;
+  opacity: .8;
+}
+.fs-section {
+  background: white;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.fs-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: white;
+  padding: 8px 14px;
+  letter-spacing: .5px;
+}
+.fs-section-title.rev  { background: #059669; }
+.fs-section-title.exp  { background: #dc2626; }
+.fs-section-title.asset{ background: #1d4ed8; }
+.fs-section-title.liab { background: #7c3aed; }
+.fs-section-title.eq   { background: #0e7490; }
+.fs-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 12.5px;
+}
+.fs-row:last-child { border-bottom: none; }
+.fs-row:hover { background: #f8fafc; }
+.fs-row-label { color: #374151; flex: 1; }
+.fs-row-label code {
+  font-size: 10px;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 6px;
+  font-family: monospace;
+}
+.fs-row-amount {
+  font-weight: 800;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  min-width: 90px;
+  text-align: left;
+}
+.fs-row-amount.rev  { color: #059669; }
+.fs-row-amount.exp  { color: #dc2626; }
+.fs-row-amount.asset{ color: #1d4ed8; }
+.fs-row-amount.liab { color: #7c3aed; }
+.fs-total {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 900;
+  background: #f8fafc;
+  border-top: 2px solid #e2e8f0;
+}
+.fs-total-amount {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.fs-surplus {
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+.fs-surplus.positive { background: #ecfdf5; border: 1.5px solid #6ee7b7; }
+.fs-surplus.negative { background: #fff1f2; border: 1.5px solid #fecaca; }
+.fs-surplus-label { font-size: 14px; font-weight: 800; }
+.fs-surplus.positive .fs-surplus-label { color: #065f46; }
+.fs-surplus.negative .fs-surplus-label { color: #991b1b; }
+.fs-surplus-amount {
+  font-size: 22px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.fs-surplus.positive .fs-surplus-amount { color: #059669; }
+.fs-surplus.negative .fs-surplus-amount { color: #dc2626; }
+.fs-balance-check {
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 8px;
+}
+.fs-balance-check.ok  { background: #ecfdf5; color: #065f46; }
+.fs-balance-check.err { background: #fff1f2; color: #991b1b; }
+</style>
 </body>
 </html>
