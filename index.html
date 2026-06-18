@@ -13707,7 +13707,9 @@ function showLogin(){
   var tb=document.querySelector('.topbar'),ct=document.querySelector('.content'),
       bn=document.querySelector('.bnav'),mo=document.getElementById('mo');
   if(tb)tb.style.display='none'; if(ct)ct.style.display='none';
-  if(bn)bn.style.display='none'; if(mo)mo.style.display='none';
+  if(bn)bn.style.display='none';
+  /* لا نستخدم inline style على #mo لأنه يكسر .mo.on { display:flex } */
+  if(mo){ mo.classList.remove('on'); mo.style.removeProperty('display'); }
   var ov=document.getElementById('login-overlay'); if(ov) ov.remove();
   var orgName=(DB.org&&DB.org.name)?DB.org.name:'';
   var overlay=document.createElement('div');
@@ -24744,3 +24746,189 @@ tbody td {
 </style>
 </body>
 </html>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   ATHAR v35.25 — 3 Fixes
+   1. ✅ newEntry modal (already fixed inline above)
+   2. تقارير الرئيسية في المزيد
+   3. Back button — navigation stack حقيقي
+══════════════════════════════════════════════════════════ */
+(function(){
+  if(window.__v3525) return;
+  window.__v3525 = true;
+
+  /* ── Fix 2: إضافة تقارير الرئيسية في المزيد ── */
+  var _oldRMore = window.rMore;
+  if(_oldRMore && !window.__v3525_rMore){
+    window.__v3525_rMore = true;
+    window.rMore = function(){
+      _oldRMore.apply(this, arguments);
+      var pg = document.getElementById('pg-more');
+      if(!pg) return;
+
+      /* أضف section التقارير لو مش موجود */
+      if(pg.innerHTML.indexOf('v3525-reports') > -1) return;
+
+      var reportsSection = document.createElement('div');
+      reportsSection.className = 'v3525-reports';
+      reportsSection.style.cssText = 'margin-bottom:14px;';
+      reportsSection.innerHTML =
+        '<div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid #059669;">📊 التقارير المالية</div>'
+        + '<div class="mg">'
+        + '<div class="mi" data-sub="income"><div class="mi-i">💰</div><div class="mi-t">قائمة الدخل</div></div>'
+        + '<div class="mi" data-sub="balance"><div class="mi-i">📈</div><div class="mi-t">الميزانية العمومية</div></div>'
+        + '<div class="mi" data-sub="trial"><div class="mi-i">⚖️</div><div class="mi-t">ميزان المراجعة</div></div>'
+        + '<div class="mi" data-sub="cashflow"><div class="mi-i">💵</div><div class="mi-t">Cash Flow</div></div>'
+        + '<div class="mi" data-sub="bva"><div class="mi-i">📊</div><div class="mi-t">BVA — متابعة الموازنة</div></div>'
+        + '</div>';
+
+      /* أدخله أول شيء بعد العنوان */
+      var phTitle = pg.querySelector('.ph-t');
+      if(phTitle && phTitle.parentNode === pg){
+        pg.insertBefore(reportsSection, phTitle.nextSibling);
+      } else {
+        pg.insertBefore(reportsSection, pg.firstChild);
+      }
+    };
+  }
+
+  /* ── Fix 3: Navigation Stack — Back يرجع خطوة واحدة ── */
+  if(!window.__v3525_navStack){
+    window.__v3525_navStack = true;
+
+    /* الـ stack: كل entry هو {type:'nav'|'sub'|'pg', pg:string, label:string} */
+    window._navStack = [];
+
+    /* حجم max للـ stack */
+    var MAX_STACK = 20;
+
+    /* الـ main tabs — رجوع إليها يمسح الـ stack */
+    var MAIN_TABS = ['dash','fin','ops','more','loans'];
+
+    /* push entry للـ stack */
+    function _pushNav(type, pg, label){
+      /* لو نفس الصفحة الأخيرة، ما نضيفش */
+      var last = _navStack[_navStack.length - 1];
+      if(last && last.type === type && last.pg === pg) return;
+      _navStack.push({type:type, pg:pg, label:label||pg});
+      if(_navStack.length > MAX_STACK) _navStack.shift();
+    }
+
+    /* ─── Wrap nav() لتسجيل كل انتقال ─── */
+    var _origNav = window.nav;
+    window.nav = function(pg, btn){
+      /* لو main tab → امسح الـ stack */
+      if(MAIN_TABS.indexOf(pg) > -1){
+        _navStack = [];
+      } else {
+        /* push الصفحة الحالية قبل الانتقال */
+        var curActive = document.querySelector('.pg.on');
+        if(curActive){
+          var curId = curActive.id.replace('pg-','');
+          _pushNav('nav', curId, curId);
+        }
+      }
+      var r = _origNav ? _origNav.apply(this, arguments) : null;
+      /* بعد الانتقال، سجّل الصفحة الجديدة إذا مش main tab */
+      if(MAIN_TABS.indexOf(pg) < 0){
+        _pushNav('nav', pg, pg);
+        _updateBackBtn();
+      } else {
+        _hideBackBtn();
+      }
+      return r;
+    };
+
+    /* ─── Wrap sub() لتسجيل كل sub page ─── */
+    var _origSub2 = window.sub;
+    window.sub = function(pg){
+      /* push الصفحة/الـ sub الحالية */
+      var curActive = document.querySelector('.pg.on');
+      if(curActive){
+        var curId = curActive.id.replace('pg-','');
+        _pushNav('nav', curId, curId);
+      }
+      _pushNav('sub', pg, pg);
+      var r = _origSub2 ? _origSub2.apply(this, arguments) : null;
+      _updateBackBtn();
+      return r;
+    };
+
+    /* ─── goBack() الجديدة — ترجع خطوة واحدة ─── */
+    window.goBack = function(){
+      /* احذف الصفحة الحالية من الـ stack */
+      _navStack.pop();
+
+      var prev = _navStack[_navStack.length - 1];
+      if(!prev){
+        /* مفيش تاريخ — ارجع للـ tab الحالي */
+        var curTab = document.querySelector('.bn.on');
+        var tabName = curTab ? curTab.getAttribute('data-nav') : 'fin';
+        _hideBackBtn();
+        /* استدعي الـ nav الأصلي مباشرة بدون تسجيل */
+        if(_origNav) _origNav.call(window, tabName, curTab);
+        return;
+      }
+
+      /* ارجع للصفحة السابقة */
+      _navStack.pop(); /* احذفها عشان nav/sub هيضيفها تاني */
+      if(prev.type === 'nav'){
+        if(_origNav) _origNav.call(window, prev.pg, null);
+      } else {
+        if(_origSub2) _origSub2.call(window, prev.pg);
+      }
+
+      if(_navStack.length <= 1) _hideBackBtn();
+      else _updateBackBtn();
+    };
+
+    function _updateBackBtn(){
+      var btn = document.getElementById('tb-back');
+      if(!btn) return;
+      /* أظهر الـ back لو عندنا تاريخ */
+      if(_navStack.length > 1){
+        btn.style.display = 'flex';
+        btn.innerHTML = '🔙';
+        btn.title = 'رجوع';
+      } else {
+        _hideBackBtn();
+      }
+    }
+
+    function _hideBackBtn(){
+      var btn = document.getElementById('tb-back');
+      if(btn) btn.style.display = 'none';
+      window._backTarget = null;
+    }
+
+    /* اجعل showTbBack تسجّل في الـ stack كمان */
+    var _origShowTbBack = window.showTbBack;
+    window.showTbBack = function(target){
+      if(_origShowTbBack) _origShowTbBack(target);
+      _updateBackBtn();
+    };
+
+    /* تأكد أن data-pg clicks تسجّل في الـ stack */
+    document.addEventListener('click', function(ev){
+      var pgEl = ev.target.closest('[data-pg]');
+      if(pgEl){
+        var pg = pgEl.getAttribute('data-pg');
+        /* push الحالة الحالية */
+        var curActive = document.querySelector('.pg.on');
+        if(curActive){
+          var curId = curActive.id.replace('pg-','');
+          _pushNav('nav', curId, curId);
+        }
+        /* sub pg سيُضاف بعد شوية من الـ PG_MAP action */
+        setTimeout(function(){
+          _pushNav('nav', pg, pg);
+          _updateBackBtn();
+        }, 200);
+      }
+    }, false);
+  }
+
+  console.info('[Athar v35.25] 3 fixes: modal display, reports in More, nav stack back');
+})();
+</script>
