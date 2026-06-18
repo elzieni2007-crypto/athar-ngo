@@ -21995,13 +21995,11 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
       .reduce(function(s,a){var b=B[a.c]||{dr:0,cr:0};return s+(b.cr-b.dr);},0);
 
     /* الأرصدة الافتتاحية المستقلة */
-    var openingTotal=Object.keys(DB.openingBals||{}).reduce(function(s,acc){
-      var a=(DB.accounts||[]).find(function(x){return x.c===acc;});
-      var nat=a?a.nat:'dr';
-      return s+(nat==='dr'?(Number(DB.openingBals[acc])||0):-(Number(DB.openingBals[acc])||0));
-    },0);
+    /* الأرصدة الافتتاحية للأصول فقط (1xxx) تحتاج قيد مقابل في حقوق الملكية
+       أما 2xxx و3xxx فهي مدرجة في bals() مباشرة ولا تحتاج إضافة هنا */
 
-    totalLC=liab2+surplus+openingTotal;
+
+    totalLC=liab2+surplus;
 
     /* Grid */
     h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
@@ -22027,11 +22025,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
       h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;">'
         +'<span>'+esc(a.n)+'</span><span style="font-weight:800;">'+fmt2(Math.abs(val))+'</span></div>';
     });
-    if(openingTotal){
-      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;">'
-        +'<span style="color:var(--g4);">\uD83D\uDCC2 \u0627\u0644\u0623\u0631\u0635\u062f\u0629 \u0627\u0644\u0627\u0641\u062a\u062a\u0627\u062d\u064a\u0629</span>'
-        +'<span style="font-weight:800;">'+fmt2(openingTotal)+'</span></div>';
-    }
+
     if(surplus!==0){
       h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;">'
         +'<span style="color:'+(surplus>0?'#059669':'#dc2626')+';font-weight:700;">'+(surplus>0?'\u2705 \u0627\u0644\u0641\u0627\u0626\u0636 \u0627\u0644\u0633\u0646\u0648\u064a':'\u26a0\ufe0f \u0627\u0644\u0639\u062c\u0632 \u0627\u0644\u0633\u0646\u0648\u064a')+'</span>'
@@ -24571,73 +24565,27 @@ tbody td {
       _oldRMore.apply(this, arguments);
       var pg = document.getElementById('pg-more');
       if(!pg) return;
-
-      /* أضف section التقارير لو مش موجود */
       if(pg.innerHTML.indexOf('v3525-reports') > -1) return;
 
-      /* بناء التقارير بنفس تقسيم rReportsPage */
-      var sections = [
-        {title:'📒 تقارير المحاسبة', items:[
-          {i:'⚖️',t:'ميزان المراجعة',fn:"sub('trial')"},
-          {i:'💰',t:'قائمة الدخل',fn:"sub('income')"},
-          {i:'📈',t:'الميزانية العمومية',fn:"sub('balance')"},
-          {i:'💵',t:'Cash Flow',fn:"sub('cashflow')"},
-          {i:'📉',t:'BVA — متابعة الموازنة',fn:"sub('bva')"},
-          {i:'📒',t:'الأستاذ المساعد',fn:"sub('accounts')"},
-          {i:'🌳',t:'شجرة الحسابات',fn:"sub('accounts')"}
-        ]},
-        {title:'🎯 تقارير المشروعات', items:[
-          {i:'📉',t:'BVA — كل المشروعات',fn:"rptBVAAll&&rptBVAAll()"},
-          {i:'📋',t:'ملخص إنجاز المشروعات',fn:"rptProjectsSummary&&rptProjectsSummary()"},
-          {i:'💰',t:'المصروفات لكل مشروع',fn:"rptExpByProject&&rptExpByProject()"},
-          {i:'🌍',t:'تقرير المحاور الموضوعية',fn:"rptByThematic&&rptByThematic()"},
-          {i:'🎯',t:'تقرير الأنشطة',fn:"rptByActivity&&rptByActivity()"}
-        ]},
-        {title:'👥 تقارير الموارد البشرية', items:[
-          {i:'💰',t:'تقرير الرواتب والتكاليف',fn:"hrRptSalaries&&hrRptSalaries()"},
-          {i:'🏢',t:'توزيع الأقسام',fn:"hrRptByDept&&hrRptByDept()"},
-          {i:'⏰',t:'العقود القاربة على الانتهاء',fn:"hrRptExpiring&&hrRptExpiring()"},
-          {i:'🏦',t:'التأمينات والضرائب',fn:"hrRptInsurance&&hrRptInsurance()"},
-          {i:'📋',t:'سجل إعداد المرتبات',fn:"rptالمرتباتReport&&rptالمرتباتReport()"}
-        ]},
-        {title:'📊 تصدير Excel', items:[
-          {i:'📊',t:'ميزان المراجعة Excel',fn:"exportTrialBalanceExcel&&exportTrialBalanceExcel()"},
-          {i:'📊',t:'نموذج 41 Excel',fn:"sub('form41')"},
-          {i:'💰',t:'كشف الرواتب Excel',fn:"rptالمرتباتReport&&rptالمرتباتReport()"}
-        ]}
-      ];
-
-      var rSection = document.createElement('div');
-      rSection.className = 'v3525-reports';
-      rSection.style.cssText = 'margin-bottom:14px;';
-
-      var html = '<div style="font-size:13px;font-weight:900;color:var(--n);padding:6px 8px 10px;border-bottom:2px solid var(--g2);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">'
-        + '<span>📊 التقارير</span>'
+      /* بطاقة واحدة مثل الرئيسية — تفتح شاشة التقارير الكاملة */
+      var rCard = document.createElement('div');
+      rCard.className = 'v3525-reports';
+      rCard.style.cssText = 'margin-bottom:16px;';
+      rCard.innerHTML =
+        '<div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+        + '<span style="width:3px;height:14px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'
+        + '📊 التقارير</div>'
+        + '<div class="mi" onclick="sub(\'reports\')" style="background:linear-gradient(135deg,var(--nd),var(--n));color:white;border-radius:14px;padding:18px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;width:100%;box-sizing:border-box;">'
+        + '<div style="font-size:32px;">📊</div>'
+        + '<div><div style="font-weight:900;font-size:15px;font-family:Tajawal,Cairo,sans-serif;">التقارير المالية</div>'
+        + '<div style="font-size:11px;opacity:.75;margin-top:3px;">تقارير المحاسبة · المشروعات · الموارد البشرية · Excel</div></div>'
         + '</div>';
 
-      sections.forEach(function(sec){
-        html += '<div style="margin-bottom:12px;">';
-        html += '<div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:6px;margin-bottom:6px;padding:0 4px;">'
-          + '<span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'
-          + sec.title + '</div>';
-        html += '<div class="mg">';
-        sec.items.forEach(function(item){
-          html += '<div class="mi" onclick="' + item.fn + '">'
-            + '<div class="mi-i">' + item.i + '</div>'
-            + '<div class="mi-t">' + item.t + '</div>'
-            + '</div>';
-        });
-        html += '</div></div>';
-      });
-
-      rSection.innerHTML = html;
-
-      /* أدخله أول شيء في pg-more */
       var phTitle = pg.querySelector('.ph-t');
       if(phTitle && phTitle.parentNode === pg){
-        pg.insertBefore(rSection, phTitle.nextSibling);
+        pg.insertBefore(rCard, phTitle.nextSibling);
       } else {
-        pg.insertBefore(rSection, pg.firstChild);
+        pg.insertBefore(rCard, pg.firstChild);
       }
     };
   }
