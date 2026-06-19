@@ -65,7 +65,7 @@ tbody tr:hover td{background:var(--skp);}
 .td{color:var(--rd);} .tc{color:var(--gr);}
 .mo{display:none;position:fixed;inset:0;background:rgba(15,30,53,.6);z-index:200;align-items:center;justify-content:center;}
 .mo.on{display:flex;}
-.mb{background:white;border-radius:16px;width:95%;max-width:520px;max-height:92vh;overflow-y:auto;}
+.mb{background:white;border-radius:16px;width:95%;max-width:520px;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 .mh{background:linear-gradient(135deg,var(--nd),var(--n));color:white;padding:15px 18px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center;}
 .mt{font-family:"Tajawal",sans-serif;font-size:15px;font-weight:800;}
 .mx{background:rgba(255,255,255,.15);border:none;color:white;border-radius:7px;padding:4px 10px;font-size:16px;cursor:pointer;}
@@ -24146,10 +24146,9 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     if(!html) return;
 
     /* هل هي قائمة دخل؟ */
-    var isIncome  = html.indexOf('قائمة الدخل') > -1 && html.indexOf('الإيرادات') > -1;
-    /* هل هي ميزانية؟ */
-    var isBalance = html.indexOf('الميزانية العمومية') > -1 && html.indexOf('الأصول') > -1 && html.indexOf('class="ct"') > -1; /* only old card format */
-
+    /* Formatter disabled - rIncPage and rBalPage now format themselves */
+    var isIncome  = false; /* disabled */
+    var isBalance = false; /* disabled */
     if(!isIncome && !isBalance) return;
     /* تحقق إن لم نطبق التنسيق من قبل */
     if(html.indexOf('fs-page') > -1) return;
@@ -24603,6 +24602,55 @@ body { overflow-y: auto !important; height: auto !important; overflow-x: hidden;
 /* جميع التقارير قابلة للتمرير */
 .pg.on { overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; }
 .content { -webkit-overflow-scrolling: touch !important; }
+
+/* ══ v35.26 Final Scroll & Click Fix ══ */
+
+/* جميع الجداول في التقارير قابلة للتمرير أفقياً */
+#pg-more table { width: 100%; }
+#pg-more .card table,
+#pg-more [style*="overflow:auto"] table,
+#pg-more [style*="overflow-x:auto"] table {
+  min-width: 500px;
+}
+
+/* الجداول داخل النوافذ المنبثقة */
+.mbdy table { min-width: 400px; }
+.mbdy [style*="overflow-x:auto"],
+.mbdy [style*="overflow:auto"] {
+  -webkit-overflow-scrolling: touch !important;
+  overflow-x: auto !important;
+}
+
+/* أرقام التقارير قابلة للضغط - مؤشر بصري */
+#pg-more span[onclick],
+#pg-more td[onclick] {
+  cursor: pointer !important;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+#pg-more td[onclick]:active,
+#pg-more span[onclick]:active {
+  opacity: 0.7;
+}
+
+/* ضمان التمرير الكامل */
+.pg.on, #pg-more {
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 50vh;
+}
+.content {
+  height: auto !important;
+  min-height: 100vh;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* قائمة الدخل - أرقام قابلة للضغط */
+#pg-more .card div[style*="justify-content:space-between"] span:last-child[onclick] {
+  color: var(--sk);
+  font-weight: 800;
+}
 </style>
 </body>
 </html>
