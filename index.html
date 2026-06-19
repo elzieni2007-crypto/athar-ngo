@@ -2457,7 +2457,9 @@ function om(t,b,extraEl){
   var mbd=document.getElementById("mo-b");
   mbd.innerHTML=typeof b==="string"?b:"";
   if(extraEl) mbd.appendChild(extraEl);
-  document.getElementById("mo").classList.add("on");
+  var moEl=document.getElementById("mo");
+  moEl.style.removeProperty("display"); /* clear inline style from showLogin */
+  moEl.classList.add("on");
 }
 
 function editEntry(id){
@@ -21652,7 +21654,7 @@ window.saveVoucher=function(type){ensureV33();var id=val('vch-id'),date=val('vch
 window.rInvProjectReport=function(){ensureV33();var h='<div class="ph-t" style="margin-bottom:12px">📦 استهلاك المخزون حسب المشروع</div><table><thead><tr><th>التاريخ</th><th>الإذن</th><th>المشروع</th><th>الصنف</th><th>الكمية</th><th>Serial</th></tr></thead><tbody>';(DB.invMovements||[]).forEach(function(m){h+='<tr><td>'+E(m.date)+'</td><td>'+E(m.voucherId)+'</td><td>'+E(m.projectCode||m.proj||'—')+'</td><td>'+E(m.itemName||m.itemId)+'</td><td class="tn">'+E(m.qty)+'</td><td>'+E(m.serialNo||'—')+'</td></tr>';});h+='</tbody></table>';return h;};
 
 var oldSub=window.sub;
-window.sub=function(n){ensureV33();var pages={reports:rReportsPage,budgetmeta:rBudgetSettingsPage,supplier_register:rSupplierRegisterPage,cashflow:rCashFlowStatementPage,taxwh:rTaxWithholdingPage,reconpro:rBankReconProPage,loan_settings:rLoanSettingsPage,loan_reports:rLoanAdvancedReports,inv_project_report:rInvProjectReport,projtxn:rProjectTxnReport};if(pages[n]){nav('more',null);var el=document.getElementById('pg-more');if(el)el.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'ops\',null)" style="margin-bottom:10px">‹ رجوع</button>'+pages[n]()+'</div>';showTbBack&&showTbBack({type:'fn',pg:"nav('ops',null)"});return;}return oldSub?oldSub(n):null;};
+window.sub=function(n){ensureV33();var pages={reports:rReportsPage,budgetmeta:rBudgetSettingsPage,supplier_register:rSupplierRegisterPage,cashflow:rCashFlowStatementPage,taxwh:rTaxWithholdingPage,whtsettings:rTaxWithholdingPage,reconpro:rBankReconProPage,loan_settings:rLoanSettingsPage,loan_reports:rLoanAdvancedReports,inv_project_report:rInvProjectReport,projtxn:rProjectTxnReport};if(pages[n]){nav('more',null);var el=document.getElementById('pg-more');if(el)el.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'ops\',null)" style="margin-bottom:10px">‹ رجوع</button>'+pages[n]()+'</div>';showTbBack&&showTbBack({type:'fn',pg:"nav('ops',null)"});return;}return oldSub?oldSub(n):null;};
 
 window.rالماليةHub=function(){ensureV33();var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">💰 المالية</div>';var sections=[{title:'📝 القيود والعمليات',items:[{i:'📝',t:'قيود اليومية',n:'jour',pg:true},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},{title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'},{i:'💵',t:'Cash Flow',n:'cashflow'}]},{title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك',n:'banks'},{i:'✅',t:'تسوية بنكية محسنة',n:'reconpro'}]},{title:'📚 الإعدادات المالية',items:[{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'🧮',t:'ضرائب الخصم والإضافة',n:'taxwh'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
 window.rOperationsHub=function(){ensureV33();var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">🎯 العمليات</div>';var sections=[{title:'🎯 المشروعات والممولين',items:[{i:'🎯',t:'المشروعات',n:'proj',pg:true},{i:'📊',t:'BVA',n:'bva'},{i:'📋',t:'حركة مشروع حسب البند',n:'projtxn'},{i:'📅',t:'فترة/وصف الموازنة',n:'budgetmeta'}]},{title:'💵 التمويل متناهي الصغر',items:[{i:'💵',t:'إدارة القروض',n:'loans'},{i:'📊',t:'تقارير التمويل والحوافز',n:'loan_reports'},{i:'⚙️',t:'إعدادات القروض والحوافز',n:'loan_settings'}]},{title:'🛒 الموردون والمخازن',items:[{i:'🏭',t:'سجل الموردين',n:'supplier_register'},{i:'📦',t:'المخازن',n:'inventory'},{i:'📥',t:'أذونات مخازن بالمشروع',n:'inv_receive'},{i:'📊',t:'استهلاك حسب المشروع',n:'inv_project_report'}]},{title:'👥 الموارد البشرية والامتثال',items:[{i:'🏢',t:'الموظفين',n:'employees'},{i:'💳',t:'كشف الرواتب',n:'pay',pg:true},{i:'⏱️',t:'Timesheet',n:'timesheet'},{i:'🗂️',t:'الأرشيف',n:'archive'},{i:'✅',t:'الامتثال',n:'compliance'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
@@ -21960,7 +21962,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     var to=window._balTo||today();
     /* الأصول: bals() تشمل الأرصدة الافتتاحية */
     var B=(typeof window.bals==='function')?window.bals():periodBals('',to);
-    /* الفائض: من القيود فقط */
+    /* الفائض: من كل القيود حتى تاريخ الميزانية */
     var PB=periodBals('',to);
     var totalA=0, totalLC=0, h='';
 
@@ -21980,13 +21982,13 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
       var b=B[a.c]||{dr:0,cr:0}; totalA+=b.dr-b.cr;
     });
 
-    /* حساب الفائض من periodBals (قيود فقط) */
+    /* حساب الفائض من bals() لاتساق مع جانب الأصول */
     var rev=0,exp=0;
     (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='4';}).forEach(function(a){
-      var b=PB[a.c]||{dr:0,cr:0}; rev+=b.cr-b.dr;
+      var b=B[a.c]||{dr:0,cr:0}; rev+=b.cr-b.dr;
     });
     (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='5';}).forEach(function(a){
-      var b=PB[a.c]||{dr:0,cr:0}; exp+=b.dr-b.cr;
+      var b=B[a.c]||{dr:0,cr:0}; exp+=b.dr-b.cr;
     });
     var surplus=rev-exp;
 
@@ -21999,10 +22001,11 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
        أما 2xxx و3xxx فهي مدرجة في bals() مباشرة ولا تحتاج إضافة هنا */
 
 
+    /* totalLC = التزامات + حقوق ملكية + فائض/عجز الفترة */
     totalLC=liab2+surplus;
 
     /* Grid */
-    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">';
 
     /* الأصول */
     h+='<div style="background:white;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
@@ -22026,9 +22029,11 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
         +'<span>'+esc(a.n)+'</span><span style="font-weight:800;">'+fmt2(Math.abs(val))+'</span></div>';
     });
 
+    /* لا نضيف الفائض/العجز في الإجمالي — يُعرض كمعلومة اختيارية */
+    /* عرض الفائض/العجز الجاري */
     if(surplus!==0){
       h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;">'
-        +'<span style="color:'+(surplus>0?'#059669':'#dc2626')+';font-weight:700;">'+(surplus>0?'\u2705 \u0627\u0644\u0641\u0627\u0626\u0636 \u0627\u0644\u0633\u0646\u0648\u064a':'\u26a0\ufe0f \u0627\u0644\u0639\u062c\u0632 \u0627\u0644\u0633\u0646\u0648\u064a')+'</span>'
+        +'<span style="color:'+(surplus>0?'#059669':'#dc2626')+';font-weight:700;">'+(surplus>0?'✅ الفائض الجاري':'⚠️ العجز الجاري')+'</span>'
         +'<span style="font-weight:800;color:'+(surplus>0?'#059669':'#dc2626')+';">'+fmt2(Math.abs(surplus))+'</span></div>';
     }
     h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:12px;margin-top:8px;padding-top:6px;border-top:2px solid #7c3aed;">'
@@ -22037,11 +22042,17 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     h+='</div>';
 
     /* مؤشر الاتزان */
-    var diff=Math.abs(totalA-totalLC),balanced=diff<1;
-    h+='<div style="margin-top:10px;border-radius:10px;padding:10px 14px;'
-      +(balanced?'background:#ecfdf5;border:1.5px solid #6ee7b7;':'background:#fff1f2;border:1.5px solid #fecaca;')+'">'
-      +'<div style="font-weight:800;font-size:13px;color:'+(balanced?'#065f46':'#991b1b')+';"><b>'
-      +(balanced?'\u2705 \u0627\u0644\u0645\u064a\u0632\u0627\u0646\u064a\u0629 \u0645\u062a\u0648\u0627\u0632\u0646\u0629':'\u26a0\ufe0f \u0641\u0631\u0642 \u0627\u0644\u0627\u062a\u0632\u0627\u0646: '+fmt2(diff))+'</b></div>'
+    var diff=totalA-totalLC, balanced=Math.abs(diff)<1;
+    /* فرق الاتزان = الفائض/العجز قبل قيد الإقفال */
+    var diffAbs = Math.abs(Math.round(diff));
+    h+='<div style="margin-top:10px;border-radius:10px;padding:12px 14px;'
+      +(balanced?'background:#ecfdf5;border:1.5px solid #6ee7b7;':'background:#fef3c7;border:1.5px solid #fde68a;')+'">'
+      +'<div style="font-weight:800;font-size:13px;color:'+(balanced?'#065f46':'#92400e')+';">'
+      +(balanced?'✅ الميزانية متوازنة'
+        :(diff>0?'📊 فائض الفترة غير المحوَّل: '+fmt2(diffAbs)
+                :'⚠️ عجز الفترة غير المحوَّل: '+fmt2(diffAbs)))
+      +'</div>'
+      +(!balanced?'<div style="font-size:10.5px;color:#78350f;margin-top:4px;">الفرق يمثل الفائض/العجز الجاري قبل قيد الإقفال السنوي — طبيعي ما لم تُنفَّذ قيودات الإقفال</div>':'')
       +'</div>';
     h+='<button onclick="printBalanceSheet()" class="btn btn-sm btn-gy" style="width:100%;margin-top:10px;font-size:11px;">\uD83D\uDDA8\uFE0F \u0637\u0628\u0627\u0639\u0629</button>';
     return h;
@@ -24542,6 +24553,56 @@ tbody td {
 }
 .fs-balance-check.ok  { background: #ecfdf5; color: #065f46; }
 .fs-balance-check.err { background: #fff1f2; color: #991b1b; }
+
+/* ══ v35.26 Scroll Fix ══ */
+html { overflow-y: auto !important; height: auto !important; }
+body { overflow-y: auto !important; height: auto !important; overflow-x: hidden; }
+.content { 
+    overflow-y: auto !important; 
+    overflow-x: hidden !important;
+    height: auto !important;
+    min-height: 100vh;
+    max-height: none !important;
+}
+.pg, .pg.on { 
+    overflow: visible !important; 
+    height: auto !important;
+    min-height: unset !important;
+}
+#pg-more { 
+    overflow: visible !important; 
+    height: auto !important;
+    min-height: unset !important;
+}
+/* Reports inside pg-more should not clip content */
+.fs-page, #pg-more .card, #pg-more .fs-section,
+.athar-bal-wrap, .rpt-wrap { 
+    overflow: visible !important; 
+}
+
+/* ══ v35.26 Report Responsive Fix ══ */
+/* الميزانية العمومية على الجوال - عمود واحد */
+@media (max-width: 500px) {
+  #pg-more [style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* تكبير أرقام التقارير */
+  .fs-row-amount, .fs-total-amount, .fs-surplus-amount {
+    font-size: 14px !important;
+  }
+  /* ضمان عرض كامل للتقارير */
+  #pg-more { padding: 0 !important; }
+  .fs-page { padding: 12px 12px 80px !important; }
+}
+/* جدول الحفر (drillDown) - قابل للتمرير */
+#athar-tx-modal .mbdy, #tx-modal .mbdy {
+  overflow-y: auto !important;
+  max-height: 75vh !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+/* جميع التقارير قابلة للتمرير */
+.pg.on { overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; }
+.content { -webkit-overflow-scrolling: touch !important; }
 </style>
 </body>
 </html>
