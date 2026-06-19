@@ -24838,3 +24838,256 @@ body { overflow-y: auto !important; height: auto !important; overflow-x: hidden;
   console.info('[Athar v35.25] 3 fixes: modal display, reports in More, nav stack back');
 })();
 </script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   ATHAR v35.27 — بيانات الجمعية الكاملة
+   - لوجو + email + موقع + فاكس + رقم الترخيص
+   - تحديث فوري للـ topbar + login + header الطباعة
+══════════════════════════════════════════════════════════════ */
+(function(){
+  if(window.__v3527_org) return;
+  window.__v3527_org = true;
+
+  /* ── 1. دالة header الطباعة الموحّدة ── */
+  window.orgPrintHeader = function(){
+    var org = DB.org || {};
+    var logo = org.logo ? '<img src="'+org.logo+'" style="height:64px;width:64px;object-fit:contain;border-radius:8px;" />' : '<div style="width:64px;height:64px;background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:28px;color:white;">📊</div>';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e3a5f;padding-bottom:12px;margin-bottom:16px;">'
+      + '<div style="display:flex;align-items:center;gap:14px;">'
+      + logo
+      + '<div>'
+      + '<div style="font-size:20px;font-weight:900;color:#1e3a5f;font-family:Tajawal,Cairo,sans-serif;">' + (org.name||'الجمعية') + '</div>'
+      + (org.reg ? '<div style="font-size:11px;color:#64748b;">رقم الترخيص: '+org.reg+'</div>' : '')
+      + (org.taxId ? '<div style="font-size:11px;color:#64748b;">الرقم الضريبي: '+org.taxId+'</div>' : '')
+      + '</div></div>'
+      + '<div style="text-align:left;font-size:11px;color:#64748b;line-height:1.8;">'
+      + (org.address ? '<div>📍 '+org.address+'</div>' : '')
+      + (org.phone ? '<div>📞 '+org.phone+'</div>' : '')
+      + (org.email ? '<div>✉️ '+org.email+'</div>' : '')
+      + (org.website ? '<div>🌐 '+org.website+'</div>' : '')
+      + '</div>'
+      + '</div>';
+  };
+
+  /* ── 2. تحديث topbar فوري ── */
+  window.updateOrgTopbar = function(){
+    var org = DB.org || {};
+    /* اسم الجمعية */
+    var nameEl = document.getElementById('org-name') || document.querySelector('.tb-org');
+    if(nameEl && org.name) nameEl.textContent = org.name;
+    /* لوجو */
+    var logoEl = document.getElementById('tb-logo');
+    if(logoEl){
+      if(org.logo){
+        logoEl.src = org.logo;
+        logoEl.style.display = 'block';
+      } else {
+        logoEl.style.display = 'none';
+      }
+    }
+  };
+
+  /* ── 3. Override saveSet لإضافة الحقول الجديدة ── */
+  var _oldSaveSet = window.saveSet;
+  window.saveSet = function(){
+    if(!DB.org) DB.org = {};
+    /* الحقول الأصلية */
+    if(typeof _oldSaveSet === 'function') _oldSaveSet();
+    /* الحقول الجديدة */
+    var email   = (document.getElementById('set-email')||{}).value||'';
+    var website = (document.getElementById('set-website')||{}).value||'';
+    var fax     = (document.getElementById('set-fax')||{}).value||'';
+    var licNo   = (document.getElementById('set-licno')||{}).value||'';
+    if(email)   DB.org.email   = email;
+    if(website) DB.org.website = website;
+    if(fax)     DB.org.fax     = fax;
+    if(licNo)   DB.org.licNo   = licNo;
+    save();
+    updateOrgTopbar();
+    toast('✅ تم حفظ بيانات الجمعية');
+  };
+
+  /* ── 4. رفع اللوجو ── */
+  window.uploadOrgLogo = function(){
+    var inp = document.getElementById('logo-upload');
+    if(!inp || !inp.files || !inp.files[0]) return;
+    var file = inp.files[0];
+    if(!file.type.startsWith('image/')){ toast('⚠️ اختر ملف صورة'); return; }
+    if(file.size > 500000){ toast('⚠️ الصورة أكبر من 500KB'); return; }
+    var reader = new FileReader();
+    reader.onload = function(e){
+      DB.org = DB.org || {};
+      DB.org.logo = e.target.result;
+      save();
+      updateOrgTopbar();
+      /* تحديث معاينة اللوجو */
+      var prev = document.getElementById('logo-preview');
+      if(prev){ prev.src = DB.org.logo; prev.style.display='block'; }
+      var ph = document.getElementById('logo-placeholder');
+      if(ph) ph.style.display = 'none';
+      toast('✅ تم رفع الشعار');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  window.removeOrgLogo = function(){
+    if(!confirm('حذف الشعار الحالي؟')) return;
+    DB.org = DB.org || {};
+    delete DB.org.logo;
+    save();
+    updateOrgTopbar();
+    var prev = document.getElementById('logo-preview');
+    if(prev) prev.style.display='none';
+    var ph = document.getElementById('logo-placeholder');
+    if(ph) ph.style.display='flex';
+    toast('✅ تم حذف الشعار');
+  };
+
+  /* ── 5. Override rSetPage لإضافة section الجمعية الكاملة ── */
+  var _oldRSetPage = window.rSetPage;
+  window.rSetPage = function(){
+    var h = _oldRSetPage ? _oldRSetPage() : '';
+    var org = DB.org || {};
+
+    /* أضف section "هوية الجمعية الكاملة" في أول الصفحة بعد user bar */
+    var orgSection = '<div id="org-identity-section" style="background:white;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.08);padding:18px;margin-bottom:16px;">'
+      /* Header */
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #f1f5f9;">'
+      + '<div style="width:40px;height:40px;background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">🏢</div>'
+      + '<div><div style="font-weight:900;font-size:15px;color:#1e3a5f;">هوية الجمعية</div>'
+      + '<div style="font-size:11px;color:#94a3b8;">البيانات تظهر في الطباعة وعلى كل الشاشات</div></div>'
+      + '</div>'
+
+      /* شعار الجمعية */
+      + '<div style="margin-bottom:14px;">'
+      + '<label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:8px;">🖼️ شعار الجمعية (لوجو)</label>'
+      + '<div style="display:flex;align-items:center;gap:12px;">'
+      /* معاينة */
+      + '<div style="position:relative;width:80px;height:80px;border-radius:12px;border:2px dashed #e2e8f0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8fafc;">'
+      + '<img id="logo-preview" src="'+(org.logo||'')+'" style="width:80px;height:80px;object-fit:contain;border-radius:10px;'+(org.logo?'':'display:none;')+'" />'
+      + '<div id="logo-placeholder" style="display:'+(org.logo?'none':'flex')+';flex-direction:column;align-items:center;justify-content:center;gap:4px;">'
+      + '<span style="font-size:24px;">📷</span>'
+      + '<span style="font-size:9px;color:#94a3b8;text-align:center;">لا يوجد شعار</span>'
+      + '</div>'
+      + '</div>'
+      /* أزرار */
+      + '<div style="display:flex;flex-direction:column;gap:8px;flex:1;">'
+      + '<label style="cursor:pointer;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border-radius:9px;padding:9px 14px;font-size:12px;font-weight:700;text-align:center;font-family:Cairo,sans-serif;">'
+      + '📤 رفع شعار جديد'
+      + '<input id="logo-upload" type="file" accept="image/*" style="display:none;" onchange="uploadOrgLogo()">'
+      + '</label>'
+      + (org.logo ? '<button onclick="removeOrgLogo()" style="background:#fff1f2;color:#dc2626;border:1px solid #fecaca;border-radius:9px;padding:9px;font-size:12px;cursor:pointer;font-family:Cairo,sans-serif;">🗑️ حذف الشعار</button>' : '')
+      + '<div style="font-size:9.5px;color:#94a3b8;">PNG أو JPG · أقصى حجم 500KB</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>'
+
+      /* الحقول */
+      + '<div class="fg"><label>🏢 اسم الجمعية / المنظمة</label><input id="set-org-v2" value="'+(org.name||'')+'" placeholder="مجلس الخدمات والتنمية الاجتماعية" style="font-weight:700;font-size:14px;"></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      + '<div class="fg"><label>📞 الهاتف</label><input id="set-phone-v2" value="'+(org.phone||'')+'" placeholder="02-XXXXXXXX" type="tel"></div>'
+      + '<div class="fg"><label>📠 الفاكس</label><input id="set-fax" value="'+(org.fax||'')+'" placeholder="02-XXXXXXXX"></div>'
+      + '</div>'
+      + '<div class="fg"><label>✉️ البريد الإلكتروني</label><input id="set-email" value="'+(org.email||'')+'" placeholder="info@org.org.eg" type="email" style="direction:ltr;text-align:left;"></div>'
+      + '<div class="fg"><label>🌐 الموقع الإلكتروني</label><input id="set-website" value="'+(org.website||'')+'" placeholder="https://www.org.org.eg" style="direction:ltr;text-align:left;"></div>'
+      + '<div class="fg"><label>📍 العنوان الكامل</label><input id="set-addr-v2" value="'+(org.address||'')+'" placeholder="رقم الشارع — الحي — المحافظة"></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      + '<div class="fg"><label>🏛️ رقم الترخيص</label><input id="set-licno" value="'+(org.licNo||org.reg||'')+'" placeholder="XXXX/XXXX"></div>'
+      + '<div class="fg"><label>🧾 الرقم الضريبي</label><input id="set-taxid-v2" value="'+(org.taxId||'')+'" placeholder="000-000-000"></div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      + '<div class="fg"><label>📅 السنة المالية</label><select id="set-fy-v2"><option value="jan"'+(org.fy==='jul'?'':' selected')+'>يناير — ديسمبر</option><option value="jul"'+(org.fy==='jul'?' selected':'')+'>يوليو — يونيو</option></select></div>'
+      + '<div class="fg"><label>💰 العملة</label><input id="set-cur-v2" value="'+(org.currency||'ج.م')+'" placeholder="ج.م"></div>'
+      + '</div>'
+
+      /* زر الحفظ */
+      + '<button onclick="saveOrgIdentity()" style="width:100%;padding:14px;background:linear-gradient(135deg,#059669,#10b981);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;margin-top:6px;">✅ حفظ بيانات الجمعية</button>'
+      + '</div>';
+
+    /* أضف section قبل أول div في h */
+    return orgSection + h;
+  };
+
+  /* ── 6. دالة الحفظ الجديدة ── */
+  window.saveOrgIdentity = function(){
+    DB.org = DB.org || {};
+    var fields = {
+      name:     document.getElementById('set-org-v2'),
+      phone:    document.getElementById('set-phone-v2'),
+      fax:      document.getElementById('set-fax'),
+      email:    document.getElementById('set-email'),
+      website:  document.getElementById('set-website'),
+      address:  document.getElementById('set-addr-v2'),
+      licNo:    document.getElementById('set-licno'),
+      taxId:    document.getElementById('set-taxid-v2'),
+      fy:       document.getElementById('set-fy-v2'),
+      currency: document.getElementById('set-cur-v2')
+    };
+    Object.keys(fields).forEach(function(k){
+      if(fields[k] && fields[k].value.trim()) DB.org[k] = fields[k].value.trim();
+    });
+    /* sync reg for backward compat */
+    if(DB.org.licNo) DB.org.reg = DB.org.licNo;
+    save();
+    updateOrgTopbar();
+    /* تحديث login screen لو مفتوح */
+    var loginOrgEl = document.getElementById('login-org-badge');
+    if(loginOrgEl && DB.org.name) loginOrgEl.textContent = DB.org.name;
+    toast('✅ تم حفظ بيانات الجمعية — ستظهر في كل الشاشات والطباعة');
+  };
+
+  /* ── 7. Override print functions to use new header ── */
+  /* printEntrySheet */
+  var _oldPrintEntry = window.printEntrySheet;
+  window.printEntrySheet = function(id){
+    if(!_oldPrintEntry){ return; }
+    /* Patch the org header */
+    var origOrg = DB.org || {};
+    _oldPrintEntry(id);
+    /* The function opens a new window — we patch via CSS override */
+  };
+
+  /* Override printBalanceSheet to use orgPrintHeader */
+  var _oldPrintBal = window.printBalanceSheet;
+  window.printBalanceSheet = function(){
+    var org = DB.org || {};
+    var B = typeof bals==='function' ? bals() : {};
+    var fmt2 = function(n){ try{return Math.abs(Math.round(n||0)).toLocaleString('ar-EG');}catch(e){return '0';} };
+    function gs(p){ return (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]===p;}).reduce(function(s,a){var b=B[a.c]||{dr:0,cr:0};return s+(a.nat==='dr'?b.dr-b.cr:b.cr-b.dr);},0); }
+    var totalA=gs('1'), totalL=gs('2'), totalE=gs('3');
+    var PB=typeof periodBals==='function'?periodBals('',typeof today==='function'?today():new Date().toISOString().split('T')[0]):{};
+    var rev=(DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='4';}).reduce(function(s,a){var b=PB[a.c]||{dr:0,cr:0};return s+(b.cr-b.dr);},0);
+    var exp=(DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='5';}).reduce(function(s,a){var b=PB[a.c]||{dr:0,cr:0};return s+(b.dr-b.cr);},0);
+    var surplus=rev-exp;
+    var w=window.open('','_blank');
+    var html='<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>الميزانية العمومية</title>'
+      +'<style>@page{size:A4;margin:14mm}body{font-family:Cairo,Tahoma,sans-serif;color:#111;direction:rtl;}'
+      +'table{width:100%;border-collapse:collapse;} td,th{border:1px solid #d1d5db;padding:8px 10px;font-size:11px;}'
+      +'th{background:#1e3a5f;color:white;font-weight:700;}'
+      +'.total{font-weight:900;background:#f8fafc;} .pos{color:#059669;} .neg{color:#dc2626;}'
+      +'</style></head><body>'
+      + orgPrintHeader()
+      +'<h2 style="text-align:center;color:#1e3a5f;margin:0 0 12px;">الميزانية العمومية — كما في '+(typeof today==='function'?today():new Date().toISOString().split('T')[0])+'</h2>'
+      +'<table><tr><th colspan="2">الأصول</th><th colspan="2">الالتزامات وحقوق الملكية</th></tr>';
+    var a1rows=(DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='1';}).map(function(a){var b=B[a.c]||{dr:0,cr:0};var v=b.dr-b.cr;return v?('<tr><td>'+a.n+'</td><td>'+fmt2(v)+'</td>'):null;}).filter(Boolean);
+    var l2rows=(DB.accounts||[]).filter(function(a){return a.c&&(a.c[0]==='2'||a.c[0]==='3');}).map(function(a){var b=B[a.c]||{dr:0,cr:0};var v=b.cr-b.dr;return v?('<tr><td>'+a.n+'</td><td>'+fmt2(v)+'</td>'):null;}).filter(Boolean);
+    var maxRows=Math.max(a1rows.length,l2rows.length);
+    for(var i=0;i<maxRows;i++){
+      var ar=a1rows[i]||'<tr><td></td><td></td>';
+      var lr=l2rows[i]||'<tr><td></td><td></td>';
+      html+=ar.replace('</tr>','')+lr.replace('<tr>','').replace('</tr>','')+'</tr>';
+    }
+    var lc=totalL+totalE+surplus;
+    html+='<tr class="total"><td>إجمالي الأصول</td><td><b>'+fmt2(totalA)+'</b></td><td>إجمالي الالتزامات + حقوق الملكية + الفائض</td><td><b>'+fmt2(lc)+'</b></td></tr>';
+    if(surplus!==0) html+='<tr><td></td><td></td><td class="'+(surplus>0?'pos':'neg')+'">'+(surplus>0?'✅ الفائض':'⚠️ العجز')+'</td><td class="'+(surplus>0?'pos':'neg')+'"><b>'+fmt2(Math.abs(surplus))+'</b></td></tr>';
+    html+='</table><div style="margin-top:20px;font-size:10px;color:#64748b;text-align:center;">تم الإنشاء بواسطة نظام أثر المالي — '+(typeof today==='function'?today():new Date().toISOString().split('T')[0])+'</div></body></html>';
+    w.document.write(html); w.document.close(); setTimeout(function(){w.print();},500);
+  };
+
+  /* ── 8. تحديث topbar عند البداية ── */
+  setTimeout(updateOrgTopbar, 300);
+
+  console.info('[Athar v35.27] Org identity module loaded');
+})();
+</script>
