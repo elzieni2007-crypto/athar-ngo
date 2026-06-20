@@ -694,7 +694,10 @@ try{
     if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
     if(!DB.suppliers)DB.suppliers=[];
     if(!DB.closedPeriods)DB.closedPeriods=[];
-    if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"المدير",username:"admin",password:"admin123",role:"admin",active:true,isSuperAdmin:true}];
+    if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"مصطفى الزيني",username:"admin",email:"elzieni2007@gmail.com",password:"admin123",role:"admin",active:true,isSuperAdmin:true}];
+    /* تحديث إيميل الأدمن الرئيسي لو كان القديم */
+    var _u001=(DB.users||[]).find(function(u){return u.id==='U001';});
+    if(_u001&&(!_u001.email||_u001.email==='admin@athar.app')){_u001.email='elzieni2007@gmail.com';_u001.isSuperAdmin=true;save();}
   }
 }catch(e){}
 function save(){
@@ -13415,7 +13418,7 @@ function initAuth(){
 
   /* المستخدمون الافتراضيون — كلمات السر مشفرة */
   var defaultUsers = [
-    {id:"U001",name:"مدير النظام",     username:"admin",     email:"admin@athar.app",     _rawPass:"admin123",    role:"admin",            active:true,isSuperAdmin:true},
+    {id:"U001",name:"مصطفى الزيني",     username:"admin",     email:"elzieni2007@gmail.com",     _rawPass:"admin123",    role:"admin",            active:true,isSuperAdmin:true},
     {id:"U002",name:"مدير مالي",       username:"finance",   email:"finance@athar.app",   _rawPass:"finance123",  role:"accounts_manager", active:true},
     {id:"U003",name:"محاسب",           username:"accountant",email:"accountant@athar.app",_rawPass:"account123",  role:"accountant",       active:true},
     {id:"U004",name:"موظف برامج",      username:"program",   email:"program@athar.app",   _rawPass:"program123",  role:"program",          active:true},
@@ -16381,7 +16384,10 @@ function importBackup(){
         DB=data;
         DB.accounts=data.accounts&&data.accounts.length>20?data.accounts:newAccounts;
         if(!DB.thirdParties)DB.thirdParties=[];
-        if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"المدير",username:"admin",password:"admin123",role:"admin",active:true,isSuperAdmin:true}];
+        if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"مصطفى الزيني",username:"admin",email:"elzieni2007@gmail.com",password:"admin123",role:"admin",active:true,isSuperAdmin:true}];
+    /* تحديث إيميل الأدمن الرئيسي لو كان القديم */
+    var _u001=(DB.users||[]).find(function(u){return u.id==='U001';});
+    if(_u001&&(!_u001.email||_u001.email==='admin@athar.app')){_u001.email='elzieni2007@gmail.com';_u001.isSuperAdmin=true;save();}
         save();
         toast("✅ تم استيراد النسخة الاحتياطية بنجاح");
         setTimeout(function(){location.reload();},1500);
