@@ -694,7 +694,7 @@ try{
     if(!DB.itemCategories)DB.itemCategories=["مستلزمات مكتبية","أجهزة وتقنية","مواد طبية","مستلزمات تدريب","أثاث وتجهيزات","مواد غذائية","أخرى"];
     if(!DB.suppliers)DB.suppliers=[];
     if(!DB.closedPeriods)DB.closedPeriods=[];
-    if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"المدير",username:"admin",password:"admin123",role:"admin",active:true}];
+    if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"المدير",username:"admin",password:"admin123",role:"admin",active:true,isSuperAdmin:true}];
   }
 }catch(e){}
 function save(){
@@ -13415,7 +13415,7 @@ function initAuth(){
 
   /* المستخدمون الافتراضيون — كلمات السر مشفرة */
   var defaultUsers = [
-    {id:"U001",name:"مدير النظام",     username:"admin",     email:"admin@athar.app",     _rawPass:"admin123",    role:"admin",            active:true},
+    {id:"U001",name:"مدير النظام",     username:"admin",     email:"admin@athar.app",     _rawPass:"admin123",    role:"admin",            active:true,isSuperAdmin:true},
     {id:"U002",name:"مدير مالي",       username:"finance",   email:"finance@athar.app",   _rawPass:"finance123",  role:"accounts_manager", active:true},
     {id:"U003",name:"محاسب",           username:"accountant",email:"accountant@athar.app",_rawPass:"account123",  role:"accountant",       active:true},
     {id:"U004",name:"موظف برامج",      username:"program",   email:"program@athar.app",   _rawPass:"program123",  role:"program",          active:true},
@@ -16381,7 +16381,7 @@ function importBackup(){
         DB=data;
         DB.accounts=data.accounts&&data.accounts.length>20?data.accounts:newAccounts;
         if(!DB.thirdParties)DB.thirdParties=[];
-        if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"المدير",username:"admin",password:"admin123",role:"admin",active:true}];
+        if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"المدير",username:"admin",password:"admin123",role:"admin",active:true,isSuperAdmin:true}];
         save();
         toast("✅ تم استيراد النسخة الاحتياطية بنجاح");
         setTimeout(function(){location.reload();},1500);
@@ -25258,6 +25258,9 @@ tbody td {
   window.renderPackageSettingsCard=function(){
     var u=typeof getCurrentUser==='function'?getCurrentUser():null;
     if(!u||u.role!=='admin')return '';
+    /* تحقق إن المستخدم superAdmin */
+    var isOwner = u.isSuperAdmin === true;
+    if(!isOwner)return '';
     DB.org=DB.org||{};
     var plan=DB.org.plan||'basic';
     var enabled=DB.org.enabledModules||BASIC_MODULES;
@@ -25411,5 +25414,141 @@ tbody td {
   }
 
   console.info('[Athar v35.30] Module visibility ✅');
+})();
+</script>
+
+<script>
+/* ══ v35.31 — Super Admin User Management ══ */
+(function(){
+  if(window.__v3531)return; window.__v3531=true;
+
+  /* أضف دور support للـ ROLES */
+  if(typeof ROLES==='object'){
+    ROLES.support = {
+      label:'دعم فني',
+      icon:'🛟',
+      color:'#0891b2',
+      desc:'يشوف بيانات الجمعيات ويساعد في الدعم — بدون تعديل'
+    };
+    ROLES.superAdmin = {
+      label:'سوبر أدمن',
+      icon:'⭐',
+      color:'#7c3aed',
+      desc:'إدارة كاملة لكل الجمعيات والباقات'
+    };
+  }
+
+  /* Override rPermissionsPage لإضافة قسم Super Admin */
+  var _oldRPerm = window.rPermissionsPage;
+  window.rPermissionsPage = function(){
+    var h = _oldRPerm ? _oldRPerm() : '';
+    var cu = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+    if(!cu || !cu.isSuperAdmin) return h;
+
+    /* قسم موظفي الشركة */
+    var companyUsers = (DB.users||[]).filter(function(u){ return u.isSuperAdmin || u.isSupport; });
+
+    var section = '<div style="background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:14px;padding:16px;margin-bottom:16px;color:white;">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+      +'<div><div style="font-weight:900;font-size:14px;">⭐ فريق أثر</div>'
+      +'<div style="font-size:11px;opacity:.7;">يشوفوا ويساعدوا كل الجمعيات</div></div>'
+      +'<button onclick="openAddCompanyUser()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:white;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">+ إضافة</button>'
+      +'</div>';
+
+    if(!companyUsers.length){
+      section += '<div style="text-align:center;opacity:.6;font-size:13px;padding:10px;">لا يوجد موظفين مضافين</div>';
+    } else {
+      companyUsers.forEach(function(u,i){
+        section += '<div style="background:rgba(255,255,255,.1);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">'
+          +'<div>'
+          +'<div style="font-weight:700;font-size:13px;">'+u.name+'</div>'
+          +'<div style="font-size:11px;opacity:.7;">'+u.email+'</div>'
+          +'<div style="font-size:10px;margin-top:3px;">'+(u.isSuperAdmin?'⭐ سوبر أدمن':'🛟 دعم فني')+'</div>'
+          +'</div>'
+          +'<button onclick="removeCompanyUser(\''+u.id+'\')" style="background:rgba(220,38,38,.3);border:none;color:white;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:Cairo,sans-serif;">حذف</button>'
+          +'</div>';
+      });
+    }
+    section += '</div>';
+
+    return section + h;
+  };
+
+  /* إضافة موظف شركة */
+  window.openAddCompanyUser = function(){
+    var h = '<div class="fg"><label>الاسم</label><input id="cu-name" placeholder="اسم الموظف"></div>'
+      +'<div class="fg"><label>البريد الإلكتروني</label><input id="cu-email" type="email" placeholder="name@athar.app" style="direction:ltr;text-align:left;"></div>'
+      +'<div class="fg"><label>الصلاحية</label>'
+      +'<select id="cu-role">'
+      +'<option value="support">🛟 دعم فني — يشوف بيانات الجمعيات</option>'
+      +'<option value="superAdmin">⭐ سوبر أدمن — إدارة كاملة</option>'
+      +'</select></div>'
+      +'<button onclick="saveCompanyUser()" class="btn" style="width:100%;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;">✅ إضافة الموظف</button>';
+    if(typeof om==='function') om('إضافة موظف من فريق أثر', h);
+  };
+
+  window.saveCompanyUser = function(){
+    var name  = ((document.getElementById('cu-name')||{}).value||'').trim();
+    var email = ((document.getElementById('cu-email')||{}).value||'').trim().toLowerCase();
+    var role  = ((document.getElementById('cu-role')||{}).value||'support');
+    if(!name||!email){ if(typeof toast==='function')toast('⚠️ أدخل الاسم والإيميل'); return; }
+
+    DB.users = DB.users || [];
+    var exists = DB.users.find(function(u){ return u.email===email; });
+    if(exists){ if(typeof toast==='function')toast('⚠️ هذا الإيميل موجود بالفعل'); return; }
+
+    var newUser = {
+      id: 'CU_'+Date.now(),
+      name: name,
+      email: email,
+      username: email,
+      role: role==='superAdmin'?'admin':'accountant',
+      isSuperAdmin: role==='superAdmin',
+      isSupport: role==='support',
+      active: true,
+      createdAt: new Date().toISOString().slice(0,10),
+      createdBy: typeof getCurrentUser==='function'?getCurrentUser().id:''
+    };
+    DB.users.push(newUser);
+    if(typeof save==='function') save();
+
+    /* إنشاء حساب Firebase */
+    if(window._firebase && window._firebase.createUserWithEmailAndPassword){
+      var tempPass = 'Athar@' + Math.random().toString(36).substring(2,8);
+      window._firebase.createUserWithEmailAndPassword(window._firebase.auth, email, tempPass)
+        .then(function(){ if(typeof toast==='function')toast('✅ تم إضافة '+name+' — كلمة المرور المؤقتة: '+tempPass); })
+        .catch(function(e){ if(typeof toast==='function')toast('✅ تم إضافة '+name+' (Firebase: '+e.code+')'); });
+    } else {
+      if(typeof toast==='function') toast('✅ تم إضافة '+name);
+    }
+
+    /* إغلاق المودال */
+    var mo = document.getElementById('mo');
+    if(mo) mo.classList.remove('on');
+    if(typeof sub==='function') sub('permissions');
+  };
+
+  window.removeCompanyUser = function(id){
+    if(!confirm('حذف هذا الموظف؟')) return;
+    DB.users = (DB.users||[]).filter(function(u){ return u.id!==id; });
+    if(typeof save==='function') save();
+    if(typeof toast==='function') toast('✅ تم الحذف');
+    if(typeof sub==='function') sub('permissions');
+  };
+
+  /* hasPerm — إضافة صلاحيات Support */
+  var _oldHasPerm = window.hasPerm;
+  window.hasPerm = function(perm){
+    var u = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+    if(!u) return false;
+    /* Support يقدر يشوف بس */
+    if(u.isSupport){
+      var readOnlyPerms = ['canViewEntries','canViewReports','canViewProjects','canViewEmployees','canViewBVA','c'];
+      return readOnlyPerms.indexOf(perm) > -1;
+    }
+    return _oldHasPerm ? _oldHasPerm(perm) : false;
+  };
+
+  console.info('[Athar v35.31] Super Admin user management ✅');
 })();
 </script>
