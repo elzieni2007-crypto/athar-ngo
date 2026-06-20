@@ -416,6 +416,12 @@ function rالماليةHub(){
   ];
 
   sections.forEach(function(sec){
+    /* فلتر items حسب الـ modules المفعّلة */
+    var visibleItems = (sec.items||[]).filter(function(item){
+      return !item.mod || (typeof hasPageAccess==='function' ? hasPageAccess(item.n) : true);
+    });
+    /* لو مفيش items ظاهرة → اخفي القسم كله */
+    if(!visibleItems.length) return;
     h+='<div style="margin-bottom:18px;">';
     h+='<div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 0;margin-bottom:8px;'
       +'display:flex;align-items:center;gap:8px;">';
@@ -448,41 +454,42 @@ function rOperationsHub(){
 
   var sections=[
     {
-      title:'🎯 المشروعات والممولين',
+      title:'🎯 المشروعات والممولين', mod:'grants',
       items:[
-        {i:'🎯',t:'المشروعات',sub:'WBS وموازنة',n:'proj',pg:true},
-        {i:'🌍',t:'دفتر المانحين',sub:'كل مانح ومشاريعه',n:'donorledger'},
-        {i:'📊',t:'تقرير التباين',sub:'Variance للمانحين',n:'variance'},
+        {i:'🎯',t:'المشروعات',sub:'WBS وموازنة',n:'proj',pg:true,mod:'grants'},
+        {i:'🌍',t:'دفتر المانحين',sub:'كل مانح ومشاريعه',n:'donorledger',mod:'grants'},
+        {i:'📊',t:'تقرير التباين',sub:'Variance للمانحين',n:'variance',mod:'grants'},
       ]
     },
     {
-      title:'👥 الموارد البشرية',
+      title:'👥 الموارد البشرية', mod:'hr',
       items:[
-        {i:'🏢',t:'الموظفين',sub:'ملفات وبيانات',n:'employees',pg:true},
-        {i:'💳',t:'كشف الرواتب',sub:'رواتب وتأمينات',n:'pay',pg:true},
-        {i:'⏱️',t:'Timesheet',sub:'توزيع التكلفة',n:'timesheet'},
-        {i:'🌴',t:'الإجازات',sub:'طلبات واعتماد',n:'myleaves'},
+        {i:'🏢',t:'الموظفين',sub:'ملفات وبيانات',n:'employees',pg:true,mod:'hr'},
+        {i:'💳',t:'كشف الرواتب',sub:'رواتب وتأمينات',n:'pay',pg:true,mod:'hr'},
+        {i:'⏱️',t:'Timesheet',sub:'توزيع التكلفة',n:'timesheet',mod:'hr'},
+        {i:'🌴',t:'الإجازات',sub:'طلبات واعتماد',n:'myleaves',mod:'hr'},
       ]
     },
     {
-      title:'🛒 المشتريات والمخازن',
+      title:'🛒 المشتريات والمخازن', mod:'procurement',
       items:[
-        {i:'🏭',t:'الموردون',sub:'سجل كامل مع مستندات',n:'suppliers'},
-        {i:'📋',t:'سجل العقود',sub:'متابعة وانتهاء',n:'contracts'},
-        {i:'📦',t:'المخازن',sub:'أرصدة الأصناف',n:'inventory'},
-        {i:'📥',t:'أذونات الحركة',sub:'إضافة / صرف / تحويل',n:'inv_receive'},
+        {i:'🏭',t:'الموردون',sub:'سجل كامل مع مستندات',n:'suppliers',mod:'procurement'},
+        {i:'📋',t:'سجل العقود',sub:'متابعة وانتهاء',n:'contracts',mod:'procurement'},
+        {i:'📦',t:'المخازن',sub:'أرصدة الأصناف',n:'inventory',mod:'inventory'},
+        {i:'📥',t:'أذونات الحركة',sub:'إضافة / صرف / تحويل',n:'inv_receive',mod:'inventory'},
       ]
     },
     {
-      title:'✅ الامتثال والأرشفة',
+      title:'✅ الامتثال والأرشفة', mod:'compliance',
       items:[
-        {i:'🗂️',t:'الأرشيف الإلكتروني',sub:'مستندات القيود',n:'archive'},
-        {i:'✅',t:'امتثال المستندات',sub:'متطلبات المانحين',n:'compliance'},
-        {i:'📋',t:'نموذج 41',sub:'خصم وتحصيل',n:'form41'},
-        {i:'🏢',t:'الأصول الثابتة',sub:'إهلاك تلقائي',n:'assets'},
+        {i:'🗂️',t:'الأرشيف الإلكتروني',sub:'مستندات القيود',n:'archive',mod:'archive'},
+        {i:'✅',t:'امتثال المستندات',sub:'متطلبات المانحين',n:'compliance',mod:'compliance'},
+        {i:'📋',t:'نموذج 41',sub:'خصم وتحصيل',n:'form41',mod:'compliance'},
+        {i:'🏢',t:'الأصول الثابتة',sub:'إهلاك تلقائي',n:'assets',mod:'assets'},
       ]
     },
   ];
+
 
   sections.forEach(function(sec){
     h+='<div style="margin-bottom:18px;">';
@@ -20858,38 +20865,79 @@ function printAssetPermit(a,m){
     };
   }
 
-  window.renderPackageSettingsCard=function(){
+  window.setOrgPlan=function(plan){
+    ensureOrgPlan();
+    DB.org.plan=plan;
+    /* تفعيل الـ modules الأساسية للباقة */
+    var PLAN_MOD={
+      basic:['core','finance','grants','hr','reports','archive','settings','import'],
+      pro:  ['core','finance','grants','hr','procurement','inventory','assets','compliance','archive','reports','ai','microfinance','import','settings']
+    };
+    DB.org.enabledModules=(PLAN_MOD[plan]||PLAN_MOD.basic).slice();
+    if(typeof save==='function') save();
+    if(typeof applyModuleVisibility==='function') applyModuleVisibility();
+    if(typeof toast==='function') toast('✅ تم تغيير الباقة إلى '+(plan==='pro'?'Pro 🚀':'Basic 🌐'));
+    /* إعادة رسم شاشة الإعدادات */
+    setTimeout(function(){
+      if(typeof sub==='function') sub('settings');
+    }, 300);
+  };
+    window.renderPackageSettingsCard=function(){
     ensureOrgPlan();
     var u=typeof getCurrentUser==='function'?getCurrentUser():null;
     if(!u||u.role!=='admin') return '';
     var plan=DB.org.plan||'basic';
     var enabled=DB.org.enabledModules||[];
-    var h='<div class="sd">📦 الباقة وإظهار الأقسام للجمعية</div>';
-    h+='<div style="background:#eef6ff;border:1px solid #dbeafe;border-radius:12px;padding:12px;margin-bottom:12px;font-size:11.5px;color:#1e3a6e;line-height:1.7;">';
-    h+='حدد الباقة والأقسام التي تظهر لهذه الجمعية. المستخدم لا يرى إلا الأقسام المفعلة للجمعية + الصلاحيات الممنوحة لدوره الوظيفي.';
-    h+='</div>';
-    h+='<div class="fr"><div class="fg"><label>باقة الجمعية</label><select id="org-plan" onchange="changeOrgPlan(this.value)">';
-    h+='<option value="basic"'+(plan==='basic'?' selected':'')+'>Basic — أساسية</option>';
-    h+='<option value="pro"'+(plan==='pro'?' selected':'')+'>Pro — احترافية</option>';
-    h+='</select></div><div class="fg"><label>سياسة الموازنة</label><select id="ss-budget-policy" onchange="saveBudgetPolicy()">';
-    h+='<option value="block"'+(DB.sysSettings.enforceBudget!==false?' selected':'')+'>منع الحفظ عند التجاوز</option>';
-    h+='<option value="warn"'+(DB.sysSettings.enforceBudget===false?' selected':'')+'>تحذير فقط</option>';
-    h+='</select></div></div>';
-    h+='<div class="fr"><div class="fg"><label>تنبيه عند نسبة صرف %</label><input type="number" id="ss-warn-pct" value="'+(DB.sysSettings.budgetWarningPct||90)+'" oninput="saveBudgetPolicy()"></div>';
-    h+='<div class="fg"><label>سماحية تجاوز للإدارة %</label><input type="number" id="ss-tol-pct" value="'+(DB.sysSettings.budgetTolerancePct||0)+'" oninput="saveBudgetPolicy()"></div></div>';
-    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">';
-    Object.keys(MODULES).forEach(function(k){
-      var locked=k==='core'||k==='settings';
-      var checked=enabled.indexOf(k)>-1||locked;
-      h+='<label style="display:flex;gap:8px;align-items:center;background:white;border:1px solid #e2eaf3;border-radius:10px;padding:10px;font-size:11.5px;color:#1e3a6e;">';
-      h+='<input type="checkbox" data-module="'+k+'" '+(checked?'checked':'')+' '+(locked?'disabled':'')+' onchange="toggleOrgModule(this)">';
-      h+='<span style="font-size:18px;">'+MODULES[k].icon+'</span><span>'+MODULES[k].label+'</span>';
-      h+='</label>';
+    
+    /* تعريف الـ modules مع الاسم والأيقونة والباقة الافتراضية */
+    var ALL_MODULES = [
+      {k:'finance',    lbl:'💰 المحاسبة والمالية',     plans:['basic','pro'], required:true},
+      {k:'grants',     lbl:'🎯 المشروعات والمنح',      plans:['basic','pro']},
+      {k:'hr',         lbl:'👥 الموارد البشرية',        plans:['basic','pro']},
+      {k:'reports',    lbl:'📊 التقارير',               plans:['basic','pro'], required:true},
+      {k:'procurement',lbl:'🛒 المشتريات والموردين',   plans:['pro']},
+      {k:'inventory',  lbl:'📦 المخازن',                plans:['pro']},
+      {k:'assets',     lbl:'🏢 الأصول الثابتة',        plans:['pro']},
+      {k:'microfinance',lbl:'💵 القروض الصغيرة',       plans:['pro']},
+      {k:'compliance', lbl:'✅ الامتثال والأرشفة',     plans:['pro']},
+      {k:'archive',    lbl:'🗂️ الأرشيف الإلكتروني',   plans:['pro']},
+      {k:'ai',         lbl:'🤖 الذكاء الاصطناعي',      plans:['pro']},
+    ];
+    
+    var h = '<div style="background:white;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
+    h += '<div style="font-size:13px;font-weight:900;color:#1e3a5f;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f1f5f9;">📦 التحكم في الباقة والأقسام</div>';
+    
+    /* اختيار الباقة */
+    h += '<div style="margin-bottom:14px;">';
+    h += '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:8px;">الباقة الحالية:</label>';
+    h += '<div style="display:flex;gap:8px;">';
+    ['basic','pro'].forEach(function(p){
+      var active = plan===p;
+      var color = p==='pro'?'#1d4ed8':'#059669';
+      h += '<button onclick="window.setOrgPlan(\''+p+'\');" style="flex:1;padding:10px;border-radius:9px;font-size:13px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;border:2px solid '+(active?color:'#e2e8f0')+';background:'+(active?color:'white')+';color:'+(active?'white':'#374151')+';">';
+      h += (p==='pro'?'🚀 Pro':'🌐 Basic');
+      h += '</button>';
     });
-    h+='</div>';
+    h += '</div></div>';
+    
+    /* التحكم في كل module */
+    h += '<div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px;">الأقسام المفعّلة:</div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
+    ALL_MODULES.forEach(function(m){
+      var isEnabled = enabled.indexOf(m.k) > -1;
+      var inPlan    = m.plans.indexOf(plan) > -1;
+      var isReq     = !!m.required;
+      h += '<label style="display:flex;align-items:center;gap:8px;background:'+(isEnabled?'#f0fdf4':'#f8fafc')+';border:1px solid '+(isEnabled?'#6ee7b7':'#e2e8f0')+';border-radius:8px;padding:8px 10px;cursor:'+(isReq?'default':'pointer')+';">';
+      h += '<input type="checkbox" data-module="'+m.k+'" '+(isEnabled?'checked':'')+' '+(isReq?'disabled':'')+' onchange="window.toggleOrgModule(this)" style="width:16px;height:16px;accent-color:#059669;">';
+      h += '<div><div style="font-size:11.5px;font-weight:700;">'+m.lbl+'</div>';
+      h += '<div style="font-size:9px;color:#94a3b8;">'+(inPlan?'✅ في الباقة':'🔒 Pro فقط')+(isReq?' · أساسي':'')+'</div></div>';
+      h += '</label>';
+    });
+    h += '</div>';
+    h += '<div style="font-size:10px;color:#94a3b8;margin-top:10px;text-align:center;">الأقسام المُلغاة تختفي من كل الشاشات فوراً</div>';
+    h += '</div>';
     return h;
   };
-
   window.changeOrgPlan=function(plan){
     ensureOrgPlan();
     DB.org.plan=plan;
@@ -20926,9 +20974,9 @@ function printAssetPermit(a,m){
     window.rSetPage=function(){
       var html=_rSetPage();
       var card=renderPackageSettingsCard();
-      if(card && html.indexOf('📦 الباقة وإظهار الأقسام')<0){
-        // inject after current user info card, otherwise before closing
-        html=html.replace('<div class="sd">بيانات الجمعية</div>', card+'<div class="sd">بيانات الجمعية</div>');
+      if(card && html.indexOf('📦 التحكم في الباقة والأقسام')<0){
+        // inject at the beginning of settings content
+        html = card + html;
         if(html.indexOf(card)<0) html+=card;
       }
       return html;
