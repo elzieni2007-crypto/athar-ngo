@@ -273,6 +273,65 @@ button,input,select,textarea,a{pointer-events:auto !important;}
 @media(min-width:720px){.athar-v6{max-width:1100px;margin:auto;padding-bottom:95px}.v6-kpis{grid-template-columns:repeat(4,1fr)}.v6-grid{grid-template-columns:1.3fr .9fr}.v6-modules{grid-template-columns:repeat(4,1fr)}.v6-actions{grid-template-columns:repeat(4,1fr)}}
 
 </style>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getAuth, sendSignInLinkToEmail, isSignInWithEmailLink,
+             signInWithEmailLink, signOut, onAuthStateChanged }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+
+    const firebaseConfig = {
+      apiKey:            "AIzaSyAsCP8zqAsw4I4t64Y06n3OWqhXJGtK5CA",
+      authDomain:        "athar-ngo.firebaseapp.com",
+      projectId:         "athar-ngo",
+      storageBucket:     "athar-ngo.firebasestorage.app",
+      messagingSenderId: "730791380944",
+      appId:             "1:730791380944:web:2e893b0c5fd268289f5bd5"
+    };
+
+    const app     = initializeApp(firebaseConfig);
+    const db_fs   = getFirestore(app);
+    const auth    = getAuth(app);
+    const storage = getStorage(app);
+
+    /* ── نشر على window عشان الكود القديم يوصلهم ── */
+    window._firebase = { app, db_fs, auth, storage,
+      doc, setDoc, getDoc, onSnapshot, serverTimestamp,
+      ref, uploadBytes, getDownloadURL, deleteObject,
+      sendSignInLinkToEmail, isSignInWithEmailLink,
+      signInWithEmailLink, signOut, onAuthStateChanged };
+
+    /* ── Auth state listener ── */
+    onAuthStateChanged(auth, function(fbUser){
+      window._fbUser = fbUser || null;
+      if(fbUser){
+        /* جلب tenantId من Custom Claims */
+        fbUser.getIdTokenResult().then(function(res){
+          window._fbClaims = res.claims;
+          console.info('[Firebase] User signed in:', fbUser.email, '| tenant:', res.claims.tenantId);
+        });
+      }
+    });
+
+    /* ── Email Link callback (لما المستخدم يرجع من الرابط) ── */
+    if(isSignInWithEmailLink(auth, window.location.href)){
+      var email = window.localStorage.getItem('athar_email_link') || prompt('أدخل بريدك الإلكتروني للتأكيد:');
+      if(email){
+        signInWithEmailLink(auth, email, window.location.href).then(function(result){
+          window.localStorage.removeItem('athar_email_link');
+          window.history.replaceState({}, document.title, window.location.pathname);
+          console.info('[Firebase] Email link sign-in complete');
+        }).catch(function(err){ console.error('[Firebase] Email link error:', err); });
+      }
+    }
+
+    console.info('[Firebase] SDK loaded ✅ project: athar-ngo');
+  </script>
 </head>
 <body>
 <div class="topbar">
@@ -11987,7 +12046,7 @@ function loadExtendedSeedData(){
 
   // ── موردون وأطراف ثالثة (20 طرف) ──────────────────────────────
   var tpSeed=[
-    {id:'TP001',name:'شركة النور للمستلزمات المكتبية',type:'supplier',category:'goods',taxId:'100-200-301',commercialReg:'12345',phone:'01001234567',whtType:'توريدات',whtRate:1,commercialRegExpiry:'2025-06-01',taxCardExpiry:'2026-12-31',vatCertExpiry:'2026-06-30'},
+    {id:'TP001',name:'شركة النور للمستلزمات المكتبية',type:'supplier',category:'goods',taxId:'100-200-301',commercialReg:'12345',phone:'01224120901',whtType:'توريدات',whtRate:1,commercialRegExpiry:'2025-06-01',taxCardExpiry:'2026-12-31',vatCertExpiry:'2026-06-30'},
     {id:'TP002',name:'مكتب الثقة للاستشارات المالية',type:'consultant',category:'consulting',taxId:'200-300-402',commercialReg:'23456',phone:'01012345678',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2026-03-15',taxCardExpiry:'2025-09-01',vatCertExpiry:'2026-09-30'},
     {id:'TP003',name:'مؤسسة الأمل للتنمية البشرية',type:'consultant',category:'consulting',taxId:'300-400-503',commercialReg:'34567',phone:'01023456789',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2027-01-01',taxCardExpiry:'2027-01-01',vatCertExpiry:'2027-01-01'},
     {id:'TP004',name:'شركة التقنية الحديثة للبرمجيات',type:'supplier',category:'it',taxId:'400-500-604',commercialReg:'45678',phone:'01034567890',whtType:'خدمات',whtRate:3,commercialRegExpiry:'2026-08-15',taxCardExpiry:'2026-08-15',vatCertExpiry:'2026-08-15'},
@@ -19254,7 +19313,7 @@ function seedقروضData(){
   }
 
   // 20 clients — varied amounts, some overdue, some paid, some closed
-  mkLoan('LN001','محمد أحمد السيد','01001234567',10000,18,12,'monthly',d(10),2,'active');      // متأخر 8 أقساط
+  mkLoan('LN001','محمد أحمد السيد','01224120901',10000,18,12,'monthly',d(10),2,'active');      // متأخر 8 أقساط
   mkLoan('LN002','فاطمة علي حسن','01112345678',5000,15,6,'monthly',d(8),1,'active');            // متأخر 7 أقساط
   mkLoan('LN003','أحمد محمود عبده','01223456789',15000,20,12,'monthly',d(6),4,'active');        // متأخر 2
   mkLoan('LN004','سارة إبراهيم نور','01034567890',8000,18,12,'monthly',d(4),2,'active');        // متأخر قسط
@@ -25089,5 +25148,864 @@ body { overflow-y: auto !important; height: auto !important; overflow-x: hidden;
   setTimeout(updateOrgTopbar, 300);
 
   console.info('[Athar v35.27] Org identity module loaded');
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   ATHAR v35.28 — Firebase Integration Layer
+   save() → Firestore  |  load() → Firestore  |  Auth → Firebase
+   Storage → Firebase Storage  |  Fallback → localStorage
+══════════════════════════════════════════════════════════════════ */
+(function(){
+  if(window.__v3528_firebase) return;
+  window.__v3528_firebase = true;
+
+  /* ── helpers ── */
+  function _fb(){ return window._firebase || null; }
+  function _tenantId(){
+    var u = getCurrentUser ? getCurrentUser() : null;
+    return (u && u.tenantId) ? u.tenantId : (window._fbClaims && window._fbClaims.tenantId) || null;
+  }
+  function _ready(){ return !!_fb() && !!_tenantId(); }
+
+  /* ══════════════════════════════════════════════
+     1. save() → Firestore (مع fallback localStorage)
+  ══════════════════════════════════════════════ */
+  var _origSaveF = window.save;
+  window.save = function(){
+    /* دايماً احفظ في localStorage كـ cache */
+    try { localStorage.setItem('athar', JSON.stringify(DB)); } catch(e){}
+
+    if(!_ready()){
+      /* Offline أو لسه ما اتسجلش → localStorage بس */
+      return true;
+    }
+
+    /* حفظ في Firestore */
+    var fb = _fb();
+    var tenantId = _tenantId();
+    var u = getCurrentUser ? getCurrentUser() : {};
+
+    /* نقسّم DB لـ sub-documents عشان نتجنب حد الـ 1MB */
+    var mainDoc = {
+      org:          DB.org || {},
+      sysSettings:  DB.sysSettings || {},
+      openingBals:  DB.openingBals || {},
+      taxConfig:    DB.taxConfig || {},
+      payrollVars:  DB.payrollVars || {},
+      whtSettings:  DB.whtSettings || {},
+      thirdParties: DB.thirdParties || [],
+      bankRecons:   DB.bankRecons || [],
+      closedPeriods:DB.closedPeriods || [],
+      masterData:   DB.masterData || null,
+      _updatedAt:   fb.serverTimestamp(),
+      _updatedBy:   u.id || 'system'
+    };
+
+    var heavyDocs = {
+      entries:       DB.entries || [],
+      employees:     DB.employees || [],
+      projects:      DB.projects || [],
+      loans:         DB.loans || [],
+      suppliers:     DB.suppliers || [],
+      contracts:     DB.contracts || [],
+      assets:        DB.assets || [],
+      timesheets:    DB.timesheets || [],
+      payrollHistory:DB.payrollHistory || [],
+      warehouses:    DB.warehouses || [],
+      form41:        DB.form41 || [],
+      users:         DB.users || [],
+      archiveLog:    DB.archiveLog || {},
+      entryDocs:     DB.entryDocs || {},
+      leaveRequests: DB.leaveRequests || [],
+      allocations:   DB.allocations || [],
+      itemCategories:DB.itemCategories || []
+    };
+
+    var docRef  = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'main');
+    var heavyRef= fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'heavy');
+
+    Promise.all([
+      fb.setDoc(docRef,   mainDoc,  {merge: true}),
+      fb.setDoc(heavyRef, heavyDocs,{merge: true})
+    ]).then(function(){
+      console.debug('[Athar] Saved to Firestore ✅');
+    }).catch(function(err){
+      console.error('[Athar] Firestore save error:', err);
+    });
+
+    return true;
+  };
+
+  /* ══════════════════════════════════════════════
+     2. loadFromFirestore() — يُستدعى بعد login
+  ══════════════════════════════════════════════ */
+  window.loadFromFirestore = function(tenantId){
+    if(!_fb()) return Promise.resolve(false);
+    var fb = _fb();
+    var mainRef  = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'main');
+    var heavyRef = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'heavy');
+
+    return Promise.all([fb.getDoc(mainRef), fb.getDoc(heavyRef)]).then(function(snaps){
+      var mainData  = snaps[0].exists() ? snaps[0].data() : {};
+      var heavyData = snaps[1].exists() ? snaps[1].data() : {};
+
+      if(!mainData._updatedAt && !heavyData.entries){
+        /* مستأجر جديد — استخدم localStorage لو فيه بيانات */
+        console.info('[Athar] New tenant — using local data');
+        return false;
+      }
+
+      /* دمج البيانات في DB مع الحفاظ على شجرة الحسابات */
+      var _accounts = DB.accounts.slice();
+      Object.assign(DB, mainData, heavyData);
+      DB.accounts = _accounts; /* دايماً من source code */
+
+      /* حذف timestamps من Firestore */
+      delete DB._updatedAt; delete DB._updatedBy;
+
+      /* Cache محلي */
+      try { localStorage.setItem('athar', JSON.stringify(DB)); } catch(e){}
+
+      console.info('[Athar] Loaded from Firestore ✅ tenant:', tenantId);
+      return true;
+    }).catch(function(err){
+      console.error('[Athar] Firestore load error:', err);
+      return false;
+    });
+  };
+
+  /* ══════════════════════════════════════════════
+     3. Firebase Auth — Email Link OTP
+  ══════════════════════════════════════════════ */
+  var _origDoRequestOTP = window.doRequestOTP;
+  window.doRequestOTP = function(){
+    if(!_fb()){
+      /* Fallback للـ EmailJS OTP القديم */
+      if(typeof _origDoRequestOTP === 'function') _origDoRequestOTP();
+      return;
+    }
+
+    var fb = _fb();
+    var email = ((document.getElementById('lg-email')||{}).value||'').trim().toLowerCase();
+    var errEl = document.getElementById('lg-err-otp');
+    var btn   = document.getElementById('lg-btn-otp');
+
+    if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+      if(errEl) errEl.textContent = '⚠️ أدخل بريد إلكتروني صحيح';
+      return;
+    }
+
+    /* تحقق إن المستخدم موجود في DB */
+    var user = (DB.users||[]).find(function(u){
+      return u.active !== false && (
+        (u.email||'').toLowerCase() === email ||
+        (u.username||'').toLowerCase() === email
+      );
+    });
+
+    if(!user){
+      if(errEl) errEl.textContent = '❌ هذا البريد غير مسجل — تواصل مع مدير النظام';
+      return;
+    }
+
+    if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري الإرسال...'; }
+    if(errEl) errEl.textContent = '';
+
+    /* حفظ الإيميل لاستخدامه عند العودة من الرابط */
+    window.localStorage.setItem('athar_email_link', email);
+
+    var actionCodeSettings = {
+      url: window.location.href.split('?')[0],
+      handleCodeInApp: true
+    };
+
+    fb.sendSignInLinkToEmail(fb.auth, email, actionCodeSettings).then(function(){
+      if(btn){ btn.disabled = false; btn.textContent = 'إرسال رمز الدخول ←'; }
+      /* عرض شاشة انتظار */
+      _showEmailLinkSentScreen(email);
+    }).catch(function(err){
+      console.error('[Firebase Auth] Email link error:', err);
+      if(btn){ btn.disabled = false; btn.textContent = 'إرسال رمز الدخول ←'; }
+      /* Fallback للـ OTP القديم */
+      if(typeof _origDoRequestOTP === 'function'){
+        _origDoRequestOTP();
+      } else {
+        if(errEl) errEl.textContent = '⚠️ فشل الإرسال — جرب مجدداً';
+      }
+    });
+  };
+
+  function _showEmailLinkSentScreen(email){
+    var ov = document.getElementById('login-overlay');
+    if(!ov) return;
+    ov.querySelector('div > div').innerHTML =
+      '<div style="text-align:center;padding:10px 0;">'
+      + '<div style="font-size:56px;margin-bottom:16px;">📬</div>'
+      + '<div style="font-weight:900;font-size:18px;color:#1e3a5f;font-family:Tajawal,Cairo,sans-serif;">تحقق من بريدك</div>'
+      + '<div style="font-size:12px;color:#6b7280;margin-top:8px;line-height:1.8;">أرسلنا رابط دخول إلى<br>'
+      + '<strong style="color:#0e7490;direction:ltr;display:block;margin-top:4px;">' + email + '</strong></div>'
+      + '<div style="margin-top:20px;background:#f0fdf4;border-radius:10px;padding:12px;font-size:11.5px;color:#065f46;">'
+      + '✅ اضغط الرابط في الإيميل وسيتم تسجيل دخولك تلقائياً</div>'
+      + '<div style="margin-top:14px;font-size:11px;color:#94a3b8;">🔒 الرابط صالح 24 ساعة</div>'
+      + '<button onclick="showLogin()" style="margin-top:18px;background:none;border:none;color:#6b7280;font-size:12px;cursor:pointer;font-family:Cairo,sans-serif;">← العودة لتغيير البريد</button>'
+      + '</div>';
+  }
+
+  /* ══════════════════════════════════════════════
+     4. بعد login ناجح → load من Firestore
+  ══════════════════════════════════════════════ */
+  var _origSetCurrentUser = window.setCurrentUser;
+  window.setCurrentUser = function(u){
+    /* استدعي الأصلي أولاً */
+    if(_origSetCurrentUser) _origSetCurrentUser(u);
+
+    /* لو عنده tenantId → حمّل بياناته من Firestore */
+    if(u && u.tenantId && _fb()){
+      loadFromFirestore(u.tenantId).then(function(loaded){
+        if(loaded && typeof renderHome === 'function') renderHome();
+        else if(loaded && typeof rDash === 'function'){
+          var d = document.getElementById('pg-dash');
+          if(d) d.innerHTML = rDash();
+        }
+      });
+    }
+  };
+
+  /* ══════════════════════════════════════════════
+     5. Firebase Storage — رفع اللوجو
+  ══════════════════════════════════════════════ */
+  var _origUploadLogo = window.uploadOrgLogo;
+  window.uploadOrgLogo = function(){
+    var inp = document.getElementById('logo-upload');
+    if(!inp || !inp.files || !inp.files[0]) return;
+    var file = inp.files[0];
+
+    if(!file.type.startsWith('image/')){ toast('⚠️ اختر ملف صورة'); return; }
+    if(file.size > 2 * 1024 * 1024){ toast('⚠️ الصورة أكبر من 2MB'); return; }
+
+    var tenantId = _tenantId();
+
+    /* لو Firebase جاهز → ارفع على Storage */
+    if(_fb() && tenantId){
+      var fb = _fb();
+      var ext = file.name.split('.').pop();
+      var storageRef = fb.ref(fb.storage, 'tenants/' + tenantId + '/logo/logo.' + ext);
+      var btn = document.querySelector('[onclick="uploadOrgLogo()"]') || document.querySelector('label[for="logo-upload"]');
+
+      if(btn) btn.textContent = '⏳ جاري الرفع...';
+
+      fb.uploadBytes(storageRef, file).then(function(snap){
+        return fb.getDownloadURL(snap.ref);
+      }).then(function(url){
+        DB.org = DB.org || {};
+        DB.org.logo = url;
+        DB.org.logoStoragePath = 'tenants/' + tenantId + '/logo/logo.' + ext;
+        save();
+        updateOrgTopbar();
+        var prev = document.getElementById('logo-preview');
+        if(prev){ prev.src = url; prev.style.display = 'block'; }
+        var ph = document.getElementById('logo-placeholder');
+        if(ph) ph.style.display = 'none';
+        if(btn) btn.textContent = '📤 رفع شعار جديد';
+        toast('✅ تم رفع الشعار على Firebase Storage');
+      }).catch(function(err){
+        console.error('[Firebase Storage] Logo upload error:', err);
+        /* Fallback → base64 في localStorage */
+        if(typeof _origUploadLogo === 'function') _origUploadLogo();
+      });
+
+    } else {
+      /* Fallback → base64 */
+      if(typeof _origUploadLogo === 'function') _origUploadLogo();
+    }
+  };
+
+  /* ══════════════════════════════════════════════
+     6. حذف اللوجو من Storage
+  ══════════════════════════════════════════════ */
+  var _origRemoveLogo = window.removeOrgLogo;
+  window.removeOrgLogo = function(){
+    if(!confirm('حذف الشعار الحالي؟')) return;
+    var fb = _fb();
+    var path = DB.org && DB.org.logoStoragePath;
+
+    if(fb && path){
+      fb.deleteObject(fb.ref(fb.storage, path)).catch(function(e){ console.warn('Logo delete:', e); });
+    }
+
+    DB.org = DB.org || {};
+    delete DB.org.logo;
+    delete DB.org.logoStoragePath;
+    save();
+    if(typeof updateOrgTopbar === 'function') updateOrgTopbar();
+    var prev = document.getElementById('logo-preview');
+    if(prev) prev.style.display = 'none';
+    var ph = document.getElementById('logo-placeholder');
+    if(ph) ph.style.display = 'flex';
+    toast('✅ تم حذف الشعار');
+  };
+
+  /* ══════════════════════════════════════════════
+     7. tenantId تلقائي عند تسجيل جمعية جديدة
+  ══════════════════════════════════════════════ */
+  var _origVerifyOTP = window.verifyOTPAction;
+  window.verifyOTPAction = function(purpose){
+    if(typeof _origVerifyOTP === 'function') _origVerifyOTP(purpose);
+    /* بعد التسجيل — ضع tenantId = timestamp */
+    if(purpose === 'register' && DB.org){
+      DB.org.tenantId = DB.org.tenantId || ('T' + Date.now());
+      var u = getCurrentUser ? getCurrentUser() : null;
+      if(u && !u.tenantId){
+        u.tenantId = DB.org.tenantId;
+        if(typeof setCurrentUser === 'function') setCurrentUser(u);
+      }
+    }
+  };
+
+  /* ══════════════════════════════════════════════
+     8. Status indicator في الـ topbar
+  ══════════════════════════════════════════════ */
+  function _addFirebaseStatus(){
+    var tb = document.querySelector('.topbar');
+    if(!tb || document.getElementById('fb-status')) return;
+    var dot = document.createElement('div');
+    dot.id = 'fb-status';
+    dot.title = 'حالة Firebase';
+    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#94a3b8;margin:auto 4px;flex-shrink:0;transition:background .3s;';
+    tb.appendChild(dot);
+
+    /* تحديث اللون حسب الحالة */
+    function _update(){
+      var fb = _fb();
+      if(!fb){ dot.style.background = '#dc2626'; dot.title = 'Firebase غير متصل'; return; }
+      var u = fb.auth && fb.auth.currentUser;
+      dot.style.background = u ? '#10b981' : '#f59e0b';
+      dot.title = u ? ('Firebase: ' + (u.email||'متصل')) : 'Firebase: غير مسجل';
+    }
+    setInterval(_update, 3000);
+    _update();
+  }
+  setTimeout(_addFirebaseStatus, 1000);
+
+  console.info('[Athar v35.28] Firebase integration loaded ✅');
+  console.info('  → Firestore: athar-ngo');
+  console.info('  → Auth: Email Link + OTP fallback');
+  console.info('  → Storage: Firebase Storage');
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   ATHAR v35.29 — License Key System
+   
+   نظام المفاتيح:
+   ATHAR-{YEAR}-{CODE}-{HASH4}-{HASH4}
+   مثال: ATHAR-2025-NGO-XK7M-9P2Q
+   
+   المفتاح يحتوي على:
+   - اسم الجمعية (مشفّر)
+   - تاريخ الانتهاء
+   - نوع الترخيص (trial/basic/pro/unlimited)
+   - fingerprint للجهاز (اختياري)
+══════════════════════════════════════════════════════════════════ */
+(function(){
+  if(window.__v3529_license) return;
+  window.__v3529_license = true;
+
+  var LICENSE_KEY  = 'athar_lic_v1';
+  var MASTER_SECRET= 'ATHR-MSK-2025-elz'; /* غيّره في الإنتاج */
+  var TRIAL_DAYS   = 30;
+
+  /* ══ أنواع التراخيص ══ */
+  var PLANS = {
+    trial: {
+      name:'تجريبي 30 يوم',
+      price: 0,
+      entries: 100, users: 2, projects: 3,
+      modules: ['core','finance','grants'],
+      features: ['محاسبة 118 حساب','إدارة المشاريع WBS','تقارير مالية','ميزان مراجعة وقوائم']
+    },
+    basic: {
+      name:'Basic 🌐',
+      price: 490,
+      priceOld: 700,
+      users: 3, entries: -1, projects: -1,
+      modules: ['core','finance','grants','hr_basic','vendors'],
+      features: [
+        'المحاسبة الكاملة 118 حساب',
+        'إدارة المشاريع WBS & BVA',
+        'إدارة ضريبة وبنوك',
+        'التقارير المالية الكاملة',
+        'Excel & PDF تقارير',
+        'الموارد البشرية (أساسي)',
+        'سجل الموردين',
+        '3 مستخدمين'
+      ]
+    },
+    pro: {
+      name:'Pro 🚀',
+      price: 910,
+      priceOld: 1300,
+      users: 8, entries: -1, projects: -1,
+      modules: ['all'],
+      features: [
+        'كل مميزات Basic',
+        'مسير المرتبات كامل (ق.91/2005)',
+        'Timesheet Allocation',
+        'نموذج 41 + 7/24 + إقفال',
+        'الأصول الثابتة',
+        'المخازن والموردين كامل',
+        'المساعد الذكي AI',
+        'أرشفة QR',
+        'Smart Document Compliance',
+        '8 مستخدمين'
+      ]
+    }
+  };
+
+  /* ══ توليد مفتاح ══ */
+  window.generateLicenseKey = function(opts){
+    /* opts: {orgName, plan, expiryDays, secret} */
+    var plan      = opts.plan || 'pro';
+    var expiry    = new Date();
+    expiry.setDate(expiry.getDate() + (opts.expiryDays || 365));
+    var expStr    = expiry.toISOString().split('T')[0].replace(/-/g,'');
+
+    var payload   = [
+      plan.toUpperCase().substring(0,3),
+      expStr,
+      btoa(unescape(encodeURIComponent(opts.orgName||''))).substring(0,8).replace(/[^A-Z0-9]/gi,'X').toUpperCase()
+    ].join('|');
+
+    /* Simple hash للتحقق */
+    var secret    = opts.secret || MASTER_SECRET;
+    var hash      = _simpleHash(payload + secret);
+    var h1        = hash.substring(0,4).toUpperCase();
+    var h2        = hash.substring(4,8).toUpperCase();
+
+    var year      = new Date().getFullYear();
+    return 'ATHAR-' + year + '-' + btoa(payload).replace(/[^A-Z0-9]/gi,'').substring(0,6).toUpperCase() + '-' + h1 + '-' + h2;
+  };
+
+  /* ══ التحقق من المفتاح ══ */
+  window.verifyLicenseKey = function(key){
+    if(!key || typeof key !== 'string') return {valid:false, reason:'لا يوجد مفتاح'};
+    key = key.trim().toUpperCase();
+
+    /* فحص التنسيق */
+    var parts = key.split('-');
+    if(parts.length !== 5 || parts[0] !== 'ATHAR'){
+      return {valid:false, reason:'تنسيق المفتاح غير صحيح'};
+    }
+
+    /* فك تشفير الـ payload */
+    try {
+      var encoded = parts[2];
+      /* استخراج plan و expiry من الأجزاء */
+      var planCode = parts[1]; /* YEAR */
+      var h1 = parts[3], h2 = parts[4];
+
+      /* بما إن التحقق البسيط بالـ hash */
+      /* في الإنتاج نحتاج server-side verification */
+      /* هنا نستخدم offline verification */
+
+      var storedData = _decodeKeyData(key);
+      if(!storedData) return {valid:false, reason:'المفتاح تالف'};
+
+      /* فحص التاريخ */
+      if(storedData.expiry && new Date(storedData.expiry) < new Date()){
+        return {valid:false, reason:'انتهت صلاحية الترخيص في ' + storedData.expiry, expired:true, plan:storedData.plan};
+      }
+
+      return {
+        valid:    true,
+        plan:     storedData.plan || 'pro',
+        orgName:  storedData.orgName || '',
+        expiry:   storedData.expiry,
+        daysLeft: storedData.expiry ? Math.ceil((new Date(storedData.expiry)-new Date())/(1000*60*60*24)) : 999
+      };
+    } catch(e) {
+      return {valid:false, reason:'خطأ في المفتاح: ' + e.message};
+    }
+  };
+
+  /* ══ تشفير وفك تشفير بيانات المفتاح ══ */
+  function _encodeKeyData(data){
+    return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  }
+  function _decodeKeyData(key){
+    /* نخزّن الـ metadata منفصل عن المفتاح */
+    var stored = localStorage.getItem(LICENSE_KEY + '_meta');
+    if(stored){
+      try { return JSON.parse(stored); } catch(e){}
+    }
+    /* fallback: parse من المفتاح نفسه */
+    return _parseKeyOffline(key);
+  }
+
+  function _parseKeyOffline(key){
+    /* parsing أساسي offline */
+    var parts = key.split('-');
+    if(parts.length < 5) return null;
+    /* المفتاح يحتوي على السنة والـ hash فقط offline */
+    /* الـ metadata الحقيقية محفوظة في localStorage */
+    return {plan:'pro', orgName: DB.org&&DB.org.name||'', expiry: null};
+  }
+
+  function _simpleHash(str){
+    var h = 0x811c9dc5;
+    for(var i=0;i<str.length;i++){
+      h ^= str.charCodeAt(i);
+      h = (h * 0x01000193) >>> 0;
+    }
+    return h.toString(16).padStart(8,'0');
+  }
+
+  /* ══ فحص التفعيل الحالي ══ */
+  window.getLicenseStatus = function(){
+    var stored = localStorage.getItem(LICENSE_KEY);
+    if(!stored) return {active:false, plan:'trial', reason:'لم يتم التفعيل'};
+    try {
+      var data = JSON.parse(stored);
+      /* فحص انتهاء الصلاحية */
+      if(data.expiry && new Date(data.expiry) < new Date()){
+        return {active:false, plan:data.plan, expired:true,
+          reason:'انتهى الترخيص في ' + data.expiry};
+      }
+      return {
+        active:   true,
+        plan:     data.plan || 'pro',
+        orgName:  data.orgName || '',
+        expiry:   data.expiry,
+        key:      data.key,
+        daysLeft: data.expiry ? Math.ceil((new Date(data.expiry)-new Date())/(1000*60*60*24)) : 999
+      };
+    } catch(e) {
+      return {active:false, plan:'trial', reason:'بيانات الترخيص تالفة'};
+    }
+  };
+
+  /* ══ تفعيل مفتاح ══ */
+  window.activateLicense = function(key, orgName){
+    var result = verifyLicenseKey(key);
+
+    /* للديمو — مفاتيح خاصة دايماً تشتغل */
+    var DEMO_KEYS = ['ATHAR-DEMO-2025-FREE-DEMO', 'ATHAR-2025-TRIAL-FREE-0000'];
+    if(DEMO_KEYS.indexOf(key.trim().toUpperCase()) > -1){
+      result = {valid:true, plan:'unlimited', orgName: orgName||'نسخة تجريبية',
+        expiry: new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0], daysLeft:30};
+    }
+
+    if(!result.valid){
+      return {success:false, message: result.reason || 'مفتاح غير صحيح'};
+    }
+
+    /* حفظ بيانات الترخيص */
+    var licData = {
+      key:     key.trim().toUpperCase(),
+      plan:    result.plan,
+      orgName: orgName || result.orgName || (DB.org&&DB.org.name) || '',
+      expiry:  result.expiry,
+      activatedAt: new Date().toISOString(),
+      daysLeft: result.daysLeft
+    };
+    localStorage.setItem(LICENSE_KEY, JSON.stringify(licData));
+    localStorage.setItem(LICENSE_KEY+'_meta', JSON.stringify(licData));
+
+    /* تحديث بيانات الجمعية */
+    if(licData.orgName && (!DB.org || !DB.org.name || DB.org.name === 'مجلس الخدمات والتنمية')){
+      DB.org = DB.org || {};
+      DB.org.name = licData.orgName;
+      if(typeof save === 'function') save();
+    }
+
+    return {success:true, message:'✅ تم التفعيل بنجاح', plan:result.plan, daysLeft:result.daysLeft};
+  };
+
+  /* ══ شاشة التفعيل ══ */
+  window.showLicenseScreen = function(reason){
+    var lic = getLicenseStatus();
+    var isExpired = lic.expired;
+
+    var overlay = document.createElement('div');
+    overlay.id = 'lic-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f2748,#1a4480);display:flex;align-items:center;justify-content:center;padding:20px;';
+
+    var plan_info = PLANS[lic.plan] || PLANS.pro;
+
+    overlay.innerHTML =
+      '<div style="background:white;border-radius:20px;padding:32px 24px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.4);">'
+      /* Header */
+      +'<div style="text-align:center;margin-bottom:24px;">'
+      +'<div style="font-size:48px;margin-bottom:8px;">'+(isExpired?'⏰':'🔐')+'</div>'
+      +'<div style="font-size:22px;font-weight:900;color:#1e3a5f;font-family:Tajawal,sans-serif;">نظام أثر المالي</div>'
+      +'<div style="font-size:13px;color:#64748b;margin-top:4px;">'+(isExpired?'انتهت صلاحية الترخيص':'يحتاج تفعيل')+'</div>'
+      +'</div>'
+
+      /* لو منتهي — عرض التجديد */
+      +(isExpired?
+        '<div style="background:#fff1f2;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:16px;text-align:center;font-size:12px;color:#991b1b;">⚠️ انتهى ترخيص '+lic.plan+' في '+lic.expiry+'<br>بياناتك محفوظة — جدّد الآن للاستمرار</div>'
+        :'')
+
+      /* حقل المفتاح */
+      +'<div style="margin-bottom:14px;">'
+      +'<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">🔑 مفتاح الترخيص</label>'
+      +'<input id="lic-key-input" placeholder="ATHAR-2025-XXXX-XXXX-XXXX" '
+      +'style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:monospace;box-sizing:border-box;direction:ltr;text-align:center;letter-spacing:1px;" '
+      +'onkeydown="if(event.key===\'Enter\')doActivateLicense()">'
+      +'</div>'
+
+      /* حقل اسم الجمعية */
+      +'<div style="margin-bottom:16px;">'
+      +'<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">🏢 اسم الجمعية</label>'
+      +'<input id="lic-org-input" placeholder="مجلس الخدمات والتنمية المجتمعية" value="'+(DB.org&&DB.org.name||'')+'" '
+      +'style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:Cairo,sans-serif;box-sizing:border-box;">'
+      +'</div>'
+
+      +'<div id="lic-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>'
+
+      /* زر التفعيل */
+      +'<button onclick="doActivateLicense()" '
+      +'style="width:100%;padding:14px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;margin-bottom:10px;">'
+      +'✅ تفعيل الترخيص</button>'
+
+      /* مقارنة الباقتين */
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
+      /* Basic */
+      +'<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;">'
+      +'<div style="font-size:13px;font-weight:900;color:#1e3a5f;">Basic 🌐</div>'
+      +'<div style="font-size:20px;font-weight:900;color:#0e7490;margin:4px 0;">تواصل معنا<span style="font-size:11px;font-weight:400;"></span></div>'
+      +''
+      +'<div style="font-size:10px;color:#374151;margin-top:6px;line-height:1.6;text-align:right;">'
+      +'✅ محاسبة كاملة<br>✅ مشاريع BVA<br>✅ تقارير Excel<br>✅ 3 مستخدمين'
+      +'</div>'
+      +'</div>'
+      /* Pro */
+      +'<div style="border:2px solid #0e7490;border-radius:10px;padding:10px;text-align:center;background:#f0f9ff;">'
+      +'<div style="font-size:11px;background:#0e7490;color:white;border-radius:5px;padding:2px 6px;display:inline-block;margin-bottom:4px;">الأكثر اختياراً</div>'
+      +'<div style="font-size:13px;font-weight:900;color:#1e3a5f;">Pro 🚀</div>'
+      +'<div style="font-size:20px;font-weight:900;color:#0e7490;margin:4px 0;">للاستفسار<span style="font-size:11px;font-weight:400;"></span></div>'
+      +''
+      +'<div style="font-size:10px;color:#374151;margin-top:6px;line-height:1.6;text-align:right;">'
+      +'✅ كل Basic<br>✅ رواتب ق.91<br>✅ AI + QR<br>✅ 8 مستخدمين'
+      +'</div>'
+      +'</div>'
+      +'</div>'
+
+      /* تجريبي */
+      +'<div style="text-align:center;font-size:11.5px;color:#6b7280;margin-bottom:10px;">'
+      +'تريد تجربة النظام؟ '
+      +'<a href="#" onclick="doActivateLicense(\'ATHAR-DEMO-2025-FREE-DEMO\');return false;" '
+      +'style="color:#0e7490;font-weight:700;">30 يوم مجاناً بدون بطاقة</a>'
+      +'</div>'
+
+      /* معلومات التواصل */
+      +'<div style="padding-top:12px;border-top:1px solid #f1f5f9;text-align:center;font-size:11px;color:#94a3b8;">'
+      +'📧 <span style="color:#0e7490;font-weight:700;">elzieni2007@gmail.com</span>'
+      +' &nbsp;|&nbsp; 📞 <span style="color:#0e7490;font-weight:700;">01224120901</span>'
+      +'</div>'
+
+      +'</div>';
+
+    document.body.appendChild(overlay);
+    setTimeout(function(){ var i=document.getElementById('lic-key-input'); if(i)i.focus(); },100);
+  };
+
+  /* ══ تنفيذ التفعيل من الشاشة ══ */
+  window.doActivateLicense = function(forceKey){
+    var key    = forceKey || ((document.getElementById('lic-key-input')||{}).value||'').trim();
+    var org    = ((document.getElementById('lic-org-input')||{}).value||'').trim();
+    var errEl  = document.getElementById('lic-err');
+    var btn    = document.querySelector('#lic-overlay button');
+
+    if(!key){ if(errEl) errEl.textContent='⚠️ أدخل مفتاح الترخيص'; return; }
+    if(btn){ btn.disabled=true; btn.textContent='⏳ جاري التحقق...'; }
+
+    var result = activateLicense(key, org);
+
+    if(result.success){
+      /* إخفاء شاشة التفعيل */
+      var ov = document.getElementById('lic-overlay');
+      if(ov) ov.remove();
+
+      /* تحديث الـ topbar */
+      if(typeof updateOrgTopbar === 'function') updateOrgTopbar();
+
+      toast('🎉 '+result.message+' — باقة '+PLANS[result.plan].name
+        +(result.daysLeft < 999 ? ' — متبقي '+result.daysLeft+' يوم' : ''));
+
+      /* تشغيل النظام كامل */
+      if(typeof showLogin === 'function') showLogin();
+
+    } else {
+      if(errEl) errEl.textContent = '❌ ' + result.message;
+      if(btn){ btn.disabled=false; btn.textContent='✅ تفعيل الترخيص'; }
+    }
+  };
+
+  /* ══ فحص القيود حسب الباقة ══ */
+  window.checkLicenseLimit = function(resource){
+    var lic  = getLicenseStatus();
+    if(!lic.active) return {allowed:false, reason:'النظام غير مفعّل'};
+
+    var plan = PLANS[lic.plan] || PLANS.pro;
+    if(plan.modules[0] === 'all') return {allowed:true};
+
+    switch(resource){
+      case 'entry':
+        var count = (DB.entries||[]).length;
+        if(plan.entries > 0 && count >= plan.entries)
+          return {allowed:false, reason:'وصلت للحد الأقصى ('+plan.entries+' قيد) — رقّي باقتك'};
+        break;
+      case 'user':
+        var ucount = (DB.users||[]).filter(function(u){return u.active!==false;}).length;
+        if(plan.users > 0 && ucount >= plan.users)
+          return {allowed:false, reason:'وصلت للحد الأقصى ('+plan.users+' مستخدم) — رقّي باقتك'};
+        break;
+      case 'project':
+        var pcount = (DB.projects||[]).length;
+        if(plan.projects > 0 && pcount >= plan.projects)
+          return {allowed:false, reason:'وصلت للحد الأقصى ('+plan.projects+' مشاريع) — رقّي باقتك'};
+        break;
+    }
+    return {allowed:true};
+  };
+
+  /* ══ شاشة إدارة الترخيص (للإعدادات) ══ */
+  window.showLicenseManager = function(){
+    var lic = getLicenseStatus();
+    var plan = PLANS[lic.plan] || PLANS.pro;
+    var daysColor = !lic.active ? '#dc2626' : lic.daysLeft < 30 ? '#f59e0b' : '#059669';
+
+    var h = '<div style="background:white;border-radius:14px;padding:16px;margin-bottom:14px;">'
+      +'<div style="font-size:13px;font-weight:900;color:#1e3a5f;margin-bottom:12px;">🔑 إدارة الترخيص</div>'
+
+      /* حالة الترخيص */
+      +'<div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:10px;">'
+      +'<div>'
+      +'<div style="font-weight:700;font-size:13px;">'+(lic.active?'✅ مفعّل':'❌ غير مفعّل')+'</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-top:2px;">باقة: '+plan.name+'</div>'
+      +(lic.key?'<div style="font-size:10px;color:#94a3b8;font-family:monospace;margin-top:2px;">'+lic.key+'</div>':'')
+      +'</div>'
+      +'<div style="text-align:center;">'
+      +'<div style="font-size:28px;font-weight:900;color:'+daysColor+';">'+(lic.active?(lic.daysLeft<999?lic.daysLeft+'':'∞'):'0')+'</div>'
+      +'<div style="font-size:10px;color:#94a3b8;">يوم متبقي</div>'
+      +'</div>'
+      +'</div>'
+
+      /* مميزات الباقة */
+      +'<div style="font-size:11px;color:#374151;margin-bottom:12px;">'
+      +'<div style="font-weight:700;margin-bottom:6px;">مميزات باقتك:</div>'
+      +'<div>👤 مستخدمين: '+(plan.users<0?'غير محدود':plan.users)+'</div>'
+      +'<div>📝 قيود: '+(plan.entries<0?'غير محدود':plan.entries)+'</div>'
+      +'<div>📁 مشاريع: '+(plan.projects<0?'غير محدود':plan.projects)+'</div>'
+      +'</div>'
+
+      /* أزرار */
+      +(lic.active
+        ?'<button onclick="showLicenseScreen()" style="width:100%;padding:10px;background:#f1f5f9;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">🔄 تغيير / تجديد الترخيص</button>'
+        :'<button onclick="showLicenseScreen()" style="width:100%;padding:10px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">✅ تفعيل الترخيص الآن</button>'
+      )
+      +'</div>';
+
+    var pg = document.getElementById('pg-more');
+    if(pg) pg.insertAdjacentHTML('afterbegin', h);
+  };
+
+  /* ══ إضافة الترخيص لصفحة الإعدادات ══ */
+  var _oldRSetPage2 = window.rSetPage;
+  window.rSetPage = function(){
+    var h = _oldRSetPage2 ? _oldRSetPage2() : '';
+    var lic = getLicenseStatus();
+    var plan = PLANS[lic.plan] || PLANS.pro;
+    var daysColor = !lic.active ? '#dc2626' : lic.daysLeft < 30 ? '#f59e0b' : '#059669';
+
+    var licSection = '<div style="background:white;border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f1f5f9;">'
+      +'<div style="width:36px;height:36px;background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔑</div>'
+      +'<div><div style="font-weight:900;font-size:14px;color:#1e3a5f;">الترخيص</div>'
+      +'<div style="font-size:10px;color:#94a3b8;">معلومات النسخة والتفعيل</div></div>'
+      +'</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
+      +'<div>'
+      +'<div style="font-size:13px;font-weight:700;">'+(lic.active?'✅ مفعّل':'❌ غير مفعّل')+'</div>'
+      +'<div style="font-size:11px;color:#64748b;">باقة: <b>'+plan.name+'</b></div>'
+      +(lic.expiry?'<div style="font-size:10px;color:#94a3b8;">تنتهي في: '+lic.expiry+'</div>':'')
+      +'</div>'
+      +'<div style="text-align:center;min-width:60px;">'
+      +'<div style="font-size:32px;font-weight:900;color:'+daysColor+';">'+(lic.active?(lic.daysLeft<999?lic.daysLeft:'∞'):'—')+'</div>'
+      +'<div style="font-size:9px;color:#94a3b8;">يوم متبقي</div>'
+      +'</div></div>'
+      +'<button onclick="showLicenseScreen()" '
+      +'style="width:100%;padding:11px;'+(lic.active?'background:#f1f5f9;color:#374151;':'background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;')
+      +'border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">'
+      +(lic.active?'🔄 تغيير أو تجديد الترخيص':'✅ تفعيل الآن')+'</button>'
+      +'</div>';
+
+    return licSection + h;
+  };
+
+  /* ══ توليد مفاتيح — admin tool ══ */
+  window.atharGenerateKeys = function(){
+    /* tool بسيط للمطور يولد مفاتيح */
+    var plans = ['trial','basic','pro','unlimited'];
+    var results = {};
+    plans.forEach(function(plan){
+      var days = plan==='trial'?30 : plan==='basic'?365 : plan==='pro'?365 : 730;
+      var key = generateLicenseKey({plan:plan, expiryDays:days, orgName:'', secret:MASTER_SECRET});
+      /* حفظ البيانات مع المفتاح */
+      var expiry = new Date(); expiry.setDate(expiry.getDate()+days);
+      localStorage.setItem('key_meta_'+key, JSON.stringify({
+        plan:plan, expiry:expiry.toISOString().split('T')[0], daysLeft:days
+      }));
+      results[plan] = key;
+    });
+    console.table(results);
+    return results;
+  };
+
+  /* ══ فحص عند البداية ══ */
+  window._checkLicenseOnStart = function(){
+    var lic = getLicenseStatus();
+
+    /* لو مفعّل وصالح → شغّل عادي */
+    if(lic.active) return true;
+
+    /* لو أول مرة (مفيش ترخيص خالص) → Trial تلقائي لمدة 30 يوم */
+    var firstRun = !localStorage.getItem(LICENSE_KEY);
+    if(firstRun){
+      activateLicense('ATHAR-DEMO-2025-FREE-DEMO', DB.org&&DB.org.name||'');
+      console.info('[Athar License] Trial started automatically');
+      return true;
+    }
+
+    /* منتهي أو غير مفعّل → عرض شاشة التفعيل */
+    setTimeout(function(){
+      /* أخفي التطبيق */
+      var ct = document.querySelector('.content');
+      var bn = document.querySelector('.bnav');
+      var tb = document.querySelector('.topbar');
+      if(ct) ct.style.display='none';
+      if(bn) bn.style.display='none';
+      /* اعرض شاشة التفعيل */
+      showLicenseScreen(lic.reason);
+    }, 500);
+    return false;
+  };
+
+  /* ══ تشغيل الفحص بعد تحميل الصفحة ══ */
+  setTimeout(function(){
+    /* انتظر لحد ما النظام يحمّل */
+    if(typeof DB !== 'undefined'){
+      window._checkLicenseOnStart();
+    }
+  }, 1500);
+
+  console.info('[Athar v35.29] License system loaded ✅');
+  console.info('  → Trial: 30 days auto-start');
+  console.info('  → Plans: trial / basic / pro / unlimited');
+  console.info('  → Generator: atharGenerateKeys()');
 })();
 </script>
