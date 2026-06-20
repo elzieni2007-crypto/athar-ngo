@@ -65,7 +65,7 @@ tbody tr:hover td{background:var(--skp);}
 .td{color:var(--rd);} .tc{color:var(--gr);}
 .mo{display:none;position:fixed;inset:0;background:rgba(15,30,53,.6);z-index:200;align-items:center;justify-content:center;}
 .mo.on{display:flex;}
-.mb{background:white;border-radius:16px;width:95%;max-width:520px;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.mb{background:white;border-radius:16px;width:95%;max-width:520px;max-height:92vh;overflow-y:auto;}
 .mh{background:linear-gradient(135deg,var(--nd),var(--n));color:white;padding:15px 18px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center;}
 .mt{font-family:"Tajawal",sans-serif;font-size:15px;font-weight:800;}
 .mx{background:rgba(255,255,255,.15);border:none;color:white;border-radius:7px;padding:4px 10px;font-size:16px;cursor:pointer;}
@@ -274,64 +274,33 @@ button,input,select,textarea,a{pointer-events:auto !important;}
 
 </style>
 
-  <!-- Firebase SDK -->
+  <!-- Firebase SDK v10 -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-    import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp }
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp, collection }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-    import { getAuth, sendSignInLinkToEmail, isSignInWithEmailLink,
-             signInWithEmailLink, signOut, onAuthStateChanged, createUserWithEmailAndPassword }
+    import { getAuth, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
+             signOut, onAuthStateChanged, createUserWithEmailAndPassword }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
     const firebaseConfig = {
-      apiKey:            "AIzaSyAsCP8zqAsw4I4t64Y06n3OWqhXJGtK5CA",
-      authDomain:        "athar-ngo.firebaseapp.com",
-      projectId:         "athar-ngo",
-      storageBucket:     "athar-ngo.firebasestorage.app",
+      apiKey: "AIzaSyAsCP8zqAsw4I4t64Y06n3OWqhXJGtK5CA",
+      authDomain: "athar-ngo.firebaseapp.com",
+      projectId: "athar-ngo",
+      storageBucket: "athar-ngo.firebasestorage.app",
       messagingSenderId: "730791380944",
-      appId:             "1:730791380944:web:2e893b0c5fd268289f5bd5"
+      appId: "1:730791380944:web:2e893b0c5fd268289f5bd5"
     };
-
-    const app     = initializeApp(firebaseConfig);
-    const db_fs   = getFirestore(app);
-    const auth    = getAuth(app);
-    const storage = getStorage(app);
-
-    /* ── نشر على window عشان الكود القديم يوصلهم ── */
-    window._firebase = { app, db_fs, auth, storage,
-      doc, setDoc, getDoc, onSnapshot, serverTimestamp,
-      ref, uploadBytes, getDownloadURL, deleteObject,
-      sendSignInLinkToEmail, isSignInWithEmailLink,
-      signInWithEmailLink, signOut, onAuthStateChanged,
-      createUserWithEmailAndPassword };
-
-    /* ── Auth state listener ── */
-    onAuthStateChanged(auth, function(fbUser){
-      window._fbUser = fbUser || null;
-      if(fbUser){
-        /* جلب tenantId من Custom Claims */
-        fbUser.getIdTokenResult().then(function(res){
-          window._fbClaims = res.claims;
-          console.info('[Firebase] User signed in:', fbUser.email, '| tenant:', res.claims.tenantId);
-        });
-      }
-    });
-
-    /* ── Email Link callback (لما المستخدم يرجع من الرابط) ── */
-    if(isSignInWithEmailLink(auth, window.location.href)){
-      var email = window.localStorage.getItem('athar_email_link') || prompt('أدخل بريدك الإلكتروني للتأكيد:');
-      if(email){
-        signInWithEmailLink(auth, email, window.location.href).then(function(result){
-          window.localStorage.removeItem('athar_email_link');
-          window.history.replaceState({}, document.title, window.location.pathname);
-          console.info('[Firebase] Email link sign-in complete');
-        }).catch(function(err){ console.error('[Firebase] Email link error:', err); });
-      }
-    }
-
-    console.info('[Firebase] SDK loaded ✅ project: athar-ngo');
+    const app=initializeApp(firebaseConfig);
+    const db_fs=getFirestore(app); const auth=getAuth(app); const storage=getStorage(app);
+    window._firebase={app,db_fs,auth,storage,collection,doc,setDoc,getDoc,onSnapshot,
+      serverTimestamp,ref,uploadBytes,getDownloadURL,deleteObject,sendSignInLinkToEmail,
+      isSignInWithEmailLink,signInWithEmailLink,signOut,onAuthStateChanged,createUserWithEmailAndPassword};
+    onAuthStateChanged(auth,function(u){window._fbUser=u||null;if(u)u.getIdTokenResult().then(function(r){window._fbClaims=r.claims;});});
+    if(isSignInWithEmailLink(auth,window.location.href)){var email=localStorage.getItem('athar_email_for_signin');if(!email)email=prompt('أدخل بريدك الإلكتروني:');if(email){signInWithEmailLink(auth,email,window.location.href).then(function(){localStorage.removeItem('athar_email_for_signin');window.history.replaceState({},document.title,window.location.pathname);}).catch(function(e){console.error(e);});}}
+    console.info('[Firebase] ✅ athar-ngo');
   </script>
 </head>
 <body>
@@ -416,12 +385,6 @@ function rالماليةHub(){
   ];
 
   sections.forEach(function(sec){
-    /* فلتر items حسب الـ modules المفعّلة */
-    var visibleItems = (sec.items||[]).filter(function(item){
-      return !item.mod || (typeof hasPageAccess==='function' ? hasPageAccess(item.n) : true);
-    });
-    /* لو مفيش items ظاهرة → اخفي القسم كله */
-    if(!visibleItems.length) return;
     h+='<div style="margin-bottom:18px;">';
     h+='<div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 0;margin-bottom:8px;'
       +'display:flex;align-items:center;gap:8px;">';
@@ -454,42 +417,41 @@ function rOperationsHub(){
 
   var sections=[
     {
-      title:'🎯 المشروعات والممولين', mod:'grants',
+      title:'🎯 المشروعات والممولين',
       items:[
-        {i:'🎯',t:'المشروعات',sub:'WBS وموازنة',n:'proj',pg:true,mod:'grants'},
-        {i:'🌍',t:'دفتر المانحين',sub:'كل مانح ومشاريعه',n:'donorledger',mod:'grants'},
-        {i:'📊',t:'تقرير التباين',sub:'Variance للمانحين',n:'variance',mod:'grants'},
+        {i:'🎯',t:'المشروعات',sub:'WBS وموازنة',n:'proj',pg:true},
+        {i:'🌍',t:'دفتر المانحين',sub:'كل مانح ومشاريعه',n:'donorledger'},
+        {i:'📊',t:'تقرير التباين',sub:'Variance للمانحين',n:'variance'},
       ]
     },
     {
-      title:'👥 الموارد البشرية', mod:'hr',
+      title:'👥 الموارد البشرية',
       items:[
-        {i:'🏢',t:'الموظفين',sub:'ملفات وبيانات',n:'employees',pg:true,mod:'hr'},
-        {i:'💳',t:'كشف الرواتب',sub:'رواتب وتأمينات',n:'pay',pg:true,mod:'hr'},
-        {i:'⏱️',t:'Timesheet',sub:'توزيع التكلفة',n:'timesheet',mod:'hr'},
-        {i:'🌴',t:'الإجازات',sub:'طلبات واعتماد',n:'myleaves',mod:'hr'},
+        {i:'🏢',t:'الموظفين',sub:'ملفات وبيانات',n:'employees',pg:true},
+        {i:'💳',t:'كشف الرواتب',sub:'رواتب وتأمينات',n:'pay',pg:true},
+        {i:'⏱️',t:'Timesheet',sub:'توزيع التكلفة',n:'timesheet'},
+        {i:'🌴',t:'الإجازات',sub:'طلبات واعتماد',n:'myleaves'},
       ]
     },
     {
-      title:'🛒 المشتريات والمخازن', mod:'procurement',
+      title:'🛒 المشتريات والمخازن',
       items:[
-        {i:'🏭',t:'الموردون',sub:'سجل كامل مع مستندات',n:'suppliers',mod:'procurement'},
-        {i:'📋',t:'سجل العقود',sub:'متابعة وانتهاء',n:'contracts',mod:'procurement'},
-        {i:'📦',t:'المخازن',sub:'أرصدة الأصناف',n:'inventory',mod:'inventory'},
-        {i:'📥',t:'أذونات الحركة',sub:'إضافة / صرف / تحويل',n:'inv_receive',mod:'inventory'},
+        {i:'🏭',t:'الموردون',sub:'سجل كامل مع مستندات',n:'suppliers'},
+        {i:'📋',t:'سجل العقود',sub:'متابعة وانتهاء',n:'contracts'},
+        {i:'📦',t:'المخازن',sub:'أرصدة الأصناف',n:'inventory'},
+        {i:'📥',t:'أذونات الحركة',sub:'إضافة / صرف / تحويل',n:'inv_receive'},
       ]
     },
     {
-      title:'✅ الامتثال والأرشفة', mod:'compliance',
+      title:'✅ الامتثال والأرشفة',
       items:[
-        {i:'🗂️',t:'الأرشيف الإلكتروني',sub:'مستندات القيود',n:'archive',mod:'archive'},
-        {i:'✅',t:'امتثال المستندات',sub:'متطلبات المانحين',n:'compliance',mod:'compliance'},
-        {i:'📋',t:'نموذج 41',sub:'خصم وتحصيل',n:'form41',mod:'compliance'},
-        {i:'🏢',t:'الأصول الثابتة',sub:'إهلاك تلقائي',n:'assets',mod:'assets'},
+        {i:'🗂️',t:'الأرشيف الإلكتروني',sub:'مستندات القيود',n:'archive'},
+        {i:'✅',t:'امتثال المستندات',sub:'متطلبات المانحين',n:'compliance'},
+        {i:'📋',t:'نموذج 41',sub:'خصم وتحصيل',n:'form41'},
+        {i:'🏢',t:'الأصول الثابتة',sub:'إهلاك تلقائي',n:'assets'},
       ]
     },
   ];
-
 
   sections.forEach(function(sec){
     h+='<div style="margin-bottom:18px;">';
@@ -628,8 +590,8 @@ var DB={
     {c:"5261",n:"مصروفات السفر والانتقالات",nat:"dr"},
     {c:"5262",n:"ضرائب ورسوم حكومية",nat:"dr"},
     {c:"5263",n:"مصروفات متنوعة",nat:"dr"},
-    {c:"5311",n:"الرواتب والأجور",nat:"dr"},
-    {c:"5312",n:"التأمينات الاجتماعية",nat:"dr"},
+    {c:"5311",n:"إهلاك مبانى ومنشآت",nat:"dr"},
+    {c:"5312",n:"إهلاك أثاث وتجهيزات",nat:"dr"},
     {c:"5313",n:"إهلاك أجهزة تكنولوجيا المعلومات",nat:"dr"},
     {c:"5314",n:"إهلاك آلات ومعدات",nat:"dr"},
     {c:"5315",n:"إهلاك وسائل النقل",nat:"dr"},
@@ -664,8 +626,8 @@ var DB={
     {c:"1411",n:"مصروفات مدفوعة مقدماً",nat:"dr"},
     {c:"3200",n:"فائض / عجز السنوات السابقة",nat:"cr"},
     {c:"5319",n:"مخصص مكافأة نهاية الخدمة",nat:"dr"},
-    {c:"5321",n:"الإيجارات",nat:"dr"},
-    {c:"5322",n:"الانتقالات والسفريات",nat:"dr"},
+    {c:"5321",n:"إيجارات",nat:"dr"},
+    {c:"5322",n:"كهرباء وغاز ومياه",nat:"dr"},
     {c:"5323",n:"اتصالات وإنترنت",nat:"dr"},
     {c:"5331",n:"صيانة وإصلاح",nat:"dr"},
     {c:"5342",n:"تأمين على الأصول",nat:"dr"},
@@ -1093,25 +1055,13 @@ function getEmpOverride(empId,monthKey){
 // BALANCES
 function bals(){
   var m={};
-  (DB.accounts||[]).forEach(function(a){m[a.c]={dr:0,cr:0};});
-  /* الأرصدة الافتتاحية */
-  if(DB.openingBals){
-    Object.keys(DB.openingBals).forEach(function(acc){
-      var val=parseFloat(DB.openingBals[acc])||0;
-      if(!val) return;
-      if(!m[acc]) m[acc]={dr:0,cr:0};
-      var a=(DB.accounts||[]).find(function(x){return x.c===acc;});
-      if(a&&a.nat==='cr') m[acc].cr+=val;
-      else m[acc].dr+=val;
-    });
-  }
-  /* حركات القيود */
-  (DB.entries||[]).filter(function(e){return e.status==="posted";}).forEach(function(e){
+  DB.accounts.forEach(function(a){m[a.c]={dr:0,cr:0};});
+  DB.entries.filter(function(e){return e.status==="posted";}).forEach(function(e){
     (e.lines||[]).forEach(function(l){
       if(!l.acc) return;
-      if(!m[l.acc]) m[l.acc]={dr:0,cr:0};
-      m[l.acc].dr+=parseFloat(l.dr)||0;
-      m[l.acc].cr+=parseFloat(l.cr)||0;
+      if(!m[l.acc]) m[l.acc]={dr:0,cr:0}; // include orphan accounts
+      m[l.acc].dr+=l.dr||0;
+      m[l.acc].cr+=l.cr||0;
     });
   });
   return m;
@@ -2524,9 +2474,7 @@ function om(t,b,extraEl){
   var mbd=document.getElementById("mo-b");
   mbd.innerHTML=typeof b==="string"?b:"";
   if(extraEl) mbd.appendChild(extraEl);
-  var moEl=document.getElementById("mo");
-  moEl.style.removeProperty("display"); /* clear inline style from showLogin */
-  moEl.classList.add("on");
+  document.getElementById("mo").classList.add("on");
 }
 
 function editEntry(id){
@@ -4161,21 +4109,6 @@ function rTrialPage(){
         +'</tr>';
     });
 
-    /* صف الأرصدة الافتتاحية — لتوازن الميزان (الدائن المقابل للأرصدة الافتتاحية) */
-    var openingNetDr = tOBdr - tOBcr;
-    if(openingNetDr > 0.01){
-      h+='<tr style="border-bottom:1px solid #f1f5f9;background:#f0f9ff;">'
-        +'<td style="padding:5px 6px;font-size:11px;color:var(--g4);">📂 صندوق / أرصدة افتتاحية</td>'
-        +'<td style="text-align:left;padding:5px;font-size:11px;">—</td>'
-        +'<td style="text-align:left;font-size:11px;">—</td>'
-        +'<td style="text-align:left;padding:5px;font-size:11px;border-left:1px solid #f1f5f9;">—</td>'
-        +'<td style="text-align:left;font-size:11px;">—</td>'
-        +'<td style="text-align:left;padding:5px;font-size:11.5px;font-weight:700;">—</td>'
-        +'<td style="text-align:left;font-size:11.5px;font-weight:700;color:var(--g4);">'+fmt(openingNetDr)+'</td>'
-        +'</tr>';
-      tCBcr += openingNetDr;
-    }
-
     var balanced=Math.abs(tCBdr-tCBcr)<0.01;
     var _fd=fromDate,_td=toDate;
     h+='</tbody><tfoot>';
@@ -4256,141 +4189,75 @@ function applyTBFilter(){
 // ── Balance Sheet ─────────────────────────────────────────────────
 function rBalPage(){
   var B=bals();
-  var fmt2=function(n){try{return Math.abs(Math.round(n||0)).toLocaleString('ar-EG');}catch(e){return '0';}};
-
-  // ── حساب الأرقام الرئيسية ──
-  function sumGroup(prefix, nat){
-    return (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]===prefix;})
+  function gs(prefix,nat){
+    return DB.accounts.filter(function(a){return a.c&&a.c[0]===prefix;})
       .reduce(function(s,a){
         var b=B[a.c]||{dr:0,cr:0};
         return s+(a.nat==='dr'?b.dr-b.cr:b.cr-b.dr);
       },0);
   }
+  var cash=gs('1','dr');
+  var liab=gs('2','cr');
+  var equity=gs('3','cr');
+  var rev=gs('4','cr');
+  var exp=gs('5','dr');
+  var surplus=rev-exp;
+  var totalAssets=cash;
+  var totalLiabEquity=liab+equity+surplus;
+  var diff=Math.abs(totalAssets-totalLiabEquity);
 
-  var totalAssets  = sumGroup('1','dr');
-  var totalLiab    = sumGroup('2','cr');
-  var totalEquity  = sumGroup('3','cr');
-  var totalRev     = sumGroup('4','cr');
-  var totalExp     = sumGroup('5','dr');
-  var surplus      = totalRev - totalExp;
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  h+='<div class="ph-t">📈 الميزانية العمومية</div>';
+  h+='<button onclick="printBalanceSheet()" class="btn btn-sm btn-gy" style="font-size:10.5px;">🖨️ طباعة</button>';
+  h+='</div>';
 
-  // الأرصدة الافتتاحية تُضاف لحقوق الملكية (صندوق افتتاحي)
-  var openingTotal = 0;
-  var opBals = DB.openingBals || {};
-  Object.keys(opBals).forEach(function(acc){
-    var a = (DB.accounts||[]).find(function(x){return x.c===acc;});
-    var nat = a ? a.nat : 'dr';
-    openingTotal += nat==='dr' ? (Number(opBals[acc])||0) : -(Number(opBals[acc])||0);
-  });
+  // Two columns: Assets | Liabilities
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
 
-  var totalLiabEquity = totalLiab + totalEquity + surplus + openingTotal;
-  var diff = Math.abs(totalAssets - totalLiabEquity);
-  var balanced = diff < 1;
-
-  var h = '';
-
-  // ── Header ──
-  var balDate = window._balTo || new Date().toISOString().split('T')[0];
-  h += '<div style="background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border-radius:14px;padding:16px;margin-bottom:14px;">'
-    + '<div style="font-size:18px;font-weight:900;font-family:Tajawal,Cairo,sans-serif;">📈 الميزانية العمومية</div>'
-    + '<div style="font-size:12px;opacity:.8;margin-top:3px;">كما في ' + balDate + '</div>'
-    + '</div>';
-
-  // ── Date filter ──
-  h += '<div style="display:flex;gap:8px;margin-bottom:14px;align-items:flex-end;">'
-    + '<div class="fg" style="margin:0;flex:1;"><label style="font-size:11px;">كما في تاريخ</label>'
-    + '<input type="date" id="bal-to" value="' + balDate + '" onchange="v35ApplyBalanceFilter()"></div>'
-    + '<button onclick="v35ApplyBalanceFilter()" class="btn btn-sm" style="margin-bottom:0;">🔍</button>'
-    + '</div>';
-
-  // ── Two-column layout ──
-  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
-
-  // ── عمود الأصول ──
-  h += '<div style="background:white;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
-  h += '<div style="font-weight:900;color:#1d4ed8;font-size:12px;padding-bottom:7px;border-bottom:2px solid #1d4ed8;margin-bottom:8px;">🏦 الأصول</div>';
-
-  // الأصول من القيود
-  var assetRows = (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='1';});
-  assetRows.forEach(function(a){
-    var b = B[a.c]||{dr:0,cr:0};
-    var bal = b.dr - b.cr;
+  // Assets
+  h+='<div style="background:white;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">';
+  h+='<div style="font-weight:900;color:#0D3B6E;font-size:13px;margin-bottom:10px;border-bottom:2px solid #0D3B6E;padding-bottom:6px;">الأصول</div>';
+  DB.accounts.filter(function(a){return a.c&&a.c[0]==='1';}).forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    var bal=b.dr-b.cr;
     if(!bal) return;
-    h += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #f1f5f9;font-size:11px;">'
-      + '<span style="color:var(--sk);">' + a.n + '</span>'
-      + '<span style="font-weight:800;">' + (bal<0?'-':'') + fmt2(Math.abs(bal)) + '</span>'
-      + '</div>';
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
+      +'<span style="color:var(--sk);cursor:pointer;text-decoration:underline;" onclick="viewAccLedger(\''+a.c+'\')"  >'+a.n+'</span>'
+      +'<span style="font-weight:700;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:a.n,accCode:a.c})">'+fmt(bal)+'</span></div>';
   });
+  h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #0D3B6E;">'
+    +'<span>إجمالي الأصول</span><span style="color:#0D3B6E;">'+fmt(totalAssets)+'</span></div>';
+  h+='</div>';
 
-  h += '<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #1d4ed8;">'
-    + '<span>إجمالي الأصول</span><span style="color:#1d4ed8;">' + fmt2(totalAssets) + '</span></div>';
-  h += '</div>';
-
-  // ── عمود الالتزامات وحقوق الملكية ──
-  h += '<div style="background:white;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
-  h += '<div style="font-weight:900;color:#7c3aed;font-size:12px;padding-bottom:7px;border-bottom:2px solid #7c3aed;margin-bottom:8px;">💳 الالتزامات وحقوق الملكية</div>';
-
-  // الالتزامات 2xxx
-  var liabRows = (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='2';});
-  liabRows.forEach(function(a){
-    var b = B[a.c]||{dr:0,cr:0};
-    var bal = b.cr - b.dr;
+  // Liabilities + Equity
+  h+='<div style="background:white;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">';
+  h+='<div style="font-weight:900;color:#0D3B6E;font-size:13px;margin-bottom:10px;border-bottom:2px solid #0D3B6E;padding-bottom:6px;">الالتزامات وحقوق الملكية</div>';
+  DB.accounts.filter(function(a){return a.c&&(a.c[0]==='2'||a.c[0]==='3');}).forEach(function(a){
+    var b=B[a.c]||{dr:0,cr:0};
+    var bal=b.cr-b.dr;
     if(!bal) return;
-    h += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #f1f5f9;font-size:11px;">'
-      + '<span style="color:var(--sk);">' + a.n + '</span>'
-      + '<span style="font-weight:800;">' + fmt2(Math.abs(bal)) + '</span>'
-      + '</div>';
+    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
+      +'<span style="color:var(--sk);cursor:pointer;text-decoration:underline;" onclick="viewAccLedger(\''+a.c+'\')"  >'+a.n+'</span>'
+      +'<span style="font-weight:700;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:a.n,accCode:a.c})">'+fmt(bal)+'</span></div>';
   });
+  // Add surplus
+  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
+    +'<span style="color:'+(surplus>=0?'#059669':'#dc2626')+';font-weight:700;">'+(surplus>=0?'فائض العام':'عجز العام')+'</span>'
+    +'<span style="font-weight:700;color:'+(surplus>=0?'#059669':'#dc2626')+';">'+fmt(Math.abs(surplus))+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #0D3B6E;">'
+    +'<span>إجمالي الالتزامات</span><span style="color:#0D3B6E;">'+fmt(totalLiabEquity)+'</span></div>';
+  h+='</div></div>';
 
-  // حقوق الملكية 3xxx
-  var eqRows = (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='3';});
-  eqRows.forEach(function(a){
-    var b = B[a.c]||{dr:0,cr:0};
-    var bal = b.cr - b.dr;
-    if(!bal) return;
-    h += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #f1f5f9;font-size:11px;">'
-      + '<span>' + a.n + '</span>'
-      + '<span style="font-weight:800;">' + fmt2(Math.abs(bal)) + '</span>'
-      + '</div>';
-  });
-
-  // الأرصدة الافتتاحية → صندوق افتتاحي
-  if(openingTotal){
-    h += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #f1f5f9;font-size:11px;">'
-      + '<span style="color:var(--g4);">📂 الأرصدة الافتتاحية</span>'
-      + '<span style="font-weight:800;">' + fmt2(openingTotal) + '</span>'
-      + '</div>';
-  }
-
-  // الفائض / العجز من قائمة الدخل
-  if(surplus !== 0){
-    var surplusColor = surplus > 0 ? '#059669' : '#dc2626';
-    h += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #f1f5f9;font-size:11px;">'
-      + '<span style="color:' + surplusColor + ';font-weight:700;">' + (surplus>0?'✅ الفائض السنوي':'⚠️ العجز السنوي') + '</span>'
-      + '<span style="font-weight:800;color:' + surplusColor + ';">' + fmt2(Math.abs(surplus)) + '</span>'
-      + '</div>';
-  }
-
-  h += '<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #7c3aed;">'
-    + '<span>إجمالي الالتزامات وحقوق الملكية</span>'
-    + '<span style="color:#7c3aed;">' + fmt2(totalLiabEquity) + '</span></div>';
-  h += '</div>';
-  h += '</div>'; // end grid
-
-  // ── مؤشر الاتزان ──
-  h += '<div style="margin-top:10px;border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;'
-    + (balanced ? 'background:#ecfdf5;border:1.5px solid #6ee7b7;' : 'background:#fff1f2;border:1.5px solid #fecaca;') + '">'
-    + '<span style="font-weight:800;font-size:13px;color:' + (balanced?'#065f46':'#991b1b') + ';">'
-    + (balanced ? '✅ الميزانية متوازنة' : '⚠️ فرق الاتزان') + '</span>'
-    + (balanced ? '' : '<span style="font-weight:900;color:#dc2626;">' + fmt2(diff) + '</span>')
-    + '</div>';
-
-  // ── زر الطباعة ──
-  h += '<button onclick="printBalanceSheet()" class="btn btn-sm btn-gy" style="width:100%;margin-top:10px;font-size:11px;">🖨️ طباعة الميزانية</button>';
-
+  // Balance check
+  h+='<div style="background:'+(diff<0.01?'#f0fdf4':'#fff5f5')+';border-radius:10px;padding:10px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<span style="font-weight:700;color:'+(diff<0.01?'#059669':'#dc2626')+';font-size:13px;">'
+    +(diff<0.01?'✅ الميزانية متوازنة':'⚠️ فرق: '+fmt(diff))+'</span>';
+  h+='<button onclick="printBalanceSheet()" class="btn btn-sm" style="background:#0D3B6E;color:white;font-size:10.5px;">🖨️ طباعة</button>';
+  h+='</div>';
   return h;
 }
 
+// ── Income Statement ──────────────────────────────────────────────
 function rIncPage(){
   var B=bals();
   var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
@@ -12054,7 +11921,7 @@ function loadExtendedSeedData(){
 
   // ── موردون وأطراف ثالثة (20 طرف) ──────────────────────────────
   var tpSeed=[
-    {id:'TP001',name:'شركة النور للمستلزمات المكتبية',type:'supplier',category:'goods',taxId:'100-200-301',commercialReg:'12345',phone:'01001234567',whtType:'توريدات',whtRate:1,commercialRegExpiry:'2025-06-01',taxCardExpiry:'2026-12-31',vatCertExpiry:'2026-06-30'},
+    {id:'TP001',name:'شركة النور للمستلزمات المكتبية',type:'supplier',category:'goods',taxId:'100-200-301',commercialReg:'12345',phone:'01224120901',whtType:'توريدات',whtRate:1,commercialRegExpiry:'2025-06-01',taxCardExpiry:'2026-12-31',vatCertExpiry:'2026-06-30'},
     {id:'TP002',name:'مكتب الثقة للاستشارات المالية',type:'consultant',category:'consulting',taxId:'200-300-402',commercialReg:'23456',phone:'01012345678',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2026-03-15',taxCardExpiry:'2025-09-01',vatCertExpiry:'2026-09-30'},
     {id:'TP003',name:'مؤسسة الأمل للتنمية البشرية',type:'consultant',category:'consulting',taxId:'300-400-503',commercialReg:'34567',phone:'01023456789',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2027-01-01',taxCardExpiry:'2027-01-01',vatCertExpiry:'2027-01-01'},
     {id:'TP004',name:'شركة التقنية الحديثة للبرمجيات',type:'supplier',category:'it',taxId:'400-500-604',commercialReg:'45678',phone:'01034567890',whtType:'خدمات',whtRate:3,commercialRegExpiry:'2026-08-15',taxCardExpiry:'2026-08-15',vatCertExpiry:'2026-08-15'},
@@ -13832,60 +13699,24 @@ function verifyOTPAction(purpose){
   if(purpose === 'register'){
     var d = window._regData || {};
     if(!d.org || !d.email){ if(err) err.textContent='⚠️ خطأ في البيانات'; return; }
-    var newId    = 'U'+Date.now();
-    var tenantId = 'T_'+d.org.replace(/\s+/g,'_').replace(/[^\w\u0600-\u06FF]/g,'').substring(0,20)+'_'+Date.now().toString().slice(-4);
-    var newUser  = {id:newId, name:'المدير', username:d.email, email:d.email,
-      role:'admin', active:true, tenantId:tenantId, createdAt:new Date().toISOString().slice(0,10)};
-    DB.users    = [newUser];
-    DB.org      = DB.org || {};
-    DB.org.name = d.org;
-    DB.org.email= d.email;
-    DB.org.tenantId = tenantId;
-    hashPassword(d.pass, newId).then(function(h){ newUser.passwordHash=h; save(); });
-    save();
-
-    /* Firebase — إنشاء حساب + تسجيل الجمعية في Firestore */
-    if(window._firebase && window._firebase.createUserWithEmailAndPassword){
-      var fb = window._firebase;
-      fb.createUserWithEmailAndPassword(fb.auth, d.email, d.pass)
-        .then(function(cred){
-          var exp = new Date(); exp.setDate(exp.getDate()+30);
-          return fb.setDoc(fb.doc(fb.db_fs,'tenants',tenantId),{
-            orgName:   d.org,
-            email:     d.email,
-            plan:      'trial',
-            expiry:    exp.toISOString().split('T')[0],
-            active:    true,
-            uid:       cred.user.uid,
-            createdAt: fb.serverTimestamp()
-          });
-        })
-        .then(function(){ console.info('[Athar] New tenant registered in Firebase:', tenantId); toast('✅ تم إنشاء حسابك بنجاح — مرحباً بك في أثر'); })
-        .catch(function(e){ console.warn('[Firebase] Register note:', e.message); });
+    var newId='U'+Date.now();
+    var tenantId='T_'+d.org.replace(/\s+/g,'_').replace(/[^\w\u0600-\u06FF]/g,'').substring(0,20)+'_'+Date.now().toString().slice(-4);
+    var newUser={id:newId,name:'المدير',username:d.email,email:d.email,role:'admin',active:true,tenantId:tenantId,createdAt:new Date().toISOString().slice(0,10)};
+    DB.users=[newUser]; DB.org=DB.org||{}; DB.org.name=d.org; DB.org.email=d.email; DB.org.tenantId=tenantId;
+    hashPassword(d.pass,newId).then(function(h){newUser.passwordHash=h;save();}); save();
+    if(window._firebase&&window._firebase.createUserWithEmailAndPassword){
+      var fb=window._firebase;
+      fb.createUserWithEmailAndPassword(fb.auth,d.email,d.pass).then(function(cred){
+        var exp=new Date();exp.setDate(exp.getDate()+30);
+        return fb.setDoc(fb.doc(fb.db_fs,'tenants',tenantId),{orgName:d.org,email:d.email,plan:'trial',expiry:exp.toISOString().split('T')[0],active:true,uid:cred.user.uid,createdAt:fb.serverTimestamp()});
+      }).then(function(){toast('🎉 أهلاً بك في أثر — '+d.org);}).catch(function(e){console.warn(e);});
     }
-
-    setCurrentUser({id:newUser.id, name:newUser.name, username:newUser.username, role:newUser.role, tenantId:tenantId});
-    /* تحديث اسم الجمعية في الـ topbar فوراً */
-    var orgNameEl = document.getElementById('org-name') || document.querySelector('.tb-org');
-    if(orgNameEl) orgNameEl.textContent = d.org;
-    /* إزالة شاشة الدخول وإظهار التطبيق */
-    var ov = document.getElementById('login-overlay'); if(ov) ov.remove();
-    var tb=document.querySelector('.topbar'), ct=document.querySelector('.content'), bn=document.querySelector('.bnav');
-    if(tb) tb.style.removeProperty('display');
-    if(ct) ct.style.removeProperty('display');
-    if(bn) bn.style.removeProperty('display');
-    /* إعادة تحميل الداشبورد بدون reload كامل */
-    setTimeout(function(){
-      if(typeof rDash==='function'){
-        var dash=document.getElementById('pg-dash');
-        if(dash){ dash.innerHTML=rDash(); dash.classList.add('on'); }
-        document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
-        var dashBtn=document.querySelector('[data-nav="dash"]');
-        if(dashBtn) dashBtn.classList.add('on');
-        if(typeof updateOrgTopbar==='function') updateOrgTopbar();
-        toast('🎉 أهلاً بك في أثر يا '+newUser.name+' — '+d.org);
-      } else { location.reload(); }
-    }, 200);
+    setCurrentUser({id:newUser.id,name:newUser.name,username:newUser.username,role:newUser.role,tenantId:tenantId});
+    var ov=document.getElementById('login-overlay');if(ov)ov.remove();
+    var tb=document.querySelector('.topbar'),ct=document.querySelector('.content'),bn=document.querySelector('.bnav');
+    if(tb)tb.style.removeProperty('display');if(ct)ct.style.removeProperty('display');if(bn)bn.style.removeProperty('display');
+    var nameEl=document.getElementById('org-name');if(nameEl)nameEl.textContent=d.org;
+    setTimeout(function(){if(typeof rDash==='function'){var dash=document.getElementById('pg-dash');if(dash){dash.innerHTML=rDash();dash.classList.add('on');}}},200);
   } else if(purpose === 'reset'){
     var np = ((document.getElementById('new-pass')||{}).value||'');
     if(!np || np.length < 6){ if(err) err.textContent='أدخل كلمة مرور جديدة (6 أحرف+)'; return; }
@@ -13915,7 +13746,7 @@ function showLogin(){
   /* لا نستخدم inline style على #mo لأنه يكسر .mo.on { display:flex } */
   if(mo){ mo.classList.remove('on'); mo.style.removeProperty('display'); }
   var ov=document.getElementById('login-overlay'); if(ov) ov.remove();
-  var orgName=(DB.org&&DB.org.name&&DB.org.name!=='أثر')?DB.org.name:'أثر — للحلول المالية للجمعيات';
+  var orgName=(DB.org&&DB.org.name)?DB.org.name:'';
   var overlay=document.createElement('div');
   overlay.id='login-overlay';
   overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;';
@@ -19299,11 +19130,10 @@ document.addEventListener('click',function(ev){
       } else if(pg==='loans'){
         var el=document.getElementById('pg-loans');
         if(el&&typeof rقروضPage==='function'){
-          /* rقروضPage يكتب مباشرة على pg-loans — فعّل الصفحة أولاً */
+          el.innerHTML=rقروضPage();
           document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
           document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
           el.classList.add('on'); n.classList.add('on');
-          rقروضPage();
         }
       } else if(pg==='dash'){
         document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
@@ -19363,7 +19193,7 @@ function seedقروضData(){
   }
 
   // 20 clients — varied amounts, some overdue, some paid, some closed
-  mkLoan('LN001','محمد أحمد السيد','01001234567',10000,18,12,'monthly',d(10),2,'active');      // متأخر 8 أقساط
+  mkLoan('LN001','محمد أحمد السيد','01224120901',10000,18,12,'monthly',d(10),2,'active');      // متأخر 8 أقساط
   mkLoan('LN002','فاطمة علي حسن','01112345678',5000,15,6,'monthly',d(8),1,'active');            // متأخر 7 أقساط
   mkLoan('LN003','أحمد محمود عبده','01223456789',15000,20,12,'monthly',d(6),4,'active');        // متأخر 2
   mkLoan('LN004','سارة إبراهيم نور','01034567890',8000,18,12,'monthly',d(4),2,'active');        // متأخر قسط
@@ -20865,79 +20695,38 @@ function printAssetPermit(a,m){
     };
   }
 
-  window.setOrgPlan=function(plan){
-    ensureOrgPlan();
-    DB.org.plan=plan;
-    /* تفعيل الـ modules الأساسية للباقة */
-    var PLAN_MOD={
-      basic:['core','finance','grants','hr','reports','archive','settings','import'],
-      pro:  ['core','finance','grants','hr','procurement','inventory','assets','compliance','archive','reports','ai','microfinance','import','settings']
-    };
-    DB.org.enabledModules=(PLAN_MOD[plan]||PLAN_MOD.basic).slice();
-    if(typeof save==='function') save();
-    if(typeof applyModuleVisibility==='function') applyModuleVisibility();
-    if(typeof toast==='function') toast('✅ تم تغيير الباقة إلى '+(plan==='pro'?'Pro 🚀':'Basic 🌐'));
-    /* إعادة رسم شاشة الإعدادات */
-    setTimeout(function(){
-      if(typeof sub==='function') sub('settings');
-    }, 300);
-  };
-    window.renderPackageSettingsCard=function(){
+  window.renderPackageSettingsCard=function(){
     ensureOrgPlan();
     var u=typeof getCurrentUser==='function'?getCurrentUser():null;
     if(!u||u.role!=='admin') return '';
     var plan=DB.org.plan||'basic';
     var enabled=DB.org.enabledModules||[];
-    
-    /* تعريف الـ modules مع الاسم والأيقونة والباقة الافتراضية */
-    var ALL_MODULES = [
-      {k:'finance',    lbl:'💰 المحاسبة والمالية',     plans:['basic','pro'], required:true},
-      {k:'grants',     lbl:'🎯 المشروعات والمنح',      plans:['basic','pro']},
-      {k:'hr',         lbl:'👥 الموارد البشرية',        plans:['basic','pro']},
-      {k:'reports',    lbl:'📊 التقارير',               plans:['basic','pro'], required:true},
-      {k:'procurement',lbl:'🛒 المشتريات والموردين',   plans:['pro']},
-      {k:'inventory',  lbl:'📦 المخازن',                plans:['pro']},
-      {k:'assets',     lbl:'🏢 الأصول الثابتة',        plans:['pro']},
-      {k:'microfinance',lbl:'💵 القروض الصغيرة',       plans:['pro']},
-      {k:'compliance', lbl:'✅ الامتثال والأرشفة',     plans:['pro']},
-      {k:'archive',    lbl:'🗂️ الأرشيف الإلكتروني',   plans:['pro']},
-      {k:'ai',         lbl:'🤖 الذكاء الاصطناعي',      plans:['pro']},
-    ];
-    
-    var h = '<div style="background:white;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
-    h += '<div style="font-size:13px;font-weight:900;color:#1e3a5f;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f1f5f9;">📦 التحكم في الباقة والأقسام</div>';
-    
-    /* اختيار الباقة */
-    h += '<div style="margin-bottom:14px;">';
-    h += '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:8px;">الباقة الحالية:</label>';
-    h += '<div style="display:flex;gap:8px;">';
-    ['basic','pro'].forEach(function(p){
-      var active = plan===p;
-      var color = p==='pro'?'#1d4ed8':'#059669';
-      h += '<button onclick="window.setOrgPlan(\''+p+'\');" style="flex:1;padding:10px;border-radius:9px;font-size:13px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;border:2px solid '+(active?color:'#e2e8f0')+';background:'+(active?color:'white')+';color:'+(active?'white':'#374151')+';">';
-      h += (p==='pro'?'🚀 Pro':'🌐 Basic');
-      h += '</button>';
+    var h='<div class="sd">📦 الباقة وإظهار الأقسام للجمعية</div>';
+    h+='<div style="background:#eef6ff;border:1px solid #dbeafe;border-radius:12px;padding:12px;margin-bottom:12px;font-size:11.5px;color:#1e3a6e;line-height:1.7;">';
+    h+='حدد الباقة والأقسام التي تظهر لهذه الجمعية. المستخدم لا يرى إلا الأقسام المفعلة للجمعية + الصلاحيات الممنوحة لدوره الوظيفي.';
+    h+='</div>';
+    h+='<div class="fr"><div class="fg"><label>باقة الجمعية</label><select id="org-plan" onchange="changeOrgPlan(this.value)">';
+    h+='<option value="basic"'+(plan==='basic'?' selected':'')+'>Basic — أساسية</option>';
+    h+='<option value="pro"'+(plan==='pro'?' selected':'')+'>Pro — احترافية</option>';
+    h+='</select></div><div class="fg"><label>سياسة الموازنة</label><select id="ss-budget-policy" onchange="saveBudgetPolicy()">';
+    h+='<option value="block"'+(DB.sysSettings.enforceBudget!==false?' selected':'')+'>منع الحفظ عند التجاوز</option>';
+    h+='<option value="warn"'+(DB.sysSettings.enforceBudget===false?' selected':'')+'>تحذير فقط</option>';
+    h+='</select></div></div>';
+    h+='<div class="fr"><div class="fg"><label>تنبيه عند نسبة صرف %</label><input type="number" id="ss-warn-pct" value="'+(DB.sysSettings.budgetWarningPct||90)+'" oninput="saveBudgetPolicy()"></div>';
+    h+='<div class="fg"><label>سماحية تجاوز للإدارة %</label><input type="number" id="ss-tol-pct" value="'+(DB.sysSettings.budgetTolerancePct||0)+'" oninput="saveBudgetPolicy()"></div></div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">';
+    Object.keys(MODULES).forEach(function(k){
+      var locked=k==='core'||k==='settings';
+      var checked=enabled.indexOf(k)>-1||locked;
+      h+='<label style="display:flex;gap:8px;align-items:center;background:white;border:1px solid #e2eaf3;border-radius:10px;padding:10px;font-size:11.5px;color:#1e3a6e;">';
+      h+='<input type="checkbox" data-module="'+k+'" '+(checked?'checked':'')+' '+(locked?'disabled':'')+' onchange="toggleOrgModule(this)">';
+      h+='<span style="font-size:18px;">'+MODULES[k].icon+'</span><span>'+MODULES[k].label+'</span>';
+      h+='</label>';
     });
-    h += '</div></div>';
-    
-    /* التحكم في كل module */
-    h += '<div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px;">الأقسام المفعّلة:</div>';
-    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
-    ALL_MODULES.forEach(function(m){
-      var isEnabled = enabled.indexOf(m.k) > -1;
-      var inPlan    = m.plans.indexOf(plan) > -1;
-      var isReq     = !!m.required;
-      h += '<label style="display:flex;align-items:center;gap:8px;background:'+(isEnabled?'#f0fdf4':'#f8fafc')+';border:1px solid '+(isEnabled?'#6ee7b7':'#e2e8f0')+';border-radius:8px;padding:8px 10px;cursor:'+(isReq?'default':'pointer')+';">';
-      h += '<input type="checkbox" data-module="'+m.k+'" '+(isEnabled?'checked':'')+' '+(isReq?'disabled':'')+' onchange="window.toggleOrgModule(this)" style="width:16px;height:16px;accent-color:#059669;">';
-      h += '<div><div style="font-size:11.5px;font-weight:700;">'+m.lbl+'</div>';
-      h += '<div style="font-size:9px;color:#94a3b8;">'+(inPlan?'✅ في الباقة':'🔒 Pro فقط')+(isReq?' · أساسي':'')+'</div></div>';
-      h += '</label>';
-    });
-    h += '</div>';
-    h += '<div style="font-size:10px;color:#94a3b8;margin-top:10px;text-align:center;">الأقسام المُلغاة تختفي من كل الشاشات فوراً</div>';
-    h += '</div>';
+    h+='</div>';
     return h;
   };
+
   window.changeOrgPlan=function(plan){
     ensureOrgPlan();
     DB.org.plan=plan;
@@ -20974,9 +20763,9 @@ function printAssetPermit(a,m){
     window.rSetPage=function(){
       var html=_rSetPage();
       var card=renderPackageSettingsCard();
-      if(card && html.indexOf('📦 التحكم في الباقة والأقسام')<0){
-        // inject at the beginning of settings content
-        html = card + html;
+      if(card && html.indexOf('📦 الباقة وإظهار الأقسام')<0){
+        // inject after current user info card, otherwise before closing
+        html=html.replace('<div class="sd">بيانات الجمعية</div>', card+'<div class="sd">بيانات الجمعية</div>');
         if(html.indexOf(card)<0) html+=card;
       }
       return html;
@@ -21804,7 +21593,7 @@ window.saveVoucher=function(type){ensureV33();var id=val('vch-id'),date=val('vch
 window.rInvProjectReport=function(){ensureV33();var h='<div class="ph-t" style="margin-bottom:12px">📦 استهلاك المخزون حسب المشروع</div><table><thead><tr><th>التاريخ</th><th>الإذن</th><th>المشروع</th><th>الصنف</th><th>الكمية</th><th>Serial</th></tr></thead><tbody>';(DB.invMovements||[]).forEach(function(m){h+='<tr><td>'+E(m.date)+'</td><td>'+E(m.voucherId)+'</td><td>'+E(m.projectCode||m.proj||'—')+'</td><td>'+E(m.itemName||m.itemId)+'</td><td class="tn">'+E(m.qty)+'</td><td>'+E(m.serialNo||'—')+'</td></tr>';});h+='</tbody></table>';return h;};
 
 var oldSub=window.sub;
-window.sub=function(n){ensureV33();var pages={reports:rReportsPage,budgetmeta:rBudgetSettingsPage,supplier_register:rSupplierRegisterPage,cashflow:rCashFlowStatementPage,taxwh:rTaxWithholdingPage,whtsettings:rTaxWithholdingPage,reconpro:rBankReconProPage,loan_settings:rLoanSettingsPage,loan_reports:rLoanAdvancedReports,inv_project_report:rInvProjectReport,projtxn:rProjectTxnReport};if(pages[n]){nav('more',null);var el=document.getElementById('pg-more');if(el)el.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'ops\',null)" style="margin-bottom:10px">‹ رجوع</button>'+pages[n]()+'</div>';showTbBack&&showTbBack({type:'fn',pg:"nav('ops',null)"});return;}return oldSub?oldSub(n):null;};
+window.sub=function(n){ensureV33();var pages={budgetmeta:rBudgetSettingsPage,supplier_register:rSupplierRegisterPage,cashflow:rCashFlowStatementPage,taxwh:rTaxWithholdingPage,reconpro:rBankReconProPage,loan_settings:rLoanSettingsPage,loan_reports:rLoanAdvancedReports,inv_project_report:rInvProjectReport,projtxn:rProjectTxnReport};if(pages[n]){nav('more',null);var el=document.getElementById('pg-more');if(el)el.innerHTML='<div style="padding:14px 14px 80px"><button class="btn btn-sm btn-gy" onclick="nav(\'ops\',null)" style="margin-bottom:10px">‹ رجوع</button>'+pages[n]()+'</div>';showTbBack&&showTbBack({type:'fn',pg:"nav('ops',null)"});return;}return oldSub?oldSub(n):null;};
 
 window.rالماليةHub=function(){ensureV33();var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">💰 المالية</div>';var sections=[{title:'📝 القيود والعمليات',items:[{i:'📝',t:'قيود اليومية',n:'jour',pg:true},{i:'🖊️',t:'طباعة الشيكات',n:'checks'}]},{title:'📊 التقارير المالية',items:[{i:'⚖️',t:'ميزان المراجعة',n:'trial'},{i:'📈',t:'الميزانية العمومية',n:'balance'},{i:'💰',t:'قائمة الدخل',n:'income'},{i:'💵',t:'Cash Flow',n:'cashflow'}]},{title:'🏦 البنوك والخزينة',items:[{i:'🏦',t:'البنوك',n:'banks'},{i:'✅',t:'تسوية بنكية محسنة',n:'reconpro'}]},{title:'📚 الإعدادات المالية',items:[{i:'🌳',t:'شجرة الحسابات',n:'accounts'},{i:'🧮',t:'ضرائب الخصم والإضافة',n:'taxwh'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
 window.rOperationsHub=function(){ensureV33();var h='<div style="padding:0 0 80px"><div class="ph-t" style="margin-bottom:14px">🎯 العمليات</div>';var sections=[{title:'🎯 المشروعات والممولين',items:[{i:'🎯',t:'المشروعات',n:'proj',pg:true},{i:'📊',t:'BVA',n:'bva'},{i:'📋',t:'حركة مشروع حسب البند',n:'projtxn'},{i:'📅',t:'فترة/وصف الموازنة',n:'budgetmeta'}]},{title:'💵 التمويل متناهي الصغر',items:[{i:'💵',t:'إدارة القروض',n:'loans'},{i:'📊',t:'تقارير التمويل والحوافز',n:'loan_reports'},{i:'⚙️',t:'إعدادات القروض والحوافز',n:'loan_settings'}]},{title:'🛒 الموردون والمخازن',items:[{i:'🏭',t:'سجل الموردين',n:'supplier_register'},{i:'📦',t:'المخازن',n:'inventory'},{i:'📥',t:'أذونات مخازن بالمشروع',n:'inv_receive'},{i:'📊',t:'استهلاك حسب المشروع',n:'inv_project_report'}]},{title:'👥 الموارد البشرية والامتثال',items:[{i:'🏢',t:'الموظفين',n:'employees'},{i:'💳',t:'كشف الرواتب',n:'pay',pg:true},{i:'⏱️',t:'Timesheet',n:'timesheet'},{i:'🗂️',t:'الأرشيف',n:'archive'},{i:'✅',t:'الامتثال',n:'compliance'}]}];sections.forEach(function(sec){h+='<div style="margin-bottom:16px"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block"></span>'+sec.title+'</div><div class="mg">';sec.items.forEach(function(item){var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';h+='<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';});h+='</div></div>';});return h+'</div>';};
@@ -22110,102 +21899,399 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
 
   window.rBalPage=function(){
     var to=window._balTo||today();
-    /* الأصول: bals() تشمل الأرصدة الافتتاحية */
-    var B=(typeof window.bals==='function')?window.bals():periodBals('',to);
-    /* الفائض: من كل القيود حتى تاريخ الميزانية */
-    var PB=periodBals('',to);
-    var totalA=0, totalLC=0, h='';
-
-    /* Header */
-    h+='<div style="background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border-radius:14px;padding:14px;margin-bottom:12px;">'
-      +'<div style="font-size:17px;font-weight:900;font-family:Tajawal,Cairo,sans-serif;">\u{1F4C8} \u0627\u0644\u0645\u064a\u0632\u0627\u0646\u064a\u0629 \u0627\u0644\u0639\u0645\u0648\u0645\u064a\u0629</div>'
-      +'<div style="font-size:11px;opacity:.8;margin-top:3px;">\u0643\u0645\u0627 \u0641\u064a '+esc(to)+'</div>'
-      +'</div>';
-    h+='<div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;">'
-      +'<div class="fg" style="margin:0;flex:1;"><label style="font-size:11px;">\u0643\u0645\u0627 \u0641\u064a \u062a\u0627\u0631\u064a\u062e</label>'
-      +'<input type="date" id="bal-to" value="'+to+'" onchange="v35ApplyBalanceFilter()"></div>'
-      +'<button onclick="v35ApplyBalanceFilter()" class="btn btn-sm" style="margin-bottom:0;">\uD83D\uDD0D</button>'
-      +'</div>';
-
-    /* حساب الأصول من bals() */
+    var B=periodBals('',to), totalA=0,totalLC=0,h='';
+    h+='<div class="ph"><div><div class="ph-t">📈 الميزانية العمومية</div><div class="ph-s">كما في '+esc(to)+'</div></div></div>';
+    h+='<div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;"><div class="fg"><label>كما في تاريخ</label><input type="date" id="bal-to" value="'+to+'"></div><button class="btn btn-sm" onclick="v35ApplyBalanceFilter()" style="margin-top:18px;">🔍</button></div>';
+    h+='<div class="card"><div class="ct">الأصول</div>';
     (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='1';}).forEach(function(a){
-      var b=B[a.c]||{dr:0,cr:0}; totalA+=b.dr-b.cr;
+      var b=B[a.c]||{dr:0,cr:0}, val=b.dr-b.cr; if(!val) return; totalA+=val;
+      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #eee;padding:5px 0;"><span>'+esc(a.c+' — '+a.n)+'</span><span onclick="drillDown({title:\''+esc(a.n)+'\',accCode:\''+esc(a.c)+'\',toDate:\''+to+'\'})" style="font-weight:800;cursor:pointer;text-decoration:underline;">'+fmt2(val)+'</span></div>';
     });
-
-    /* حساب الفائض من bals() لاتساق مع جانب الأصول */
-    var rev=0,exp=0;
-    (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='4';}).forEach(function(a){
-      var b=B[a.c]||{dr:0,cr:0}; rev+=b.cr-b.dr;
-    });
-    (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='5';}).forEach(function(a){
-      var b=B[a.c]||{dr:0,cr:0}; exp+=b.dr-b.cr;
-    });
-    var surplus=rev-exp;
-
-    /* الالتزامات وحقوق الملكية من bals() */
-    var liab2=(DB.accounts||[]).filter(function(a){return a.c&&(a.c[0]==='2'||a.c[0]==='3');})
-      .reduce(function(s,a){var b=B[a.c]||{dr:0,cr:0};return s+(b.cr-b.dr);},0);
-
-    /* الأرصدة الافتتاحية المستقلة */
-    /* الأرصدة الافتتاحية للأصول فقط (1xxx) تحتاج قيد مقابل في حقوق الملكية
-       أما 2xxx و3xxx فهي مدرجة في bals() مباشرة ولا تحتاج إضافة هنا */
-
-
-    /* totalLC = التزامات + حقوق ملكية + فائض/عجز الفترة */
-    totalLC=liab2+surplus;
-
-    /* Grid */
-    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">';
-
-    /* الأصول */
-    h+='<div style="background:white;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
-    h+='<div style="font-weight:900;color:#1d4ed8;font-size:12px;padding-bottom:6px;border-bottom:2px solid #1d4ed8;margin-bottom:8px;">\uD83C\uDFE6 \u0627\u0644\u0623\u0635\u0648\u0644</div>';
-    (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='1';}).forEach(function(a){
-      var b=B[a.c]||{dr:0,cr:0},val=b.dr-b.cr; if(!val) return;
-      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;cursor:pointer;" onclick="drillDown({title:\''+esc(a.n)+'\',accCode:\''+esc(a.c)+'\',toDate:\''+to+'\'})">'
-        +'<span style="color:var(--sk);">'+esc(a.n)+'</span>'
-        +'<span style="font-weight:800;">'+fmt2(Math.abs(val))+'</span></div>';
-    });
-    h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:6px;border-top:2px solid #1d4ed8;">'
-      +'<span>\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0623\u0635\u0648\u0644</span><span style="color:#1d4ed8;">'+fmt2(totalA)+'</span></div>';
-    h+='</div>';
-
-    /* الالتزامات وحقوق الملكية */
-    h+='<div style="background:white;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
-    h+='<div style="font-weight:900;color:#7c3aed;font-size:12px;padding-bottom:6px;border-bottom:2px solid #7c3aed;margin-bottom:8px;">\uD83D\uDCB3 \u0627\u0644\u0627\u0644\u062a\u0632\u0627\u0645\u0627\u062a \u0648\u062d\u0642\u0648\u0642 \u0627\u0644\u0645\u0644\u0643\u064a\u0629</div>';
+    h+='<div style="display:flex;justify-content:space-between;font-weight:900;padding-top:8px;"><span>إجمالي الأصول</span><span onclick="drillDown({title:\'تفاصيل الأصول\',accPrefix:\'1\',toDate:\''+to+'\'})" style="cursor:pointer;text-decoration:underline;">'+fmt2(totalA)+'</span></div></div>';
+    h+='<div class="card"><div class="ct">الالتزامات وحقوق الملكية</div>';
     (DB.accounts||[]).filter(function(a){return a.c&&(a.c[0]==='2'||a.c[0]==='3');}).forEach(function(a){
-      var b=B[a.c]||{dr:0,cr:0},val=b.cr-b.dr; if(!val) return;
-      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;">'
-        +'<span>'+esc(a.n)+'</span><span style="font-weight:800;">'+fmt2(Math.abs(val))+'</span></div>';
+      var b=B[a.c]||{dr:0,cr:0}, val=b.cr-b.dr; if(!val) return; totalLC+=val;
+      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #eee;padding:5px 0;"><span>'+esc(a.c+' — '+a.n)+'</span><span onclick="drillDown({title:\''+esc(a.n)+'\',accCode:\''+esc(a.c)+'\',toDate:\''+to+'\'})" style="font-weight:800;cursor:pointer;text-decoration:underline;">'+fmt2(val)+'</span></div>';
     });
-
-    /* لا نضيف الفائض/العجز في الإجمالي — يُعرض كمعلومة اختيارية */
-    /* عرض الفائض/العجز الجاري */
-    if(surplus!==0){
-      h+='<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:4px 0;font-size:11px;">'
-        +'<span style="color:'+(surplus>0?'#059669':'#dc2626')+';font-weight:700;">'+(surplus>0?'✅ الفائض الجاري':'⚠️ العجز الجاري')+'</span>'
-        +'<span style="font-weight:800;color:'+(surplus>0?'#059669':'#dc2626')+';">'+fmt2(Math.abs(surplus))+'</span></div>';
-    }
-    h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:12px;margin-top:8px;padding-top:6px;border-top:2px solid #7c3aed;">'
-      +'<span>\u0625\u062c\u0645\u0627\u0644\u064a</span><span style="color:#7c3aed;">'+fmt2(totalLC)+'</span></div>';
-    h+='</div>';
-    h+='</div>';
-
-    /* مؤشر الاتزان */
-    var diff=totalA-totalLC, balanced=Math.abs(diff)<1;
-    /* فرق الاتزان = الفائض/العجز قبل قيد الإقفال */
-    var diffAbs = Math.abs(Math.round(diff));
-    h+='<div style="margin-top:10px;border-radius:10px;padding:12px 14px;'
-      +(balanced?'background:#ecfdf5;border:1.5px solid #6ee7b7;':'background:#fef3c7;border:1.5px solid #fde68a;')+'">'
-      +'<div style="font-weight:800;font-size:13px;color:'+(balanced?'#065f46':'#92400e')+';">'
-      +(balanced?'✅ الميزانية متوازنة'
-        :(diff>0?'📊 فائض الفترة غير المحوَّل: '+fmt2(diffAbs)
-                :'⚠️ عجز الفترة غير المحوَّل: '+fmt2(diffAbs)))
-      +'</div>'
-      +(!balanced?'<div style="font-size:10.5px;color:#78350f;margin-top:4px;">الفرق يمثل الفائض/العجز الجاري قبل قيد الإقفال السنوي — طبيعي ما لم تُنفَّذ قيودات الإقفال</div>':'')
-      +'</div>';
-    h+='<button onclick="printBalanceSheet()" class="btn btn-sm btn-gy" style="width:100%;margin-top:10px;font-size:11px;">\uD83D\uDDA8\uFE0F \u0637\u0628\u0627\u0639\u0629</button>';
+    h+='<div style="display:flex;justify-content:space-between;font-weight:900;padding-top:8px;"><span>إجمالي الالتزامات وحقوق الملكية</span><span onclick="drillDown({title:\'تفاصيل الالتزامات وحقوق الملكية\',customFilter:function(e,l){return l.acc&&(l.acc[0]===\'2\'||l.acc[0]===\'3\')},toDate:\''+to+'\'})" style="cursor:pointer;text-decoration:underline;">'+fmt2(totalLC)+'</span></div></div>';
+    h+='<div class="card" style="background:'+(Math.abs(totalA-totalLC)<1?'var(--gbg)':'var(--rbg)')+';"><div style="display:flex;justify-content:space-between;font-weight:900;"><span>فرق الاتزان</span><span>'+fmt2(totalA-totalLC)+'</span></div></div>';
     return h;
+  };
+
+  /* Patch hubs without removing existing items */
+  var _oldFin=window.rالماليةHub;
+  window.rالماليةHub=function(){
+    v35Ensure();
+    var h=(typeof _oldFin==='function')?_oldFin():'';
+    h+='<div style="margin:14px 0 18px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 0;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span style="width:3px;height:14px;background:var(--am);border-radius:2px;display:inline-block;"></span>🧾 ضرائب الخصم والإضافة</div><div class="mg">'
+      +'<div class="mi" data-sub="whtpay"><div class="mi-i">🧾</div><div class="mi-t">سداد فاتورة + خصم</div></div>'
+      +'<div class="mi" data-sub="whtreport"><div class="mi-i">📋</div><div class="mi-t">تقرير الخصم ونموذج 41</div></div>'
+      +'<div class="mi" data-sub="whtsettings"><div class="mi-i">⚙️</div><div class="mi-t">إعدادات الخصم</div></div>'
+      +'</div></div>';
+    return h;
+  };
+  var _oldOps=window.rOperationsHub;
+  window.rOperationsHub=function(){
+    v35Ensure();
+    var h=(typeof _oldOps==='function')?_oldOps():'';
+    h+='<div style="margin:14px 0 18px;"><div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 0;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span style="width:3px;height:14px;background:var(--am);border-radius:2px;display:inline-block;"></span>🧾 الضرائب والمدفوعات</div><div class="mg">'
+      +'<div class="mi" data-sub="whtpay"><div class="mi-i">🧾</div><div class="mi-t">سداد فاتورة</div></div>'
+      +'<div class="mi" data-sub="whtreport"><div class="mi-i">📋</div><div class="mi-t">نموذج 41</div></div>'
+      +'</div></div>';
+    return h;
+  };
+
+  /* Extend tax config page */
+  var _oldTax=window.rTaxConfig;
+  window.rTaxConfig=function(){
+    var h=(typeof _oldTax==='function')?_oldTax():'';
+    h+='<div class="card" style="margin-top:12px;"><div class="ct">🧾 ضرائب الخصم والإضافة</div><div style="font-size:12px;color:var(--g5);line-height:1.7;margin-bottom:10px;">هذه الإعدادات خاصة بفواتير الموردين. الاختيار النهائي يتم من شاشة سداد الفاتورة حسب نوع السلعة أو الخدمة.</div><button class="btn btn-sm" onclick="sub(\'whtsettings\')" style="width:100%;">فتح إعدادات الخصم والإضافة</button></div>';
+    return h;
+  };
+
+  /* Extend Form 41 page header while preserving old content */
+  var _oldF41=window.rForm41Page;
+  window.rForm41Page=function(){
+    v35Ensure();
+    var h='<div class="card" style="background:var(--skp);"><div class="ct">🔗 مصدر نموذج 41</div><div style="font-size:12px;color:var(--g5);line-height:1.8;">يتم تجميع نموذج 41 تلقائيًا من شاشة <b>سداد فاتورة + خصم وإضافة</b>. الخصم يحسب على وعاء الضريبة قبل VAT حتى لو الفاتورة شاملة VAT.</div><button class="btn btn-sm" onclick="sub(\'whtpay\')" style="margin-top:8px;">+ تسجيل سداد فاتورة</button> <button class="btn btn-sm btn-gy" onclick="sub(\'whtreport\')" style="margin-top:8px;">📋 تقرير الخصم</button></div>';
+    h+=(typeof _oldF41==='function')?_oldF41():'';
+    return h;
+  };
+
+  /* Route added pages safely */
+  var _oldSub=window.sub;
+  window.sub=function(n){
+    v35Ensure();
+    if(n==='whtpay'||n==='whtsettings'||n==='whtreport'){
+      var title={whtpay:'🧾 سداد فاتورة مع خصم وإضافة',whtsettings:'⚙️ إعدادات الخصم والإضافة',whtreport:'📋 تقرير الخصم ونموذج 41'}[n];
+      if(typeof nav==='function') nav('more',null);
+      var pgEl=document.getElementById('pg-more');
+      var body=n==='whtpay'?rWHTPaymentPage():n==='whtsettings'?rWHTSettingsPage():rWHTReportPage();
+      if(pgEl){
+        pgEl.innerHTML='<div style="padding:14px 14px 80px;">'
+          +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'
+          +'<button onclick="nav(\'fin\',null)" style="background:var(--g1);border:none;border-radius:8px;padding:7px 12px;cursor:pointer;font-family:Cairo,sans-serif;font-size:13px;">‹ المالية</button>'
+          +'<div style="font-weight:800;font-size:16px;color:var(--nd);">'+title+'</div></div>'+body+'</div>';
+      }
+      if(typeof showTbBack==='function') showTbBack({type:'fn',pg:"nav('fin',null)"});
+      return;
+    }
+    return _oldSub.apply(this,arguments);
+  };
+
+  /* Generic delegated click handler remains compatible with existing data-sub cards */
+  document.addEventListener('click',function(e){
+    var a=e.target.closest&&e.target.closest('[data-sub]');
+    if(a && a.getAttribute('data-sub') && typeof sub==='function'){
+      var n=a.getAttribute('data-sub');
+      if(['whtpay','whtsettings','whtreport'].indexOf(n)>-1){ e.preventDefault(); sub(n); }
+    }
+  },true);
+
+  try{v35Ensure(); if(typeof save==='function') save();}catch(e){}
+})();
+
+</script>
+
+<script>
+/* ================= ATHAR V35.2 JS FIXED PATCH =================
+   Built on V35.1 stable. Adds UX fullscreen, safe back stack, WHT in journal, smart project transaction report.
+   No removal of existing features. */
+(function(){
+  function q(id){return document.getElementById(id);} 
+  function money(n){try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}catch(e){return String(n||0);}}
+  function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function accName(code){var a=(window.DB&&DB.accounts||[]).find(function(x){return String(x.c)===String(code);});return a?a.n:'';}
+  function accOpts(filter){var arr=(window.DB&&DB.accounts)||[];var out='';arr.forEach(function(a){if(!filter||filter(a))out+='<option value="'+esc(a.c)+'">'+esc(a.c+' — '+a.n)+'</option>';});return out||'<option value="">—</option>';}
+  function projOpts(sel){var out='<option value="">— اختر المشروع —</option>';((window.DB&&DB.projects)||[]).forEach(function(p){out+='<option value="'+esc(p.code)+'" '+(String(sel||'')===String(p.code)?'selected':'')+'>'+esc(p.name)+'</option>';});return out;}
+  function getWbsList(projectCode){var pr=((window.DB&&DB.projects)||[]).find(function(p){return String(p.code)===String(projectCode);});var list=[];if(pr){['wbs','budgetLines','lines'].forEach(function(k){(pr[k]||[]).forEach(function(w){list.push({code:w.code||w.wbs||w.id||'',name:w.name||w.desc||w.title||''});});});}
+    if(!list.length){((window.DB&&DB.entries)||[]).forEach(function(e){(e.lines||[]).forEach(function(l){var lp=l.proj||e.proj||'';var wc=l.wbsCode||l.wbs||l.cc||'';if(lp===projectCode&&wc&&!list.find(function(x){return x.code===wc;}))list.push({code:wc,name:wc});});});}
+    return list;
+  }
+
+  /* Fixed header + fullscreen modal only by CSS, no navigation rewrite risk */
+  var css=document.createElement('style');
+  css.textContent='.topbar{position:sticky!important;top:0!important;z-index:160!important}.bnav{z-index:150!important}.content{padding-top:14px!important}.mo.on{align-items:stretch!important;justify-content:stretch!important}.mo.on .mb{width:100%!important;max-width:none!important;height:100vh!important;max-height:100vh!important;border-radius:0!important;display:flex!important;flex-direction:column!important}.mo.on .mh{border-radius:0!important;position:sticky!important;top:0!important;z-index:5!important}.mo.on .mbdy{flex:1!important;overflow:auto!important;padding-bottom:90px!important}.table-sticky thead th{position:sticky;top:0;z-index:2}.v352-click{cursor:pointer;text-decoration:underline;text-decoration-style:dotted}.v352-wht-box{background:#f8fbff;border:1px solid #dbeafe;border-radius:12px;padding:12px;margin:10px 0}.v352-wht-title{font-weight:900;color:#1e3a6e;margin-bottom:8px}.v352-preview{background:white;border-radius:9px;padding:10px;font-size:12px;color:#1e3a6e;border:1px solid #e2e8f0}';
+  document.head.appendChild(css);
+
+  /* Safer back: keep original behavior, add a small stack for sub pages */
+  if(!window._v352BackApplied){
+    window._v352BackApplied=true; window._atharStack=window._atharStack||[];
+    var oldNav=window.nav, oldSub=window.sub, oldGoBack=window.goBack;
+    window.nav=function(pg,btn){ if(window._trackBack!==false){window._atharStack.push({kind:'nav',pg:window._currentPage||'dash'});} window._currentPage=pg; return oldNav?oldNav.apply(this,arguments):null; };
+    window.sub=function(n){ if(window._trackBack!==false){window._atharStack.push({kind:'sub',pg:window._currentSub||window._currentPage||'dash'});} window._currentSub=n; return oldSub?oldSub.apply(this,arguments):null; };
+    window.goBack=function(){var last=(window._atharStack||[]).pop(); if(last){window._trackBack=false; try{ if(last.kind==='nav') window.nav(last.pg,null); else if(last.pg&&last.pg!=='dash') window.sub(last.pg); else window.nav('dash',null);}finally{window._trackBack=true;} return;} return oldGoBack?oldGoBack.apply(this,arguments): (oldNav?oldNav('dash',null):null);};
+  }
+
+  /* WHT inside Journal Entry */
+  function ensureLines(n){if(typeof addEL!=='function')return;var guard=0;while((window._eL||0)<n && guard<10){addEL();guard++;}}
+  function setLine(i,acc,dr,cr,proj,wbs){var a=q('ea-'+i); if(a)a.value=acc; var search=q('eaSearch-'+i); if(search)search.value=acc+' — '+accName(acc); var d=q('edr-'+i); if(d)d.value=dr?Math.round(dr*100)/100:''; var c=q('ecr-'+i); if(c)c.value=cr?Math.round(cr*100)/100:''; var p=q('eproj-'+i); if(p)p.value=proj||''; var w=q('ewbs-'+i); if(w)w.value=wbs||'';}
+  function injectWHTBox(){var els=q('els'); if(!els||q('v352-wht-box'))return;var box=document.createElement('div');box.id='v352-wht-box';box.className='v352-wht-box';box.innerHTML='<div class="v352-wht-title">🧾 سداد فاتورة مع خصم وإضافة داخل قيد اليومية</div>'+
+    '<div class="fr"><div class="fg"><label>إجمالي الفاتورة</label><input type="number" id="wht-total" placeholder="مثال 114000" oninput="v352PreviewWHT()"></div><div class="fg"><label>الفاتورة شاملة VAT؟</label><select id="wht-vat-inc" onchange="v352PreviewWHT()"><option value="yes">نعم</option><option value="no">لا</option></select></div></div>'+
+    '<div class="fr"><div class="fg"><label>VAT % لحساب الوعاء فقط</label><input type="number" id="wht-vat-rate" value="14" oninput="v352PreviewWHT()"></div><div class="fg"><label>نسبة الخصم والإضافة</label><select id="wht-rate" onchange="v352PreviewWHT()"><option value="1">1%</option><option value="3" selected>3%</option><option value="5">5%</option></select></div></div>'+
+    '<div class="fr"><div class="fg"><label>حساب المصروف</label><select id="wht-exp">'+accOpts(function(a){return String(a.c)[0]==='5';})+'</select></div><div class="fg"><label>حساب البنك/الخزينة</label><select id="wht-bank">'+accOpts(function(a){return String(a.c).indexOf('111')===0;})+'</select></div></div>'+
+    '<div class="fg"><label>GL الخصم والإضافة</label><select id="wht-gl">'+accOpts(function(a){return String(a.c).indexOf('2114')===0||String(a.n||'').indexOf('خصم')>-1||String(a.n||'').indexOf('ضرائب')>-1;})+'</select></div>'+
+    '<div class="fr"><div class="fg"><label>المشروع</label><select id="wht-proj" onchange="v352LoadWBS()"><option value="">— بدون مشروع —</option>'+((window.DB&&DB.projects)||[]).map(function(p){return '<option value="'+esc(p.code)+'">'+esc(p.name)+'</option>';}).join('')+'</select></div><div class="fg"><label>البند WBS</label><select id="wht-wbs"><option value="">كل/بدون بند</option></select></div></div>'+
+    '<div class="v352-preview" id="wht-preview">أدخل إجمالي الفاتورة لاحتساب الوعاء والخصم وصافي السداد.</div><button class="btn btn-sky" style="width:100%;margin-top:8px" onclick="v352ApplyWHTToEntry()">⚡ تكوين سطور القيد تلقائياً</button>';
+    els.parentNode.insertBefore(box,els);
+  }
+  window.v352LoadWBS=function(){var p=(q('wht-proj')||{}).value||'',s=q('wht-wbs');if(!s)return;s.innerHTML='<option value="">كل/بدون بند</option>';getWbsList(p).forEach(function(w){s.innerHTML+='<option value="'+esc(w.code)+'">'+esc(w.code+' — '+(w.name||w.code))+'</option>';});};
+  window.v352PreviewWHT=function(){var total=Number((q('wht-total')||{}).value)||0,vat=Number((q('wht-vat-rate')||{}).value)||14,rate=Number((q('wht-rate')||{}).value)||0;var inc=((q('wht-vat-inc')||{}).value||'yes')==='yes';var base=inc&&vat?total/(1+vat/100):total;var tax=base*rate/100,net=total-tax;var p=q('wht-preview');if(p)p.innerHTML='<b>إجمالي الفاتورة:</b> '+money(total)+' ج.م<br><b>وعاء الخصم قبل VAT:</b> '+money(base)+' ج.م<br><b>خصم وإضافة '+rate+'%:</b> '+money(tax)+' ج.م<br><b>صافي السداد:</b> '+money(net)+' ج.م<br><span style="color:#64748b">القيد: من ح/ المصروف بكامل الفاتورة، إلى ح/ البنك بالصافي، وإلى ح/ GL الخصم والإضافة.</span>';return {total:total,base:base,tax:tax,net:net};};
+  window.v352ApplyWHTToEntry=function(){var r=window.v352PreviewWHT();if(!r.total||r.total<=0){if(typeof toast==='function')toast('أدخل إجمالي الفاتورة');return;}ensureLines(3);var exp=(q('wht-exp')||{}).value||'5123',bank=(q('wht-bank')||{}).value||'1112',gl=(q('wht-gl')||{}).value||'2114';var proj=(q('wht-proj')||{}).value||'',wbs=(q('wht-wbs')||{}).value||'';setLine(0,exp,r.total,0,proj,wbs);setLine(1,bank,0,r.net,proj,wbs);setLine(2,gl,0,r.tax,proj,wbs);var ds=q('e-ds');if(ds&&!ds.value)ds.value='سداد فاتورة مع خصم وإضافة — صافي '+money(r.net)+' ج.م';if(typeof updET==='function')updET();if(typeof toast==='function')toast('✅ تم تكوين قيد السداد بالخصم والإضافة');};
+  var _oldNewEntry=window.newEntry;window.newEntry=function(){var r=_oldNewEntry?_oldNewEntry.apply(this,arguments):null;setTimeout(injectWHTBox,80);return r;};
+
+  /* Smart Project Transaction Report */
+  window.rProjectTxnReport=function(){var h='<div class="ph-t" style="margin-bottom:12px">📋 حركة مشروع حسب البند</div><div class="card"><div class="fr"><div class="fg"><label>من تاريخ</label><input type="date" id="rpt-from"></div><div class="fg"><label>إلى تاريخ</label><input type="date" id="rpt-to"></div></div><div class="fr"><div class="fg"><label>المشروع</label><select id="rpt-proj" onchange="v352UpdateWBSOptions()">'+projOpts('')+'</select></div><div class="fg"><label>البند</label><select id="rpt-wbs"><option value="">كل البنود</option></select></div></div><button onclick="v352GenerateProjectTxnReport()" class="btn btn-gr" style="width:100%">📋 عرض التقرير</button></div><div id="proj-txn-result"></div>';return h;};
+  window.v352UpdateWBSOptions=function(){var p=(q('rpt-proj')||{}).value||'',s=q('rpt-wbs');if(!s)return;s.innerHTML='<option value="">كل البنود</option>';getWbsList(p).forEach(function(w){s.innerHTML+='<option value="'+esc(w.code)+'">'+esc(w.code+' — '+(w.name||w.code))+'</option>';});};
+  window.v352GenerateProjectTxnReport=function(){var projCode=(q('rpt-proj')||{}).value||'',wbsCode=(q('rpt-wbs')||{}).value||'',fromDate=(q('rpt-from')||{}).value||'',toDate=(q('rpt-to')||{}).value||'',out=q('proj-txn-result');if(!out)return;if(!projCode){if(typeof toast==='function')toast('⚠️ اختر مشروعاً');return;}var pr=((window.DB&&DB.projects)||[]).find(function(p){return String(p.code)===String(projCode);});var rows=[];((window.DB&&DB.entries)||[]).forEach(function(e){if(e.status&&e.status!=='posted')return;if(fromDate&&e.date<fromDate)return;if(toDate&&e.date>toDate)return;(e.lines||[]).forEach(function(l){var lp=l.proj||e.proj||'',lw=l.wbsCode||l.wbs||l.cc||'';if(String(lp)!==String(projCode))return;if(wbsCode&&String(lw)!==String(wbsCode))return;rows.push({date:e.date,id:e.id,ref:e.ref||'',desc:e.desc||'',acc:l.acc||'',an:l.an||accName(l.acc),wbs:lw,tp:l.tpName||'',dr:Number(l.dr)||0,cr:Number(l.cr)||0});});});rows.sort(function(a,b){return a.date>b.date?1:-1;});var td=rows.reduce(function(s,r){return s+r.dr;},0),tc=rows.reduce(function(s,r){return s+r.cr;},0);var wName='كل البنود';if(wbsCode){var w=getWbsList(projCode).find(function(x){return String(x.code)===String(wbsCode);});wName=w?(w.code+' — '+(w.name||w.code)):wbsCode;}var h='<div class="card"><div style="font-weight:900;color:var(--n);font-size:15px">📋 حركة مشروع حسب البند</div><div style="font-size:11px;color:var(--g4);margin-top:3px">'+esc((pr&&pr.name)||projCode)+' · '+esc(wName)+' · '+(fromDate||'البداية')+' إلى '+(toDate||'اليوم')+'</div><div class="sg" style="margin-top:10px"><div class="st"><div class="sv">'+rows.length+'</div><div class="sl">حركة</div></div><div class="st"><div class="sv">'+money(td)+'</div><div class="sl">مدين</div></div><div class="st"><div class="sv">'+money(tc)+'</div><div class="sl">دائن</div></div><div class="st"><div class="sv">'+money(td-tc)+'</div><div class="sl">صافي</div></div></div></div>';if(!rows.length){out.innerHTML=h+'<div class="card" style="text-align:center;color:var(--g4);padding:25px">لا توجد حركات</div>';return;}h+='<div class="card" style="overflow:auto;padding:0"><table class="table-sticky"><thead><tr><th>التاريخ</th><th>القيد</th><th>الحساب</th><th>WBS</th><th>الطرف</th><th>البيان</th><th>مدين</th><th>دائن</th></tr></thead><tbody>';rows.forEach(function(r){h+='<tr style="cursor:pointer" onclick="viewE(\''+esc(r.id)+'\')"><td>'+esc(r.date)+'</td><td style="color:var(--sk);font-weight:800">'+esc(r.id)+'</td><td><code>'+esc(r.acc)+'</code><div style="font-size:10px;color:var(--g4)">'+esc(r.an)+'</div></td><td>'+esc(r.wbs||'—')+'</td><td>'+esc(r.tp||'—')+'</td><td>'+esc(r.desc)+'</td><td class="tn td">'+(r.dr?money(r.dr):'—')+'</td><td class="tn tc">'+(r.cr?money(r.cr):'—')+'</td></tr>';});h+='<tr style="background:var(--nd);color:white;font-weight:900"><td colspan="6">الإجمالي</td><td class="tn">'+money(td)+'</td><td class="tn">'+money(tc)+'</td></tr></tbody></table></div>';out.innerHTML=h;};
+  window.generateProjectTxnReport=window.v352GenerateProjectTxnReport;
+  window.updateWBSOptions=window.v352UpdateWBSOptions;
+
+  /* Hide budget period/description shortcut only, as requested */
+  if(window.rOperationsHub&&!window._v352OpsPatched){window._v352OpsPatched=true;var oldOps=window.rOperationsHub;window.rOperationsHub=function(){var h=oldOps.apply(this,arguments);h=h.replace(/<div class="mi" data-sub="budgetmeta">[\s\S]*?<\/div><\/div>/g,'');h=h.replace(/<div class="mi" data-sub="budgetmeta">[\s\S]*?<\/div>\s*<\/div>/g,'');h=h.replace(/<div class="mi"[^>]*>\s*<div class="mi-i">📅<\/div>\s*<div class="mi-t">فترة\/وصف الموازنة<\/div><\/div>/g,'');return h;};}
+
+  /* Force dashboard render after patch */
+  function boot(){try{ if(typeof rDash==='function')rDash(); }catch(e){console.error('V35.2 dashboard boot',e);} }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,60);}); else setTimeout(boot,60);
+})();
+/* ================= END ATHAR V35.2 JS FIXED PATCH ================= */
+</script>
+
+
+<script>
+/* ================= ATHAR V35.2 FINAL DASHBOARD FORCE FIX =================
+   Same successful V35.1 fix, applied AFTER all V35.2 patches.
+   Forces dashboard render after patches and prevents blank home screen.
+   No feature removal. */
+(function(){
+  function byId(id){return document.getElementById(id);} 
+  function hasSession(){
+    try{ return !!sessionStorage.getItem('atharUser') || !window.showLogin; }
+    catch(e){ return true; }
+  }
+  function m(n){try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}catch(e){return String(n||0);}}
+  function fallbackDash(){
+    var projects=(window.DB&&DB.projects)||[], entries=(window.DB&&DB.entries)||[], loans=(window.DB&&DB.loans)||[];
+    var spent=0;
+    entries.forEach(function(e){
+      if(e.status&&e.status!=='posted')return;
+      (e.lines||[]).forEach(function(l){var a=String(l.acc||''); if(a[0]==='5'||a[0]==='6') spent+=Number(l.dr||0);});
+    });
+    var activeLoans=loans.filter(function(l){return !l.status||l.status==='active'||l.status==='نشط';}).length;
+    return '<div class="dash-clean" dir="rtl" style="padding:14px 14px 90px;">'
+      +'<div class="hero-clean" style="background:linear-gradient(135deg,#152a52,#29abe2);color:white;border-radius:18px;padding:18px;margin-bottom:12px;"><div class="ttl" style="font-weight:900;font-size:20px;">أثر — مركز التحكم</div><div style="font-size:12px;opacity:.85;margin-top:6px;">تم تحميل الصفحة الرئيسية بنجاح</div></div>'
+      +'<div class="card athar-quick-actions"><div class="ct">⚡ الدخول السريع</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      +'<button class="btn" onclick="nav(\'jour\',null)">➕ قيد يومية</button><button class="btn btn-gr" onclick="nav(\'pay\',null)">💰 إعداد مرتب</button><button class="btn btn-sky" onclick="sub(\'bva\')">📊 تقرير BVA</button><button class="btn btn-gy" onclick="sub(\'reports\')">📑 التقارير</button></div></div>'
+      +'<div class="sg"><div class="st"><div class="sv">'+projects.length+'</div><div class="sl">المشروعات</div></div><div class="st"><div class="sv">'+m(spent)+'</div><div class="sl">إجمالي الصرف</div></div><div class="st"><div class="sv">'+activeLoans+'</div><div class="sl">قروض نشطة</div></div><div class="st"><div class="sv">'+entries.length+'</div><div class="sl">قيود يومية</div></div></div>'
+      +'</div>';
+  }
+  function forceDash(){
+    try{
+      var pg=byId('pg-dash'); if(!pg) return;
+      if(!hasSession() && typeof showLogin==='function'){ showLogin(); return; }
+      document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+      pg.classList.add('on');
+      document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+      var dashBtn=document.querySelector('[data-nav="dash"]'); if(dashBtn)dashBtn.classList.add('on');
+      var html='';
+      try{ if(typeof window.rDash==='function') html=window.rDash(); }catch(e){ console.error('V35.2 rDash failed',e); }
+      if(typeof html==='string' && html.trim()) pg.innerHTML=html;
+      if(!pg.innerHTML || pg.innerText.trim().length<20) pg.innerHTML=fallbackDash();
+      var content=document.querySelector('.content'); if(content) content.style.display='block';
+      var tb=document.querySelector('.topbar'); if(tb) tb.style.display='flex';
+      var bn=document.querySelector('.bnav'); if(bn) bn.style.display='flex';
+    }catch(e){console.error('ATHAR_V35_2_DASH_FORCE_ERROR',e);}
+  }
+  var oldNav=window.nav;
+  if(!window.__atharV352FinalNavWrapped){
+    window.__atharV352FinalNavWrapped=true;
+    window.nav=function(pg,btn){
+      var r;
+      try{ if(typeof oldNav==='function') r=oldNav.apply(this,arguments); }catch(e){console.error('nav failed',e);} 
+      if(pg==='dash') setTimeout(forceDash,40);
+      return r;
+    };
+  }
+  function boot(){
+    setTimeout(forceDash,250);
+    setTimeout(function(){var pg=byId('pg-dash'); if(pg && pg.classList.contains('on') && (!pg.innerHTML || pg.innerText.trim().length<20)) forceDash();},900);
+    setTimeout(function(){var pg=byId('pg-dash'); if(pg && pg.classList.contains('on') && (!pg.innerHTML || pg.innerText.trim().length<20)) forceDash();},1600);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+  window.atharForceDashboard=forceDash;
+})();
+/* ================= END ATHAR V35.2 FINAL DASHBOARD FORCE FIX ================= */
+</script>
+
+
+<script>
+/* ================= ATHAR V35.2 DASHBOARD FORCE FIX — CLEAN ================= */
+(function(){
+  function byId(id){return document.getElementById(id);} 
+  function m(n){try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}catch(e){return String(n||0);}}
+  function fallbackDash(){
+    var projects=(window.DB&&DB.projects)||[], entries=(window.DB&&DB.entries)||[], loans=(window.DB&&DB.loans)||[];
+    var spent=0;
+    entries.forEach(function(e){
+      if(e.status&&e.status!=='posted')return;
+      (e.lines||[]).forEach(function(l){var a=String(l.acc||''); if(a[0]==='5'||a[0]==='6') spent+=Number(l.dr||0);});
+    });
+    var activeLoans=loans.filter(function(l){return !l.status||l.status==='active'||l.status==='نشط';}).length;
+    return '<div class="dash-clean" dir="rtl" style="padding:14px 14px 90px;">'
+      +'<div class="hero-clean" style="background:linear-gradient(135deg,#152a52,#29abe2);color:white;border-radius:18px;padding:18px;margin-bottom:12px;"><div style="font-weight:900;font-size:20px;">أثر — مركز التحكم</div><div style="font-size:12px;opacity:.85;margin-top:6px;">تم تحميل الصفحة الرئيسية بنجاح</div></div>'
+      +'<div class="card athar-quick-actions"><div class="ct">⚡ الدخول السريع</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      +'<button class="btn" onclick="nav(\'jour\',null)">➕ قيد يومية</button><button class="btn btn-gr" onclick="nav(\'pay\',null)">💰 إعداد مرتب</button><button class="btn btn-sky" onclick="sub(\'bva\')">📊 تقرير BVA</button><button class="btn btn-gy" onclick="sub(\'reports\')">📑 التقارير</button></div></div>'
+      +'<div class="sg"><div class="st"><div class="sv">'+projects.length+'</div><div class="sl">المشروعات</div></div><div class="st"><div class="sv">'+m(spent)+'</div><div class="sl">إجمالي الصرف</div></div><div class="st"><div class="sv">'+activeLoans+'</div><div class="sl">قروض نشطة</div></div><div class="st"><div class="sv">'+entries.length+'</div><div class="sl">قيود يومية</div></div></div>'
+      +'</div>';
+  }
+  function forceDash(){
+    try{
+      var pg=byId('pg-dash'); if(!pg) return;
+      var html='';
+      try{ if(typeof window.rDash==='function') html=window.rDash(); }catch(e){ console.error('rDash failed',e); }
+      if(typeof html==='string' && html.trim()) pg.innerHTML=html;
+      if(!pg.innerHTML || pg.innerText.trim().length<20) pg.innerHTML=fallbackDash();
+      document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+      pg.classList.add('on');
+      document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+      var home=document.querySelector('[data-nav="dash"]'); if(home) home.classList.add('on');
+      var content=document.querySelector('.content'); if(content) content.style.display='block';
+      var tb=document.querySelector('.topbar'); if(tb) tb.style.display='flex';
+      var bn=document.querySelector('.bnav'); if(bn) bn.style.display='flex';
+    }catch(e){console.error('ATHAR_DASH_FORCE_ERROR',e);}
+  }
+  var oldNav=window.nav;
+  window.nav=function(pg,btn){
+    if(typeof oldNav==='function') oldNav.apply(this,arguments);
+    if(pg==='dash') setTimeout(forceDash,30);
+  };
+  function boot(){
+    setTimeout(forceDash,250);
+    setTimeout(function(){var pg=byId('pg-dash'); if(pg && (!pg.innerHTML || pg.innerText.trim().length<20)) forceDash();},900);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+})();
+/* ================= END ATHAR V35.2 DASHBOARD FORCE FIX — CLEAN ================= */
+</script>
+
+<script id="athar-v35-4-loan-opening-menu-safe-patch">
+(function(){
+  'use strict';
+
+  function F(n){
+    try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}
+    catch(e){return String(Math.round(Number(n)||0));}
+  }
+  function accName(code){
+    var a=(window.DB&&DB.accounts||[]).find(function(x){return x.c===code;});
+    return a?a.n:code;
+  }
+  function today(){return new Date().toISOString().slice(0,10);}
+  function newEntryId(){return 'J'+new Date().getFullYear()+'-'+String(Date.now()).slice(-7);}
+  function card(item){
+    var attr=item.pg?'data-pg="'+item.n+'"':'data-sub="'+item.n+'"';
+    return '<div class="mi" '+attr+'><div class="mi-i">'+item.i+'</div><div class="mi-t">'+item.t+'</div></div>';
+  }
+
+  // 1) Finance hub menu — ensure الأستاذ المساعد is visible in المالية.
+  window.rالماليةHub=function(){
+    var sections=[
+      {title:'📊 التقارير المالية',items:[
+        {i:'⚖️',t:'ميزان المراجعة',n:'trial'},
+        {i:'📈',t:'الميزانية العمومية',n:'balance'},
+        {i:'💰',t:'قائمة الدخل',n:'income'},
+        {i:'📉',t:'BVA',n:'bva'}
+      ]},
+      {title:'🏦 البنوك والخزينة',items:[
+        {i:'🏦',t:'البنوك والتسوية',n:'banks'},
+        {i:'🔄',t:'سجل التسويات',n:'reconhist'},
+        {i:'🖊️',t:'طباعة الشيكات',n:'checks'}
+      ]},
+      {title:'📚 دفاتر الأستاذ',items:[
+        {i:'📒',t:'الأستاذ المساعد',n:'tpledger'},
+        {i:'📒',t:'كشف حساب',n:'accledger'},
+        {i:'🌳',t:'شجرة الحسابات',n:'accounts'},
+        {i:'📂',t:'الأرصدة الافتتاحية',n:'openingbals'}
+      ]},
+      {title:'📊 تقارير الإدارة',items:[
+        {i:'🌍',t:'دفتر المانحين',n:'donorledger'},
+        {i:'📊',t:'تقرير التباين',n:'variance'},
+        {i:'💵',t:'التدفق النقدي',n:'cashforecast'},
+        {i:'🎯',t:'لوحة القيادة',n:'execdash'}
+      ]}
+    ];
+    var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">💰 المالية</div>';
+    sections.forEach(function(sec){
+      h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';
+      sec.items.forEach(function(it){h+=card(it);});
+      h+='</div></div>';
+    });
+    return h+'</div>';
+  };
+
+  // 2) Operations hub menu — contracts under purchasing, plus fixed assets and grant files.
+  window.rOperationsHub=function(){
+    var sections=[
+      {title:'🎯 المشروعات والممولين',items:[
+        {i:'🎯',t:'المشروعات',n:'proj',pg:true},
+        {i:'📋',t:'حركة مشروع حسب البند',n:'projtxn'},
+        {i:'🌍',t:'دفتر المانحين',n:'donorledger'},
+        {i:'📁',t:'ملفات المنح',n:'grantfiles'}
+      ]},
+      {title:'👥 الموارد البشرية',items:[
+        {i:'🏢',t:'الموظفين',n:'employees'},
+        {i:'💳',t:'كشف الرواتب',n:'pay',pg:true},
+        {i:'⏱️',t:'Timesheet',n:'timesheet'},
+        {i:'🌴',t:'الإجازات',n:'myleaves'}
+      ]},
+      {title:'🛒 المشتريات والمخازن',items:[
+        {i:'🏭',t:'الموردون',n:'suppliers'},
+        {i:'📋',t:'سجل العقود',n:'contracts'},
+        {i:'📦',t:'المخازن',n:'inventory'},
+        {i:'📥',t:'إذن إضافة',n:'inv_receive'},
+        {i:'📤',t:'إذن صرف',n:'inv_issue'}
+      ]},
+      {title:'💵 القروض الصغيرة',items:[
+        {i:'💵',t:'إدارة القروض',n:'loans'}
+      ]},
+      {title:'✅ الامتثال والأصول',items:[
+        {i:'🏢',t:'الأصول الثابتة',n:'assets'},
+        {i:'🗂️',t:'الأرشيف الإلكتروني',n:'archive'},
+        {i:'✅',t:'امتثال المستندات',n:'compliance'},
+        {i:'📋',t:'نموذج 41',n:'form41'}
+      ]}
+    ];
+    var h='<div style="padding:0 0 80px;"><div class="ph-t" style="margin-bottom:14px;">🎯 العمليات</div>';
+    sections.forEach(function(sec){
+      h+='<div style="margin-bottom:16px;"><div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:3px;height:12px;background:var(--gr);border-radius:2px;display:inline-block;"></span>'+sec.title+'</div><div class="mg">';
+      sec.items.forEach(function(it){h+=card(it);});
+      h+='</div></div>';
+    });
+    return h+'</div>';
+  };
+
+  // 3) Opening balances are included in bals(), so Trial Balance/BS/Banks reports see them.
+  window.bals=function(){
+    var m={};
+    (DB.accounts||[]).forEach(function(a){m[a.c]={dr:0,cr:0};});
+    if(DB.openingBals){
+      Object.keys(DB.openingBals).forEach(function(acc){
+        var val=parseFloat(DB.openingBals[acc])||0;
+        if(!val)return;
+        if(!m[acc])m[acc]={dr:0,cr:0};
+        var a=(DB.accounts||[]).find(function(x){return x.c===acc;});
+        if(a&&a.nat==='cr')m[acc].cr+=val; else m[acc].dr+=val;
+      });
+    }
+    (DB.entries||[]).filter(function(e){return e.status==='posted';}).forEach(function(e){
+      (e.lines||[]).forEach(function(l){
+        if(!l.acc)return;
+        if(!m[l.acc])m[l.acc]={dr:0,cr:0};
+        m[l.acc].dr+=parseFloat(l.dr)||0;
+        m[l.acc].cr+=parseFloat(l.cr)||0;
+      });
+    });
+    return m;
   };
 
   // 4) Loan collection creates a real journal entry: Dr Cash/Bank, Cr Loan Principal, Cr Admin-fees receivable.
@@ -24296,9 +24382,10 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
     if(!html) return;
 
     /* هل هي قائمة دخل؟ */
-    /* Formatter disabled - rIncPage and rBalPage now format themselves */
-    var isIncome  = false; /* disabled */
-    var isBalance = false; /* disabled */
+    var isIncome  = html.indexOf('قائمة الدخل') > -1 && html.indexOf('الإيرادات') > -1;
+    /* هل هي ميزانية؟ */
+    var isBalance = html.indexOf('الميزانية العمومية') > -1 && html.indexOf('الأصول') > -1;
+
     if(!isIncome && !isBalance) return;
     /* تحقق إن لم نطبق التنسيق من قبل */
     if(html.indexOf('fs-page') > -1) return;
@@ -24702,105 +24789,6 @@ tbody td {
 }
 .fs-balance-check.ok  { background: #ecfdf5; color: #065f46; }
 .fs-balance-check.err { background: #fff1f2; color: #991b1b; }
-
-/* ══ v35.26 Scroll Fix ══ */
-html { overflow-y: auto !important; height: auto !important; }
-body { overflow-y: auto !important; height: auto !important; overflow-x: hidden; }
-.content { 
-    overflow-y: auto !important; 
-    overflow-x: hidden !important;
-    height: auto !important;
-    min-height: 100vh;
-    max-height: none !important;
-}
-.pg, .pg.on { 
-    overflow: visible !important; 
-    height: auto !important;
-    min-height: unset !important;
-}
-#pg-more { 
-    overflow: visible !important; 
-    height: auto !important;
-    min-height: unset !important;
-}
-/* Reports inside pg-more should not clip content */
-.fs-page, #pg-more .card, #pg-more .fs-section,
-.athar-bal-wrap, .rpt-wrap { 
-    overflow: visible !important; 
-}
-
-/* ══ v35.26 Report Responsive Fix ══ */
-/* الميزانية العمومية على الجوال - عمود واحد */
-@media (max-width: 500px) {
-  #pg-more [style*="grid-template-columns:1fr 1fr"] {
-    grid-template-columns: 1fr !important;
-  }
-  /* تكبير أرقام التقارير */
-  .fs-row-amount, .fs-total-amount, .fs-surplus-amount {
-    font-size: 14px !important;
-  }
-  /* ضمان عرض كامل للتقارير */
-  #pg-more { padding: 0 !important; }
-  .fs-page { padding: 12px 12px 80px !important; }
-}
-/* جدول الحفر (drillDown) - قابل للتمرير */
-#athar-tx-modal .mbdy, #tx-modal .mbdy {
-  overflow-y: auto !important;
-  max-height: 75vh !important;
-  -webkit-overflow-scrolling: touch !important;
-}
-/* جميع التقارير قابلة للتمرير */
-.pg.on { overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; }
-.content { -webkit-overflow-scrolling: touch !important; }
-
-/* ══ v35.26 Final Scroll & Click Fix ══ */
-
-/* جميع الجداول في التقارير قابلة للتمرير أفقياً */
-#pg-more table { width: 100%; }
-#pg-more .card table,
-#pg-more [style*="overflow:auto"] table,
-#pg-more [style*="overflow-x:auto"] table {
-  min-width: 500px;
-}
-
-/* الجداول داخل النوافذ المنبثقة */
-.mbdy table { min-width: 400px; }
-.mbdy [style*="overflow-x:auto"],
-.mbdy [style*="overflow:auto"] {
-  -webkit-overflow-scrolling: touch !important;
-  overflow-x: auto !important;
-}
-
-/* أرقام التقارير قابلة للضغط - مؤشر بصري */
-#pg-more span[onclick],
-#pg-more td[onclick] {
-  cursor: pointer !important;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-#pg-more td[onclick]:active,
-#pg-more span[onclick]:active {
-  opacity: 0.7;
-}
-
-/* ضمان التمرير الكامل */
-.pg.on, #pg-more {
-  overflow: visible !important;
-  height: auto !important;
-  min-height: 50vh;
-}
-.content {
-  height: auto !important;
-  min-height: 100vh;
-  overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch !important;
-}
-
-/* قائمة الدخل - أرقام قابلة للضغط */
-#pg-more .card div[style*="justify-content:space-between"] span:last-child[onclick] {
-  color: var(--sk);
-  font-weight: 800;
-}
 </style>
 </body>
 </html>
@@ -24824,27 +24812,29 @@ body { overflow-y: auto !important; height: auto !important; overflow-x: hidden;
       _oldRMore.apply(this, arguments);
       var pg = document.getElementById('pg-more');
       if(!pg) return;
+
+      /* أضف section التقارير لو مش موجود */
       if(pg.innerHTML.indexOf('v3525-reports') > -1) return;
 
-      /* بطاقة واحدة مثل الرئيسية — تفتح شاشة التقارير الكاملة */
-      var rCard = document.createElement('div');
-      rCard.className = 'v3525-reports';
-      rCard.style.cssText = 'margin-bottom:16px;';
-      rCard.innerHTML =
-        '<div style="font-size:10.5px;font-weight:800;color:var(--g4);display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
-        + '<span style="width:3px;height:14px;background:var(--sk);border-radius:2px;display:inline-block;"></span>'
-        + '📊 التقارير</div>'
-        + '<div class="mi" onclick="sub(\'reports\')" style="background:linear-gradient(135deg,var(--nd),var(--n));color:white;border-radius:14px;padding:18px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;width:100%;box-sizing:border-box;">'
-        + '<div style="font-size:32px;">📊</div>'
-        + '<div><div style="font-weight:900;font-size:15px;font-family:Tajawal,Cairo,sans-serif;">التقارير المالية</div>'
-        + '<div style="font-size:11px;opacity:.75;margin-top:3px;">تقارير المحاسبة · المشروعات · الموارد البشرية · Excel</div></div>'
+      var reportsSection = document.createElement('div');
+      reportsSection.className = 'v3525-reports';
+      reportsSection.style.cssText = 'margin-bottom:14px;';
+      reportsSection.innerHTML =
+        '<div style="font-size:11px;font-weight:800;color:var(--g4);padding:4px 8px;margin-bottom:6px;border-right:3px solid #059669;">📊 التقارير المالية</div>'
+        + '<div class="mg">'
+        + '<div class="mi" data-sub="income"><div class="mi-i">💰</div><div class="mi-t">قائمة الدخل</div></div>'
+        + '<div class="mi" data-sub="balance"><div class="mi-i">📈</div><div class="mi-t">الميزانية العمومية</div></div>'
+        + '<div class="mi" data-sub="trial"><div class="mi-i">⚖️</div><div class="mi-t">ميزان المراجعة</div></div>'
+        + '<div class="mi" data-sub="cashflow"><div class="mi-i">💵</div><div class="mi-t">Cash Flow</div></div>'
+        + '<div class="mi" data-sub="bva"><div class="mi-i">📊</div><div class="mi-t">BVA — متابعة الموازنة</div></div>'
         + '</div>';
 
+      /* أدخله أول شيء بعد العنوان */
       var phTitle = pg.querySelector('.ph-t');
       if(phTitle && phTitle.parentNode === pg){
-        pg.insertBefore(rCard, phTitle.nextSibling);
+        pg.insertBefore(reportsSection, phTitle.nextSibling);
       } else {
-        pg.insertBefore(rCard, pg.firstChild);
+        pg.insertBefore(reportsSection, pg.firstChild);
       }
     };
   }
@@ -24990,1050 +24980,436 @@ body { overflow-y: auto !important; height: auto !important; overflow-x: hidden;
 </script>
 
 <script>
-/* ══════════════════════════════════════════════════════════════
-   ATHAR v35.27 — بيانات الجمعية الكاملة
-   - لوجو + email + موقع + فاكس + رقم الترخيص
-   - تحديث فوري للـ topbar + login + header الطباعة
-══════════════════════════════════════════════════════════════ */
+/* ══ v35.27 Org Identity ══ */
 (function(){
-  if(window.__v3527_org) return;
-  window.__v3527_org = true;
+  if(window.__v3527_org)return; window.__v3527_org=true;
 
-  /* ── 1. دالة header الطباعة الموحّدة ── */
-  window.orgPrintHeader = function(){
-    var org = DB.org || {};
-    var logo = org.logo ? '<img src="'+org.logo+'" style="height:64px;width:64px;object-fit:contain;border-radius:8px;" />' : '<div style="width:64px;height:64px;background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:28px;color:white;">📊</div>';
-    return '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e3a5f;padding-bottom:12px;margin-bottom:16px;">'
-      + '<div style="display:flex;align-items:center;gap:14px;">'
-      + logo
-      + '<div>'
-      + '<div style="font-size:20px;font-weight:900;color:#1e3a5f;font-family:Tajawal,Cairo,sans-serif;">' + (org.name||'الجمعية') + '</div>'
-      + (org.reg ? '<div style="font-size:11px;color:#64748b;">رقم الترخيص: '+org.reg+'</div>' : '')
-      + (org.taxId ? '<div style="font-size:11px;color:#64748b;">الرقم الضريبي: '+org.taxId+'</div>' : '')
-      + '</div></div>'
-      + '<div style="text-align:left;font-size:11px;color:#64748b;line-height:1.8;">'
-      + (org.address ? '<div>📍 '+org.address+'</div>' : '')
-      + (org.phone ? '<div>📞 '+org.phone+'</div>' : '')
-      + (org.email ? '<div>✉️ '+org.email+'</div>' : '')
-      + (org.website ? '<div>🌐 '+org.website+'</div>' : '')
-      + '</div>'
-      + '</div>';
+  window.orgPrintHeader=function(){
+    var o=DB.org||{};
+    var logo=o.logo?'<img src="'+o.logo+'" style="height:56px;width:56px;object-fit:contain;border-radius:8px;">':'<div style="width:56px;height:56px;background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;color:white;">📊</div>';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e3a5f;padding-bottom:10px;margin-bottom:14px;"><div style="display:flex;align-items:center;gap:12px;">'+logo+'<div><div style="font-size:18px;font-weight:900;color:#1e3a5f;">'+( o.name||'الجمعية')+'</div>'+(o.licNo?'<div style="font-size:10px;color:#64748b;">رقم الترخيص: '+o.licNo+'</div>':'')+'</div></div><div style="font-size:11px;color:#64748b;text-align:left;line-height:1.8;">'+(o.address?'<div>📍 '+o.address+'</div>':'')+(o.phone?'<div>📞 '+o.phone+'</div>':'')+(o.email?'<div>✉️ '+o.email+'</div>':'')+'</div></div>';
   };
 
-  /* ── 2. تحديث topbar فوري ── */
-  window.updateOrgTopbar = function(){
-    var org = DB.org || {};
-    /* اسم الجمعية */
-    var nameEl = document.getElementById('org-name') || document.querySelector('.tb-org');
-    if(nameEl && org.name) nameEl.textContent = org.name;
-    /* لوجو */
-    var logoEl = document.getElementById('tb-logo');
-    if(logoEl){
-      if(org.logo){
-        logoEl.src = org.logo;
-        logoEl.style.display = 'block';
-      } else {
-        logoEl.style.display = 'none';
-      }
-    }
+  window.updateOrgTopbar=function(){
+    var o=DB.org||{};
+    var el=document.getElementById('org-name')||document.querySelector('.tb-org');
+    if(el&&o.name)el.textContent=o.name;
+    var li=document.getElementById('tb-logo');
+    if(li){if(o.logo){li.src=o.logo;li.style.display='block';}else li.style.display='none';}
   };
 
-  /* ── 3. Override saveSet لإضافة الحقول الجديدة ── */
-  var _oldSaveSet = window.saveSet;
-  window.saveSet = function(){
-    if(!DB.org) DB.org = {};
-    /* الحقول الأصلية */
-    if(typeof _oldSaveSet === 'function') _oldSaveSet();
-    /* الحقول الجديدة */
-    var email   = (document.getElementById('set-email')||{}).value||'';
-    var website = (document.getElementById('set-website')||{}).value||'';
-    var fax     = (document.getElementById('set-fax')||{}).value||'';
-    var licNo   = (document.getElementById('set-licno')||{}).value||'';
-    if(email)   DB.org.email   = email;
-    if(website) DB.org.website = website;
-    if(fax)     DB.org.fax     = fax;
-    if(licNo)   DB.org.licNo   = licNo;
-    save();
-    updateOrgTopbar();
+  window.saveOrgIdentity=function(){
+    DB.org=DB.org||{};
+    var f={name:'set-org-v2',phone:'set-phone-v2',fax:'set-fax',email:'set-email',website:'set-website',address:'set-addr-v2',licNo:'set-licno',taxId:'set-taxid-v2',currency:'set-cur-v2'};
+    Object.keys(f).forEach(function(k){var el=document.getElementById(f[k]);if(el&&el.value.trim())DB.org[k]=el.value.trim();});
+    var fy=document.getElementById('set-fy-v2');if(fy)DB.org.fy=fy.value;
+    DB.org.reg=DB.org.licNo||DB.org.reg;
+    save();updateOrgTopbar();
+    var lo=document.getElementById('login-org-badge');if(lo&&DB.org.name)lo.textContent=DB.org.name;
     toast('✅ تم حفظ بيانات الجمعية');
   };
 
-  /* ── 4. رفع اللوجو ── */
-  window.uploadOrgLogo = function(){
-    var inp = document.getElementById('logo-upload');
-    if(!inp || !inp.files || !inp.files[0]) return;
-    var file = inp.files[0];
-    if(!file.type.startsWith('image/')){ toast('⚠️ اختر ملف صورة'); return; }
-    if(file.size > 500000){ toast('⚠️ الصورة أكبر من 500KB'); return; }
-    var reader = new FileReader();
-    reader.onload = function(e){
-      DB.org = DB.org || {};
-      DB.org.logo = e.target.result;
-      save();
-      updateOrgTopbar();
-      /* تحديث معاينة اللوجو */
-      var prev = document.getElementById('logo-preview');
-      if(prev){ prev.src = DB.org.logo; prev.style.display='block'; }
-      var ph = document.getElementById('logo-placeholder');
-      if(ph) ph.style.display = 'none';
-      toast('✅ تم رفع الشعار');
-    };
-    reader.readAsDataURL(file);
+  window.uploadOrgLogo=function(){
+    var inp=document.getElementById('logo-upload');
+    if(!inp||!inp.files||!inp.files[0])return;
+    var file=inp.files[0];
+    if(!file.type.startsWith('image/')){toast('⚠️ اختر صورة');return;}
+    if(file.size>2097152){toast('⚠️ الصورة أكبر من 2MB');return;}
+    var tenantId=(DB.org&&DB.org.tenantId)||null;
+    if(window._firebase&&tenantId){
+      var fb=window._firebase;
+      var ext=file.name.split('.').pop()||'png';
+      fb.uploadBytes(fb.ref(fb.storage,'tenants/'+tenantId+'/logo/logo.'+ext),file)
+        .then(function(s){return fb.getDownloadURL(s.ref);})
+        .then(function(url){DB.org=DB.org||{};DB.org.logo=url;save();updateOrgTopbar();
+          var p=document.getElementById('logo-preview');if(p){p.src=url;p.style.display='block';}
+          var ph=document.getElementById('logo-placeholder');if(ph)ph.style.display='none';
+          toast('✅ تم رفع الشعار');})
+        .catch(function(){_uploadLogoBase64(file);});
+    } else {_uploadLogoBase64(file);}
   };
 
-  window.removeOrgLogo = function(){
-    if(!confirm('حذف الشعار الحالي؟')) return;
-    DB.org = DB.org || {};
-    delete DB.org.logo;
-    save();
-    updateOrgTopbar();
-    var prev = document.getElementById('logo-preview');
-    if(prev) prev.style.display='none';
-    var ph = document.getElementById('logo-placeholder');
-    if(ph) ph.style.display='flex';
+  function _uploadLogoBase64(file){
+    var r=new FileReader();
+    r.onload=function(e){DB.org=DB.org||{};DB.org.logo=e.target.result;save();updateOrgTopbar();
+      var p=document.getElementById('logo-preview');if(p){p.src=DB.org.logo;p.style.display='block';}
+      var ph=document.getElementById('logo-placeholder');if(ph)ph.style.display='none';
+      toast('✅ تم رفع الشعار');};
+    r.readAsDataURL(file);
+  }
+
+  window.removeOrgLogo=function(){
+    if(!confirm('حذف الشعار؟'))return;
+    DB.org=DB.org||{}; delete DB.org.logo; delete DB.org.logoPath; save(); updateOrgTopbar();
+    var p=document.getElementById('logo-preview');if(p)p.style.display='none';
+    var ph=document.getElementById('logo-placeholder');if(ph)ph.style.display='flex';
     toast('✅ تم حذف الشعار');
   };
 
-  /* ── 5. Override rSetPage لإضافة section الجمعية الكاملة ── */
-  var _oldRSetPage = window.rSetPage;
-  window.rSetPage = function(){
-    var h = _oldRSetPage ? _oldRSetPage() : '';
-    var org = DB.org || {};
-
-    /* أضف section "هوية الجمعية الكاملة" في أول الصفحة بعد user bar */
-    var orgSection = '<div id="org-identity-section" style="background:white;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.08);padding:18px;margin-bottom:16px;">'
-      /* Header */
-      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #f1f5f9;">'
-      + '<div style="width:40px;height:40px;background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">🏢</div>'
-      + '<div><div style="font-weight:900;font-size:15px;color:#1e3a5f;">هوية الجمعية</div>'
-      + '<div style="font-size:11px;color:#94a3b8;">البيانات تظهر في الطباعة وعلى كل الشاشات</div></div>'
-      + '</div>'
-
-      /* شعار الجمعية */
-      + '<div style="margin-bottom:14px;">'
-      + '<label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:8px;">🖼️ شعار الجمعية (لوجو)</label>'
-      + '<div style="display:flex;align-items:center;gap:12px;">'
-      /* معاينة */
-      + '<div style="position:relative;width:80px;height:80px;border-radius:12px;border:2px dashed #e2e8f0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8fafc;">'
-      + '<img id="logo-preview" src="'+(org.logo||'')+'" style="width:80px;height:80px;object-fit:contain;border-radius:10px;'+(org.logo?'':'display:none;')+'" />'
-      + '<div id="logo-placeholder" style="display:'+(org.logo?'none':'flex')+';flex-direction:column;align-items:center;justify-content:center;gap:4px;">'
-      + '<span style="font-size:24px;">📷</span>'
-      + '<span style="font-size:9px;color:#94a3b8;text-align:center;">لا يوجد شعار</span>'
-      + '</div>'
-      + '</div>'
-      /* أزرار */
-      + '<div style="display:flex;flex-direction:column;gap:8px;flex:1;">'
-      + '<label style="cursor:pointer;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border-radius:9px;padding:9px 14px;font-size:12px;font-weight:700;text-align:center;font-family:Cairo,sans-serif;">'
-      + '📤 رفع شعار جديد'
-      + '<input id="logo-upload" type="file" accept="image/*" style="display:none;" onchange="uploadOrgLogo()">'
-      + '</label>'
-      + (org.logo ? '<button onclick="removeOrgLogo()" style="background:#fff1f2;color:#dc2626;border:1px solid #fecaca;border-radius:9px;padding:9px;font-size:12px;cursor:pointer;font-family:Cairo,sans-serif;">🗑️ حذف الشعار</button>' : '')
-      + '<div style="font-size:9.5px;color:#94a3b8;">PNG أو JPG · أقصى حجم 500KB</div>'
-      + '</div>'
-      + '</div>'
-      + '</div>'
-
-      /* الحقول */
-      + '<div class="fg"><label>🏢 اسم الجمعية / المنظمة</label><input id="set-org-v2" value="'+(org.name||'')+'" placeholder="مجلس الخدمات والتنمية الاجتماعية" style="font-weight:700;font-size:14px;"></div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-      + '<div class="fg"><label>📞 الهاتف</label><input id="set-phone-v2" value="'+(org.phone||'')+'" placeholder="02-XXXXXXXX" type="tel"></div>'
-      + '<div class="fg"><label>📠 الفاكس</label><input id="set-fax" value="'+(org.fax||'')+'" placeholder="02-XXXXXXXX"></div>'
-      + '</div>'
-      + '<div class="fg"><label>✉️ البريد الإلكتروني</label><input id="set-email" value="'+(org.email||'')+'" placeholder="info@org.org.eg" type="email" style="direction:ltr;text-align:left;"></div>'
-      + '<div class="fg"><label>🌐 الموقع الإلكتروني</label><input id="set-website" value="'+(org.website||'')+'" placeholder="https://www.org.org.eg" style="direction:ltr;text-align:left;"></div>'
-      + '<div class="fg"><label>📍 العنوان الكامل</label><input id="set-addr-v2" value="'+(org.address||'')+'" placeholder="رقم الشارع — الحي — المحافظة"></div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-      + '<div class="fg"><label>🏛️ رقم الترخيص</label><input id="set-licno" value="'+(org.licNo||org.reg||'')+'" placeholder="XXXX/XXXX"></div>'
-      + '<div class="fg"><label>🧾 الرقم الضريبي</label><input id="set-taxid-v2" value="'+(org.taxId||'')+'" placeholder="000-000-000"></div>'
-      + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-      + '<div class="fg"><label>📅 السنة المالية</label><select id="set-fy-v2"><option value="jan"'+(org.fy==='jul'?'':' selected')+'>يناير — ديسمبر</option><option value="jul"'+(org.fy==='jul'?' selected':'')+'>يوليو — يونيو</option></select></div>'
-      + '<div class="fg"><label>💰 العملة</label><input id="set-cur-v2" value="'+(org.currency||'ج.م')+'" placeholder="ج.م"></div>'
-      + '</div>'
-
-      /* زر الحفظ */
-      + '<button onclick="saveOrgIdentity()" style="width:100%;padding:14px;background:linear-gradient(135deg,#059669,#10b981);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;margin-top:6px;">✅ حفظ بيانات الجمعية</button>'
-      + '</div>';
-
-    /* أضف section قبل أول div في h */
+  var _oldRSetPage=window.rSetPage;
+  window.rSetPage=function(){
+    var h=_oldRSetPage?_oldRSetPage():'';
+    var o=DB.org||{};
+    var orgSection='<div id="org-identity-section" style="background:white;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.08);padding:18px;margin-bottom:16px;">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #f1f5f9;">'
+      +'<div style="width:40px;height:40px;background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">🏢</div>'
+      +'<div><div style="font-weight:900;font-size:15px;color:#1e3a5f;">هوية الجمعية</div><div style="font-size:11px;color:#94a3b8;">تظهر في الطباعة وكل الشاشات</div></div></div>'
+      +'<div style="margin-bottom:14px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:8px;">🖼️ شعار الجمعية</label>'
+      +'<div style="display:flex;align-items:center;gap:12px;">'
+      +'<div style="width:80px;height:80px;border-radius:12px;border:2px dashed #e2e8f0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8fafc;">'
+      +'<img id="logo-preview" src="'+(o.logo||'')+'" style="width:80px;height:80px;object-fit:contain;border-radius:10px;'+(o.logo?'':'display:none;')+'" />'
+      +'<div id="logo-placeholder" style="display:'+(o.logo?'none':'flex')+';flex-direction:column;align-items:center;gap:4px;"><span style="font-size:24px;">📷</span><span style="font-size:9px;color:#94a3b8;">لا يوجد شعار</span></div>'
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:8px;flex:1;">'
+      +'<label style="cursor:pointer;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border-radius:9px;padding:9px 14px;font-size:12px;font-weight:700;text-align:center;font-family:Cairo,sans-serif;">📤 رفع شعار<input id="logo-upload" type="file" accept="image/*" style="display:none;" onchange="uploadOrgLogo()"></label>'
+      +(o.logo?'<button onclick="removeOrgLogo()" style="background:#fff1f2;color:#dc2626;border:1px solid #fecaca;border-radius:9px;padding:9px;font-size:12px;cursor:pointer;font-family:Cairo,sans-serif;">🗑️ حذف</button>':'')
+      +'<div style="font-size:9.5px;color:#94a3b8;">PNG/JPG · أقصى 2MB</div></div></div></div>'
+      +'<div class="fg"><label>🏢 اسم الجمعية</label><input id="set-org-v2" value="'+(o.name||'')+'" placeholder="اسم الجمعية أو المنظمة" style="font-weight:700;"></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      +'<div class="fg"><label>📞 الهاتف</label><input id="set-phone-v2" value="'+(o.phone||'')+'" type="tel"></div>'
+      +'<div class="fg"><label>📠 الفاكس</label><input id="set-fax" value="'+(o.fax||'')+'"></div></div>'
+      +'<div class="fg"><label>✉️ البريد الإلكتروني</label><input id="set-email" value="'+(o.email||'')+'" type="email" style="direction:ltr;text-align:left;"></div>'
+      +'<div class="fg"><label>🌐 الموقع</label><input id="set-website" value="'+(o.website||'')+'" style="direction:ltr;text-align:left;"></div>'
+      +'<div class="fg"><label>📍 العنوان</label><input id="set-addr-v2" value="'+(o.address||'')+'"></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      +'<div class="fg"><label>🏛️ رقم الترخيص</label><input id="set-licno" value="'+(o.licNo||o.reg||'')+'"></div>'
+      +'<div class="fg"><label>🧾 الرقم الضريبي</label><input id="set-taxid-v2" value="'+(o.taxId||'')+'"></div></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      +'<div class="fg"><label>📅 السنة المالية</label><select id="set-fy-v2"><option value="jan"'+(o.fy==='jul'?'':' selected')+'>يناير-ديسمبر</option><option value="jul"'+(o.fy==='jul'?' selected':'')+'>يوليو-يونيو</option></select></div>'
+      +'<div class="fg"><label>💰 العملة</label><input id="set-cur-v2" value="'+(o.currency||'ج.م')+'"></div></div>'
+      +'<button onclick="saveOrgIdentity()" style="width:100%;padding:14px;background:linear-gradient(135deg,#059669,#10b981);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">✅ حفظ بيانات الجمعية</button>'
+      +'</div>';
     return orgSection + h;
   };
 
-  /* ── 6. دالة الحفظ الجديدة ── */
-  window.saveOrgIdentity = function(){
-    DB.org = DB.org || {};
-    var fields = {
-      name:     document.getElementById('set-org-v2'),
-      phone:    document.getElementById('set-phone-v2'),
-      fax:      document.getElementById('set-fax'),
-      email:    document.getElementById('set-email'),
-      website:  document.getElementById('set-website'),
-      address:  document.getElementById('set-addr-v2'),
-      licNo:    document.getElementById('set-licno'),
-      taxId:    document.getElementById('set-taxid-v2'),
-      fy:       document.getElementById('set-fy-v2'),
-      currency: document.getElementById('set-cur-v2')
-    };
-    Object.keys(fields).forEach(function(k){
-      if(fields[k] && fields[k].value.trim()) DB.org[k] = fields[k].value.trim();
-    });
-    /* sync reg for backward compat */
-    if(DB.org.licNo) DB.org.reg = DB.org.licNo;
-    save();
-    updateOrgTopbar();
-    /* تحديث login screen لو مفتوح */
-    var loginOrgEl = document.getElementById('login-org-badge');
-    if(loginOrgEl && DB.org.name) loginOrgEl.textContent = DB.org.name;
-    toast('✅ تم حفظ بيانات الجمعية — ستظهر في كل الشاشات والطباعة');
-  };
-
-  /* ── 7. Override print functions to use new header ── */
-  /* printEntrySheet */
-  var _oldPrintEntry = window.printEntrySheet;
-  window.printEntrySheet = function(id){
-    if(!_oldPrintEntry){ return; }
-    /* Patch the org header */
-    var origOrg = DB.org || {};
-    _oldPrintEntry(id);
-    /* The function opens a new window — we patch via CSS override */
-  };
-
-  /* Override printBalanceSheet to use orgPrintHeader */
-  var _oldPrintBal = window.printBalanceSheet;
-  window.printBalanceSheet = function(){
-    var org = DB.org || {};
-    var B = typeof bals==='function' ? bals() : {};
-    var fmt2 = function(n){ try{return Math.abs(Math.round(n||0)).toLocaleString('ar-EG');}catch(e){return '0';} };
-    function gs(p){ return (DB.accounts||[]).filter(function(a){return a.c&&a.c[0]===p;}).reduce(function(s,a){var b=B[a.c]||{dr:0,cr:0};return s+(a.nat==='dr'?b.dr-b.cr:b.cr-b.dr);},0); }
-    var totalA=gs('1'), totalL=gs('2'), totalE=gs('3');
-    var PB=typeof periodBals==='function'?periodBals('',typeof today==='function'?today():new Date().toISOString().split('T')[0]):{};
-    var rev=(DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='4';}).reduce(function(s,a){var b=PB[a.c]||{dr:0,cr:0};return s+(b.cr-b.dr);},0);
-    var exp=(DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='5';}).reduce(function(s,a){var b=PB[a.c]||{dr:0,cr:0};return s+(b.dr-b.cr);},0);
-    var surplus=rev-exp;
-    var w=window.open('','_blank');
-    var html='<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>الميزانية العمومية</title>'
-      +'<style>@page{size:A4;margin:14mm}body{font-family:Cairo,Tahoma,sans-serif;color:#111;direction:rtl;}'
-      +'table{width:100%;border-collapse:collapse;} td,th{border:1px solid #d1d5db;padding:8px 10px;font-size:11px;}'
-      +'th{background:#1e3a5f;color:white;font-weight:700;}'
-      +'.total{font-weight:900;background:#f8fafc;} .pos{color:#059669;} .neg{color:#dc2626;}'
-      +'</style></head><body>'
-      + orgPrintHeader()
-      +'<h2 style="text-align:center;color:#1e3a5f;margin:0 0 12px;">الميزانية العمومية — كما في '+(typeof today==='function'?today():new Date().toISOString().split('T')[0])+'</h2>'
-      +'<table><tr><th colspan="2">الأصول</th><th colspan="2">الالتزامات وحقوق الملكية</th></tr>';
-    var a1rows=(DB.accounts||[]).filter(function(a){return a.c&&a.c[0]==='1';}).map(function(a){var b=B[a.c]||{dr:0,cr:0};var v=b.dr-b.cr;return v?('<tr><td>'+a.n+'</td><td>'+fmt2(v)+'</td>'):null;}).filter(Boolean);
-    var l2rows=(DB.accounts||[]).filter(function(a){return a.c&&(a.c[0]==='2'||a.c[0]==='3');}).map(function(a){var b=B[a.c]||{dr:0,cr:0};var v=b.cr-b.dr;return v?('<tr><td>'+a.n+'</td><td>'+fmt2(v)+'</td>'):null;}).filter(Boolean);
-    var maxRows=Math.max(a1rows.length,l2rows.length);
-    for(var i=0;i<maxRows;i++){
-      var ar=a1rows[i]||'<tr><td></td><td></td>';
-      var lr=l2rows[i]||'<tr><td></td><td></td>';
-      html+=ar.replace('</tr>','')+lr.replace('<tr>','').replace('</tr>','')+'</tr>';
-    }
-    var lc=totalL+totalE+surplus;
-    html+='<tr class="total"><td>إجمالي الأصول</td><td><b>'+fmt2(totalA)+'</b></td><td>إجمالي الالتزامات + حقوق الملكية + الفائض</td><td><b>'+fmt2(lc)+'</b></td></tr>';
-    if(surplus!==0) html+='<tr><td></td><td></td><td class="'+(surplus>0?'pos':'neg')+'">'+(surplus>0?'✅ الفائض':'⚠️ العجز')+'</td><td class="'+(surplus>0?'pos':'neg')+'"><b>'+fmt2(Math.abs(surplus))+'</b></td></tr>';
-    html+='</table><div style="margin-top:20px;font-size:10px;color:#64748b;text-align:center;">تم الإنشاء بواسطة نظام أثر المالي — '+(typeof today==='function'?today():new Date().toISOString().split('T')[0])+'</div></body></html>';
-    w.document.write(html); w.document.close(); setTimeout(function(){w.print();},500);
-  };
-
-  /* ── 8. تحديث topbar عند البداية ── */
-  setTimeout(updateOrgTopbar, 300);
-
-  console.info('[Athar v35.27] Org identity module loaded');
+  setTimeout(updateOrgTopbar,400);
+  console.info('[Athar v35.27] Org identity ✅');
 })();
 </script>
 
 <script>
-/* ══════════════════════════════════════════════════════════════════
-   ATHAR v35.28 — Firebase Integration Layer
-   save() → Firestore  |  load() → Firestore  |  Auth → Firebase
-   Storage → Firebase Storage  |  Fallback → localStorage
-══════════════════════════════════════════════════════════════════ */
+/* ══ v35.28 Firebase Integration ══ */
 (function(){
-  if(window.__v3528_firebase) return;
-  window.__v3528_firebase = true;
-
-  /* ── helpers ── */
-  function _fb(){ return window._firebase || null; }
-  function _tenantId(){
-    var u = getCurrentUser ? getCurrentUser() : null;
-    return (u && u.tenantId) ? u.tenantId : (window._fbClaims && window._fbClaims.tenantId) || null;
-  }
-  function _ready(){ return !!_fb() && !!_tenantId(); }
-
-  /* ══════════════════════════════════════════════
-     1. save() → Firestore (مع fallback localStorage)
-  ══════════════════════════════════════════════ */
-  var _origSaveF = window.save;
-  window.save = function(){
-    /* دايماً احفظ في localStorage كـ cache */
-    try { localStorage.setItem('athar', JSON.stringify(DB)); } catch(e){}
-
-    if(!_ready()){
-      /* Offline أو لسه ما اتسجلش → localStorage بس */
-      return true;
-    }
-
-    /* حفظ في Firestore */
-    var fb = _fb();
-    var tenantId = _tenantId();
-    var u = getCurrentUser ? getCurrentUser() : {};
-
-    /* نقسّم DB لـ sub-documents عشان نتجنب حد الـ 1MB */
-    var mainDoc = {
-      org:          DB.org || {},
-      sysSettings:  DB.sysSettings || {},
-      openingBals:  DB.openingBals || {},
-      taxConfig:    DB.taxConfig || {},
-      payrollVars:  DB.payrollVars || {},
-      whtSettings:  DB.whtSettings || {},
-      thirdParties: DB.thirdParties || [],
-      bankRecons:   DB.bankRecons || [],
-      closedPeriods:DB.closedPeriods || [],
-      masterData:   DB.masterData || null,
-      _updatedAt:   fb.serverTimestamp(),
-      _updatedBy:   u.id || 'system'
-    };
-
-    var heavyDocs = {
-      entries:       DB.entries || [],
-      employees:     DB.employees || [],
-      projects:      DB.projects || [],
-      loans:         DB.loans || [],
-      suppliers:     DB.suppliers || [],
-      contracts:     DB.contracts || [],
-      assets:        DB.assets || [],
-      timesheets:    DB.timesheets || [],
-      payrollHistory:DB.payrollHistory || [],
-      warehouses:    DB.warehouses || [],
-      form41:        DB.form41 || [],
-      users:         DB.users || [],
-      archiveLog:    DB.archiveLog || {},
-      entryDocs:     DB.entryDocs || {},
-      leaveRequests: DB.leaveRequests || [],
-      allocations:   DB.allocations || [],
-      itemCategories:DB.itemCategories || []
-    };
-
-    var docRef  = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'main');
-    var heavyRef= fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'heavy');
-
-    Promise.all([
-      fb.setDoc(docRef,   mainDoc,  {merge: true}),
-      fb.setDoc(heavyRef, heavyDocs,{merge: true})
-    ]).then(function(){
-      console.debug('[Athar] Saved to Firestore ✅');
-    }).catch(function(err){
-      console.error('[Athar] Firestore save error:', err);
-    });
-
+  if(window.__v3528_firebase)return; window.__v3528_firebase=true;
+  function _fb(){return window._firebase||null;}
+  function _tid(){var u=typeof getCurrentUser==='function'?getCurrentUser():null;return (u&&u.tenantId)?u.tenantId:(window._fbClaims&&window._fbClaims.tenantId)||null;}
+  var _origSave=window.save;
+  window.save=function(){
+    try{localStorage.setItem('athar',JSON.stringify(DB));}catch(e){}
+    var fb=_fb(),tid=_tid();if(!fb||!tid)return true;
+    var main={org:DB.org||{},openingBals:DB.openingBals||{},sysSettings:DB.sysSettings||{},whtSettings:DB.whtSettings||{},payrollVars:DB.payrollVars||{},taxConfig:DB.taxConfig||{},thirdParties:DB.thirdParties||[],bankRecons:DB.bankRecons||[],closedPeriods:DB.closedPeriods||[],_savedAt:fb.serverTimestamp()};
+    var heavy={entries:DB.entries||[],employees:DB.employees||[],projects:DB.projects||[],loans:DB.loans||[],suppliers:DB.suppliers||[],contracts:DB.contracts||[],assets:DB.assets||[],timesheets:DB.timesheets||[],payrollHistory:DB.payrollHistory||[],warehouses:DB.warehouses||[],users:DB.users||[],leaveRequests:DB.leaveRequests||[],allocations:DB.allocations||[]};
+    Promise.all([fb.setDoc(fb.doc(fb.db_fs,'tenants',tid,'data','main'),main,{merge:true}),fb.setDoc(fb.doc(fb.db_fs,'tenants',tid,'data','heavy'),heavy,{merge:true})]).catch(function(e){console.error('[save]',e);});
     return true;
   };
-
-  /* ══════════════════════════════════════════════
-     2. loadFromFirestore() — يُستدعى بعد login
-  ══════════════════════════════════════════════ */
-  window.loadFromFirestore = function(tenantId){
-    if(!_fb()) return Promise.resolve(false);
-    var fb = _fb();
-    var mainRef  = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'main');
-    var heavyRef = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'heavy');
-
-    return Promise.all([fb.getDoc(mainRef), fb.getDoc(heavyRef)]).then(function(snaps){
-      var mainData  = snaps[0].exists() ? snaps[0].data() : {};
-      var heavyData = snaps[1].exists() ? snaps[1].data() : {};
-
-      if(!mainData._updatedAt && !heavyData.entries){
-        /* مستأجر جديد — استخدم localStorage لو فيه بيانات */
-        console.info('[Athar] New tenant — using local data');
-        return false;
-      }
-
-      /* دمج البيانات في DB مع الحفاظ على شجرة الحسابات */
-      var _accounts = DB.accounts.slice();
-      Object.assign(DB, mainData, heavyData);
-      DB.accounts = _accounts; /* دايماً من source code */
-
-      /* حذف timestamps من Firestore */
-      delete DB._updatedAt; delete DB._updatedBy;
-
-      /* Cache محلي */
-      try { localStorage.setItem('athar', JSON.stringify(DB)); } catch(e){}
-
-      console.info('[Athar] Loaded from Firestore ✅ tenant:', tenantId);
-      return true;
-    }).catch(function(err){
-      console.error('[Athar] Firestore load error:', err);
-      return false;
+  window.loadFromFirestore=function(tid){
+    return new Promise(function(res){
+      var fb=_fb();if(!fb)return res(false);
+      Promise.all([fb.getDoc(fb.doc(fb.db_fs,'tenants',tid,'data','main')),fb.getDoc(fb.doc(fb.db_fs,'tenants',tid,'data','heavy'))]).then(function(s){
+        var m=s[0].exists()?s[0].data():null,h=s[1].exists()?s[1].data():null;
+        if(!m&&!h)return res(false);
+        var a=DB.accounts.slice();if(m)Object.assign(DB,m);if(h)Object.assign(DB,h);DB.accounts=a;delete DB._savedAt;
+        try{localStorage.setItem('athar',JSON.stringify(DB));}catch(e){}
+        res(true);
+      }).catch(function(e){console.error('[load]',e);res(false);});
     });
   };
-
-  /* ══════════════════════════════════════════════
-     3. Firebase Auth — Email Link OTP
-  ══════════════════════════════════════════════ */
-  var _origDoRequestOTP = window.doRequestOTP;
-  window.doRequestOTP = function(){
-    if(!_fb()){
-      /* Fallback للـ EmailJS OTP القديم */
-      if(typeof _origDoRequestOTP === 'function') _origDoRequestOTP();
-      return;
-    }
-
-    var fb = _fb();
-    var email = ((document.getElementById('lg-email')||{}).value||'').trim().toLowerCase();
-    var errEl = document.getElementById('lg-err-otp');
-    var btn   = document.getElementById('lg-btn-otp');
-
-    if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-      if(errEl) errEl.textContent = '⚠️ أدخل بريد إلكتروني صحيح';
-      return;
-    }
-
-    /* تحقق إن المستخدم موجود في DB */
-    var user = (DB.users||[]).find(function(u){
-      return u.active !== false && (
-        (u.email||'').toLowerCase() === email ||
-        (u.username||'').toLowerCase() === email
-      );
-    });
-
-    if(!user){
-      if(errEl) errEl.textContent = '❌ هذا البريد غير مسجل — تواصل مع مدير النظام';
-      return;
-    }
-
-    if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري الإرسال...'; }
-    if(errEl) errEl.textContent = '';
-
-    /* حفظ الإيميل لاستخدامه عند العودة من الرابط */
-    window.localStorage.setItem('athar_email_link', email);
-
-    var actionCodeSettings = {
-      url: window.location.href.split('?')[0],
-      handleCodeInApp: true
-    };
-
-    fb.sendSignInLinkToEmail(fb.auth, email, actionCodeSettings).then(function(){
-      if(btn){ btn.disabled = false; btn.textContent = 'إرسال رمز الدخول ←'; }
-      /* عرض شاشة انتظار */
-      _showEmailLinkSentScreen(email);
-    }).catch(function(err){
-      console.error('[Firebase Auth] Email link error:', err);
-      if(btn){ btn.disabled = false; btn.textContent = 'إرسال رمز الدخول ←'; }
-      /* Fallback للـ OTP القديم */
-      if(typeof _origDoRequestOTP === 'function'){
-        _origDoRequestOTP();
-      } else {
-        if(errEl) errEl.textContent = '⚠️ فشل الإرسال — جرب مجدداً';
-      }
-    });
+  var _origSCU=window.setCurrentUser;
+  window.setCurrentUser=function(u){
+    if(_origSCU)_origSCU(u);if(!u)return;
+    var tid=u.tenantId||(DB.org&&DB.org.tenantId);
+    if(!tid){tid='T_'+Date.now();u.tenantId=tid;DB.org=DB.org||{};DB.org.tenantId=tid;}
+    loadFromFirestore(tid).then(function(ok){if(ok&&typeof updateOrgTopbar==='function')updateOrgTopbar();});
   };
-
-  function _showEmailLinkSentScreen(email){
-    var ov = document.getElementById('login-overlay');
-    if(!ov) return;
-    ov.querySelector('div > div').innerHTML =
-      '<div style="text-align:center;padding:10px 0;">'
-      + '<div style="font-size:56px;margin-bottom:16px;">📬</div>'
-      + '<div style="font-weight:900;font-size:18px;color:#1e3a5f;font-family:Tajawal,Cairo,sans-serif;">تحقق من بريدك</div>'
-      + '<div style="font-size:12px;color:#6b7280;margin-top:8px;line-height:1.8;">أرسلنا رابط دخول إلى<br>'
-      + '<strong style="color:#0e7490;direction:ltr;display:block;margin-top:4px;">' + email + '</strong></div>'
-      + '<div style="margin-top:20px;background:#f0fdf4;border-radius:10px;padding:12px;font-size:11.5px;color:#065f46;">'
-      + '✅ اضغط الرابط في الإيميل وسيتم تسجيل دخولك تلقائياً</div>'
-      + '<div style="margin-top:14px;font-size:11px;color:#94a3b8;">🔒 الرابط صالح 24 ساعة</div>'
-      + '<button onclick="showLogin()" style="margin-top:18px;background:none;border:none;color:#6b7280;font-size:12px;cursor:pointer;font-family:Cairo,sans-serif;">← العودة لتغيير البريد</button>'
-      + '</div>';
-  }
-
-  /* ══════════════════════════════════════════════
-     4. بعد login ناجح → load من Firestore
-  ══════════════════════════════════════════════ */
-  var _origSetCurrentUser = window.setCurrentUser;
-  window.setCurrentUser = function(u){
-    /* استدعي الأصلي أولاً */
-    if(_origSetCurrentUser) _origSetCurrentUser(u);
-
-    /* لو عنده tenantId → حمّل بياناته من Firestore */
-    if(u && u.tenantId && _fb()){
-      loadFromFirestore(u.tenantId).then(function(loaded){
-        if(loaded && typeof renderHome === 'function') renderHome();
-        else if(loaded && typeof rDash === 'function'){
-          var d = document.getElementById('pg-dash');
-          if(d) d.innerHTML = rDash();
-        }
-      });
-    }
-  };
-
-  /* ══════════════════════════════════════════════
-     5. Firebase Storage — رفع اللوجو
-  ══════════════════════════════════════════════ */
-  var _origUploadLogo = window.uploadOrgLogo;
-  window.uploadOrgLogo = function(){
-    var inp = document.getElementById('logo-upload');
-    if(!inp || !inp.files || !inp.files[0]) return;
-    var file = inp.files[0];
-
-    if(!file.type.startsWith('image/')){ toast('⚠️ اختر ملف صورة'); return; }
-    if(file.size > 2 * 1024 * 1024){ toast('⚠️ الصورة أكبر من 2MB'); return; }
-
-    var tenantId = _tenantId();
-
-    /* لو Firebase جاهز → ارفع على Storage */
-    if(_fb() && tenantId){
-      var fb = _fb();
-      var ext = file.name.split('.').pop();
-      var storageRef = fb.ref(fb.storage, 'tenants/' + tenantId + '/logo/logo.' + ext);
-      var btn = document.querySelector('[onclick="uploadOrgLogo()"]') || document.querySelector('label[for="logo-upload"]');
-
-      if(btn) btn.textContent = '⏳ جاري الرفع...';
-
-      fb.uploadBytes(storageRef, file).then(function(snap){
-        return fb.getDownloadURL(snap.ref);
-      }).then(function(url){
-        DB.org = DB.org || {};
-        DB.org.logo = url;
-        DB.org.logoStoragePath = 'tenants/' + tenantId + '/logo/logo.' + ext;
-        save();
-        updateOrgTopbar();
-        var prev = document.getElementById('logo-preview');
-        if(prev){ prev.src = url; prev.style.display = 'block'; }
-        var ph = document.getElementById('logo-placeholder');
-        if(ph) ph.style.display = 'none';
-        if(btn) btn.textContent = '📤 رفع شعار جديد';
-        toast('✅ تم رفع الشعار على Firebase Storage');
-      }).catch(function(err){
-        console.error('[Firebase Storage] Logo upload error:', err);
-        /* Fallback → base64 في localStorage */
-        if(typeof _origUploadLogo === 'function') _origUploadLogo();
-      });
-
-    } else {
-      /* Fallback → base64 */
-      if(typeof _origUploadLogo === 'function') _origUploadLogo();
-    }
-  };
-
-  /* ══════════════════════════════════════════════
-     6. حذف اللوجو من Storage
-  ══════════════════════════════════════════════ */
-  var _origRemoveLogo = window.removeOrgLogo;
-  window.removeOrgLogo = function(){
-    if(!confirm('حذف الشعار الحالي؟')) return;
-    var fb = _fb();
-    var path = DB.org && DB.org.logoStoragePath;
-
-    if(fb && path){
-      fb.deleteObject(fb.ref(fb.storage, path)).catch(function(e){ console.warn('Logo delete:', e); });
-    }
-
-    DB.org = DB.org || {};
-    delete DB.org.logo;
-    delete DB.org.logoStoragePath;
-    save();
-    if(typeof updateOrgTopbar === 'function') updateOrgTopbar();
-    var prev = document.getElementById('logo-preview');
-    if(prev) prev.style.display = 'none';
-    var ph = document.getElementById('logo-placeholder');
-    if(ph) ph.style.display = 'flex';
-    toast('✅ تم حذف الشعار');
-  };
-
-  /* ══════════════════════════════════════════════
-     7. tenantId تلقائي عند تسجيل جمعية جديدة
-  ══════════════════════════════════════════════ */
-  var _origVerifyOTP = window.verifyOTPAction;
-  window.verifyOTPAction = function(purpose){
-    if(typeof _origVerifyOTP === 'function') _origVerifyOTP(purpose);
-    /* بعد التسجيل — ضع tenantId = timestamp */
-    if(purpose === 'register' && DB.org){
-      DB.org.tenantId = DB.org.tenantId || ('T' + Date.now());
-      var u = getCurrentUser ? getCurrentUser() : null;
-      if(u && !u.tenantId){
-        u.tenantId = DB.org.tenantId;
-        if(typeof setCurrentUser === 'function') setCurrentUser(u);
-      }
-    }
-  };
-
-  /* ══════════════════════════════════════════════
-     8. Status indicator في الـ topbar
-  ══════════════════════════════════════════════ */
-  function _addFirebaseStatus(){
-    var tb = document.querySelector('.topbar');
-    if(!tb || document.getElementById('fb-status')) return;
-    var dot = document.createElement('div');
-    dot.id = 'fb-status';
-    dot.title = 'حالة Firebase';
-    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#94a3b8;margin:auto 4px;flex-shrink:0;transition:background .3s;';
-    tb.appendChild(dot);
-
-    /* تحديث اللون حسب الحالة */
-    function _update(){
-      var fb = _fb();
-      if(!fb){ dot.style.background = '#dc2626'; dot.title = 'Firebase غير متصل'; return; }
-      var u = fb.auth && fb.auth.currentUser;
-      dot.style.background = u ? '#10b981' : '#f59e0b';
-      dot.title = u ? ('Firebase: ' + (u.email||'متصل')) : 'Firebase: غير مسجل';
-    }
-    setInterval(_update, 3000);
-    _update();
-  }
-  setTimeout(_addFirebaseStatus, 1000);
-
-  console.info('[Athar v35.28] Firebase integration loaded ✅');
-  console.info('  → Firestore: athar-ngo');
-  console.info('  → Auth: Email Link + OTP fallback');
-  console.info('  → Storage: Firebase Storage');
+  setTimeout(function(){
+    var tb=document.querySelector('.topbar');if(!tb||document.getElementById('fb-dot'))return;
+    var d=document.createElement('div');d.id='fb-dot';d.style.cssText='width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0;margin:auto 4px;transition:background .3s;';
+    tb.appendChild(d);
+    setInterval(function(){var fb=_fb();if(fb){var u=fb.auth.currentUser;var el=document.getElementById('fb-dot');if(el)el.style.background=u?'#10b981':'#f59e0b';}},4000);
+  },1000);
+  console.info('[Athar v35.28] Firebase ✅');
 })();
 </script>
 
 <script>
-/* ══════════════════════════════════════════════════════════════════
-   ATHAR v35.29 — License Key System
-   
-   نظام المفاتيح:
-   ATHAR-{YEAR}-{CODE}-{HASH4}-{HASH4}
-   مثال: ATHAR-2025-NGO-XK7M-9P2Q
-   
-   المفتاح يحتوي على:
-   - اسم الجمعية (مشفّر)
-   - تاريخ الانتهاء
-   - نوع الترخيص (trial/basic/pro/unlimited)
-   - fingerprint للجهاز (اختياري)
-══════════════════════════════════════════════════════════════════ */
+/* ══ v35.29 License System ══ */
 (function(){
-  if(window.__v3529_license) return;
-  window.__v3529_license = true;
-
-  var LICENSE_KEY  = 'athar_lic_v1';
-  var MASTER_SECRET= 'ATHR-MSK-2025-elz'; /* غيّره في الإنتاج */
-  var TRIAL_DAYS   = 30;
-
-  /* ══ أنواع التراخيص ══ */
-  var PLANS = {
-    trial:     { name:'تجريبي',    entries:50,  users:2, projects:2,  modules:['core','finance'] },
-    basic:     { name:'أساسية',    entries:500, users:2, projects:3,  modules:['core','finance','hr'] },
-    pro:       { name:'متكاملة',   entries:-1,  users:5, projects:-1, modules:['core','finance','hr','grants','loans','inventory'] },
-    unlimited: { name:'مؤسسية',    entries:-1,  users:-1,projects:-1, modules:['all'] }
+  if(window.__v3529_lic)return; window.__v3529_lic=true;
+  var LK='athar_lic_v1';
+  window.getLicenseStatus=function(){
+    try{var d=JSON.parse(localStorage.getItem(LK)||'null');
+      if(!d)return{active:false,plan:'trial'};
+      if(d.expiry&&new Date(d.expiry)<new Date())return{active:false,plan:d.plan,expired:true,reason:'انتهى في '+d.expiry};
+      return{active:true,plan:d.plan||'pro',orgName:d.orgName||'',expiry:d.expiry,key:d.key,daysLeft:d.expiry?Math.ceil((new Date(d.expiry)-new Date())/(864e5)):999};
+    }catch(e){return{active:false,plan:'trial'};}
   };
-
-  /* ══ توليد مفتاح ══ */
-  window.generateLicenseKey = function(opts){
-    /* opts: {orgName, plan, expiryDays, secret} */
-    var plan      = opts.plan || 'pro';
-    var expiry    = new Date();
-    expiry.setDate(expiry.getDate() + (opts.expiryDays || 365));
-    var expStr    = expiry.toISOString().split('T')[0].replace(/-/g,'');
-
-    var payload   = [
-      plan.toUpperCase().substring(0,3),
-      expStr,
-      btoa(unescape(encodeURIComponent(opts.orgName||''))).substring(0,8).replace(/[^A-Z0-9]/gi,'X').toUpperCase()
-    ].join('|');
-
-    /* Simple hash للتحقق */
-    var secret    = opts.secret || MASTER_SECRET;
-    var hash      = _simpleHash(payload + secret);
-    var h1        = hash.substring(0,4).toUpperCase();
-    var h2        = hash.substring(4,8).toUpperCase();
-
-    var year      = new Date().getFullYear();
-    return 'ATHAR-' + year + '-' + btoa(payload).replace(/[^A-Z0-9]/gi,'').substring(0,6).toUpperCase() + '-' + h1 + '-' + h2;
+  window.activateLicense=function(key,orgName){
+    key=(key||'').trim().toUpperCase();
+    var DEMO=['ATHAR-DEMO-2025-FREE-DEMO'];
+    var plan='pro',days=30;
+    if(DEMO.indexOf(key)>-1){plan='unlimited';days=30;}
+    else if(key.split('-').length<5)return{success:false,message:'مفتاح غير صحيح'};
+    var exp=new Date();exp.setDate(exp.getDate()+days);
+    var d={key:key,plan:plan,orgName:orgName||(DB.org&&DB.org.name)||'',expiry:exp.toISOString().split('T')[0],activatedAt:new Date().toISOString()};
+    localStorage.setItem(LK,JSON.stringify(d));
+    if(d.orgName&&DB.org&&(!DB.org.name||DB.org.name==='أثر')){DB.org.name=d.orgName;if(typeof save==='function')save();}
+    return{success:true,message:'✅ تم التفعيل',plan:plan,daysLeft:days};
   };
-
-  /* ══ التحقق من المفتاح ══ */
-  window.verifyLicenseKey = function(key){
-    if(!key || typeof key !== 'string') return {valid:false, reason:'لا يوجد مفتاح'};
-    key = key.trim().toUpperCase();
-
-    /* فحص التنسيق */
-    var parts = key.split('-');
-    if(parts.length !== 5 || parts[0] !== 'ATHAR'){
-      return {valid:false, reason:'تنسيق المفتاح غير صحيح'};
-    }
-
-    /* فك تشفير الـ payload */
-    try {
-      var encoded = parts[2];
-      /* استخراج plan و expiry من الأجزاء */
-      var planCode = parts[1]; /* YEAR */
-      var h1 = parts[3], h2 = parts[4];
-
-      /* بما إن التحقق البسيط بالـ hash */
-      /* في الإنتاج نحتاج server-side verification */
-      /* هنا نستخدم offline verification */
-
-      var storedData = _decodeKeyData(key);
-      if(!storedData) return {valid:false, reason:'المفتاح تالف'};
-
-      /* فحص التاريخ */
-      if(storedData.expiry && new Date(storedData.expiry) < new Date()){
-        return {valid:false, reason:'انتهت صلاحية الترخيص في ' + storedData.expiry, expired:true, plan:storedData.plan};
-      }
-
-      return {
-        valid:    true,
-        plan:     storedData.plan || 'pro',
-        orgName:  storedData.orgName || '',
-        expiry:   storedData.expiry,
-        daysLeft: storedData.expiry ? Math.ceil((new Date(storedData.expiry)-new Date())/(1000*60*60*24)) : 999
-      };
-    } catch(e) {
-      return {valid:false, reason:'خطأ في المفتاح: ' + e.message};
-    }
+  window.doActivateLicense=function(forceKey){
+    var key=forceKey||((document.getElementById('lic-key-input')||{}).value||'');
+    var org=((document.getElementById('lic-org-input')||{}).value||'').trim();
+    if(!key){var e=document.getElementById('lic-err');if(e)e.textContent='⚠️ أدخل مفتاح الترخيص';return;}
+    var r=activateLicense(key,org);
+    if(r.success){var ov=document.getElementById('lic-overlay');if(ov)ov.remove();if(typeof updateOrgTopbar==='function')updateOrgTopbar();toast('🎉 '+r.message);}
+    else{var e2=document.getElementById('lic-err');if(e2)e2.textContent='❌ '+r.message;}
   };
-
-  /* ══ تشفير وفك تشفير بيانات المفتاح ══ */
-  function _encodeKeyData(data){
-    return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  }
-  function _decodeKeyData(key){
-    /* نخزّن الـ metadata منفصل عن المفتاح */
-    var stored = localStorage.getItem(LICENSE_KEY + '_meta');
-    if(stored){
-      try { return JSON.parse(stored); } catch(e){}
-    }
-    /* fallback: parse من المفتاح نفسه */
-    return _parseKeyOffline(key);
-  }
-
-  function _parseKeyOffline(key){
-    /* parsing أساسي offline */
-    var parts = key.split('-');
-    if(parts.length < 5) return null;
-    /* المفتاح يحتوي على السنة والـ hash فقط offline */
-    /* الـ metadata الحقيقية محفوظة في localStorage */
-    return {plan:'pro', orgName: DB.org&&DB.org.name||'', expiry: null};
-  }
-
-  function _simpleHash(str){
-    var h = 0x811c9dc5;
-    for(var i=0;i<str.length;i++){
-      h ^= str.charCodeAt(i);
-      h = (h * 0x01000193) >>> 0;
-    }
-    return h.toString(16).padStart(8,'0');
-  }
-
-  /* ══ فحص التفعيل الحالي ══ */
-  window.getLicenseStatus = function(){
-    var stored = localStorage.getItem(LICENSE_KEY);
-    if(!stored) return {active:false, plan:'trial', reason:'لم يتم التفعيل'};
-    try {
-      var data = JSON.parse(stored);
-      /* فحص انتهاء الصلاحية */
-      if(data.expiry && new Date(data.expiry) < new Date()){
-        return {active:false, plan:data.plan, expired:true,
-          reason:'انتهى الترخيص في ' + data.expiry};
-      }
-      return {
-        active:   true,
-        plan:     data.plan || 'pro',
-        orgName:  data.orgName || '',
-        expiry:   data.expiry,
-        key:      data.key,
-        daysLeft: data.expiry ? Math.ceil((new Date(data.expiry)-new Date())/(1000*60*60*24)) : 999
-      };
-    } catch(e) {
-      return {active:false, plan:'trial', reason:'بيانات الترخيص تالفة'};
-    }
-  };
-
-  /* ══ تفعيل مفتاح ══ */
-  window.activateLicense = function(key, orgName){
-    var result = verifyLicenseKey(key);
-
-    /* للديمو — مفاتيح خاصة دايماً تشتغل */
-    var DEMO_KEYS = ['ATHAR-DEMO-2025-FREE-DEMO', 'ATHAR-2025-TRIAL-FREE-0000'];
-    if(DEMO_KEYS.indexOf(key.trim().toUpperCase()) > -1){
-      result = {valid:true, plan:'unlimited', orgName: orgName||'نسخة تجريبية',
-        expiry: new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0], daysLeft:30};
-    }
-
-    if(!result.valid){
-      return {success:false, message: result.reason || 'مفتاح غير صحيح'};
-    }
-
-    /* حفظ بيانات الترخيص */
-    var licData = {
-      key:     key.trim().toUpperCase(),
-      plan:    result.plan,
-      orgName: orgName || result.orgName || (DB.org&&DB.org.name) || '',
-      expiry:  result.expiry,
-      activatedAt: new Date().toISOString(),
-      daysLeft: result.daysLeft
-    };
-    localStorage.setItem(LICENSE_KEY, JSON.stringify(licData));
-    localStorage.setItem(LICENSE_KEY+'_meta', JSON.stringify(licData));
-
-    /* تحديث بيانات الجمعية */
-    if(licData.orgName && (!DB.org || !DB.org.name || DB.org.name === 'مجلس الخدمات والتنمية')){
-      DB.org = DB.org || {};
-      DB.org.name = licData.orgName;
-      if(typeof save === 'function') save();
-    }
-
-    return {success:true, message:'✅ تم التفعيل بنجاح', plan:result.plan, daysLeft:result.daysLeft};
-  };
-
-  /* ══ شاشة التفعيل ══ */
-  window.showLicenseScreen = function(reason){
-    var lic = getLicenseStatus();
-    var isExpired = lic.expired;
-
-    var overlay = document.createElement('div');
-    overlay.id = 'lic-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f2748,#1a4480);display:flex;align-items:center;justify-content:center;padding:20px;';
-
-    var plan_info = PLANS[lic.plan] || PLANS.pro;
-
-    overlay.innerHTML =
-      '<div style="background:white;border-radius:20px;padding:32px 24px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.4);">'
-      /* Header */
-      +'<div style="text-align:center;margin-bottom:24px;">'
-      +'<div style="font-size:48px;margin-bottom:8px;">'+(isExpired?'⏰':'🔐')+'</div>'
-      +'<div style="font-size:22px;font-weight:900;color:#1e3a5f;font-family:Tajawal,sans-serif;">نظام أثر المالي</div>'
-      +'<div style="font-size:13px;color:#64748b;margin-top:4px;">'+(isExpired?'انتهت صلاحية الترخيص':'يحتاج تفعيل')+'</div>'
+  window.showLicenseScreen=function(){
+    if(document.getElementById('lic-overlay'))return;
+    var ov=document.createElement('div');ov.id='lic-overlay';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f2748,#1a4480);display:flex;align-items:center;justify-content:center;padding:20px;';
+    ov.innerHTML='<div style="background:white;border-radius:20px;padding:28px 22px;width:100%;max-width:400px;">'
+      +'<div style="text-align:center;margin-bottom:20px;"><div style="font-size:48px;">🔐</div>'
+      +'<div style="font-size:22px;font-weight:900;color:#1e3a5f;font-family:Tajawal,sans-serif;">نظام أثر المالي</div></div>'
+      +'<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">🔑 مفتاح الترخيص</label>'
+      +'<input id="lic-key-input" placeholder="ATHAR-2025-XXXX-XXXX-XXXX" style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:monospace;box-sizing:border-box;direction:ltr;text-align:center;" onkeydown="if(event.key===\'Enter\')doActivateLicense()"></div>'
+      +'<div style="margin-bottom:14px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">🏢 اسم الجمعية</label>'
+      +'<input id="lic-org-input" placeholder="اسم الجمعية" value="'+(DB.org&&DB.org.name||'')+'" style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>'
+      +'<div id="lic-err" style="color:#dc2626;font-size:12px;text-align:center;min-height:16px;margin-bottom:8px;"></div>'
+      +'<button onclick="doActivateLicense()" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;margin-bottom:10px;">✅ تفعيل الترخيص</button>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
+      +'<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:13px;font-weight:900;color:#1e3a5f;">Basic 🌐</div><div style="font-size:12px;font-weight:700;color:#0e7490;">تواصل معنا</div><div style="font-size:10px;color:#374151;margin-top:4px;text-align:right;">✅ محاسبة كاملة<br>✅ مشاريع BVA<br>✅ 3 مستخدمين</div></div>'
+      +'<div style="border:2px solid #0e7490;border-radius:10px;padding:10px;text-align:center;background:#f0f9ff;"><div style="font-size:11px;background:#0e7490;color:white;border-radius:5px;padding:2px 6px;display:inline-block;margin-bottom:4px;">الأكثر اختياراً</div><div style="font-size:13px;font-weight:900;color:#1e3a5f;">Pro 🚀</div><div style="font-size:12px;font-weight:700;color:#0e7490;">للاستفسار</div><div style="font-size:10px;color:#374151;margin-top:4px;text-align:right;">✅ كل Basic<br>✅ رواتب+AI<br>✅ 8 مستخدمين</div></div>'
       +'</div>'
-
-      /* لو منتهي — عرض التجديد */
-      +(isExpired?
-        '<div style="background:#fff1f2;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:16px;text-align:center;font-size:12px;color:#991b1b;">⚠️ انتهى ترخيص '+lic.plan+' في '+lic.expiry+'<br>بياناتك محفوظة — جدّد الآن للاستمرار</div>'
-        :'')
-
-      /* حقل المفتاح */
-      +'<div style="margin-bottom:14px;">'
-      +'<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">🔑 مفتاح الترخيص</label>'
-      +'<input id="lic-key-input" placeholder="ATHAR-2025-XXXX-XXXX-XXXX" '
-      +'style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:monospace;box-sizing:border-box;direction:ltr;text-align:center;letter-spacing:1px;" '
-      +'onkeydown="if(event.key===\'Enter\')doActivateLicense()">'
-      +'</div>'
-
-      /* حقل اسم الجمعية */
-      +'<div style="margin-bottom:16px;">'
-      +'<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">🏢 اسم الجمعية</label>'
-      +'<input id="lic-org-input" placeholder="مجلس الخدمات والتنمية المجتمعية" value="'+(DB.org&&DB.org.name||'')+'" '
-      +'style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:Cairo,sans-serif;box-sizing:border-box;">'
-      +'</div>'
-
-      +'<div id="lic-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>'
-
-      /* زر التفعيل */
-      +'<button onclick="doActivateLicense()" '
-      +'style="width:100%;padding:14px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;margin-bottom:10px;">'
-      +'✅ تفعيل الترخيص</button>'
-
-      /* تجريبي مجاناً */
-      +'<div style="text-align:center;font-size:11.5px;color:#6b7280;">'
-      +'تريد تجربة النظام؟ '
-      +'<a href="#" onclick="doActivateLicense(\'ATHAR-DEMO-2025-FREE-DEMO\');return false;" '
-      +'style="color:#0e7490;font-weight:700;">30 يوم مجاناً</a>'
-      +'</div>'
-
-      /* معلومات التواصل */
-      +'<div style="margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;text-align:center;font-size:11px;color:#94a3b8;">'
-      +'للحصول على ترخيص: <span style="color:#0e7490;font-weight:700;">elzieni2007@gmail.com</span>'
-      +'</div>'
-
+      +'<div style="text-align:center;font-size:11.5px;color:#6b7280;">تريد تجربة؟ <a href="#" onclick="doActivateLicense(\'ATHAR-DEMO-2025-FREE-DEMO\');return false;" style="color:#0e7490;font-weight:700;">30 يوم مجاناً</a></div>'
+      +'<div style="margin-top:12px;text-align:center;font-size:11px;color:#94a3b8;">📧 elzieni2007@gmail.com &nbsp;|&nbsp; 📞 01224120901</div>'
       +'</div>';
-
-    document.body.appendChild(overlay);
-    setTimeout(function(){ var i=document.getElementById('lic-key-input'); if(i)i.focus(); },100);
+    document.body.appendChild(ov);
+    setTimeout(function(){var i=document.getElementById('lic-key-input');if(i)i.focus();},100);
   };
-
-  /* ══ تنفيذ التفعيل من الشاشة ══ */
-  window.doActivateLicense = function(forceKey){
-    var key    = forceKey || ((document.getElementById('lic-key-input')||{}).value||'').trim();
-    var org    = ((document.getElementById('lic-org-input')||{}).value||'').trim();
-    var errEl  = document.getElementById('lic-err');
-    var btn    = document.querySelector('#lic-overlay button');
-
-    if(!key){ if(errEl) errEl.textContent='⚠️ أدخل مفتاح الترخيص'; return; }
-    if(btn){ btn.disabled=true; btn.textContent='⏳ جاري التحقق...'; }
-
-    var result = activateLicense(key, org);
-
-    if(result.success){
-      /* إخفاء شاشة التفعيل */
-      var ov = document.getElementById('lic-overlay');
-      if(ov) ov.remove();
-
-      /* تحديث الـ topbar */
-      if(typeof updateOrgTopbar === 'function') updateOrgTopbar();
-
-      toast('🎉 '+result.message+' — باقة '+PLANS[result.plan].name
-        +(result.daysLeft < 999 ? ' — متبقي '+result.daysLeft+' يوم' : ''));
-
-      /* تشغيل النظام كامل */
-      if(typeof showLogin === 'function') showLogin();
-
-    } else {
-      if(errEl) errEl.textContent = '❌ ' + result.message;
-      if(btn){ btn.disabled=false; btn.textContent='✅ تفعيل الترخيص'; }
-    }
-  };
-
-  /* ══ فحص القيود حسب الباقة ══ */
-  window.checkLicenseLimit = function(resource){
-    var lic  = getLicenseStatus();
-    if(!lic.active) return {allowed:false, reason:'النظام غير مفعّل'};
-
-    var plan = PLANS[lic.plan] || PLANS.pro;
-    if(plan.modules[0] === 'all') return {allowed:true};
-
-    switch(resource){
-      case 'entry':
-        var count = (DB.entries||[]).length;
-        if(plan.entries > 0 && count >= plan.entries)
-          return {allowed:false, reason:'وصلت للحد الأقصى ('+plan.entries+' قيد) — رقّي باقتك'};
-        break;
-      case 'user':
-        var ucount = (DB.users||[]).filter(function(u){return u.active!==false;}).length;
-        if(plan.users > 0 && ucount >= plan.users)
-          return {allowed:false, reason:'وصلت للحد الأقصى ('+plan.users+' مستخدم) — رقّي باقتك'};
-        break;
-      case 'project':
-        var pcount = (DB.projects||[]).length;
-        if(plan.projects > 0 && pcount >= plan.projects)
-          return {allowed:false, reason:'وصلت للحد الأقصى ('+plan.projects+' مشاريع) — رقّي باقتك'};
-        break;
-    }
-    return {allowed:true};
-  };
-
-  /* ══ شاشة إدارة الترخيص (للإعدادات) ══ */
-  window.showLicenseManager = function(){
-    var lic = getLicenseStatus();
-    var plan = PLANS[lic.plan] || PLANS.pro;
-    var daysColor = !lic.active ? '#dc2626' : lic.daysLeft < 30 ? '#f59e0b' : '#059669';
-
-    var h = '<div style="background:white;border-radius:14px;padding:16px;margin-bottom:14px;">'
-      +'<div style="font-size:13px;font-weight:900;color:#1e3a5f;margin-bottom:12px;">🔑 إدارة الترخيص</div>'
-
-      /* حالة الترخيص */
-      +'<div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:10px;">'
-      +'<div>'
-      +'<div style="font-weight:700;font-size:13px;">'+(lic.active?'✅ مفعّل':'❌ غير مفعّل')+'</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-top:2px;">باقة: '+plan.name+'</div>'
-      +(lic.key?'<div style="font-size:10px;color:#94a3b8;font-family:monospace;margin-top:2px;">'+lic.key+'</div>':'')
-      +'</div>'
-      +'<div style="text-align:center;">'
-      +'<div style="font-size:28px;font-weight:900;color:'+daysColor+';">'+(lic.active?(lic.daysLeft<999?lic.daysLeft+'':'∞'):'0')+'</div>'
-      +'<div style="font-size:10px;color:#94a3b8;">يوم متبقي</div>'
-      +'</div>'
-      +'</div>'
-
-      /* مميزات الباقة */
-      +'<div style="font-size:11px;color:#374151;margin-bottom:12px;">'
-      +'<div style="font-weight:700;margin-bottom:6px;">مميزات باقتك:</div>'
-      +'<div>👤 مستخدمين: '+(plan.users<0?'غير محدود':plan.users)+'</div>'
-      +'<div>📝 قيود: '+(plan.entries<0?'غير محدود':plan.entries)+'</div>'
-      +'<div>📁 مشاريع: '+(plan.projects<0?'غير محدود':plan.projects)+'</div>'
-      +'</div>'
-
-      /* أزرار */
-      +(lic.active
-        ?'<button onclick="showLicenseScreen()" style="width:100%;padding:10px;background:#f1f5f9;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">🔄 تغيير / تجديد الترخيص</button>'
-        :'<button onclick="showLicenseScreen()" style="width:100%;padding:10px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">✅ تفعيل الترخيص الآن</button>'
-      )
-      +'</div>';
-
-    var pg = document.getElementById('pg-more');
-    if(pg) pg.insertAdjacentHTML('afterbegin', h);
-  };
-
-  /* ══ إضافة الترخيص لصفحة الإعدادات ══ */
-  var _oldRSetPage2 = window.rSetPage;
-  window.rSetPage = function(){
-    var h = _oldRSetPage2 ? _oldRSetPage2() : '';
-    var lic = getLicenseStatus();
-    var plan = PLANS[lic.plan] || PLANS.pro;
-    var daysColor = !lic.active ? '#dc2626' : lic.daysLeft < 30 ? '#f59e0b' : '#059669';
-
-    var licSection = '<div style="background:white;border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
-      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f1f5f9;">'
-      +'<div style="width:36px;height:36px;background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔑</div>'
-      +'<div><div style="font-weight:900;font-size:14px;color:#1e3a5f;">الترخيص</div>'
-      +'<div style="font-size:10px;color:#94a3b8;">معلومات النسخة والتفعيل</div></div>'
-      +'</div>'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
-      +'<div>'
-      +'<div style="font-size:13px;font-weight:700;">'+(lic.active?'✅ مفعّل':'❌ غير مفعّل')+'</div>'
-      +'<div style="font-size:11px;color:#64748b;">باقة: <b>'+plan.name+'</b></div>'
-      +(lic.expiry?'<div style="font-size:10px;color:#94a3b8;">تنتهي في: '+lic.expiry+'</div>':'')
-      +'</div>'
-      +'<div style="text-align:center;min-width:60px;">'
-      +'<div style="font-size:32px;font-weight:900;color:'+daysColor+';">'+(lic.active?(lic.daysLeft<999?lic.daysLeft:'∞'):'—')+'</div>'
-      +'<div style="font-size:9px;color:#94a3b8;">يوم متبقي</div>'
-      +'</div></div>'
-      +'<button onclick="showLicenseScreen()" '
-      +'style="width:100%;padding:11px;'+(lic.active?'background:#f1f5f9;color:#374151;':'background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;')
-      +'border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">'
-      +(lic.active?'🔄 تغيير أو تجديد الترخيص':'✅ تفعيل الآن')+'</button>'
-      +'</div>';
-
-    return licSection + h;
-  };
-
-  /* ══ توليد مفاتيح — admin tool ══ */
-  window.atharGenerateKeys = function(){
-    /* tool بسيط للمطور يولد مفاتيح */
-    var plans = ['trial','basic','pro','unlimited'];
-    var results = {};
-    plans.forEach(function(plan){
-      var days = plan==='trial'?30 : plan==='basic'?365 : plan==='pro'?365 : 730;
-      var key = generateLicenseKey({plan:plan, expiryDays:days, orgName:'', secret:MASTER_SECRET});
-      /* حفظ البيانات مع المفتاح */
-      var expiry = new Date(); expiry.setDate(expiry.getDate()+days);
-      localStorage.setItem('key_meta_'+key, JSON.stringify({
-        plan:plan, expiry:expiry.toISOString().split('T')[0], daysLeft:days
-      }));
-      results[plan] = key;
-    });
-    console.table(results);
-    return results;
-  };
-
-  /* ══ فحص عند البداية ══ */
-  window._checkLicenseOnStart = function(){
-    var lic = getLicenseStatus();
-
-    /* لو مفعّل وصالح → شغّل عادي */
-    if(lic.active) return true;
-
-    /* لو أول مرة (مفيش ترخيص خالص) → Trial تلقائي لمدة 30 يوم */
-    var firstRun = !localStorage.getItem(LICENSE_KEY);
-    if(firstRun){
-      activateLicense('ATHAR-DEMO-2025-FREE-DEMO', DB.org&&DB.org.name||'');
-      console.info('[Athar License] Trial started automatically');
-      return true;
-    }
-
-    /* منتهي أو غير مفعّل → عرض شاشة التفعيل */
-    setTimeout(function(){
-      /* أخفي التطبيق */
-      var ct = document.querySelector('.content');
-      var bn = document.querySelector('.bnav');
-      var tb = document.querySelector('.topbar');
-      if(ct) ct.style.display='none';
-      if(bn) bn.style.display='none';
-      /* اعرض شاشة التفعيل */
-      showLicenseScreen(lic.reason);
-    }, 500);
-    return false;
-  };
-
-  /* ══ تشغيل الفحص بعد تحميل الصفحة ══ */
+  /* فحص عند البداية */
   setTimeout(function(){
-    /* انتظر لحد ما النظام يحمّل */
-    if(typeof DB !== 'undefined'){
-      window._checkLicenseOnStart();
-    }
-  }, 1500);
+    var lic=getLicenseStatus();
+    if(lic.active)return;
+    if(!localStorage.getItem(LK)){activateLicense('ATHAR-DEMO-2025-FREE-DEMO',DB.org&&DB.org.name||'');return;}
+    showLicenseScreen();
+  },1500);
+  console.info('[Athar v35.29] License ✅');
+})();
+</script>
 
-  console.info('[Athar v35.29] License system loaded ✅');
-  console.info('  → Trial: 30 days auto-start');
-  console.info('  → Plans: trial / basic / pro / unlimited');
-  console.info('  → Generator: atharGenerateKeys()');
+<script>
+/* ══ v35.30 Module Visibility (CSS-based - SAFE) ══ */
+(function(){
+  if(window.__v3530_mod)return; window.__v3530_mod=true;
+
+  /* تعريف الـ modules */
+  var BASIC_MODULES=['core','finance','grants','hr','reports','archive','settings','import'];
+  var PRO_MODULES=['core','finance','grants','hr','procurement','inventory','assets','compliance','archive','reports','ai','microfinance','import','settings'];
+
+  /* setOrgPlan - يغير الباقة */
+  window.setOrgPlan=function(plan){
+    DB.org=DB.org||{};DB.org.plan=plan;
+    DB.org.enabledModules=(plan==='pro'?PRO_MODULES:BASIC_MODULES).slice();
+    if(typeof save==='function')save();
+    applyModuleCSS();
+    if(typeof toast==='function')toast('✅ تم التغيير إلى '+(plan==='pro'?'Pro 🚀':'Basic 🌐'));
+    setTimeout(function(){if(typeof sub==='function')sub('settings');},300);
+  };
+  window.toggleOrgModule=function(checkbox){
+    DB.org=DB.org||{};DB.org.enabledModules=DB.org.enabledModules||BASIC_MODULES.slice();
+    var mod=checkbox.getAttribute('data-module');
+    if(checkbox.checked){if(DB.org.enabledModules.indexOf(mod)<0)DB.org.enabledModules.push(mod);}
+    else{DB.org.enabledModules=DB.org.enabledModules.filter(function(m){return m!==mod;});}
+    if(typeof save==='function')save();
+    applyModuleCSS();
+  };
+
+  /* Module → nav/section mapping */
+  var MOD_NAV={microfinance:'loans',procurement:null,inventory:null,assets:null,compliance:null,ai:null};
+  var MOD_SECTIONS={
+    microfinance:['.v8-card:has(b:contains("ملخص القروض"))','[data-nav="loans"]','.bn[data-nav="loans"]'],
+    procurement:['[data-sub="suppliers"]','[data-sub="contracts"]','[data-pg="suppliers"]'],
+    inventory:['[data-sub="inventory"]','[data-sub="inv_receive"]'],
+    assets:['[data-sub="assets"]'],
+    ai:['[data-sub="ai"]','[data-sub="knowledge"]']
+  };
+
+  function applyModuleCSS(){
+    var enabled=DB.org&&DB.org.enabledModules||BASIC_MODULES;
+    /* bnav القروض */
+    var loansBtn=document.querySelector('.bn[data-nav="loans"]');
+    if(loansBtn)loansBtn.style.display=enabled.indexOf('microfinance')>-1?'':'none';
+    /* bnav العمليات */
+    var opsBtn=document.querySelector('.bn[data-nav="ops"]');
+    if(opsBtn){
+      var hasOps=['grants','hr','procurement','inventory','assets','compliance'].some(function(m){return enabled.indexOf(m)>-1;});
+      opsBtn.style.display=hasOps?'':'none';
+    }
+  }
+
+  /* Override applyModuleVisibility */
+  var _origAMV=window.applyModuleVisibility;
+  window.applyModuleVisibility=function(){
+    if(_origAMV)_origAMV();
+    applyModuleCSS();
+  };
+
+  /* Override renderPackageSettingsCard */
+  window.renderPackageSettingsCard=function(){
+    var u=typeof getCurrentUser==='function'?getCurrentUser():null;
+    if(!u||u.role!=='admin')return '';
+    DB.org=DB.org||{};
+    var plan=DB.org.plan||'basic';
+    var enabled=DB.org.enabledModules||BASIC_MODULES;
+    var ALL=[
+      {k:'finance',lbl:'💰 المحاسبة والمالية',req:true},
+      {k:'grants',lbl:'🎯 المشروعات والمنح'},
+      {k:'hr',lbl:'👥 الموارد البشرية'},
+      {k:'reports',lbl:'📊 التقارير',req:true},
+      {k:'procurement',lbl:'🛒 المشتريات والموردين',pro:true},
+      {k:'inventory',lbl:'📦 المخازن',pro:true},
+      {k:'assets',lbl:'🏢 الأصول الثابتة',pro:true},
+      {k:'microfinance',lbl:'💵 القروض الصغيرة',pro:true},
+      {k:'compliance',lbl:'✅ الامتثال والأرشفة',pro:true},
+      {k:'ai',lbl:'🤖 الذكاء الاصطناعي',pro:true}
+    ];
+    var h='<div style="background:white;border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+      +'<div style="font-size:13px;font-weight:900;color:#1e3a5f;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f1f5f9;">📦 التحكم في الباقة والأقسام</div>'
+      +'<div style="margin-bottom:14px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:8px;">الباقة الحالية:</label>'
+      +'<div style="display:flex;gap:8px;">';
+    ['basic','pro'].forEach(function(p){
+      var active=plan===p,color=p==='pro'?'#1d4ed8':'#059669';
+      h+='<button data-plan="'+p+'" onclick="window.setOrgPlan(this.dataset.plan)" style="flex:1;padding:10px;border-radius:9px;font-size:13px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;border:2px solid '+(active?color:'#e2e8f0')+';background:'+(active?color:'white')+';color:'+(active?'white':'#374151')+'">'+(p==='pro'?'🚀 Pro':'🌐 Basic')+'</button>';
+    });
+    h+='</div></div><div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">الأقسام المفعّلة:</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
+    ALL.forEach(function(m){
+      var on=enabled.indexOf(m.k)>-1;
+      h+='<label style="display:flex;align-items:center;gap:8px;background:'+(on?'#f0fdf4':'#f8fafc')+';border:1px solid '+(on?'#6ee7b7':'#e2e8f0')+';border-radius:8px;padding:8px 10px;cursor:'+(m.req?'default':'pointer')+'">'
+        +'<input type="checkbox" data-module="'+m.k+'" '+(on?'checked':'')+' '+(m.req?'disabled':'')+' onchange="window.toggleOrgModule(this)" style="width:16px;height:16px;accent-color:#059669;">'
+        +'<div><div style="font-size:11.5px;font-weight:700;">'+m.lbl+'</div>'
+        +'<div style="font-size:9px;color:#94a3b8;">'+(m.pro?'🚀 Pro فقط':'✅ في الباقة')+(m.req?' · أساسي':'')+'</div></div></label>';
+    });
+    h+='</div><div style="font-size:10px;color:#94a3b8;text-align:center;margin-top:8px;">التغييرات تطبّق فوراً</div></div>';
+    return h;
+  };
+
+  /* Inject into rSetPage */
+  if(!window._atharModSettingsPatched){
+    window._atharModSettingsPatched=true;
+    var _oldRS=window.rSetPage;
+    window.rSetPage=function(){
+      var h=_oldRS?_oldRS():'';
+      var card=window.renderPackageSettingsCard();
+      if(card&&h.indexOf('📦 التحكم في الباقة')<0)h=card+h;
+      return h;
+    };
+  }
+
+  /* Apply on init */
+  setTimeout(function(){ applyModuleCSS(); filterDashContent(); },600);
+  /* Apply after every navigation */
+  var _origNav=window.nav;
+  if(typeof _origNav==='function'){
+    window.nav=function(){
+      var r=_origNav.apply(this,arguments);
+      setTimeout(applyModuleCSS,100);
+      return r;
+    };
+  }
+
+  /* Override rDash to filter disabled module sections */
+  var _origRDash=window.rDash;
+  window.rDash=function(){
+    var out=_origRDash?_origRDash.apply(this,arguments):'';
+    if(typeof out!=='string')return out;
+    var enabled=DB.org&&DB.org.enabledModules||BASIC_MODULES;
+    /* إخفاء ملخص القروض لو microfinance مش مفعّل */
+    if(enabled.indexOf('microfinance')<0){
+      /* Simple string split approach - more reliable than regex */
+      var loanMarker='<div class="v8-card"><div class="v8-sec"><b>💳 ملخص القروض</b>';
+      while(out.indexOf(loanMarker)>-1){
+        var start=out.indexOf(loanMarker);
+        /* Find the closing </div></div></div> after the button */
+        var searchFrom=start+loanMarker.length;
+        var btnEnd=out.indexOf('</button></div></div></div>',searchFrom);
+        if(btnEnd>-1){out=out.substring(0,start)+out.substring(btnEnd+26);}
+        else{break;}
+      }
+    }
+    return out;
+  };
+
+  /* Override sub() to apply module visibility after every navigation */
+  var _origSub=window.sub;
+  if(typeof _origSub==='function'&&!window._modSubPatched){
+    window._modSubPatched=true;
+    window.sub=function(n){
+      var r=_origSub.apply(this,arguments);
+      setTimeout(function(){
+        /* Settings card */
+        if(n==='settings'){
+          var pg=document.getElementById('pg-more');
+          if(pg&&pg.innerHTML.indexOf('📦 التحكم في الباقة')<0){
+            var card=window.renderPackageSettingsCard();
+            if(card){var d=document.createElement('div');d.innerHTML=card;if(pg.firstChild)pg.insertBefore(d.firstChild,pg.firstChild);}
+          }
+        }
+        /* Apply visibility */
+        applyModuleCSS();
+        filterOpsContent();
+      },300);
+      return r;
+    };
+  }
+
+  /* Filter ops content - hide disabled sections */
+  window.filterOpsContent=function(){
+    var enabled=DB.org&&DB.org.enabledModules||BASIC_MODULES;
+    var pg=document.getElementById('pg-ops');
+    if(!pg)return;
+    /* Find all section headers in ops */
+    var sections=pg.querySelectorAll('[style*="font-size:11px"][style*="font-weight:800"]');
+    /* Search ops page for disabled sections and hide them */
+    var sectionDivs=Array.from(pg.querySelectorAll('div[style*="margin-bottom"]'));
+    sectionDivs.forEach(function(sec){
+      var txt=sec.textContent||'';
+      /* Only process section containers (not individual items) */
+      if(txt.length<10)return;
+      var disabled=false;
+      if(txt.indexOf('المشتريات والمخازن')>-1&&enabled.indexOf('procurement')<0)disabled=true;
+      if((txt.indexOf('القروض الصغيرة')>-1||txt.indexOf('التمويل متناهي')>-1)&&enabled.indexOf('microfinance')<0)disabled=true;
+      if(txt.indexOf('الأصول الثابتة')>-1&&enabled.indexOf('assets')<0)disabled=true;
+      if(txt.indexOf('الامتثال والأرشفة')>-1&&enabled.indexOf('compliance')<0)disabled=true;
+      if(disabled)sec.style.display='none';
+    });
+  }
+
+  /* Filter dashboard - remove disabled cards */
+  window.filterDashContent=function(){
+    var enabled=(DB.org&&DB.org.enabledModules)||BASIC_MODULES;
+    var dash=document.getElementById('pg-dash');
+    if(!dash)return;
+    /* القروض */
+    if(enabled.indexOf('microfinance')<0){
+      var toRemove=[];
+      dash.querySelectorAll('.v8-card').forEach(function(c){
+        var t=c.textContent||'';
+        if(t.indexOf('ملخص القروض')>-1||t.indexOf('التمويل متناهي الصغر')>-1)toRemove.push(c);
+      });
+      toRemove.forEach(function(c){if(c.parentNode)c.parentNode.removeChild(c);});
+    }
+    /* المشتريات */
+    if(enabled.indexOf('procurement')<0){
+      var toRemove2=[];
+      dash.querySelectorAll('.v8-card,.v8-mod').forEach(function(c){
+        var t=c.textContent||'';
+        if(t.indexOf('الموردون')>-1||t.indexOf('المشتريات')>-1)toRemove2.push(c);
+      });
+      toRemove2.forEach(function(c){if(c.parentNode)c.parentNode.removeChild(c);});
+    }
+  }
+
+  console.info('[Athar v35.30] Module visibility ✅');
 })();
 </script>
