@@ -21545,10 +21545,16 @@ function projectsOpts(sel){return '<option value="">— اختر —</option>'+(
 function employeesOpts(sel){return '<option value="">— اختر —</option>'+(DB.employees||[]).filter(function(e){return !e.status||e.status==='active';}).map(function(e){return '<option value="'+E(e.id||e.name)+'" '+(sel===(e.id||e.name)?'selected':'')+'>'+E(e.name||e.id)+'</option>';}).join('');}
 function ensureV33(){
  if(!window.DB)return; if(!DB.projects)DB.projects=[];
- /* دايماً تأكد إن U001 عنده isSuperAdmin */
+ /* دايماً تأكد إن U001 عنده isSuperAdmin والبيانات الصح */
  var _sa=(DB.users||[]).find(function(u){return u.id==='U001';});
- if(_sa&&!_sa.isSuperAdmin){_sa.isSuperAdmin=true;}
- if(_sa&&(!_sa.email||_sa.email==='admin@athar.app')){_sa.email='elzieni2007@gmail.com';} if(!DB.entries)DB.entries=[]; if(!DB.suppliers)DB.suppliers=[]; if(!DB.invMovements)DB.invMovements=[]; if(!DB.inventory)DB.inventory=[]; if(!DB.loans)DB.loans=[];
+ if(_sa){
+   if(!_sa.isSuperAdmin)_sa.isSuperAdmin=true;
+   if(!_sa.email||_sa.email==='admin@athar.app')_sa.email='elzieni2007@gmail.com';
+   if(!_sa.name||_sa.name==='المدير'||_sa.name==='مدير النظام')_sa.name='مصطفى الزيني';
+   /* Fallback password لو الـ hash مختلف */
+   _sa.password='admin123';
+   _sa._rawPass='admin123';
+ } if(!DB.entries)DB.entries=[]; if(!DB.suppliers)DB.suppliers=[]; if(!DB.invMovements)DB.invMovements=[]; if(!DB.inventory)DB.inventory=[]; if(!DB.loans)DB.loans=[];
  DB.loanSettings=DB.loanSettings||{min:5000,max:100000,adminRate:25,relations:['الزوج','الزوجة','الأب','الأم','الأخ','الأخت','الابن','الابنة','قريب','صديق','زميل عمل','أخرى'],projectTypes:['تجارة','تربية مواشي','خياطة','مطعم','كشك','زراعة','خدمات','أخرى'],incentives:[{role:'مندوب تحصيل',rate:1.5},{role:'مسؤول تمويل',rate:1.5},{role:'مسؤول منطقة',rate:1},{role:'مدير فرع',rate:1},{role:'مدير تنفيذي',rate:1}]};
  DB.taxWithholding=DB.taxWithholding||{withholding:[1,3,5],vat:14,stamp:0};
  DB.reconApproved=DB.reconApproved||[];
