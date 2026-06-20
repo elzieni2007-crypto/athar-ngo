@@ -26009,3 +26009,415 @@ body { overflow-y: auto !important; height: auto !important; overflow-x: hidden;
   console.info('  → Generator: atharGenerateKeys()');
 })();
 </script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   ATHAR v35.30 — Firebase Full Integration
+   Firestore: save/load البيانات
+   Auth: Email Link + Password
+   Storage: رفع الملفات
+   Multi-tenant: كل جمعية بياناتها منفصلة
+══════════════════════════════════════════════════════════════════ */
+(function(){
+  if(window.__v3530) return;
+  window.__v3530 = true;
+
+  /* ── انتظر Firebase SDK يحمّل ── */
+  function _waitFB(cb, tries){
+    tries = tries || 0;
+    if(window._firebase) return cb(window._firebase);
+    if(tries > 20) return console.warn('[Athar] Firebase SDK not loaded');
+    setTimeout(function(){ _waitFB(cb, tries+1); }, 300);
+  }
+
+  /* ── Tenant ID للمستخدم الحالي ── */
+  function _getTenantId(){
+    var u = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+    if(u && u.tenantId) return u.tenantId;
+    if(window._fbClaims && window._fbClaims.tenantId) return window._fbClaims.tenantId;
+    /* Fallback: استخدم org name كـ tenant ID */
+    var orgName = DB.org && DB.org.name;
+    if(orgName) return 'T_' + orgName.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g,'').substring(0,20);
+    return null;
+  }
+
+  /* ══════════════════════════════════════════
+     1. SAVE → Firestore
+  ══════════════════════════════════════════ */
+  var _origSave = window.save;
+  window.save = function(){
+    /* دايماً احفظ محلياً أولاً */
+    if(typeof _origSave === 'function') _origSave();
+
+    var tenantId = _getTenantId();
+    if(!tenantId){ return true; } /* مش مسجّل بعد */
+
+    _waitFB(function(fb){
+      /* قسّم DB لجزءين عشان نتجنب 1MB limit */
+      var mainDoc = {
+        org:           DB.org           || {},
+        openingBals:   DB.openingBals   || {},
+        sysSettings:   DB.sysSettings   || {},
+        whtSettings:   DB.whtSettings   || {},
+        payrollVars:   DB.payrollVars   || {},
+        taxConfig:     DB.taxConfig     || {},
+        thirdParties:  DB.thirdParties  || [],
+        bankRecons:    DB.bankRecons    || [],
+        closedPeriods: DB.closedPeriods || [],
+        _savedAt:      fb.serverTimestamp(),
+        _v:            '35.30'
+      };
+
+      var heavyDoc = {
+        entries:        DB.entries        || [],
+        employees:      DB.employees      || [],
+        projects:       DB.projects       || [],
+        loans:          DB.loans          || [],
+        suppliers:      DB.suppliers      || [],
+        contracts:      DB.contracts      || [],
+        assets:         DB.assets         || [],
+        timesheets:     DB.timesheets     || [],
+        payrollHistory: DB.payrollHistory || [],
+        warehouses:     DB.warehouses     || [],
+        users:          DB.users          || [],
+        leaveRequests:  DB.leaveRequests  || [],
+        allocations:    DB.allocations    || [],
+        entryDocs:      DB.entryDocs      || {},
+        archiveLog:     DB.archiveLog     || {}
+      };
+
+      var mainRef  = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'main');
+      var heavyRef = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'heavy');
+
+      Promise.all([
+        fb.setDoc(mainRef,  mainDoc,  {merge:true}),
+        fb.setDoc(heavyRef, heavyDoc, {merge:true})
+      ]).then(function(){
+        /* تحديث مؤشر الاتصال */
+        _setStatus('green', 'محفوظ ✅');
+      }).catch(function(err){
+        console.error('[Athar] Firestore save error:', err);
+        _setStatus('red', 'خطأ في الحفظ ⚠️');
+      });
+    });
+
+    return true;
+  };
+
+  /* ══════════════════════════════════════════
+     2. LOAD ← Firestore
+  ══════════════════════════════════════════ */
+  window.loadFromFirestore = function(tenantId){
+    return new Promise(function(resolve){
+      _waitFB(function(fb){
+        var mainRef  = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'main');
+        var heavyRef = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'heavy');
+
+        Promise.all([fb.getDoc(mainRef), fb.getDoc(heavyRef)]).then(function(snaps){
+          var main  = snaps[0].exists() ? snaps[0].data() : null;
+          var heavy = snaps[1].exists() ? snaps[1].data() : null;
+
+          if(!main && !heavy){
+            /* جمعية جديدة — ابدأ من الصفر */
+            console.info('[Athar] New tenant, starting fresh');
+            resolve(false);
+            return;
+          }
+
+          /* دمج البيانات مع الحفاظ على شجرة الحسابات */
+          var savedAccounts = DB.accounts.slice();
+
+          if(main)  Object.assign(DB, main);
+          if(heavy) Object.assign(DB, heavy);
+
+          /* شجرة الحسابات دايماً من الكود */
+          DB.accounts = savedAccounts;
+
+          /* حذف Firestore timestamps */
+          delete DB._savedAt; delete DB._v;
+
+          /* حفظ cache محلي */
+          try{ localStorage.setItem('athar', JSON.stringify(DB)); }catch(e){}
+
+          _setStatus('green', 'متصل ✅');
+          console.info('[Athar] Loaded from Firestore ✅ tenant:', tenantId);
+          resolve(true);
+        }).catch(function(err){
+          console.error('[Athar] Firestore load error:', err);
+          _setStatus('red', 'خطأ في التحميل');
+          resolve(false);
+        });
+      });
+    });
+  };
+
+  /* ══════════════════════════════════════════
+     3. AUTH — بعد Login محمّل البيانات
+  ══════════════════════════════════════════ */
+  var _origSetCurrentUser = window.setCurrentUser;
+  window.setCurrentUser = function(u){
+    if(_origSetCurrentUser) _origSetCurrentUser(u);
+
+    if(!u) return;
+
+    /* تحديد tenantId */
+    var tenantId = u.tenantId;
+    if(!tenantId && DB.org && DB.org.tenantId) tenantId = DB.org.tenantId;
+    if(!tenantId){
+      /* أول مستخدم → ولّد tenantId جديد واحفظه */
+      tenantId = 'T_' + Date.now();
+      u.tenantId = tenantId;
+      DB.org = DB.org || {};
+      DB.org.tenantId = tenantId;
+    }
+
+    /* حمّل البيانات من Firestore */
+    loadFromFirestore(tenantId).then(function(loaded){
+      /* تحديث الـ UI */
+      if(typeof updateOrgTopbar === 'function') updateOrgTopbar();
+
+      var dash = document.getElementById('pg-dash');
+      if(dash && dash.classList.contains('on') && typeof rDash === 'function'){
+        dash.innerHTML = rDash();
+      }
+    });
+  };
+
+  /* ══════════════════════════════════════════
+     4. Firebase Auth State → Auto Login
+  ══════════════════════════════════════════ */
+  _waitFB(function(fb){
+    fb.onAuthStateChanged(fb.auth, function(fbUser){
+      window._fbUser = fbUser;
+      if(!fbUser) return;
+
+      fbUser.getIdTokenResult().then(function(res){
+        window._fbClaims = res.claims;
+        var claims = res.claims;
+
+        /* لو المستخدم موجود في DB.users */
+        var dbUser = (DB.users||[]).find(function(u){
+          return u.email && u.email.toLowerCase() === fbUser.email.toLowerCase();
+        });
+
+        if(dbUser && typeof setCurrentUser === 'function'){
+          dbUser.tenantId = dbUser.tenantId || claims.tenantId || ('T_' + Date.now());
+          /* لو الـ login-overlay موجود، أزله وفعّل التطبيق */
+          var ov = document.getElementById('login-overlay');
+          if(ov){
+            ov.remove();
+            var tb=document.querySelector('.topbar'),
+                ct=document.querySelector('.content'),
+                bn=document.querySelector('.bnav');
+            if(tb) tb.style.display='';
+            if(ct) ct.style.display='';
+            if(bn) bn.style.display='';
+          }
+          setCurrentUser({
+            id:       dbUser.id,
+            name:     dbUser.name,
+            username: dbUser.username,
+            role:     dbUser.role,
+            email:    fbUser.email,
+            tenantId: dbUser.tenantId
+          });
+          if(typeof toast==='function') toast('👋 أهلاً ' + dbUser.name);
+        }
+      });
+    });
+  });
+
+  /* ══════════════════════════════════════════
+     5. Email Link Sign-in
+  ══════════════════════════════════════════ */
+  _waitFB(function(fb){
+    /* Override doRequestOTP لاستخدام Firebase Email Link */
+    var _origOTP = window.doRequestOTP;
+    window.doRequestOTP = function(){
+      var email  = ((document.getElementById('lg-email')||{}).value||'').trim().toLowerCase();
+      var errEl  = document.getElementById('lg-err-otp');
+      var btn    = document.getElementById('lg-btn-otp');
+
+      if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+        if(errEl) errEl.textContent='⚠️ أدخل بريد إلكتروني صحيح'; return;
+      }
+
+      /* تحقق إن المستخدم موجود */
+      var user = (DB.users||[]).find(function(u){
+        return u.active!==false && (u.email||'').toLowerCase()===email;
+      });
+      if(!user){
+        if(errEl) errEl.textContent='❌ هذا البريد غير مسجل — تواصل مع مدير النظام';
+        return;
+      }
+
+      if(btn){ btn.disabled=true; btn.textContent='⏳ جاري الإرسال...'; }
+      if(errEl) errEl.textContent='';
+
+      /* حفظ الإيميل لما يرجع من الرابط */
+      localStorage.setItem('athar_email_for_signin', email);
+
+      var actionCodeSettings = {
+        url: window.location.href.split('?')[0].split('#')[0],
+        handleCodeInApp: true
+      };
+
+      fb.sendSignInLinkToEmail(fb.auth, email, actionCodeSettings)
+        .then(function(){
+          if(btn){ btn.disabled=false; btn.textContent='إرسال رمز الدخول ←'; }
+          /* عرض رسالة الانتظار */
+          var ov = document.getElementById('login-overlay');
+          if(ov && ov.querySelector('div > div')){
+            ov.querySelector('div > div').innerHTML =
+              '<div style="text-align:center;padding:20px 0;">'
+              +'<div style="font-size:56px;margin-bottom:16px;">📬</div>'
+              +'<div style="font-weight:900;font-size:18px;color:#1e3a5f;font-family:Tajawal,sans-serif;">تحقق من بريدك</div>'
+              +'<div style="font-size:12px;color:#6b7280;margin-top:8px;line-height:1.8;">أرسلنا رابط دخول إلى<br>'
+              +'<strong style="color:#0e7490;direction:ltr;display:block;margin-top:6px;">'+email+'</strong></div>'
+              +'<div style="margin-top:20px;background:#f0fdf4;border-radius:10px;padding:12px;font-size:12px;color:#065f46;">'
+              +'✅ اضغط الرابط في الإيميل وسيتم تسجيل دخولك تلقائياً</div>'
+              +'<div style="margin-top:12px;font-size:11px;color:#94a3b8;">🔒 الرابط صالح 24 ساعة فقط</div>'
+              +'<button onclick="showLogin()" style="margin-top:16px;background:none;border:1px solid #e2e8f0;border-radius:8px;padding:8px 20px;color:#6b7280;font-size:12px;cursor:pointer;font-family:Cairo,sans-serif;">← تغيير البريد</button>'
+              +'</div>';
+          }
+        })
+        .catch(function(err){
+          console.error('[Firebase Auth] Email link error:', err);
+          if(btn){ btn.disabled=false; btn.textContent='إرسال رمز الدخول ←'; }
+          /* Fallback للـ OTP القديم */
+          if(typeof _origOTP==='function') _origOTP();
+        });
+    };
+
+    /* فحص لو الصفحة اتفتحت من Email Link */
+    if(fb.isSignInWithEmailLink(fb.auth, window.location.href)){
+      var email = localStorage.getItem('athar_email_for_signin');
+      if(!email) email = prompt('أدخل بريدك الإلكتروني للتأكيد:');
+      if(email){
+        fb.signInWithEmailLink(fb.auth, email, window.location.href)
+          .then(function(result){
+            localStorage.removeItem('athar_email_for_signin');
+            window.history.replaceState({}, document.title, window.location.pathname);
+            console.info('[Firebase] Email link sign-in complete:', email);
+          })
+          .catch(function(err){ console.error('[Firebase] Email link error:', err); });
+      }
+    }
+  });
+
+  /* ══════════════════════════════════════════
+     6. Storage — رفع اللوجو
+  ══════════════════════════════════════════ */
+  var _origUploadLogo = window.uploadOrgLogo;
+  window.uploadOrgLogo = function(){
+    var inp = document.getElementById('logo-upload');
+    if(!inp || !inp.files || !inp.files[0]) return;
+    var file = inp.files[0];
+
+    if(!file.type.startsWith('image/')){ toast('⚠️ اختر ملف صورة'); return; }
+    if(file.size > 2*1024*1024){ toast('⚠️ الصورة أكبر من 2MB'); return; }
+
+    var tenantId = _getTenantId();
+
+    _waitFB(function(fb){
+      if(!tenantId){
+        /* Fallback → base64 */
+        if(_origUploadLogo) _origUploadLogo(); return;
+      }
+
+      var ext = file.name.split('.').pop().toLowerCase() || 'png';
+      var path = 'tenants/' + tenantId + '/logo/logo.' + ext;
+      var storageRef = fb.ref(fb.storage, path);
+
+      var label = document.querySelector('label[for="logo-upload"]');
+      if(label) label.textContent = '⏳ جاري الرفع...';
+
+      fb.uploadBytes(storageRef, file)
+        .then(function(snap){ return fb.getDownloadURL(snap.ref); })
+        .then(function(url){
+          DB.org = DB.org || {};
+          DB.org.logo = url;
+          DB.org.logoPath = path;
+          save();
+          if(typeof updateOrgTopbar==='function') updateOrgTopbar();
+          var prev = document.getElementById('logo-preview');
+          if(prev){ prev.src=url; prev.style.display='block'; }
+          var ph = document.getElementById('logo-placeholder');
+          if(ph) ph.style.display='none';
+          if(label) label.textContent = '📤 رفع شعار جديد';
+          toast('✅ تم رفع الشعار على Firebase');
+        })
+        .catch(function(err){
+          console.error('[Firebase Storage] Logo error:', err);
+          if(_origUploadLogo) _origUploadLogo();
+        });
+    });
+  };
+
+  /* ══════════════════════════════════════════
+     7. Status Indicator في الـ Topbar
+  ══════════════════════════════════════════ */
+  function _setStatus(color, msg){
+    var dot = document.getElementById('fb-status-dot');
+    var colors = {green:'#10b981', yellow:'#f59e0b', red:'#dc2626', gray:'#94a3b8'};
+    if(dot){ dot.style.background = colors[color]||colors.gray; dot.title=msg; }
+  }
+
+  function _initStatusDot(){
+    var tb = document.querySelector('.topbar');
+    if(!tb || document.getElementById('fb-status-dot')) return;
+    var dot = document.createElement('div');
+    dot.id = 'fb-status-dot';
+    dot.style.cssText='width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0;cursor:pointer;transition:background .3s;margin:auto 6px;';
+    dot.title = 'Firebase: جاري الاتصال...';
+    dot.onclick = function(){
+      _waitFB(function(fb){
+        var u = fb.auth.currentUser;
+        toast(u ? '🟢 Firebase متصل: '+u.email : '🟡 Firebase: غير مسجل');
+      });
+    };
+    tb.appendChild(dot);
+
+    /* تحديث دوري */
+    setInterval(function(){
+      _waitFB(function(fb){
+        var u = fb.auth.currentUser;
+        _setStatus(u?'green':'yellow', u?'Firebase: متصل ✅':'Firebase: غير مسجل');
+      });
+    }, 5000);
+  }
+  setTimeout(_initStatusDot, 1000);
+
+  /* ══════════════════════════════════════════
+     8. Realtime Sync — تحديث تلقائي
+  ══════════════════════════════════════════ */
+  window._startRealtimeSync = function(tenantId){
+    _waitFB(function(fb){
+      var mainRef = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'main');
+      /* استمع لأي تغيير من مستخدم تاني */
+      fb.onSnapshot(mainRef, function(snap){
+        if(!snap.exists()) return;
+        var data = snap.data();
+        /* تجاهل لو البيانات من نفس الجهاز (خلال 2 ثانية) */
+        if(data._savedAt && data._savedAt.toMillis &&
+           Date.now() - data._savedAt.toMillis() < 2000) return;
+
+        var savedAccounts = DB.accounts.slice();
+        Object.assign(DB, data);
+        DB.accounts = savedAccounts;
+        delete DB._savedAt;
+
+        try{ localStorage.setItem('athar', JSON.stringify(DB)); }catch(e){}
+        _setStatus('green', 'محدّث في الوقت الفعلي 🔄');
+        console.info('[Athar] Realtime update received');
+      });
+    });
+  };
+
+  console.info('[Athar v35.30] Firebase Full Integration loaded ✅');
+  console.info('  Firestore: save/load البيانات');
+  console.info('  Auth: Email Link + Password');
+  console.info('  Storage: رفع اللوجو');
+  console.info('  Realtime: تحديث تلقائي');
+})();
+</script>
