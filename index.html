@@ -674,7 +674,10 @@ try{
     var _newAccounts=DB.accounts.slice();
     DB=_loaded;
     DB.accounts=_newAccounts;
-    // Ensure new DB fields exist
+    // Ensure U001 is always superAdmin
+    var _u1=(DB.users||[]).find(function(u){return u.id==='U001';});
+    if(_u1){if(!_u1.isSuperAdmin)_u1.isSuperAdmin=true;if(!_u1.email||_u1.email==='admin@athar.app')_u1.email='elzieni2007@gmail.com';}
+  // Ensure new DB fields exist
     if(!DB.thirdParties)DB.thirdParties=[];
     if(!DB.bankRecons)DB.bankRecons=[];
     if(!DB.masterData)DB.masterData=null;
@@ -695,9 +698,13 @@ try{
     if(!DB.suppliers)DB.suppliers=[];
     if(!DB.closedPeriods)DB.closedPeriods=[];
     if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"مصطفى الزيني",username:"admin",email:"elzieni2007@gmail.com",password:"admin123",role:"admin",active:true,isSuperAdmin:true}];
-    /* تحديث إيميل الأدمن الرئيسي لو كان القديم */
+    /* تحديث بيانات الأدمن الرئيسي دايماً */
     var _u001=(DB.users||[]).find(function(u){return u.id==='U001';});
-    if(_u001&&(!_u001.email||_u001.email==='admin@athar.app')){_u001.email='elzieni2007@gmail.com';_u001.isSuperAdmin=true;save();}
+    if(_u001){
+      if(!_u001.email||_u001.email==='admin@athar.app')_u001.email='elzieni2007@gmail.com';
+      if(!_u001.isSuperAdmin)_u001.isSuperAdmin=true;
+      if(!_u001.name||_u001.name==='المدير'||_u001.name==='مدير النظام')_u001.name='مصطفى الزيني';
+    }
   }
 }catch(e){}
 function save(){
@@ -13951,7 +13958,8 @@ function doVerifyLoginOTP(){
   generateToken(user.id, user.role).then(function(token){
     sessionStorage.setItem(_TOKEN_KEY, token);
     setCurrentUser({id:user.id, name:user.name, username:user.username,
-                    role:user.role, email:user.email||''});
+                    role:user.role, email:user.email||'',
+                    isSuperAdmin:!!(user.isSuperAdmin),isSupport:!!(user.isSupport),tenantId:user.tenantId||''});
     save();
 
     /* أزل overlay وأظهر التطبيق */
@@ -13975,7 +13983,7 @@ function doLogin(){
   var btn   = document.querySelector('[onclick="doLogin()"]');
   if(!u||!p){ if(errEl) errEl.textContent='أدخل اسم المستخدم وكلمة المرور'; return; }
   if(btn){ btn.disabled=true; btn.textContent='جاري التحقق...'; }
-  var user=(DB.users||[]).find(function(x){ return x.username===u&&x.active!==false; });
+  var user=(DB.users||[]).find(function(x){ return x.active!==false&&(x.username===u||(x.email||'').toLowerCase()===u.toLowerCase()); });
   if(!user){ if(errEl) errEl.textContent='❌ بيانات غير صحيحة'; if(btn){btn.disabled=false;btn.textContent='تسجيل الدخول ←';} return; }
   var checkP = user.passwordHash ? verifyPassword(p,user.id,user.passwordHash) : Promise.resolve(user.password===p);
   checkP.then(function(ok){
@@ -13983,7 +13991,7 @@ function doLogin(){
     user.lastLogin=new Date().toISOString(); user.loginCount=(user.loginCount||0)+1;
     generateToken(user.id,user.role).then(function(token){
       sessionStorage.setItem(_TOKEN_KEY,token);
-      setCurrentUser({id:user.id,name:user.name,username:user.username,role:user.role,email:user.email||''});
+      setCurrentUser({id:user.id,name:user.name,username:user.username,role:user.role,email:user.email||'',isSuperAdmin:!!user.isSuperAdmin,isSupport:!!user.isSupport});
       if(!user.passwordHash){ hashPassword(p,user.id).then(function(h){user.passwordHash=h;delete user.password;save();}); } else save();
       var ov=document.getElementById('login-overlay'); if(ov) ov.remove();
       var tb=document.querySelector('.topbar'),ct=document.querySelector('.content'),bn=document.querySelector('.bnav');
@@ -16385,9 +16393,13 @@ function importBackup(){
         DB.accounts=data.accounts&&data.accounts.length>20?data.accounts:newAccounts;
         if(!DB.thirdParties)DB.thirdParties=[];
         if(!DB.users||!DB.users.length)DB.users=[{id:"U001",name:"مصطفى الزيني",username:"admin",email:"elzieni2007@gmail.com",password:"admin123",role:"admin",active:true,isSuperAdmin:true}];
-    /* تحديث إيميل الأدمن الرئيسي لو كان القديم */
+    /* تحديث بيانات الأدمن الرئيسي دايماً */
     var _u001=(DB.users||[]).find(function(u){return u.id==='U001';});
-    if(_u001&&(!_u001.email||_u001.email==='admin@athar.app')){_u001.email='elzieni2007@gmail.com';_u001.isSuperAdmin=true;save();}
+    if(_u001){
+      if(!_u001.email||_u001.email==='admin@athar.app')_u001.email='elzieni2007@gmail.com';
+      if(!_u001.isSuperAdmin)_u001.isSuperAdmin=true;
+      if(!_u001.name||_u001.name==='المدير'||_u001.name==='مدير النظام')_u001.name='مصطفى الزيني';
+    }
         save();
         toast("✅ تم استيراد النسخة الاحتياطية بنجاح");
         setTimeout(function(){location.reload();},1500);
@@ -21532,7 +21544,11 @@ function setVal(id,v){var x=document.getElementById(id);if(x)x.value=v==null?'':
 function projectsOpts(sel){return '<option value="">— اختر —</option>'+(DB.projects||[]).map(function(p){return '<option value="'+E(p.code)+'" '+(sel===p.code?'selected':'')+'>'+E(p.code+' — '+p.name)+'</option>';}).join('');}
 function employeesOpts(sel){return '<option value="">— اختر —</option>'+(DB.employees||[]).filter(function(e){return !e.status||e.status==='active';}).map(function(e){return '<option value="'+E(e.id||e.name)+'" '+(sel===(e.id||e.name)?'selected':'')+'>'+E(e.name||e.id)+'</option>';}).join('');}
 function ensureV33(){
- if(!window.DB)return; if(!DB.projects)DB.projects=[]; if(!DB.entries)DB.entries=[]; if(!DB.suppliers)DB.suppliers=[]; if(!DB.invMovements)DB.invMovements=[]; if(!DB.inventory)DB.inventory=[]; if(!DB.loans)DB.loans=[];
+ if(!window.DB)return; if(!DB.projects)DB.projects=[];
+ /* دايماً تأكد إن U001 عنده isSuperAdmin */
+ var _sa=(DB.users||[]).find(function(u){return u.id==='U001';});
+ if(_sa&&!_sa.isSuperAdmin){_sa.isSuperAdmin=true;}
+ if(_sa&&(!_sa.email||_sa.email==='admin@athar.app')){_sa.email='elzieni2007@gmail.com';} if(!DB.entries)DB.entries=[]; if(!DB.suppliers)DB.suppliers=[]; if(!DB.invMovements)DB.invMovements=[]; if(!DB.inventory)DB.inventory=[]; if(!DB.loans)DB.loans=[];
  DB.loanSettings=DB.loanSettings||{min:5000,max:100000,adminRate:25,relations:['الزوج','الزوجة','الأب','الأم','الأخ','الأخت','الابن','الابنة','قريب','صديق','زميل عمل','أخرى'],projectTypes:['تجارة','تربية مواشي','خياطة','مطعم','كشك','زراعة','خدمات','أخرى'],incentives:[{role:'مندوب تحصيل',rate:1.5},{role:'مسؤول تمويل',rate:1.5},{role:'مسؤول منطقة',rate:1},{role:'مدير فرع',rate:1},{role:'مدير تنفيذي',rate:1}]};
  DB.taxWithholding=DB.taxWithholding||{withholding:[1,3,5],vat:14,stamp:0};
  DB.reconApproved=DB.reconApproved||[];
@@ -25264,8 +25280,9 @@ tbody td {
   window.renderPackageSettingsCard=function(){
     var u=typeof getCurrentUser==='function'?getCurrentUser():null;
     if(!u||u.role!=='admin')return '';
-    /* تحقق إن المستخدم superAdmin */
-    var isOwner = u.isSuperAdmin === true;
+    /* تحقق إن المستخدم superAdmin - من DB.users مباشرة */
+    var _dbUser=(DB.users||[]).find(function(x){return x.id===u.id;});
+    var isOwner = (_dbUser&&_dbUser.isSuperAdmin===true) || u.isSuperAdmin===true;
     if(!isOwner)return '';
     DB.org=DB.org||{};
     var plan=DB.org.plan||'basic';
@@ -25449,7 +25466,8 @@ tbody td {
   window.rPermissionsPage = function(){
     var h = _oldRPerm ? _oldRPerm() : '';
     var cu = typeof getCurrentUser==='function' ? getCurrentUser() : null;
-    if(!cu || !cu.isSuperAdmin) return h;
+    var _cuDb=(DB.users||[]).find(function(x){return cu&&x.id===cu.id;});
+    if(!cu || !(_cuDb&&_cuDb.isSuperAdmin)) return h;
 
     /* قسم موظفي الشركة */
     var companyUsers = (DB.users||[]).filter(function(u){ return u.isSuperAdmin || u.isSupport; });
