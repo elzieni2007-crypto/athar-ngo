@@ -280,7 +280,7 @@ button,input,select,textarea,a{pointer-events:auto !important;}
     import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
     import { getAuth, sendSignInLinkToEmail, isSignInWithEmailLink,
-             signInWithEmailLink, signOut, onAuthStateChanged }
+             signInWithEmailLink, signOut, onAuthStateChanged, createUserWithEmailAndPassword }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
@@ -304,7 +304,8 @@ button,input,select,textarea,a{pointer-events:auto !important;}
       doc, setDoc, getDoc, onSnapshot, serverTimestamp,
       ref, uploadBytes, getDownloadURL, deleteObject,
       sendSignInLinkToEmail, isSignInWithEmailLink,
-      signInWithEmailLink, signOut, onAuthStateChanged };
+      signInWithEmailLink, signOut, onAuthStateChanged,
+      createUserWithEmailAndPassword };
 
     /* ── Auth state listener ── */
     onAuthStateChanged(auth, function(fbUser){
@@ -339,7 +340,7 @@ button,input,select,textarea,a{pointer-events:auto !important;}
 <div class="tb-brand">
     <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22120%22%20height%3D%22120%22%3E%3Crect%20rx%3D%2220%22%20width%3D%22120%22%20height%3D%22120%22%20fill%3D%22%231e3a6e%22/%3E%3Ctext%20x%3D%2260%22%20y%3D%2270%22%20font-size%3D%2234%22%20font-family%3D%22Arial%22%20font-weight%3D%22bold%22%20fill%3D%22white%22%20text-anchor%3D%22middle%22%3E%D8%A3%D8%AB%D8%B1%3C/text%3E%3C/svg%3E" class="tb-logo athar-logo" alt="أثر" style="height:50px;object-fit:contain;margin-left:8px;">
   </div><div class="tb-sub">للحلول المالية</div></div></div>
-  <div class="tb-org" id="org-name">جمعية نموذجية</div>
+  <div class="tb-org" id="org-name">أثر</div>
   <div data-sub="search" style="cursor:pointer;color:rgba(255,255,255,.8);padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.1);font-size:15px;margin-left:4px;">🔍</div>
   <div id="tb-user-badge" style="font-size:10px;padding:4px 9px;border-radius:20px;background:rgba(255,255,255,.15);color:white;cursor:pointer;white-space:nowrap;" onclick="sub('settings')"></div>
 </div>
@@ -508,7 +509,7 @@ function rOperationsHub(){
 var LOGO_B64="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22120%22%20height%3D%22120%22%3E%3Crect%20rx%3D%2220%22%20width%3D%22120%22%20height%3D%22120%22%20fill%3D%22%231e3a6e%22/%3E%3Ctext%20x%3D%2260%22%20y%3D%2270%22%20font-size%3D%2234%22%20font-family%3D%22Arial%22%20font-weight%3D%22bold%22%20fill%3D%22white%22%20text-anchor%3D%22middle%22%3E%D8%A3%D8%AB%D8%B1%3C/text%3E%3C/svg%3E";
 
 var DB={
-  org:{name:"مجلس الخدمات والتنمية",year:2025},
+  org:{name:"أثر",year:2025},
   assets:[],
   timesheets:[],
   sysSettings:{enforceBudget:true,budgetWarningPct:90},
@@ -12046,7 +12047,7 @@ function loadExtendedSeedData(){
 
   // ── موردون وأطراف ثالثة (20 طرف) ──────────────────────────────
   var tpSeed=[
-    {id:'TP001',name:'شركة النور للمستلزمات المكتبية',type:'supplier',category:'goods',taxId:'100-200-301',commercialReg:'12345',phone:'01224120901',whtType:'توريدات',whtRate:1,commercialRegExpiry:'2025-06-01',taxCardExpiry:'2026-12-31',vatCertExpiry:'2026-06-30'},
+    {id:'TP001',name:'شركة النور للمستلزمات المكتبية',type:'supplier',category:'goods',taxId:'100-200-301',commercialReg:'12345',phone:'01001234567',whtType:'توريدات',whtRate:1,commercialRegExpiry:'2025-06-01',taxCardExpiry:'2026-12-31',vatCertExpiry:'2026-06-30'},
     {id:'TP002',name:'مكتب الثقة للاستشارات المالية',type:'consultant',category:'consulting',taxId:'200-300-402',commercialReg:'23456',phone:'01012345678',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2026-03-15',taxCardExpiry:'2025-09-01',vatCertExpiry:'2026-09-30'},
     {id:'TP003',name:'مؤسسة الأمل للتنمية البشرية',type:'consultant',category:'consulting',taxId:'300-400-503',commercialReg:'34567',phone:'01023456789',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2027-01-01',taxCardExpiry:'2027-01-01',vatCertExpiry:'2027-01-01'},
     {id:'TP004',name:'شركة التقنية الحديثة للبرمجيات',type:'supplier',category:'it',taxId:'400-500-604',commercialReg:'45678',phone:'01034567890',whtType:'خدمات',whtRate:3,commercialRegExpiry:'2026-08-15',taxCardExpiry:'2026-08-15',vatCertExpiry:'2026-08-15'},
@@ -13824,18 +13825,60 @@ function verifyOTPAction(purpose){
   if(purpose === 'register'){
     var d = window._regData || {};
     if(!d.org || !d.email){ if(err) err.textContent='⚠️ خطأ في البيانات'; return; }
-    var newId = 'U'+Date.now();
-    var newUser = {id:newId, name:'المدير', username:d.email, email:d.email,
-      role:'admin', active:true, createdAt:new Date().toISOString().slice(0,10)};
-    DB.users = [newUser];
-    hashPassword(d.pass, newId).then(function(h){ newUser.passwordHash=h; save(); });
-    if(!DB.org) DB.org = {};
+    var newId    = 'U'+Date.now();
+    var tenantId = 'T_'+d.org.replace(/\s+/g,'_').replace(/[^\w\u0600-\u06FF]/g,'').substring(0,20)+'_'+Date.now().toString().slice(-4);
+    var newUser  = {id:newId, name:'المدير', username:d.email, email:d.email,
+      role:'admin', active:true, tenantId:tenantId, createdAt:new Date().toISOString().slice(0,10)};
+    DB.users    = [newUser];
+    DB.org      = DB.org || {};
     DB.org.name = d.org;
-    DB.org.email = d.email;
-    setCurrentUser({id:DB.users[0].id, name:DB.users[0].name, username:DB.users[0].username, role:DB.users[0].role});
+    DB.org.email= d.email;
+    DB.org.tenantId = tenantId;
+    hashPassword(d.pass, newId).then(function(h){ newUser.passwordHash=h; save(); });
     save();
+
+    /* Firebase — إنشاء حساب + تسجيل الجمعية في Firestore */
+    if(window._firebase && window._firebase.createUserWithEmailAndPassword){
+      var fb = window._firebase;
+      fb.createUserWithEmailAndPassword(fb.auth, d.email, d.pass)
+        .then(function(cred){
+          var exp = new Date(); exp.setDate(exp.getDate()+30);
+          return fb.setDoc(fb.doc(fb.db_fs,'tenants',tenantId),{
+            orgName:   d.org,
+            email:     d.email,
+            plan:      'trial',
+            expiry:    exp.toISOString().split('T')[0],
+            active:    true,
+            uid:       cred.user.uid,
+            createdAt: fb.serverTimestamp()
+          });
+        })
+        .then(function(){ console.info('[Athar] New tenant registered in Firebase:', tenantId); toast('✅ تم إنشاء حسابك بنجاح — مرحباً بك في أثر'); })
+        .catch(function(e){ console.warn('[Firebase] Register note:', e.message); });
+    }
+
+    setCurrentUser({id:newUser.id, name:newUser.name, username:newUser.username, role:newUser.role, tenantId:tenantId});
+    /* تحديث اسم الجمعية في الـ topbar فوراً */
+    var orgNameEl = document.getElementById('org-name') || document.querySelector('.tb-org');
+    if(orgNameEl) orgNameEl.textContent = d.org;
+    /* إزالة شاشة الدخول وإظهار التطبيق */
     var ov = document.getElementById('login-overlay'); if(ov) ov.remove();
-    location.reload();
+    var tb=document.querySelector('.topbar'), ct=document.querySelector('.content'), bn=document.querySelector('.bnav');
+    if(tb) tb.style.removeProperty('display');
+    if(ct) ct.style.removeProperty('display');
+    if(bn) bn.style.removeProperty('display');
+    /* إعادة تحميل الداشبورد بدون reload كامل */
+    setTimeout(function(){
+      if(typeof rDash==='function'){
+        var dash=document.getElementById('pg-dash');
+        if(dash){ dash.innerHTML=rDash(); dash.classList.add('on'); }
+        document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+        var dashBtn=document.querySelector('[data-nav="dash"]');
+        if(dashBtn) dashBtn.classList.add('on');
+        if(typeof updateOrgTopbar==='function') updateOrgTopbar();
+        toast('🎉 أهلاً بك في أثر يا '+newUser.name+' — '+d.org);
+      } else { location.reload(); }
+    }, 200);
   } else if(purpose === 'reset'){
     var np = ((document.getElementById('new-pass')||{}).value||'');
     if(!np || np.length < 6){ if(err) err.textContent='أدخل كلمة مرور جديدة (6 أحرف+)'; return; }
@@ -13865,7 +13908,7 @@ function showLogin(){
   /* لا نستخدم inline style على #mo لأنه يكسر .mo.on { display:flex } */
   if(mo){ mo.classList.remove('on'); mo.style.removeProperty('display'); }
   var ov=document.getElementById('login-overlay'); if(ov) ov.remove();
-  var orgName=(DB.org&&DB.org.name)?DB.org.name:'';
+  var orgName=(DB.org&&DB.org.name&&DB.org.name!=='أثر')?DB.org.name:'أثر — للحلول المالية للجمعيات';
   var overlay=document.createElement('div');
   overlay.id='login-overlay';
   overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;';
@@ -19313,7 +19356,7 @@ function seedقروضData(){
   }
 
   // 20 clients — varied amounts, some overdue, some paid, some closed
-  mkLoan('LN001','محمد أحمد السيد','01224120901',10000,18,12,'monthly',d(10),2,'active');      // متأخر 8 أقساط
+  mkLoan('LN001','محمد أحمد السيد','01001234567',10000,18,12,'monthly',d(10),2,'active');      // متأخر 8 أقساط
   mkLoan('LN002','فاطمة علي حسن','01112345678',5000,15,6,'monthly',d(8),1,'active');            // متأخر 7 أقساط
   mkLoan('LN003','أحمد محمود عبده','01223456789',15000,20,12,'monthly',d(6),4,'active');        // متأخر 2
   mkLoan('LN004','سارة إبراهيم نور','01034567890',8000,18,12,'monthly',d(4),2,'active');        // متأخر قسط
@@ -25520,49 +25563,10 @@ body { overflow-y: auto !important; height: auto !important; overflow-x: hidden;
 
   /* ══ أنواع التراخيص ══ */
   var PLANS = {
-    trial: {
-      name:'تجريبي 30 يوم',
-      price: 0,
-      entries: 100, users: 2, projects: 3,
-      modules: ['core','finance','grants'],
-      features: ['محاسبة 118 حساب','إدارة المشاريع WBS','تقارير مالية','ميزان مراجعة وقوائم']
-    },
-    basic: {
-      name:'Basic 🌐',
-      price: 490,
-      priceOld: 700,
-      users: 3, entries: -1, projects: -1,
-      modules: ['core','finance','grants','hr_basic','vendors'],
-      features: [
-        'المحاسبة الكاملة 118 حساب',
-        'إدارة المشاريع WBS & BVA',
-        'إدارة ضريبة وبنوك',
-        'التقارير المالية الكاملة',
-        'Excel & PDF تقارير',
-        'الموارد البشرية (أساسي)',
-        'سجل الموردين',
-        '3 مستخدمين'
-      ]
-    },
-    pro: {
-      name:'Pro 🚀',
-      price: 910,
-      priceOld: 1300,
-      users: 8, entries: -1, projects: -1,
-      modules: ['all'],
-      features: [
-        'كل مميزات Basic',
-        'مسير المرتبات كامل (ق.91/2005)',
-        'Timesheet Allocation',
-        'نموذج 41 + 7/24 + إقفال',
-        'الأصول الثابتة',
-        'المخازن والموردين كامل',
-        'المساعد الذكي AI',
-        'أرشفة QR',
-        'Smart Document Compliance',
-        '8 مستخدمين'
-      ]
-    }
+    trial:     { name:'تجريبي',    entries:50,  users:2, projects:2,  modules:['core','finance'] },
+    basic:     { name:'أساسية',    entries:500, users:2, projects:3,  modules:['core','finance','hr'] },
+    pro:       { name:'متكاملة',   entries:-1,  users:5, projects:-1, modules:['core','finance','hr','grants','loans','inventory'] },
+    unlimited: { name:'مؤسسية',    entries:-1,  users:-1,projects:-1, modules:['all'] }
   };
 
   /* ══ توليد مفتاح ══ */
@@ -25771,40 +25775,16 @@ body { overflow-y: auto !important; height: auto !important; overflow-x: hidden;
       +'style="width:100%;padding:14px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;margin-bottom:10px;">'
       +'✅ تفعيل الترخيص</button>'
 
-      /* مقارنة الباقتين */
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
-      /* Basic */
-      +'<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;">'
-      +'<div style="font-size:13px;font-weight:900;color:#1e3a5f;">Basic 🌐</div>'
-      +'<div style="font-size:20px;font-weight:900;color:#0e7490;margin:4px 0;">تواصل معنا<span style="font-size:11px;font-weight:400;"></span></div>'
-      +''
-      +'<div style="font-size:10px;color:#374151;margin-top:6px;line-height:1.6;text-align:right;">'
-      +'✅ محاسبة كاملة<br>✅ مشاريع BVA<br>✅ تقارير Excel<br>✅ 3 مستخدمين'
-      +'</div>'
-      +'</div>'
-      /* Pro */
-      +'<div style="border:2px solid #0e7490;border-radius:10px;padding:10px;text-align:center;background:#f0f9ff;">'
-      +'<div style="font-size:11px;background:#0e7490;color:white;border-radius:5px;padding:2px 6px;display:inline-block;margin-bottom:4px;">الأكثر اختياراً</div>'
-      +'<div style="font-size:13px;font-weight:900;color:#1e3a5f;">Pro 🚀</div>'
-      +'<div style="font-size:20px;font-weight:900;color:#0e7490;margin:4px 0;">للاستفسار<span style="font-size:11px;font-weight:400;"></span></div>'
-      +''
-      +'<div style="font-size:10px;color:#374151;margin-top:6px;line-height:1.6;text-align:right;">'
-      +'✅ كل Basic<br>✅ رواتب ق.91<br>✅ AI + QR<br>✅ 8 مستخدمين'
-      +'</div>'
-      +'</div>'
-      +'</div>'
-
-      /* تجريبي */
-      +'<div style="text-align:center;font-size:11.5px;color:#6b7280;margin-bottom:10px;">'
+      /* تجريبي مجاناً */
+      +'<div style="text-align:center;font-size:11.5px;color:#6b7280;">'
       +'تريد تجربة النظام؟ '
       +'<a href="#" onclick="doActivateLicense(\'ATHAR-DEMO-2025-FREE-DEMO\');return false;" '
-      +'style="color:#0e7490;font-weight:700;">30 يوم مجاناً بدون بطاقة</a>'
+      +'style="color:#0e7490;font-weight:700;">30 يوم مجاناً</a>'
       +'</div>'
 
       /* معلومات التواصل */
-      +'<div style="padding-top:12px;border-top:1px solid #f1f5f9;text-align:center;font-size:11px;color:#94a3b8;">'
-      +'📧 <span style="color:#0e7490;font-weight:700;">elzieni2007@gmail.com</span>'
-      +' &nbsp;|&nbsp; 📞 <span style="color:#0e7490;font-weight:700;">01224120901</span>'
+      +'<div style="margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;text-align:center;font-size:11px;color:#94a3b8;">'
+      +'للحصول على ترخيص: <span style="color:#0e7490;font-weight:700;">elzieni2007@gmail.com</span>'
       +'</div>'
 
       +'</div>';
@@ -26007,417 +25987,5 @@ body { overflow-y: auto !important; height: auto !important; overflow-x: hidden;
   console.info('  → Trial: 30 days auto-start');
   console.info('  → Plans: trial / basic / pro / unlimited');
   console.info('  → Generator: atharGenerateKeys()');
-})();
-</script>
-
-<script>
-/* ══════════════════════════════════════════════════════════════════
-   ATHAR v35.30 — Firebase Full Integration
-   Firestore: save/load البيانات
-   Auth: Email Link + Password
-   Storage: رفع الملفات
-   Multi-tenant: كل جمعية بياناتها منفصلة
-══════════════════════════════════════════════════════════════════ */
-(function(){
-  if(window.__v3530) return;
-  window.__v3530 = true;
-
-  /* ── انتظر Firebase SDK يحمّل ── */
-  function _waitFB(cb, tries){
-    tries = tries || 0;
-    if(window._firebase) return cb(window._firebase);
-    if(tries > 20) return console.warn('[Athar] Firebase SDK not loaded');
-    setTimeout(function(){ _waitFB(cb, tries+1); }, 300);
-  }
-
-  /* ── Tenant ID للمستخدم الحالي ── */
-  function _getTenantId(){
-    var u = typeof getCurrentUser==='function' ? getCurrentUser() : null;
-    if(u && u.tenantId) return u.tenantId;
-    if(window._fbClaims && window._fbClaims.tenantId) return window._fbClaims.tenantId;
-    /* Fallback: استخدم org name كـ tenant ID */
-    var orgName = DB.org && DB.org.name;
-    if(orgName) return 'T_' + orgName.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g,'').substring(0,20);
-    return null;
-  }
-
-  /* ══════════════════════════════════════════
-     1. SAVE → Firestore
-  ══════════════════════════════════════════ */
-  var _origSave = window.save;
-  window.save = function(){
-    /* دايماً احفظ محلياً أولاً */
-    if(typeof _origSave === 'function') _origSave();
-
-    var tenantId = _getTenantId();
-    if(!tenantId){ return true; } /* مش مسجّل بعد */
-
-    _waitFB(function(fb){
-      /* قسّم DB لجزءين عشان نتجنب 1MB limit */
-      var mainDoc = {
-        org:           DB.org           || {},
-        openingBals:   DB.openingBals   || {},
-        sysSettings:   DB.sysSettings   || {},
-        whtSettings:   DB.whtSettings   || {},
-        payrollVars:   DB.payrollVars   || {},
-        taxConfig:     DB.taxConfig     || {},
-        thirdParties:  DB.thirdParties  || [],
-        bankRecons:    DB.bankRecons    || [],
-        closedPeriods: DB.closedPeriods || [],
-        _savedAt:      fb.serverTimestamp(),
-        _v:            '35.30'
-      };
-
-      var heavyDoc = {
-        entries:        DB.entries        || [],
-        employees:      DB.employees      || [],
-        projects:       DB.projects       || [],
-        loans:          DB.loans          || [],
-        suppliers:      DB.suppliers      || [],
-        contracts:      DB.contracts      || [],
-        assets:         DB.assets         || [],
-        timesheets:     DB.timesheets     || [],
-        payrollHistory: DB.payrollHistory || [],
-        warehouses:     DB.warehouses     || [],
-        users:          DB.users          || [],
-        leaveRequests:  DB.leaveRequests  || [],
-        allocations:    DB.allocations    || [],
-        entryDocs:      DB.entryDocs      || {},
-        archiveLog:     DB.archiveLog     || {}
-      };
-
-      var mainRef  = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'main');
-      var heavyRef = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'heavy');
-
-      Promise.all([
-        fb.setDoc(mainRef,  mainDoc,  {merge:true}),
-        fb.setDoc(heavyRef, heavyDoc, {merge:true})
-      ]).then(function(){
-        /* تحديث مؤشر الاتصال */
-        _setStatus('green', 'محفوظ ✅');
-      }).catch(function(err){
-        console.error('[Athar] Firestore save error:', err);
-        _setStatus('red', 'خطأ في الحفظ ⚠️');
-      });
-    });
-
-    return true;
-  };
-
-  /* ══════════════════════════════════════════
-     2. LOAD ← Firestore
-  ══════════════════════════════════════════ */
-  window.loadFromFirestore = function(tenantId){
-    return new Promise(function(resolve){
-      _waitFB(function(fb){
-        var mainRef  = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'main');
-        var heavyRef = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'heavy');
-
-        Promise.all([fb.getDoc(mainRef), fb.getDoc(heavyRef)]).then(function(snaps){
-          var main  = snaps[0].exists() ? snaps[0].data() : null;
-          var heavy = snaps[1].exists() ? snaps[1].data() : null;
-
-          if(!main && !heavy){
-            /* جمعية جديدة — ابدأ من الصفر */
-            console.info('[Athar] New tenant, starting fresh');
-            resolve(false);
-            return;
-          }
-
-          /* دمج البيانات مع الحفاظ على شجرة الحسابات */
-          var savedAccounts = DB.accounts.slice();
-
-          if(main)  Object.assign(DB, main);
-          if(heavy) Object.assign(DB, heavy);
-
-          /* شجرة الحسابات دايماً من الكود */
-          DB.accounts = savedAccounts;
-
-          /* حذف Firestore timestamps */
-          delete DB._savedAt; delete DB._v;
-
-          /* حفظ cache محلي */
-          try{ localStorage.setItem('athar', JSON.stringify(DB)); }catch(e){}
-
-          _setStatus('green', 'متصل ✅');
-          console.info('[Athar] Loaded from Firestore ✅ tenant:', tenantId);
-          resolve(true);
-        }).catch(function(err){
-          console.error('[Athar] Firestore load error:', err);
-          _setStatus('red', 'خطأ في التحميل');
-          resolve(false);
-        });
-      });
-    });
-  };
-
-  /* ══════════════════════════════════════════
-     3. AUTH — بعد Login محمّل البيانات
-  ══════════════════════════════════════════ */
-  var _origSetCurrentUser = window.setCurrentUser;
-  window.setCurrentUser = function(u){
-    if(_origSetCurrentUser) _origSetCurrentUser(u);
-
-    if(!u) return;
-
-    /* تحديد tenantId */
-    var tenantId = u.tenantId;
-    if(!tenantId && DB.org && DB.org.tenantId) tenantId = DB.org.tenantId;
-    if(!tenantId){
-      /* أول مستخدم → ولّد tenantId جديد واحفظه */
-      tenantId = 'T_' + Date.now();
-      u.tenantId = tenantId;
-      DB.org = DB.org || {};
-      DB.org.tenantId = tenantId;
-    }
-
-    /* حمّل البيانات من Firestore */
-    loadFromFirestore(tenantId).then(function(loaded){
-      /* تحديث الـ UI */
-      if(typeof updateOrgTopbar === 'function') updateOrgTopbar();
-
-      var dash = document.getElementById('pg-dash');
-      if(dash && dash.classList.contains('on') && typeof rDash === 'function'){
-        dash.innerHTML = rDash();
-      }
-    });
-  };
-
-  /* ══════════════════════════════════════════
-     4. Firebase Auth State → Auto Login
-  ══════════════════════════════════════════ */
-  _waitFB(function(fb){
-    fb.onAuthStateChanged(fb.auth, function(fbUser){
-      window._fbUser = fbUser;
-      if(!fbUser) return;
-
-      fbUser.getIdTokenResult().then(function(res){
-        window._fbClaims = res.claims;
-        var claims = res.claims;
-
-        /* لو المستخدم موجود في DB.users */
-        var dbUser = (DB.users||[]).find(function(u){
-          return u.email && u.email.toLowerCase() === fbUser.email.toLowerCase();
-        });
-
-        if(dbUser && typeof setCurrentUser === 'function'){
-          dbUser.tenantId = dbUser.tenantId || claims.tenantId || ('T_' + Date.now());
-          /* لو الـ login-overlay موجود، أزله وفعّل التطبيق */
-          var ov = document.getElementById('login-overlay');
-          if(ov){
-            ov.remove();
-            var tb=document.querySelector('.topbar'),
-                ct=document.querySelector('.content'),
-                bn=document.querySelector('.bnav');
-            if(tb) tb.style.display='';
-            if(ct) ct.style.display='';
-            if(bn) bn.style.display='';
-          }
-          setCurrentUser({
-            id:       dbUser.id,
-            name:     dbUser.name,
-            username: dbUser.username,
-            role:     dbUser.role,
-            email:    fbUser.email,
-            tenantId: dbUser.tenantId
-          });
-          if(typeof toast==='function') toast('👋 أهلاً ' + dbUser.name);
-        }
-      });
-    });
-  });
-
-  /* ══════════════════════════════════════════
-     5. Email Link Sign-in
-  ══════════════════════════════════════════ */
-  _waitFB(function(fb){
-    /* Override doRequestOTP لاستخدام Firebase Email Link */
-    var _origOTP = window.doRequestOTP;
-    window.doRequestOTP = function(){
-      var email  = ((document.getElementById('lg-email')||{}).value||'').trim().toLowerCase();
-      var errEl  = document.getElementById('lg-err-otp');
-      var btn    = document.getElementById('lg-btn-otp');
-
-      if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-        if(errEl) errEl.textContent='⚠️ أدخل بريد إلكتروني صحيح'; return;
-      }
-
-      /* تحقق إن المستخدم موجود */
-      var user = (DB.users||[]).find(function(u){
-        return u.active!==false && (u.email||'').toLowerCase()===email;
-      });
-      if(!user){
-        if(errEl) errEl.textContent='❌ هذا البريد غير مسجل — تواصل مع مدير النظام';
-        return;
-      }
-
-      if(btn){ btn.disabled=true; btn.textContent='⏳ جاري الإرسال...'; }
-      if(errEl) errEl.textContent='';
-
-      /* حفظ الإيميل لما يرجع من الرابط */
-      localStorage.setItem('athar_email_for_signin', email);
-
-      var actionCodeSettings = {
-        url: window.location.href.split('?')[0].split('#')[0],
-        handleCodeInApp: true
-      };
-
-      fb.sendSignInLinkToEmail(fb.auth, email, actionCodeSettings)
-        .then(function(){
-          if(btn){ btn.disabled=false; btn.textContent='إرسال رمز الدخول ←'; }
-          /* عرض رسالة الانتظار */
-          var ov = document.getElementById('login-overlay');
-          if(ov && ov.querySelector('div > div')){
-            ov.querySelector('div > div').innerHTML =
-              '<div style="text-align:center;padding:20px 0;">'
-              +'<div style="font-size:56px;margin-bottom:16px;">📬</div>'
-              +'<div style="font-weight:900;font-size:18px;color:#1e3a5f;font-family:Tajawal,sans-serif;">تحقق من بريدك</div>'
-              +'<div style="font-size:12px;color:#6b7280;margin-top:8px;line-height:1.8;">أرسلنا رابط دخول إلى<br>'
-              +'<strong style="color:#0e7490;direction:ltr;display:block;margin-top:6px;">'+email+'</strong></div>'
-              +'<div style="margin-top:20px;background:#f0fdf4;border-radius:10px;padding:12px;font-size:12px;color:#065f46;">'
-              +'✅ اضغط الرابط في الإيميل وسيتم تسجيل دخولك تلقائياً</div>'
-              +'<div style="margin-top:12px;font-size:11px;color:#94a3b8;">🔒 الرابط صالح 24 ساعة فقط</div>'
-              +'<button onclick="showLogin()" style="margin-top:16px;background:none;border:1px solid #e2e8f0;border-radius:8px;padding:8px 20px;color:#6b7280;font-size:12px;cursor:pointer;font-family:Cairo,sans-serif;">← تغيير البريد</button>'
-              +'</div>';
-          }
-        })
-        .catch(function(err){
-          console.error('[Firebase Auth] Email link error:', err);
-          if(btn){ btn.disabled=false; btn.textContent='إرسال رمز الدخول ←'; }
-          /* Fallback للـ OTP القديم */
-          if(typeof _origOTP==='function') _origOTP();
-        });
-    };
-
-    /* فحص لو الصفحة اتفتحت من Email Link */
-    if(fb.isSignInWithEmailLink(fb.auth, window.location.href)){
-      var email = localStorage.getItem('athar_email_for_signin');
-      if(!email) email = prompt('أدخل بريدك الإلكتروني للتأكيد:');
-      if(email){
-        fb.signInWithEmailLink(fb.auth, email, window.location.href)
-          .then(function(result){
-            localStorage.removeItem('athar_email_for_signin');
-            window.history.replaceState({}, document.title, window.location.pathname);
-            console.info('[Firebase] Email link sign-in complete:', email);
-          })
-          .catch(function(err){ console.error('[Firebase] Email link error:', err); });
-      }
-    }
-  });
-
-  /* ══════════════════════════════════════════
-     6. Storage — رفع اللوجو
-  ══════════════════════════════════════════ */
-  var _origUploadLogo = window.uploadOrgLogo;
-  window.uploadOrgLogo = function(){
-    var inp = document.getElementById('logo-upload');
-    if(!inp || !inp.files || !inp.files[0]) return;
-    var file = inp.files[0];
-
-    if(!file.type.startsWith('image/')){ toast('⚠️ اختر ملف صورة'); return; }
-    if(file.size > 2*1024*1024){ toast('⚠️ الصورة أكبر من 2MB'); return; }
-
-    var tenantId = _getTenantId();
-
-    _waitFB(function(fb){
-      if(!tenantId){
-        /* Fallback → base64 */
-        if(_origUploadLogo) _origUploadLogo(); return;
-      }
-
-      var ext = file.name.split('.').pop().toLowerCase() || 'png';
-      var path = 'tenants/' + tenantId + '/logo/logo.' + ext;
-      var storageRef = fb.ref(fb.storage, path);
-
-      var label = document.querySelector('label[for="logo-upload"]');
-      if(label) label.textContent = '⏳ جاري الرفع...';
-
-      fb.uploadBytes(storageRef, file)
-        .then(function(snap){ return fb.getDownloadURL(snap.ref); })
-        .then(function(url){
-          DB.org = DB.org || {};
-          DB.org.logo = url;
-          DB.org.logoPath = path;
-          save();
-          if(typeof updateOrgTopbar==='function') updateOrgTopbar();
-          var prev = document.getElementById('logo-preview');
-          if(prev){ prev.src=url; prev.style.display='block'; }
-          var ph = document.getElementById('logo-placeholder');
-          if(ph) ph.style.display='none';
-          if(label) label.textContent = '📤 رفع شعار جديد';
-          toast('✅ تم رفع الشعار على Firebase');
-        })
-        .catch(function(err){
-          console.error('[Firebase Storage] Logo error:', err);
-          if(_origUploadLogo) _origUploadLogo();
-        });
-    });
-  };
-
-  /* ══════════════════════════════════════════
-     7. Status Indicator في الـ Topbar
-  ══════════════════════════════════════════ */
-  function _setStatus(color, msg){
-    var dot = document.getElementById('fb-status-dot');
-    var colors = {green:'#10b981', yellow:'#f59e0b', red:'#dc2626', gray:'#94a3b8'};
-    if(dot){ dot.style.background = colors[color]||colors.gray; dot.title=msg; }
-  }
-
-  function _initStatusDot(){
-    var tb = document.querySelector('.topbar');
-    if(!tb || document.getElementById('fb-status-dot')) return;
-    var dot = document.createElement('div');
-    dot.id = 'fb-status-dot';
-    dot.style.cssText='width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0;cursor:pointer;transition:background .3s;margin:auto 6px;';
-    dot.title = 'Firebase: جاري الاتصال...';
-    dot.onclick = function(){
-      _waitFB(function(fb){
-        var u = fb.auth.currentUser;
-        toast(u ? '🟢 Firebase متصل: '+u.email : '🟡 Firebase: غير مسجل');
-      });
-    };
-    tb.appendChild(dot);
-
-    /* تحديث دوري */
-    setInterval(function(){
-      _waitFB(function(fb){
-        var u = fb.auth.currentUser;
-        _setStatus(u?'green':'yellow', u?'Firebase: متصل ✅':'Firebase: غير مسجل');
-      });
-    }, 5000);
-  }
-  setTimeout(_initStatusDot, 1000);
-
-  /* ══════════════════════════════════════════
-     8. Realtime Sync — تحديث تلقائي
-  ══════════════════════════════════════════ */
-  window._startRealtimeSync = function(tenantId){
-    _waitFB(function(fb){
-      var mainRef = fb.doc(fb.db_fs, 'tenants', tenantId, 'data', 'main');
-      /* استمع لأي تغيير من مستخدم تاني */
-      fb.onSnapshot(mainRef, function(snap){
-        if(!snap.exists()) return;
-        var data = snap.data();
-        /* تجاهل لو البيانات من نفس الجهاز (خلال 2 ثانية) */
-        if(data._savedAt && data._savedAt.toMillis &&
-           Date.now() - data._savedAt.toMillis() < 2000) return;
-
-        var savedAccounts = DB.accounts.slice();
-        Object.assign(DB, data);
-        DB.accounts = savedAccounts;
-        delete DB._savedAt;
-
-        try{ localStorage.setItem('athar', JSON.stringify(DB)); }catch(e){}
-        _setStatus('green', 'محدّث في الوقت الفعلي 🔄');
-        console.info('[Athar] Realtime update received');
-      });
-    });
-  };
-
-  console.info('[Athar v35.30] Firebase Full Integration loaded ✅');
-  console.info('  Firestore: save/load البيانات');
-  console.info('  Auth: Email Link + Password');
-  console.info('  Storage: رفع اللوجو');
-  console.info('  Realtime: تحديث تلقائي');
 })();
 </script>
