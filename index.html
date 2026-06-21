@@ -25867,3 +25867,293 @@ tbody td {
   console.info('[Athar v35.32] Loans standalone module + dash fix ✅');
 })();
 </script>
+
+<script>
+/* ══ v35.33 — Hide Loans Everywhere + Pie Chart + Demo Data ══ */
+(function(){
+  if(window.__v3533)return; window.__v3533=true;
+
+  /* ══ 1. CSS يخفي كل عناصر القروض دايماً ══ */
+  var style = document.createElement('style');
+  style.id = 'athar-hide-loans-css';
+  style.textContent = [
+    /* إخفاء أي عنصر يحمل data-sub للقروض */
+    '[data-sub="loans"],[data-sub="loan_settings"],[data-sub="loan_reports"]{ display:none !important; }',
+    /* إخفاء زر القروض في الـ bnav */
+    '.bn[data-nav="loans"]{ display:none !important; }',
+    /* إخفاء ملخص القروض في الداشبورد - بيتطبق على الكارد بعد يتحمّل */
+    '.v8-mod[onclick*="loans"],.v8-mod[onclick*="loan"]{ display:none !important; }'
+  ].join('\n');
+  document.head.appendChild(style);
+
+  /* ══ 2. DOM Observer يمسح القروض بعد كل رندر ══ */
+  function removeLoansFromDOM(){
+    /* العمليات — القسم كله */
+    document.querySelectorAll('#pg-ops .mg, #pg-ops .sd, #pg-ops div').forEach(function(el){
+      var t = el.textContent||'';
+      if((t.indexOf('التمويل متناهي الصغر')>-1 || t.indexOf('إدارة القروض')>-1 || t.indexOf('تقارير التمويل')>-1 || t.indexOf('إعدادات القروض')>-1)
+         && t.length < 200){
+        /* ابحث عن أعلى container للقسم */
+        var parent = el;
+        for(var i=0;i<5;i++){
+          if(parent.parentElement && parent.parentElement.id==='pg-ops') break;
+          if(parent.parentElement) parent = parent.parentElement;
+        }
+        if(parent && parent.id !== 'pg-ops') parent.style.display='none';
+      }
+    });
+
+    /* المزيد — إعدادات القروض والتقارير */
+    document.querySelectorAll('#pg-more .mi, #pg-more .sd').forEach(function(el){
+      var sub = el.getAttribute('data-sub')||'';
+      var t = el.textContent||'';
+      if(sub==='loan_settings'||sub==='loan_reports'||sub==='loans'||
+         t.indexOf('إعدادات القروض')>-1||t.indexOf('تقارير التمويل')>-1){
+        var parent = el;
+        for(var i=0;i<4;i++){
+          if(parent.parentElement && parent.parentElement.id==='pg-more') break;
+          if(parent.parentElement) parent = parent.parentElement;
+        }
+        if(parent && parent.id !== 'pg-more') parent.style.display='none';
+        el.style.display='none';
+      }
+    });
+
+    /* الداشبورد — ملخص القروض */
+    document.querySelectorAll('#pg-dash .v8-card, #pg-dash .card').forEach(function(el){
+      var t = el.textContent||'';
+      if(t.indexOf('ملخص القروض')>-1 || t.indexOf('محفظة القروض')>-1){
+        el.style.display='none';
+      }
+    });
+  }
+
+  /* ══ 3. MutationObserver ══ */
+  var observer = new MutationObserver(function(mutations){
+    var shouldRun = mutations.some(function(m){
+      return m.target && (
+        m.target.id==='pg-ops' || m.target.id==='pg-more' ||
+        m.target.id==='pg-dash' || m.target.classList&&m.target.classList.contains('content')
+      );
+    });
+    if(shouldRun) setTimeout(removeLoansFromDOM, 50);
+  });
+
+  var content_el = document.querySelector('.content');
+  if(content_el){
+    observer.observe(content_el, {childList:true, subtree:true});
+  }
+
+  /* تطبيق أولي */
+  setTimeout(removeLoansFromDOM, 800);
+
+  /* ══ 4. Pie Chart بدل Bar Chart ══ */
+  function drawPieChart(canvasId, data, colors, labels){
+    var canvas = document.getElementById(canvasId);
+    if(!canvas || !canvas.getContext) return;
+    var ctx = canvas.getContext('2d');
+    var W = canvas.width, H = canvas.height;
+    ctx.clearRect(0,0,W,H);
+    var total = data.reduce(function(s,v){return s+Math.abs(v);},0);
+    if(!total){ ctx.fillStyle='#e2e8f0'; ctx.beginPath(); ctx.arc(W/2,H/2,H/2-10,0,Math.PI*2); ctx.fill(); return; }
+    var startAngle = -Math.PI/2, cx = W/2, cy = H/2, r = Math.min(W,H)/2 - 10;
+    data.forEach(function(v,i){
+      var slice = (Math.abs(v)/total) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(cx,cy);
+      ctx.arc(cx,cy,r,startAngle,startAngle+slice);
+      ctx.closePath();
+      ctx.fillStyle = colors[i%colors.length];
+      ctx.fill();
+      ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
+      startAngle += slice;
+    });
+    /* دائرة وسطى */
+    ctx.beginPath(); ctx.arc(cx,cy,r*0.55,0,Math.PI*2);
+    ctx.fillStyle='white'; ctx.fill();
+  }
+
+  /* Override رسم الرسم البياني بـ Pie ممتاز */
+  var _origRDash33 = window.rDash;
+  window.rDash = function(){
+    var out = _origRDash33 ? _origRDash33.apply(this,arguments) : '';
+    if(typeof out !== 'string') return out;
+
+    /* بدّل mini-chart بـ pie chart */
+    out = out.replace(
+      /<div class="mini-chart">[\s\S]*?<\/div>/g,
+      function(){
+        return '<canvas id="athar-pie-chart" width="200" height="200" style="display:block;margin:0 auto;"></canvas>'
+          +'<div id="athar-pie-legend" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:10px;"></div>';
+      }
+    );
+
+    return out;
+  };
+
+  /* رسم الـ Pie بعد رندر الداشبورد */
+  var _origNav33 = window.nav;
+  if(typeof _origNav33==='function' && !window._nav33Patched){
+    window._nav33Patched=true;
+    window.nav = function(pg, btn){
+      var r = _origNav33.apply(this,arguments);
+      if(pg==='dash'){
+        setTimeout(function(){
+          var entries = DB.entries||[];
+          /* حساب المصروفات والإيرادات لآخر 6 شهور */
+          var names=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+          var now = new Date();
+          var months = [];
+          for(var i=5;i>=0;i--){
+            var d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+            var key = d.getFullYear()+'-'+(String(d.getMonth()+1).padStart(2,'0'));
+            var exp=0;
+            entries.forEach(function(e){
+              if(e.status!=='posted'&&e.status!=='approved')return;
+              if(!e.date||!e.date.startsWith(key))return;
+              (e.lines||[]).forEach(function(l){
+                var acc=String(l.acc||'');
+                if(acc.startsWith('5')||acc.startsWith('6'))exp+=(Number(l.dr)||0);
+              });
+            });
+            months.push({name:names[d.getMonth()], val:exp});
+          }
+
+          var colors = ['#0369a1','#0891b2','#06b6d4','#22d3ee','#67e8f9','#a5f3fc'];
+          var data = months.map(function(m){return m.val||1;});
+
+          drawPieChart('athar-pie-chart', data, colors, months.map(function(m){return m.name;}));
+
+          /* Legend */
+          var legend = document.getElementById('athar-pie-legend');
+          if(legend){
+            var total = data.reduce(function(s,v){return s+v;},0)||1;
+            legend.innerHTML = months.map(function(m,i){
+              var pct = Math.round((m.val/total)*100)||0;
+              return '<div style="display:flex;align-items:center;gap:4px;font-size:11px;">'
+                +'<div style="width:10px;height:10px;border-radius:50%;background:'+colors[i]+'"></div>'
+                +'<span>'+m.name+'</span>'
+                +'<span style="color:#64748b;">'+(m.val?m.val.toLocaleString('ar-EG')+' ج':'—')+'</span>'
+                +'</div>';
+            }).join('');
+          }
+
+          removeLoansFromDOM();
+        }, 300);
+      }
+      return r;
+    };
+  }
+
+  /* ══ 5. بيانات تجريبية ══ */
+  window.loadDemoData33 = function(){
+    if(!confirm('سيتم تحميل بيانات تجريبية. هل تريد المتابعة؟')) return;
+    var today = new Date();
+    function d(offset){ var x=new Date(today); x.setDate(x.getDate()+offset); return x.toISOString().split('T')[0]; }
+    function E(){ return 'E'+Date.now()+Math.floor(Math.random()*1000); }
+
+    /* قيود يومية */
+    DB.entries = DB.entries||[];
+    var demoEntries = [
+      {id:E(),date:d(-60),ref:'RC-001',desc:'منحة من الاتحاد الأوروبي',lines:[{acc:'1111',dr:250000,cr:0},{acc:'4111',dr:0,cr:250000}],status:'posted'},
+      {id:E(),date:d(-55),ref:'PY-001',desc:'رواتب شهر مارس',lines:[{acc:'5111',dr:45000,cr:0},{acc:'1111',dr:0,cr:45000}],status:'posted'},
+      {id:E(),date:d(-45),ref:'PY-002',desc:'مصروفات تشغيلية',lines:[{acc:'5211',dr:12000,cr:0},{acc:'1111',dr:0,cr:12000}],status:'posted'},
+      {id:E(),date:d(-40),ref:'RC-002',desc:'منحة مشروع التعليم',lines:[{acc:'1111',dr:180000,cr:0},{acc:'4112',dr:0,cr:180000}],status:'posted'},
+      {id:E(),date:d(-30),ref:'PY-003',desc:'رواتب شهر أبريل',lines:[{acc:'5111',dr:45000,cr:0},{acc:'1111',dr:0,cr:45000}],status:'posted'},
+      {id:E(),date:d(-25),ref:'EX-001',desc:'تعاقد مع مورد',lines:[{acc:'5311',dr:8000,cr:0},{acc:'1111',dr:0,cr:8000}],status:'posted'},
+      {id:E(),date:d(-15),ref:'PY-004',desc:'رواتب شهر مايو',lines:[{acc:'5111',dr:45000,cr:0},{acc:'1111',dr:0,cr:45000}],status:'posted'},
+      {id:E(),date:d(-10),ref:'RC-003',desc:'تبرعات المحسنين',lines:[{acc:'1111',dr:35000,cr:0},{acc:'4121',dr:0,cr:35000}],status:'posted'},
+      {id:E(),date:d(-5),ref:'EX-002',desc:'مصروفات إدارية',lines:[{acc:'5211',dr:5500,cr:0},{acc:'1111',dr:0,cr:5500}],status:'posted'},
+      {id:E(),date:d(-2),ref:'PY-005',desc:'رواتب شهر يونيو',lines:[{acc:'5111',dr:45000,cr:0},{acc:'1111',dr:0,cr:45000}],status:'posted'},
+    ];
+    DB.entries = DB.entries.concat(demoEntries);
+    DB.openingBals = {'1111':50000,'1112':120000};
+
+    /* مشاريع */
+    DB.projects = [
+      {id:'PRJ-001',code:'PRJ-001',name:'مشروع تعليم الكبار',donor:'الاتحاد الأوروبي',budget:250000,start:d(-90),end:d(90),status:'active',currency:'EGP',lines:[
+        {code:'L01',name:'رواتب ومكافآت',budget:120000},
+        {code:'L02',name:'مواد ومستلزمات',budget:60000},
+        {code:'L03',name:'تدريب وورش',budget:40000},
+        {code:'L04',name:'مصروفات تشغيلية',budget:30000}
+      ]},
+      {id:'PRJ-002',code:'PRJ-002',name:'مشروع الصحة المجتمعية',donor:'وزارة الصحة',budget:180000,start:d(-60),end:d(120),status:'active',currency:'EGP',lines:[
+        {code:'L01',name:'أدوات ومعدات',budget:80000},
+        {code:'L02',name:'رواتب',budget:70000},
+        {code:'L03',name:'توعية ونشر',budget:30000}
+      ]},
+      {id:'PRJ-003',code:'PRJ-003',name:'مشروع المرأة الريفية',donor:'الصندوق الاجتماعي',budget:120000,start:d(-30),end:d(150),status:'active',currency:'EGP',lines:[
+        {code:'L01',name:'تدريب مهني',budget:60000},
+        {code:'L02',name:'رواتب',budget:40000},
+        {code:'L03',name:'مشتريات',budget:20000}
+      ]}
+    ];
+
+    /* موظفين */
+    DB.employees = [
+      {id:'EMP-001',code:'EMP-001',name:'أحمد محمد علي',title:'مدير البرامج',dept:'البرامج',salary:8500,startDate:d(-365),status:'active',national:'28901012345678'},
+      {id:'EMP-002',code:'EMP-002',name:'سارة أحمد حسن',title:'محاسبة',dept:'المالية',salary:6000,startDate:d(-300),status:'active',national:'29501015678901'},
+      {id:'EMP-003',code:'EMP-003',name:'محمد عبدالله',title:'أخصائي اجتماعي',dept:'البرامج',salary:5500,startDate:d(-200),status:'active',national:'29801023456789'},
+      {id:'EMP-004',code:'EMP-004',name:'فاطمة علي محمود',title:'مسؤولة موارد بشرية',dept:'الإدارة',salary:5000,startDate:d(-180),status:'active',national:'30001034567890'},
+      {id:'EMP-005',code:'EMP-005',name:'خالد إبراهيم سالم',title:'سائق',dept:'الإدارة',salary:3000,startDate:d(-150),status:'active',national:'29201045678901'}
+    ];
+
+    /* موردون */
+    DB.suppliers = DB.suppliers||[];
+    DB.suppliers = [
+      {id:'SUP-001',name:'شركة الأفق للتوريدات',type:'supplier',phone:'0223456789',email:'info@afaq.com',taxId:'123456789'},
+      {id:'SUP-002',name:'مطبعة النيل',type:'supplier',phone:'0101234567',email:'nile@print.com',taxId:'987654321'}
+    ];
+
+    /* عقود */
+    DB.contracts = DB.contracts||[];
+    DB.contracts = [
+      {id:'CON-001',title:'عقد توريد قرطاسية',supplier:'SUP-001',value:15000,start:d(-30),end:d(60),status:'active'},
+      {id:'CON-002',title:'عقد طباعة مطبوعات',supplier:'SUP-002',value:8000,start:d(-20),end:d(40),status:'active'}
+    ];
+
+    save();
+    if(typeof toast==='function') toast('✅ تم تحميل البيانات التجريبية');
+
+    /* إعادة رسم الداشبورد */
+    setTimeout(function(){
+      var dash = document.getElementById('pg-dash');
+      if(dash && typeof rDash==='function') dash.innerHTML = rDash();
+      if(typeof window.nav==='function') window.nav('dash', document.querySelector('[data-nav="dash"]'));
+    }, 300);
+  };
+
+  /* أضف زر البيانات التجريبية في الداشبورد لو مفيش بيانات */
+  var _origRDash33b = window.rDash;
+  window.rDash = function(){
+    var out = _origRDash33b ? _origRDash33b.apply(this,arguments) : '';
+    if(typeof out === 'string' && !(DB.entries&&DB.entries.length)){
+      var demoBtn = '<div onclick="window.loadDemoData33()" style="background:linear-gradient(135deg,#059669,#10b981);color:white;border-radius:14px;padding:14px 18px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:12px;">'
+        +'<span style="font-size:28px;">🗂️</span>'
+        +'<div><div style="font-weight:900;font-size:14px;">تحميل بيانات تجريبية</div>'
+        +'<div style="font-size:11px;opacity:.85;">قيود ومشاريع وموظفين لاختبار النظام</div></div></div>';
+      out = demoBtn + out;
+    }
+    return out;
+  };
+
+  setTimeout(function(){
+    removeLoansFromDOM();
+    /* لو في الداشبورد ارسم الـ pie */
+    if(document.getElementById('pg-dash')&&document.getElementById('pg-dash').classList.contains('on')){
+      if(typeof window.nav==='function') window.nav('dash',document.querySelector('[data-nav="dash"]'));
+    }
+  },600);
+
+  /* تحسين chart الموجود بـ CSS بدل الاستبدال */
+  var chartStyle = document.createElement('style');
+  chartStyle.textContent = '.v8-bars{display:flex;gap:6px;align-items:flex-end;height:120px;padding:8px 0;overflow:hidden}'
+    +'.v8-bw{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;height:100%;justify-content:flex-end}'
+    +'.v8-bar{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#0369a1,#0891b2);min-height:4px;transition:height .3s}'
+    +'.v8-bl{font-size:10px;color:#1e293b;font-weight:700;font-family:Cairo,sans-serif;white-space:nowrap}'
+    +'.v9-mini{font-size:9px;color:#64748b;font-family:Cairo,sans-serif}';
+  document.head.appendChild(chartStyle);
+
+  console.info('[Athar v35.33] Loans hidden + Chart improved + Demo data ✅');
+})();
+</script>
