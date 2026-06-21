@@ -21490,7 +21490,11 @@ function employeesOpts(sel){return '<option value="">— اختر —</option>'+
 function ensureV33(){
  if(!window.DB)return; if(!DB.projects)DB.projects=[];
  var _u1=(DB.users||[]).find(function(u){return u.id==='U001';});
- if(_u1){if(!_u1.isSuperAdmin)_u1.isSuperAdmin=true;if(!_u1.email||_u1.email==='admin@athar.app')_u1.email='elzieni2007@gmail.com';_u1.password='admin123';_u1._rawPass='admin123';} if(!DB.entries)DB.entries=[]; if(!DB.suppliers)DB.suppliers=[]; if(!DB.invMovements)DB.invMovements=[]; if(!DB.inventory)DB.inventory=[]; if(!DB.loans)DB.loans=[];
+ if(_u1){if(!_u1.isSuperAdmin)_u1.isSuperAdmin=true;if(!_u1.email||_u1.email==='admin@athar.app')_u1.email='elzieni2007@gmail.com';_u1.password='admin123';_u1._rawPass='admin123';}
+ /* إضافة صفا ناصر لو مش موجودة */
+ var _safa=(DB.users||[]).find(function(u){return(u.email||'').toLowerCase()==='safaanasr048@gmail.com';});
+ if(!_safa){DB.users=DB.users||[];DB.users.push({id:'USR_SAFA',name:'صفا ناصر',email:'safaanasr048@gmail.com',username:'safaanasr048@gmail.com',role:'admin',isSuperAdmin:true,active:true,password:'admin123',_rawPass:'admin123',createdAt:new Date().toISOString().slice(0,10)});save();}
+ else if(!_safa.isSuperAdmin){_safa.isSuperAdmin=true;save();} if(!DB.entries)DB.entries=[]; if(!DB.suppliers)DB.suppliers=[]; if(!DB.invMovements)DB.invMovements=[]; if(!DB.inventory)DB.inventory=[]; if(!DB.loans)DB.loans=[];
  DB.loanSettings=DB.loanSettings||{min:5000,max:100000,adminRate:25,relations:['الزوج','الزوجة','الأب','الأم','الأخ','الأخت','الابن','الابنة','قريب','صديق','زميل عمل','أخرى'],projectTypes:['تجارة','تربية مواشي','خياطة','مطعم','كشك','زراعة','خدمات','أخرى'],incentives:[{role:'مندوب تحصيل',rate:1.5},{role:'مسؤول تمويل',rate:1.5},{role:'مسؤول منطقة',rate:1},{role:'مدير فرع',rate:1},{role:'مدير تنفيذي',rate:1}]};
  DB.taxWithholding=DB.taxWithholding||{withholding:[1,3,5],vat:14,stamp:0};
  DB.reconApproved=DB.reconApproved||[];
@@ -25121,7 +25125,7 @@ if(typeof _od==='function'){
 }
 
 /* Super Admin - تحكم الباقات وفريق أثر */
-var _OWNER=['elzieni2007@gmail.com'];
+var _OWNER=['elzieni2007@gmail.com','safaanasr048@gmail.com'];
 function _isSA(){
   var cu=typeof getCurrentUser==='function'?getCurrentUser():null;
   if(!cu)return false;
@@ -25285,6 +25289,67 @@ if(typeof _od2==='function'){
     return out;
   };
 }
+
+/* تصحيح أسماء الشهور في الرسم البياني */
+var _mn_full=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+var _mn_short=['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس'];
+function _fixMonths(){
+  document.querySelectorAll('.v8-bl,.v8-month,.bar-label,.chart-label').forEach(function(el){
+    var t=(el.textContent||'').trim();
+    var i=_mn_short.indexOf(t);
+    if(i>-1)el.textContent=_mn_full[i];
+  });
+}
+setInterval(_fixMonths,500);
+
+/* sub('reports') يستخدم rReportsPage الكاملة */
+var _oldSub=window.sub;
+if(typeof _oldSub==='function'){
+  window.sub=function(n){
+    if(n==='reports'){
+      nav('more',null);
+      setTimeout(function(){
+        var pg=document.getElementById('pg-more');
+        if(!pg)return;
+        if(typeof rReportsPage==='function'){
+          pg.innerHTML='<div style="padding:14px 14px 80px;">'+rReportsPage()+'</div>';
+        }
+        if(typeof showTbBack==='function')showTbBack({type:'nav',pg:'more'});
+      },100);
+      return;
+    }
+    return _oldSub.apply(this,arguments);
+  };
+}
+
+/* Override نهائي لـ sub('reports') */
+(function(){
+  var _lastSub=window.sub;
+  window.sub=function(n){
+    if(n==='reports'&&typeof rReportsPage==='function'){
+      if(typeof nav==='function')nav('more',null);
+      /* نضيف flag لمنع override من setInterval */
+      window._reportsMode=true;
+      setTimeout(function(){
+        var pg=document.getElementById('pg-more');
+        if(!pg)return;
+        var fullHtml='<div style="padding:14px 14px 80px;">'+rReportsPage()+'</div>';
+        pg.innerHTML=fullHtml;
+        /* نعيد كتابة لو اتمسح */
+        var check=setInterval(function(){
+          if(!window._reportsMode){clearInterval(check);return;}
+          var pg2=document.getElementById('pg-more');
+          if(pg2&&pg2.innerHTML.length<3000){pg2.innerHTML=fullHtml;}
+        },300);
+        setTimeout(function(){window._reportsMode=false;clearInterval(check);},5000);
+        if(typeof showTbBack==='function')showTbBack({type:'nav',pg:'more'});
+      },100);
+      return;
+    }
+    window._reportsMode=false;
+    return _lastSub.apply(this,arguments);
+  };
+})();
 
 console.info('[Athar v35.26] Patches loaded ✅');
 })();
