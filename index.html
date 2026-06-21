@@ -19877,7 +19877,7 @@ function printAssetPermit(a,m){
   function missingDocs(){return arr(DB.entries).filter(function(e){if(e.status&&e.status!=='posted')return false;var st=(DB.archiveLog&&DB.archiveLog[e.id]||{}).status;return st==='missing';}).length;}
   function pendingApprovals(){return arr(DB.requests).filter(function(x){return x.status==='pending'||x.status==='قيد المراجعة';}).length+arr(DB.leaveRequests).filter(function(x){return x.status==='pending';}).length;}
   function compliance(){var posted=arr(DB.entries).filter(function(e){return !e.status||e.status==='posted';}); if(!posted.length)return 0; var miss=missingDocs(); return Math.max(0,Math.min(100,(posted.length-miss)/posted.length*100));}
-  function monthlyBars(){var now=new Date(), out=[];for(var i=5;i>=0;i--){var d=new Date(now.getFullYear(),now.getMonth()-i,1), ym=d.toISOString().slice(0,7), label=d.toLocaleDateString('ar-EG',{month:'short'});var v=arr(DB.entries).filter(function(e){return e.status==='posted'&&String(e.date||'').slice(0,7)===ym;}).reduce(function(s,e){return s+arr(e.lines).reduce(function(ss,l){return ss+((l.acc&&String(l.acc)[0]==='5')?num(l.dr):0);},0);},0);out.push({m:label,v:v});}return {data:out,max:Math.max(1,...out.map(function(x){return x.v;}))};}
+  function monthlyBars(){var _mn=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];var now=new Date(), out=[];for(var i=5;i>=0;i--){var d=new Date(now.getFullYear(),now.getMonth()-i,1), ym=d.toISOString().slice(0,7), label=_mn[d.getMonth()];var v=arr(DB.entries).filter(function(e){return e.status==='posted'&&String(e.date||'').slice(0,7)===ym;}).reduce(function(s,e){return s+arr(e.lines).reduce(function(ss,l){return ss+((l.acc&&String(l.acc)[0]==='5')?num(l.dr):0);},0);},0);out.push({m:label,v:v});}return {data:out,max:Math.max(1,...out.map(function(x){return x.v;}))};}
 
   function procurementAlerts(){
     var alerts=[];
@@ -20925,7 +20925,7 @@ function printAssetPermit(a,m){
 
 /* ================= ATHAR V21 STABLE PATCH ================= */
 function safeNum(v){ return Number(String(v||0).replace(/,/g,''))||0; }
-function monthName(i){ return ['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس'][i]||''; }
+function monthName(i){ return ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][i]||''; }
 function calcPostedSpent(projectCode){
   var sum=0, entries=(DB&&DB.entries)||[];
   entries.forEach(function(e){
@@ -23296,7 +23296,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
       }
     });
     var max=Math.max.apply(null,vals.concat([1]));
-    var bars=vals.map(function(v,i){var h=Math.max(12,Math.round((v/max)*110));return '<div style="flex:1;text-align:center;min-width:0"><div style="height:'+h+'px;border-radius:11px 11px 4px 4px;background:linear-gradient(180deg,#22b8e8,#0d3b6e);"></div><div style="font-size:10px;color:#637591;margin-top:6px;white-space:nowrap">'+names[i]+'</div><div style="font-size:9px;color:#94a8c2;white-space:nowrap">'+money(v)+'</div></div>';}).join('');
+    var bars=vals.map(function(v,i){var h=Math.max(12,Math.round((v/max)*110));return '<div style="flex:1;text-align:center;min-width:0"><div style="height:'+h+'px;border-radius:11px 11px 4px 4px;background:linear-gradient(180deg,#22b8e8,#0d3b6e);"></div><div style="font-size:10px;color:#1e293b;margin-top:6px;white-space:nowrap;font-weight:700">'+names[i]+'</div><div style="font-size:9px;color:#475569;white-space:nowrap;font-weight:600">'+money(v)+'</div></div>';}).join('');
     return '<div class="card" style="padding:14px;margin-bottom:12px"><div class="ct" style="margin-bottom:10px">📈 مصروفات آخر 6 أشهر</div><div style="display:flex;align-items:end;gap:10px;height:155px;direction:rtl;overflow:hidden;padding:8px 2px 0;border-bottom:1px solid #e2e8f0">'+bars+'</div><button class="btn btn-sm btn-gy" style="width:100%;margin-top:10px" onclick="sub(\'reports\')">عرض التقرير التفصيلي</button></div>';
   }
   function miniReportCard(title, rows, sub){
@@ -25423,10 +25423,41 @@ tbody td {
 
 /* 1. إخفاء القروض من كل مكان بـ CSS */
 var s=document.createElement('style');
-s.textContent='.bn[data-nav="loans"]{display:none!important}[data-sub="loans"],[data-sub="loan_settings"],[data-sub="loan_reports"]{display:none!important}';
+s.textContent=
+    '.bn[data-nav="loans"]{display:none!important}'
+    +'[data-sub="loans"],[data-sub="loan_settings"],[data-sub="loan_reports"]{display:none!important}'
+    /* شهور الرسم البياني */
+    +'.v8-bl{font-size:9px!important;color:#1e293b!important;font-weight:700!important;white-space:nowrap!important}'
+    +'.v9-mini{font-size:8px!important;color:#64748b!important}'
+    +'.v8-bar{background:linear-gradient(180deg,#0369a1,#0891b2)!important;border-radius:4px 4px 0 0!important}'
+    /* إخفاء القروض من الداشبورد */
+    +'#pg-dash .v8-mod[onclick*="loan"]{display:none!important}';
 document.head.appendChild(s);
 
 /* 2. إخفاء القروض من العمليات بعد الرندر */
+function hideLoansDash(){
+  /* إخفاء كل كروت القروض من الداشبورد */
+  document.querySelectorAll('#pg-dash .v8-card, #pg-dash .v8-mod').forEach(function(el){
+    var t=el.textContent||'';
+    if(t.indexOf('ملخص القروض')>-1||t.indexOf('مؤشر تعثر')>-1||
+       t.indexOf('التمويل متناهي الصغر')>-1||t.indexOf('محفظة القروض')>-1||
+       t.indexOf('فتح لوحة التحكم القروض')>-1){
+      el.style.display='none';
+    }
+  });
+}
+setInterval(hideLoansDash, 800);
+setInterval(function(){
+  /* إخفاء من العمليات */
+  var pg=document.getElementById('pg-ops');
+  if(pg){var inner=pg.firstElementChild||pg;
+    Array.from(inner.children).forEach(function(sec){
+      if((sec.textContent||'').indexOf('💵 التمويل متناهي الصغر')>-1)
+        sec.style.display='none';
+    });
+  }
+}, 600);
+
 function hideLoansFromOps(){
   var pg=document.getElementById('pg-ops');if(!pg)return;
   var inner=pg.firstElementChild;if(!inner)return;
@@ -25650,6 +25681,18 @@ window.loadDemoData=function(){
   if(typeof nav==='function')nav('dash',document.querySelector('[data-nav="dash"]'));
 };
 
-console.info('[Athar Final] Patches loaded ✅');
+/* Fix month names in chart */
+  var _mn_full=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  function fixChartMonths(){
+    document.querySelectorAll('#pg-dash .v8-bl').forEach(function(el){
+      var t=(el.textContent||'').trim();
+      var short=['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس'];
+      var idx=short.indexOf(t);
+      if(idx>-1) el.textContent=_mn_full[idx];
+    });
+  }
+  setInterval(fixChartMonths,500);
+
+  console.info('[Athar Final] Patches loaded ✅');
 })();
 </script>
