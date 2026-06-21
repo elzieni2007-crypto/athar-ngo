@@ -273,6 +273,35 @@ button,input,select,textarea,a{pointer-events:auto !important;}
 @media(min-width:720px){.athar-v6{max-width:1100px;margin:auto;padding-bottom:95px}.v6-kpis{grid-template-columns:repeat(4,1fr)}.v6-grid{grid-template-columns:1.3fr .9fr}.v6-modules{grid-template-columns:repeat(4,1fr)}.v6-actions{grid-template-columns:repeat(4,1fr)}}
 
 </style>
+
+  <!-- Firebase SDK v10 -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp, collection }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getAuth, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
+             signOut, onAuthStateChanged, createUserWithEmailAndPassword }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAsCP8zqAsw4I4t64Y06n3OWqhXJGtK5CA",
+      authDomain: "athar-ngo.firebaseapp.com",
+      projectId: "athar-ngo",
+      storageBucket: "athar-ngo.firebasestorage.app",
+      messagingSenderId: "730791380944",
+      appId: "1:730791380944:web:2e893b0c5fd268289f5bd5"
+    };
+    const app=initializeApp(firebaseConfig);
+    const db_fs=getFirestore(app); const auth=getAuth(app); const storage=getStorage(app);
+    window._firebase={app,db_fs,auth,storage,collection,doc,setDoc,getDoc,onSnapshot,
+      serverTimestamp,ref,uploadBytes,getDownloadURL,deleteObject,sendSignInLinkToEmail,
+      isSignInWithEmailLink,signInWithEmailLink,signOut,onAuthStateChanged,createUserWithEmailAndPassword};
+    onAuthStateChanged(auth,function(u){window._fbUser=u||null;if(u)u.getIdTokenResult().then(function(r){window._fbClaims=r.claims;});});
+    if(isSignInWithEmailLink(auth,window.location.href)){var email=localStorage.getItem('athar_email_for_signin');if(!email)email=prompt('أدخل بريدك الإلكتروني:');if(email){signInWithEmailLink(auth,email,window.location.href).then(function(){localStorage.removeItem('athar_email_for_signin');window.history.replaceState({},document.title,window.location.pathname);}).catch(function(e){console.error(e);});}}
+    console.info('[Firebase] ✅ athar-ngo');
+  </script>
 </head>
 <body>
 <div class="topbar">
@@ -280,7 +309,7 @@ button,input,select,textarea,a{pointer-events:auto !important;}
 <div class="tb-brand">
     <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22120%22%20height%3D%22120%22%3E%3Crect%20rx%3D%2220%22%20width%3D%22120%22%20height%3D%22120%22%20fill%3D%22%231e3a6e%22/%3E%3Ctext%20x%3D%2260%22%20y%3D%2270%22%20font-size%3D%2234%22%20font-family%3D%22Arial%22%20font-weight%3D%22bold%22%20fill%3D%22white%22%20text-anchor%3D%22middle%22%3E%D8%A3%D8%AB%D8%B1%3C/text%3E%3C/svg%3E" class="tb-logo athar-logo" alt="أثر" style="height:50px;object-fit:contain;margin-left:8px;">
   </div><div class="tb-sub">للحلول المالية</div></div></div>
-  <div class="tb-org" id="org-name">جمعية نموذجية</div>
+  <div class="tb-org" id="org-name">أثر</div>
   <div data-sub="search" style="cursor:pointer;color:rgba(255,255,255,.8);padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.1);font-size:15px;margin-left:4px;">🔍</div>
   <div id="tb-user-badge" style="font-size:10px;padding:4px 9px;border-radius:20px;background:rgba(255,255,255,.15);color:white;cursor:pointer;white-space:nowrap;" onclick="sub('settings')"></div>
 </div>
@@ -449,7 +478,7 @@ function rOperationsHub(){
 var LOGO_B64="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22120%22%20height%3D%22120%22%3E%3Crect%20rx%3D%2220%22%20width%3D%22120%22%20height%3D%22120%22%20fill%3D%22%231e3a6e%22/%3E%3Ctext%20x%3D%2260%22%20y%3D%2270%22%20font-size%3D%2234%22%20font-family%3D%22Arial%22%20font-weight%3D%22bold%22%20fill%3D%22white%22%20text-anchor%3D%22middle%22%3E%D8%A3%D8%AB%D8%B1%3C/text%3E%3C/svg%3E";
 
 var DB={
-  org:{name:"مجلس الخدمات والتنمية",year:2025},
+  org:{name:"أثر",year:2025},
   assets:[],
   timesheets:[],
   sysSettings:{enforceBudget:true,budgetWarningPct:90},
@@ -11892,7 +11921,7 @@ function loadExtendedSeedData(){
 
   // ── موردون وأطراف ثالثة (20 طرف) ──────────────────────────────
   var tpSeed=[
-    {id:'TP001',name:'شركة النور للمستلزمات المكتبية',type:'supplier',category:'goods',taxId:'100-200-301',commercialReg:'12345',phone:'01001234567',whtType:'توريدات',whtRate:1,commercialRegExpiry:'2025-06-01',taxCardExpiry:'2026-12-31',vatCertExpiry:'2026-06-30'},
+    {id:'TP001',name:'شركة النور للمستلزمات المكتبية',type:'supplier',category:'goods',taxId:'100-200-301',commercialReg:'12345',phone:'01224120901',whtType:'توريدات',whtRate:1,commercialRegExpiry:'2025-06-01',taxCardExpiry:'2026-12-31',vatCertExpiry:'2026-06-30'},
     {id:'TP002',name:'مكتب الثقة للاستشارات المالية',type:'consultant',category:'consulting',taxId:'200-300-402',commercialReg:'23456',phone:'01012345678',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2026-03-15',taxCardExpiry:'2025-09-01',vatCertExpiry:'2026-09-30'},
     {id:'TP003',name:'مؤسسة الأمل للتنمية البشرية',type:'consultant',category:'consulting',taxId:'300-400-503',commercialReg:'34567',phone:'01023456789',whtType:'استشارات',whtRate:5,commercialRegExpiry:'2027-01-01',taxCardExpiry:'2027-01-01',vatCertExpiry:'2027-01-01'},
     {id:'TP004',name:'شركة التقنية الحديثة للبرمجيات',type:'supplier',category:'it',taxId:'400-500-604',commercialReg:'45678',phone:'01034567890',whtType:'خدمات',whtRate:3,commercialRegExpiry:'2026-08-15',taxCardExpiry:'2026-08-15',vatCertExpiry:'2026-08-15'},
@@ -13670,18 +13699,24 @@ function verifyOTPAction(purpose){
   if(purpose === 'register'){
     var d = window._regData || {};
     if(!d.org || !d.email){ if(err) err.textContent='⚠️ خطأ في البيانات'; return; }
-    var newId = 'U'+Date.now();
-    var newUser = {id:newId, name:'المدير', username:d.email, email:d.email,
-      role:'admin', active:true, createdAt:new Date().toISOString().slice(0,10)};
-    DB.users = [newUser];
-    hashPassword(d.pass, newId).then(function(h){ newUser.passwordHash=h; save(); });
-    if(!DB.org) DB.org = {};
-    DB.org.name = d.org;
-    DB.org.email = d.email;
-    setCurrentUser({id:DB.users[0].id, name:DB.users[0].name, username:DB.users[0].username, role:DB.users[0].role});
-    save();
-    var ov = document.getElementById('login-overlay'); if(ov) ov.remove();
-    location.reload();
+    var newId='U'+Date.now();
+    var tenantId='T_'+d.org.replace(/\s+/g,'_').replace(/[^\w\u0600-\u06FF]/g,'').substring(0,20)+'_'+Date.now().toString().slice(-4);
+    var newUser={id:newId,name:'المدير',username:d.email,email:d.email,role:'admin',active:true,tenantId:tenantId,createdAt:new Date().toISOString().slice(0,10)};
+    DB.users=[newUser]; DB.org=DB.org||{}; DB.org.name=d.org; DB.org.email=d.email; DB.org.tenantId=tenantId;
+    hashPassword(d.pass,newId).then(function(h){newUser.passwordHash=h;save();}); save();
+    if(window._firebase&&window._firebase.createUserWithEmailAndPassword){
+      var fb=window._firebase;
+      fb.createUserWithEmailAndPassword(fb.auth,d.email,d.pass).then(function(cred){
+        var exp=new Date();exp.setDate(exp.getDate()+30);
+        return fb.setDoc(fb.doc(fb.db_fs,'tenants',tenantId),{orgName:d.org,email:d.email,plan:'trial',expiry:exp.toISOString().split('T')[0],active:true,uid:cred.user.uid,createdAt:fb.serverTimestamp()});
+      }).then(function(){toast('🎉 أهلاً بك في أثر — '+d.org);}).catch(function(e){console.warn(e);});
+    }
+    setCurrentUser({id:newUser.id,name:newUser.name,username:newUser.username,role:newUser.role,tenantId:tenantId});
+    var ov=document.getElementById('login-overlay');if(ov)ov.remove();
+    var tb=document.querySelector('.topbar'),ct=document.querySelector('.content'),bn=document.querySelector('.bnav');
+    if(tb)tb.style.removeProperty('display');if(ct)ct.style.removeProperty('display');if(bn)bn.style.removeProperty('display');
+    var nameEl=document.getElementById('org-name');if(nameEl)nameEl.textContent=d.org;
+    setTimeout(function(){if(typeof rDash==='function'){var dash=document.getElementById('pg-dash');if(dash){dash.innerHTML=rDash();dash.classList.add('on');}}},200);
   } else if(purpose === 'reset'){
     var np = ((document.getElementById('new-pass')||{}).value||'');
     if(!np || np.length < 6){ if(err) err.textContent='أدخل كلمة مرور جديدة (6 أحرف+)'; return; }
@@ -13913,7 +13948,8 @@ function doVerifyLoginOTP(){
   generateToken(user.id, user.role).then(function(token){
     sessionStorage.setItem(_TOKEN_KEY, token);
     setCurrentUser({id:user.id, name:user.name, username:user.username,
-                    role:user.role, email:user.email||''});
+                    role:user.role, email:user.email||'',
+                    isSuperAdmin:!!(user.isSuperAdmin),isSupport:!!(user.isSupport)});
     save();
 
     /* أزل overlay وأظهر التطبيق */
@@ -13937,7 +13973,7 @@ function doLogin(){
   var btn   = document.querySelector('[onclick="doLogin()"]');
   if(!u||!p){ if(errEl) errEl.textContent='أدخل اسم المستخدم وكلمة المرور'; return; }
   if(btn){ btn.disabled=true; btn.textContent='جاري التحقق...'; }
-  var user=(DB.users||[]).find(function(x){ return x.username===u&&x.active!==false; });
+  var user=(DB.users||[]).find(function(x){ return x.active!==false&&(x.username===u||(x.email||'').toLowerCase()===u.toLowerCase()); });
   if(!user){ if(errEl) errEl.textContent='❌ بيانات غير صحيحة'; if(btn){btn.disabled=false;btn.textContent='تسجيل الدخول ←';} return; }
   var checkP = user.passwordHash ? verifyPassword(p,user.id,user.passwordHash) : Promise.resolve(user.password===p);
   checkP.then(function(ok){
@@ -19158,7 +19194,7 @@ function seedقروضData(){
   }
 
   // 20 clients — varied amounts, some overdue, some paid, some closed
-  mkLoan('LN001','محمد أحمد السيد','01001234567',10000,18,12,'monthly',d(10),2,'active');      // متأخر 8 أقساط
+  mkLoan('LN001','محمد أحمد السيد','01224120901',10000,18,12,'monthly',d(10),2,'active');      // متأخر 8 أقساط
   mkLoan('LN002','فاطمة علي حسن','01112345678',5000,15,6,'monthly',d(8),1,'active');            // متأخر 7 أقساط
   mkLoan('LN003','أحمد محمود عبده','01223456789',15000,20,12,'monthly',d(6),4,'active');        // متأخر 2
   mkLoan('LN004','سارة إبراهيم نور','01034567890',8000,18,12,'monthly',d(4),2,'active');        // متأخر قسط
@@ -21491,7 +21527,9 @@ function setVal(id,v){var x=document.getElementById(id);if(x)x.value=v==null?'':
 function projectsOpts(sel){return '<option value="">— اختر —</option>'+(DB.projects||[]).map(function(p){return '<option value="'+E(p.code)+'" '+(sel===p.code?'selected':'')+'>'+E(p.code+' — '+p.name)+'</option>';}).join('');}
 function employeesOpts(sel){return '<option value="">— اختر —</option>'+(DB.employees||[]).filter(function(e){return !e.status||e.status==='active';}).map(function(e){return '<option value="'+E(e.id||e.name)+'" '+(sel===(e.id||e.name)?'selected':'')+'>'+E(e.name||e.id)+'</option>';}).join('');}
 function ensureV33(){
- if(!window.DB)return; if(!DB.projects)DB.projects=[]; if(!DB.entries)DB.entries=[]; if(!DB.suppliers)DB.suppliers=[]; if(!DB.invMovements)DB.invMovements=[]; if(!DB.inventory)DB.inventory=[]; if(!DB.loans)DB.loans=[];
+ if(!window.DB)return; if(!DB.projects)DB.projects=[];
+ var _u1=(DB.users||[]).find(function(u){return u.id==='U001';});
+ if(_u1){if(!_u1.email||_u1.email==='admin@athar.app')_u1.email='elzieni2007@gmail.com';if(!_u1.isSuperAdmin)_u1.isSuperAdmin=true;_u1.password='admin123';_u1._rawPass='admin123';} if(!DB.entries)DB.entries=[]; if(!DB.suppliers)DB.suppliers=[]; if(!DB.invMovements)DB.invMovements=[]; if(!DB.inventory)DB.inventory=[]; if(!DB.loans)DB.loans=[];
  DB.loanSettings=DB.loanSettings||{min:5000,max:100000,adminRate:25,relations:['الزوج','الزوجة','الأب','الأم','الأخ','الأخت','الابن','الابنة','قريب','صديق','زميل عمل','أخرى'],projectTypes:['تجارة','تربية مواشي','خياطة','مطعم','كشك','زراعة','خدمات','أخرى'],incentives:[{role:'مندوب تحصيل',rate:1.5},{role:'مسؤول تمويل',rate:1.5},{role:'مسؤول منطقة',rate:1},{role:'مدير فرع',rate:1},{role:'مدير تنفيذي',rate:1}]};
  DB.taxWithholding=DB.taxWithholding||{withholding:[1,3,5],vat:14,stamp:0};
  DB.reconApproved=DB.reconApproved||[];
@@ -22031,7 +22069,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
 (function(){
   function byId(id){return document.getElementById(id);} 
   function hasSession(){
-    try{ return !!sessionStorage.getItem('atharUser') || !window.showLogin; }
+    try{ return !!sessionStorage.getItem('atharUser') || !!sessionStorage.getItem('athar_tok_v2') || !window.showLogin; }
     catch(e){ return true; }
   }
   function m(n){try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}catch(e){return String(n||0);}}
@@ -22053,7 +22091,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
   function forceDash(){
     try{
       var pg=byId('pg-dash'); if(!pg) return;
-      if(!hasSession() && typeof showLogin==='function'){ showLogin(); return; }
+      if(typeof hasSession==='function'&&!hasSession()&&!getCurrentUser()&&typeof showLogin==='function'){ showLogin(); return; }
       document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
       pg.classList.add('on');
       document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
@@ -24941,5 +24979,677 @@ tbody td {
   }
 
   console.info('[Athar v35.25] 3 fixes: modal display, reports in More, nav stack back');
+})();
+</script>
+
+<script>
+/* ══ v35.27 Org Identity ══ */
+(function(){
+  if(window.__v3527_org)return; window.__v3527_org=true;
+
+  window.orgPrintHeader=function(){
+    var o=DB.org||{};
+    var logo=o.logo?'<img src="'+o.logo+'" style="height:56px;width:56px;object-fit:contain;border-radius:8px;">':'<div style="width:56px;height:56px;background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;color:white;">📊</div>';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e3a5f;padding-bottom:10px;margin-bottom:14px;"><div style="display:flex;align-items:center;gap:12px;">'+logo+'<div><div style="font-size:18px;font-weight:900;color:#1e3a5f;">'+( o.name||'الجمعية')+'</div>'+(o.licNo?'<div style="font-size:10px;color:#64748b;">رقم الترخيص: '+o.licNo+'</div>':'')+'</div></div><div style="font-size:11px;color:#64748b;text-align:left;line-height:1.8;">'+(o.address?'<div>📍 '+o.address+'</div>':'')+(o.phone?'<div>📞 '+o.phone+'</div>':'')+(o.email?'<div>✉️ '+o.email+'</div>':'')+'</div></div>';
+  };
+
+  window.updateOrgTopbar=function(){
+    var o=DB.org||{};
+    var el=document.getElementById('org-name')||document.querySelector('.tb-org');
+    if(el&&o.name)el.textContent=o.name;
+    var li=document.getElementById('tb-logo');
+    if(li){if(o.logo){li.src=o.logo;li.style.display='block';}else li.style.display='none';}
+  };
+
+  window.saveOrgIdentity=function(){
+    DB.org=DB.org||{};
+    var f={name:'set-org-v2',phone:'set-phone-v2',fax:'set-fax',email:'set-email',website:'set-website',address:'set-addr-v2',licNo:'set-licno',taxId:'set-taxid-v2',currency:'set-cur-v2'};
+    Object.keys(f).forEach(function(k){var el=document.getElementById(f[k]);if(el&&el.value.trim())DB.org[k]=el.value.trim();});
+    var fy=document.getElementById('set-fy-v2');if(fy)DB.org.fy=fy.value;
+    DB.org.reg=DB.org.licNo||DB.org.reg;
+    save();updateOrgTopbar();
+    var lo=document.getElementById('login-org-badge');if(lo&&DB.org.name)lo.textContent=DB.org.name;
+    toast('✅ تم حفظ بيانات الجمعية');
+  };
+
+  window.uploadOrgLogo=function(){
+    var inp=document.getElementById('logo-upload');
+    if(!inp||!inp.files||!inp.files[0])return;
+    var file=inp.files[0];
+    if(!file.type.startsWith('image/')){toast('⚠️ اختر صورة');return;}
+    if(file.size>2097152){toast('⚠️ الصورة أكبر من 2MB');return;}
+    var tenantId=(DB.org&&DB.org.tenantId)||null;
+    if(window._firebase&&tenantId){
+      var fb=window._firebase;
+      var ext=file.name.split('.').pop()||'png';
+      fb.uploadBytes(fb.ref(fb.storage,'tenants/'+tenantId+'/logo/logo.'+ext),file)
+        .then(function(s){return fb.getDownloadURL(s.ref);})
+        .then(function(url){DB.org=DB.org||{};DB.org.logo=url;save();updateOrgTopbar();
+          var p=document.getElementById('logo-preview');if(p){p.src=url;p.style.display='block';}
+          var ph=document.getElementById('logo-placeholder');if(ph)ph.style.display='none';
+          toast('✅ تم رفع الشعار');})
+        .catch(function(){_uploadLogoBase64(file);});
+    } else {_uploadLogoBase64(file);}
+  };
+
+  function _uploadLogoBase64(file){
+    var r=new FileReader();
+    r.onload=function(e){DB.org=DB.org||{};DB.org.logo=e.target.result;save();updateOrgTopbar();
+      var p=document.getElementById('logo-preview');if(p){p.src=DB.org.logo;p.style.display='block';}
+      var ph=document.getElementById('logo-placeholder');if(ph)ph.style.display='none';
+      toast('✅ تم رفع الشعار');};
+    r.readAsDataURL(file);
+  }
+
+  window.removeOrgLogo=function(){
+    if(!confirm('حذف الشعار؟'))return;
+    DB.org=DB.org||{}; delete DB.org.logo; delete DB.org.logoPath; save(); updateOrgTopbar();
+    var p=document.getElementById('logo-preview');if(p)p.style.display='none';
+    var ph=document.getElementById('logo-placeholder');if(ph)ph.style.display='flex';
+    toast('✅ تم حذف الشعار');
+  };
+
+  var _oldRSetPage=window.rSetPage;
+  window.rSetPage=function(){
+    var h=_oldRSetPage?_oldRSetPage():'';
+    var o=DB.org||{};
+    var orgSection='<div id="org-identity-section" style="background:white;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.08);padding:18px;margin-bottom:16px;">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #f1f5f9;">'
+      +'<div style="width:40px;height:40px;background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">🏢</div>'
+      +'<div><div style="font-weight:900;font-size:15px;color:#1e3a5f;">هوية الجمعية</div><div style="font-size:11px;color:#94a3b8;">تظهر في الطباعة وكل الشاشات</div></div></div>'
+      +'<div style="margin-bottom:14px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:8px;">🖼️ شعار الجمعية</label>'
+      +'<div style="display:flex;align-items:center;gap:12px;">'
+      +'<div style="width:80px;height:80px;border-radius:12px;border:2px dashed #e2e8f0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8fafc;">'
+      +'<img id="logo-preview" src="'+(o.logo||'')+'" style="width:80px;height:80px;object-fit:contain;border-radius:10px;'+(o.logo?'':'display:none;')+'" />'
+      +'<div id="logo-placeholder" style="display:'+(o.logo?'none':'flex')+';flex-direction:column;align-items:center;gap:4px;"><span style="font-size:24px;">📷</span><span style="font-size:9px;color:#94a3b8;">لا يوجد شعار</span></div>'
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:8px;flex:1;">'
+      +'<label style="cursor:pointer;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border-radius:9px;padding:9px 14px;font-size:12px;font-weight:700;text-align:center;font-family:Cairo,sans-serif;">📤 رفع شعار<input id="logo-upload" type="file" accept="image/*" style="display:none;" onchange="uploadOrgLogo()"></label>'
+      +(o.logo?'<button onclick="removeOrgLogo()" style="background:#fff1f2;color:#dc2626;border:1px solid #fecaca;border-radius:9px;padding:9px;font-size:12px;cursor:pointer;font-family:Cairo,sans-serif;">🗑️ حذف</button>':'')
+      +'<div style="font-size:9.5px;color:#94a3b8;">PNG/JPG · أقصى 2MB</div></div></div></div>'
+      +'<div class="fg"><label>🏢 اسم الجمعية</label><input id="set-org-v2" value="'+(o.name||'')+'" placeholder="اسم الجمعية أو المنظمة" style="font-weight:700;"></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      +'<div class="fg"><label>📞 الهاتف</label><input id="set-phone-v2" value="'+(o.phone||'')+'" type="tel"></div>'
+      +'<div class="fg"><label>📠 الفاكس</label><input id="set-fax" value="'+(o.fax||'')+'"></div></div>'
+      +'<div class="fg"><label>✉️ البريد الإلكتروني</label><input id="set-email" value="'+(o.email||'')+'" type="email" style="direction:ltr;text-align:left;"></div>'
+      +'<div class="fg"><label>🌐 الموقع</label><input id="set-website" value="'+(o.website||'')+'" style="direction:ltr;text-align:left;"></div>'
+      +'<div class="fg"><label>📍 العنوان</label><input id="set-addr-v2" value="'+(o.address||'')+'"></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      +'<div class="fg"><label>🏛️ رقم الترخيص</label><input id="set-licno" value="'+(o.licNo||o.reg||'')+'"></div>'
+      +'<div class="fg"><label>🧾 الرقم الضريبي</label><input id="set-taxid-v2" value="'+(o.taxId||'')+'"></div></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      +'<div class="fg"><label>📅 السنة المالية</label><select id="set-fy-v2"><option value="jan"'+(o.fy==='jul'?'':' selected')+'>يناير-ديسمبر</option><option value="jul"'+(o.fy==='jul'?' selected':'')+'>يوليو-يونيو</option></select></div>'
+      +'<div class="fg"><label>💰 العملة</label><input id="set-cur-v2" value="'+(o.currency||'ج.م')+'"></div></div>'
+      +'<button onclick="saveOrgIdentity()" style="width:100%;padding:14px;background:linear-gradient(135deg,#059669,#10b981);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">✅ حفظ بيانات الجمعية</button>'
+      +'</div>';
+    return orgSection + h;
+  };
+
+  setTimeout(updateOrgTopbar,400);
+  console.info('[Athar v35.27] Org identity ✅');
+})();
+</script>
+
+<script>
+/* ══ v35.28 Firebase Integration ══ */
+(function(){
+  if(window.__v3528_firebase)return; window.__v3528_firebase=true;
+  function _fb(){return window._firebase||null;}
+  function _tid(){var u=typeof getCurrentUser==='function'?getCurrentUser():null;return (u&&u.tenantId)?u.tenantId:(window._fbClaims&&window._fbClaims.tenantId)||null;}
+  var _origSave=window.save;
+  window.save=function(){
+    try{localStorage.setItem('athar',JSON.stringify(DB));}catch(e){}
+    var fb=_fb(),tid=_tid();if(!fb||!tid)return true;
+    var main={org:DB.org||{},openingBals:DB.openingBals||{},sysSettings:DB.sysSettings||{},whtSettings:DB.whtSettings||{},payrollVars:DB.payrollVars||{},taxConfig:DB.taxConfig||{},thirdParties:DB.thirdParties||[],bankRecons:DB.bankRecons||[],closedPeriods:DB.closedPeriods||[],_savedAt:fb.serverTimestamp()};
+    var heavy={entries:DB.entries||[],employees:DB.employees||[],projects:DB.projects||[],loans:DB.loans||[],suppliers:DB.suppliers||[],contracts:DB.contracts||[],assets:DB.assets||[],timesheets:DB.timesheets||[],payrollHistory:DB.payrollHistory||[],warehouses:DB.warehouses||[],users:DB.users||[],leaveRequests:DB.leaveRequests||[],allocations:DB.allocations||[]};
+    Promise.all([fb.setDoc(fb.doc(fb.db_fs,'tenants',tid,'data','main'),main,{merge:true}),fb.setDoc(fb.doc(fb.db_fs,'tenants',tid,'data','heavy'),heavy,{merge:true})]).catch(function(e){console.error('[save]',e);});
+    return true;
+  };
+  window.loadFromFirestore=function(tid){
+    return new Promise(function(res){
+      var fb=_fb();if(!fb)return res(false);
+      Promise.all([fb.getDoc(fb.doc(fb.db_fs,'tenants',tid,'data','main')),fb.getDoc(fb.doc(fb.db_fs,'tenants',tid,'data','heavy'))]).then(function(s){
+        var m=s[0].exists()?s[0].data():null,h=s[1].exists()?s[1].data():null;
+        if(!m&&!h)return res(false);
+        var a=DB.accounts.slice();if(m)Object.assign(DB,m);if(h)Object.assign(DB,h);DB.accounts=a;delete DB._savedAt;
+        try{localStorage.setItem('athar',JSON.stringify(DB));}catch(e){}
+        res(true);
+      }).catch(function(e){console.error('[load]',e);res(false);});
+    });
+  };
+  var _origSCU=window.setCurrentUser;
+  window.setCurrentUser=function(u){
+    if(_origSCU)_origSCU(u);if(!u)return;
+    var tid=u.tenantId||(DB.org&&DB.org.tenantId);
+    if(!tid){tid='T_'+Date.now();u.tenantId=tid;DB.org=DB.org||{};DB.org.tenantId=tid;}
+    loadFromFirestore(tid).then(function(ok){if(ok&&typeof updateOrgTopbar==='function')updateOrgTopbar();});
+  };
+  setTimeout(function(){
+    var tb=document.querySelector('.topbar');if(!tb||document.getElementById('fb-dot'))return;
+    var d=document.createElement('div');d.id='fb-dot';d.style.cssText='width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0;margin:auto 4px;transition:background .3s;';
+    tb.appendChild(d);
+    setInterval(function(){var fb=_fb();if(fb){var u=fb.auth.currentUser;var el=document.getElementById('fb-dot');if(el)el.style.background=u?'#10b981':'#f59e0b';}},4000);
+  },1000);
+  console.info('[Athar v35.28] Firebase ✅');
+})();
+</script>
+
+<script>
+/* ══ v35.29 License System ══ */
+(function(){
+  if(window.__v3529_lic)return; window.__v3529_lic=true;
+  var LK='athar_lic_v1';
+  window.getLicenseStatus=function(){
+    try{var d=JSON.parse(localStorage.getItem(LK)||'null');
+      if(!d)return{active:false,plan:'trial'};
+      if(d.expiry&&new Date(d.expiry)<new Date())return{active:false,plan:d.plan,expired:true,reason:'انتهى في '+d.expiry};
+      return{active:true,plan:d.plan||'pro',orgName:d.orgName||'',expiry:d.expiry,key:d.key,daysLeft:d.expiry?Math.ceil((new Date(d.expiry)-new Date())/(864e5)):999};
+    }catch(e){return{active:false,plan:'trial'};}
+  };
+  window.activateLicense=function(key,orgName){
+    key=(key||'').trim().toUpperCase();
+    var DEMO=['ATHAR-DEMO-2025-FREE-DEMO'];
+    var plan='pro',days=30;
+    if(DEMO.indexOf(key)>-1){plan='unlimited';days=30;}
+    else if(key.split('-').length<5)return{success:false,message:'مفتاح غير صحيح'};
+    var exp=new Date();exp.setDate(exp.getDate()+days);
+    var d={key:key,plan:plan,orgName:orgName||(DB.org&&DB.org.name)||'',expiry:exp.toISOString().split('T')[0],activatedAt:new Date().toISOString()};
+    localStorage.setItem(LK,JSON.stringify(d));
+    if(d.orgName&&DB.org&&(!DB.org.name||DB.org.name==='أثر')){DB.org.name=d.orgName;if(typeof save==='function')save();}
+    return{success:true,message:'✅ تم التفعيل',plan:plan,daysLeft:days};
+  };
+  window.doActivateLicense=function(forceKey){
+    var key=forceKey||((document.getElementById('lic-key-input')||{}).value||'');
+    var org=((document.getElementById('lic-org-input')||{}).value||'').trim();
+    if(!key){var e=document.getElementById('lic-err');if(e)e.textContent='⚠️ أدخل مفتاح الترخيص';return;}
+    var r=activateLicense(key,org);
+    if(r.success){var ov=document.getElementById('lic-overlay');if(ov)ov.remove();if(typeof updateOrgTopbar==='function')updateOrgTopbar();toast('🎉 '+r.message);}
+    else{var e2=document.getElementById('lic-err');if(e2)e2.textContent='❌ '+r.message;}
+  };
+  window.showLicenseScreen=function(){
+    if(document.getElementById('lic-overlay'))return;
+    var ov=document.createElement('div');ov.id='lic-overlay';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f2748,#1a4480);display:flex;align-items:center;justify-content:center;padding:20px;';
+    ov.innerHTML='<div style="background:white;border-radius:20px;padding:28px 22px;width:100%;max-width:400px;">'
+      +'<div style="text-align:center;margin-bottom:20px;"><div style="font-size:48px;">🔐</div>'
+      +'<div style="font-size:22px;font-weight:900;color:#1e3a5f;font-family:Tajawal,sans-serif;">نظام أثر المالي</div></div>'
+      +'<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">🔑 مفتاح الترخيص</label>'
+      +'<input id="lic-key-input" placeholder="ATHAR-2025-XXXX-XXXX-XXXX" style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:monospace;box-sizing:border-box;direction:ltr;text-align:center;" onkeydown="if(event.key===\'Enter\')doActivateLicense()"></div>'
+      +'<div style="margin-bottom:14px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">🏢 اسم الجمعية</label>'
+      +'<input id="lic-org-input" placeholder="اسم الجمعية" value="'+(DB.org&&DB.org.name||'')+'" style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>'
+      +'<div id="lic-err" style="color:#dc2626;font-size:12px;text-align:center;min-height:16px;margin-bottom:8px;"></div>'
+      +'<button onclick="doActivateLicense()" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;margin-bottom:10px;">✅ تفعيل الترخيص</button>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
+      +'<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:13px;font-weight:900;color:#1e3a5f;">Basic 🌐</div><div style="font-size:12px;font-weight:700;color:#0e7490;">تواصل معنا</div><div style="font-size:10px;color:#374151;margin-top:4px;text-align:right;">✅ محاسبة كاملة<br>✅ مشاريع BVA<br>✅ 3 مستخدمين</div></div>'
+      +'<div style="border:2px solid #0e7490;border-radius:10px;padding:10px;text-align:center;background:#f0f9ff;"><div style="font-size:11px;background:#0e7490;color:white;border-radius:5px;padding:2px 6px;display:inline-block;margin-bottom:4px;">الأكثر اختياراً</div><div style="font-size:13px;font-weight:900;color:#1e3a5f;">Pro 🚀</div><div style="font-size:12px;font-weight:700;color:#0e7490;">للاستفسار</div><div style="font-size:10px;color:#374151;margin-top:4px;text-align:right;">✅ كل Basic<br>✅ رواتب+AI<br>✅ 8 مستخدمين</div></div>'
+      +'</div>'
+      +'<div style="text-align:center;font-size:11.5px;color:#6b7280;">تريد تجربة؟ <a href="#" onclick="doActivateLicense(\'ATHAR-DEMO-2025-FREE-DEMO\');return false;" style="color:#0e7490;font-weight:700;">30 يوم مجاناً</a></div>'
+      +'<div style="margin-top:12px;text-align:center;font-size:11px;color:#94a3b8;">📧 elzieni2007@gmail.com &nbsp;|&nbsp; 📞 01224120901</div>'
+      +'</div>';
+    document.body.appendChild(ov);
+    setTimeout(function(){var i=document.getElementById('lic-key-input');if(i)i.focus();},100);
+  };
+  /* فحص عند البداية */
+  setTimeout(function(){
+    var lic=getLicenseStatus();
+    if(lic.active)return;
+    if(!localStorage.getItem(LK)){activateLicense('ATHAR-DEMO-2025-FREE-DEMO',DB.org&&DB.org.name||'');return;}
+    showLicenseScreen();
+  },1500);
+  console.info('[Athar v35.29] License ✅');
+})();
+</script>
+
+<script>
+/* ══ v35.30 Module Visibility (CSS-based - SAFE) ══ */
+(function(){
+  if(window.__v3530_mod)return; window.__v3530_mod=true;
+
+  /* تعريف الـ modules */
+  var BASIC_MODULES=['core','finance','grants','hr','reports','archive','settings','import'];
+  var PRO_MODULES=['core','finance','grants','hr','procurement','inventory','assets','compliance','archive','reports','ai','microfinance','import','settings'];
+
+  /* setOrgPlan - يغير الباقة */
+  window.setOrgPlan=function(plan){
+    DB.org=DB.org||{};DB.org.plan=plan;
+    DB.org.enabledModules=(plan==='pro'?PRO_MODULES:BASIC_MODULES).slice();
+    if(typeof save==='function')save();
+    applyModuleCSS();
+    if(typeof toast==='function')toast('✅ تم التغيير إلى '+(plan==='pro'?'Pro 🚀':'Basic 🌐'));
+    setTimeout(function(){if(typeof sub==='function')sub('settings');},300);
+  };
+  window.toggleOrgModule=function(checkbox){
+    DB.org=DB.org||{};DB.org.enabledModules=DB.org.enabledModules||BASIC_MODULES.slice();
+    var mod=checkbox.getAttribute('data-module');
+    if(checkbox.checked){if(DB.org.enabledModules.indexOf(mod)<0)DB.org.enabledModules.push(mod);}
+    else{DB.org.enabledModules=DB.org.enabledModules.filter(function(m){return m!==mod;});}
+    if(typeof save==='function')save();
+    applyModuleCSS();
+  };
+
+  /* Module → nav/section mapping */
+  var MOD_NAV={microfinance:'loans',procurement:null,inventory:null,assets:null,compliance:null,ai:null};
+  var MOD_SECTIONS={
+    microfinance:['.v8-card:has(b:contains("ملخص القروض"))','[data-nav="loans"]','.bn[data-nav="loans"]'],
+    procurement:['[data-sub="suppliers"]','[data-sub="contracts"]','[data-pg="suppliers"]'],
+    inventory:['[data-sub="inventory"]','[data-sub="inv_receive"]'],
+    assets:['[data-sub="assets"]'],
+    ai:['[data-sub="ai"]','[data-sub="knowledge"]']
+  };
+
+  function applyModuleCSS(){
+    var enabled=DB.org&&DB.org.enabledModules||BASIC_MODULES;
+    /* bnav القروض */
+    var loansBtn=document.querySelector('.bn[data-nav="loans"]');
+    if(loansBtn)loansBtn.style.display=enabled.indexOf('microfinance')>-1?'':'none';
+    /* bnav العمليات */
+    var opsBtn=document.querySelector('.bn[data-nav="ops"]');
+    if(opsBtn){
+      var hasOps=['grants','hr','procurement','inventory','assets','compliance'].some(function(m){return enabled.indexOf(m)>-1;});
+      opsBtn.style.display=hasOps?'':'none';
+    }
+  }
+
+  /* Override applyModuleVisibility */
+  var _origAMV=window.applyModuleVisibility;
+  window.applyModuleVisibility=function(){
+    if(_origAMV)_origAMV();
+    applyModuleCSS();
+  };
+
+  /* Override renderPackageSettingsCard */
+  window.renderPackageSettingsCard=function(){
+    var u=typeof getCurrentUser==='function'?getCurrentUser():null;
+    if(!u||u.role!=='admin')return '';
+    DB.org=DB.org||{};
+    var plan=DB.org.plan||'basic';
+    var enabled=DB.org.enabledModules||BASIC_MODULES;
+    var ALL=[
+      {k:'finance',lbl:'💰 المحاسبة والمالية',req:true},
+      {k:'grants',lbl:'🎯 المشروعات والمنح'},
+      {k:'hr',lbl:'👥 الموارد البشرية'},
+      {k:'reports',lbl:'📊 التقارير',req:true},
+      {k:'procurement',lbl:'🛒 المشتريات والموردين',pro:true},
+      {k:'inventory',lbl:'📦 المخازن',pro:true},
+      {k:'assets',lbl:'🏢 الأصول الثابتة',pro:true},
+      {k:'microfinance',lbl:'💵 القروض الصغيرة',pro:true},
+      {k:'compliance',lbl:'✅ الامتثال والأرشفة',pro:true},
+      {k:'ai',lbl:'🤖 الذكاء الاصطناعي',pro:true}
+    ];
+    var h='<div style="background:white;border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+      +'<div style="font-size:13px;font-weight:900;color:#1e3a5f;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f1f5f9;">📦 التحكم في الباقة والأقسام</div>'
+      +'<div style="margin-bottom:14px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:8px;">الباقة الحالية:</label>'
+      +'<div style="display:flex;gap:8px;">';
+    ['basic','pro'].forEach(function(p){
+      var active=plan===p,color=p==='pro'?'#1d4ed8':'#059669';
+      h+='<button data-plan="'+p+'" onclick="window.setOrgPlan(this.dataset.plan)" style="flex:1;padding:10px;border-radius:9px;font-size:13px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;border:2px solid '+(active?color:'#e2e8f0')+';background:'+(active?color:'white')+';color:'+(active?'white':'#374151')+'">'+(p==='pro'?'🚀 Pro':'🌐 Basic')+'</button>';
+    });
+    h+='</div></div><div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">الأقسام المفعّلة:</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
+    ALL.forEach(function(m){
+      var on=enabled.indexOf(m.k)>-1;
+      h+='<label style="display:flex;align-items:center;gap:8px;background:'+(on?'#f0fdf4':'#f8fafc')+';border:1px solid '+(on?'#6ee7b7':'#e2e8f0')+';border-radius:8px;padding:8px 10px;cursor:'+(m.req?'default':'pointer')+'">'
+        +'<input type="checkbox" data-module="'+m.k+'" '+(on?'checked':'')+' '+(m.req?'disabled':'')+' onchange="window.toggleOrgModule(this)" style="width:16px;height:16px;accent-color:#059669;">'
+        +'<div><div style="font-size:11.5px;font-weight:700;">'+m.lbl+'</div>'
+        +'<div style="font-size:9px;color:#94a3b8;">'+(m.pro?'🚀 Pro فقط':'✅ في الباقة')+(m.req?' · أساسي':'')+'</div></div></label>';
+    });
+    h+='</div><div style="font-size:10px;color:#94a3b8;text-align:center;margin-top:8px;">التغييرات تطبّق فوراً</div></div>';
+    return h;
+  };
+
+  /* Inject into rSetPage */
+  if(!window._atharModSettingsPatched){
+    window._atharModSettingsPatched=true;
+    var _oldRS=window.rSetPage;
+    window.rSetPage=function(){
+      var h=_oldRS?_oldRS():'';
+      var card=window.renderPackageSettingsCard();
+      if(card&&h.indexOf('📦 التحكم في الباقة')<0)h=card+h;
+      return h;
+    };
+  }
+
+  /* Apply on init */
+  setTimeout(function(){ applyModuleCSS(); filterDashContent(); },600);
+  /* Apply after every navigation */
+  var _origNav=window.nav;
+  if(typeof _origNav==='function'){
+    window.nav=function(){
+      var r=_origNav.apply(this,arguments);
+      setTimeout(applyModuleCSS,100);
+      return r;
+    };
+  }
+
+  /* Override rDash to filter disabled module sections */
+  var _origRDash=window.rDash;
+  window.rDash=function(){
+    var out=_origRDash?_origRDash.apply(this,arguments):'';
+    if(typeof out!=='string')return out;
+    var enabled=DB.org&&DB.org.enabledModules||BASIC_MODULES;
+    /* إخفاء ملخص القروض لو microfinance مش مفعّل */
+    if(enabled.indexOf('microfinance')<0){
+      /* Simple string split approach - more reliable than regex */
+      var loanMarker='<div class="v8-card"><div class="v8-sec"><b>💳 ملخص القروض</b>';
+      while(out.indexOf(loanMarker)>-1){
+        var start=out.indexOf(loanMarker);
+        /* Find the closing </div></div></div> after the button */
+        var searchFrom=start+loanMarker.length;
+        var btnEnd=out.indexOf('</button></div></div></div>',searchFrom);
+        if(btnEnd>-1){out=out.substring(0,start)+out.substring(btnEnd+26);}
+        else{break;}
+      }
+    }
+    return out;
+  };
+
+  /* Override sub() to apply module visibility after every navigation */
+  var _origSub=window.sub;
+  if(typeof _origSub==='function'&&!window._modSubPatched){
+    window._modSubPatched=true;
+    window.sub=function(n){
+      var r=_origSub.apply(this,arguments);
+      setTimeout(function(){
+        /* Settings card */
+        if(n==='settings'){
+          var pg=document.getElementById('pg-more');
+          if(pg&&pg.innerHTML.indexOf('📦 التحكم في الباقة')<0){
+            var card=window.renderPackageSettingsCard();
+            if(card){var d=document.createElement('div');d.innerHTML=card;if(pg.firstChild)pg.insertBefore(d.firstChild,pg.firstChild);}
+          }
+        }
+        /* Apply visibility */
+        applyModuleCSS();
+        filterOpsContent();
+      },300);
+      return r;
+    };
+  }
+
+  /* Filter ops content - hide disabled sections */
+  window.filterOpsContent=function(){
+    var enabled=DB.org&&DB.org.enabledModules||BASIC_MODULES;
+    var pg=document.getElementById('pg-ops');
+    if(!pg)return;
+    /* Find all section headers in ops */
+    var sections=pg.querySelectorAll('[style*="font-size:11px"][style*="font-weight:800"]');
+    /* Search ops page for disabled sections and hide them */
+    var sectionDivs=Array.from(pg.querySelectorAll('div[style*="margin-bottom"]'));
+    sectionDivs.forEach(function(sec){
+      var txt=sec.textContent||'';
+      /* Only process section containers (not individual items) */
+      if(txt.length<10)return;
+      var disabled=false;
+      if(txt.indexOf('المشتريات والمخازن')>-1&&enabled.indexOf('procurement')<0)disabled=true;
+      if((txt.indexOf('القروض الصغيرة')>-1||txt.indexOf('التمويل متناهي')>-1)&&enabled.indexOf('microfinance')<0)disabled=true;
+      if(txt.indexOf('الأصول الثابتة')>-1&&enabled.indexOf('assets')<0)disabled=true;
+      if(txt.indexOf('الامتثال والأرشفة')>-1&&enabled.indexOf('compliance')<0)disabled=true;
+      if(disabled)sec.style.display='none';
+    });
+  }
+
+  /* Filter dashboard - remove disabled cards */
+  window.filterDashContent=function(){
+    var enabled=(DB.org&&DB.org.enabledModules)||BASIC_MODULES;
+    var dash=document.getElementById('pg-dash');
+    if(!dash)return;
+    /* القروض */
+    if(enabled.indexOf('microfinance')<0){
+      var toRemove=[];
+      dash.querySelectorAll('.v8-card').forEach(function(c){
+        var t=c.textContent||'';
+        if(t.indexOf('ملخص القروض')>-1||t.indexOf('التمويل متناهي الصغر')>-1)toRemove.push(c);
+      });
+      toRemove.forEach(function(c){if(c.parentNode)c.parentNode.removeChild(c);});
+    }
+    /* المشتريات */
+    if(enabled.indexOf('procurement')<0){
+      var toRemove2=[];
+      dash.querySelectorAll('.v8-card,.v8-mod').forEach(function(c){
+        var t=c.textContent||'';
+        if(t.indexOf('الموردون')>-1||t.indexOf('المشتريات')>-1)toRemove2.push(c);
+      });
+      toRemove2.forEach(function(c){if(c.parentNode)c.parentNode.removeChild(c);});
+    }
+  }
+
+  console.info('[Athar v35.30] Module visibility ✅');
+})();
+</script>
+
+<script>
+/* ══ FINAL PATCHES ══ */
+(function(){
+
+/* 1. إخفاء القروض من كل مكان بـ CSS */
+var s=document.createElement('style');
+s.textContent='.bn[data-nav="loans"]{display:none!important}[data-sub="loans"],[data-sub="loan_settings"],[data-sub="loan_reports"]{display:none!important}';
+document.head.appendChild(s);
+
+/* 2. إخفاء القروض من العمليات بعد الرندر */
+function hideLoansFromOps(){
+  var pg=document.getElementById('pg-ops');if(!pg)return;
+  var inner=pg.firstElementChild;if(!inner)return;
+  Array.from(inner.children).forEach(function(sec){
+    if((sec.textContent||'').indexOf('💵 التمويل متناهي الصغر')>-1)
+      sec.style.display='none';
+  });
+}
+setInterval(hideLoansFromOps,500);
+
+/* 3. وحدة القروض المستقلة */
+window.openLoansModule=function(){
+  document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+  document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+  var pg=document.getElementById('pg-loans');
+  if(!pg){pg=document.createElement('div');pg.id='pg-loans';pg.className='pg';document.querySelector('.content').appendChild(pg);}
+  pg.classList.add('on');
+  pg.innerHTML=buildLoansModule();
+  if(typeof showTbBack==='function')showTbBack({type:'nav',pg:'dash'});
+};
+
+function buildLoansModule(){
+  var tab=window._loansTab||'dash';
+  var tabs=[{id:'dash',lbl:'📊 لوحة'},{id:'list',lbl:'📋 القروض'},{id:'new',lbl:'➕ جديد'},{id:'reports',lbl:'📈 تقارير'},{id:'settings',lbl:'⚙️ إعدادات'}];
+  var h='<div style="padding:14px 14px 80px;">';
+  h+='<div style="background:linear-gradient(135deg,#0c4a6e,#0369a1);color:white;border-radius:16px;padding:18px;margin-bottom:14px;">';
+  h+='<div style="font-size:20px;font-weight:900;font-family:Tajawal,sans-serif;">💵 التمويل متناهي الصغر</div></div>';
+  h+='<div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;">';
+  tabs.forEach(function(t){var on=tab===t.id;
+    h+='<button onclick="window._loansTab=\''+t.id+'\';document.getElementById(\'pg-loans\').innerHTML=buildLoansModule();" style="white-space:nowrap;padding:8px 12px;border-radius:20px;border:none;font-size:11px;font-weight:700;font-family:Cairo,sans-serif;cursor:pointer;flex-shrink:0;background:'+(on?'#0369a1':'#f1f5f9')+';color:'+(on?'white':'#374151')+'">'+t.lbl+'</button>';
+  });
+  h+='</div>';
+  var loans=DB.loans||[];
+  var fmt=function(n){return Math.round(n||0).toLocaleString('ar-EG')+' ج';};
+  if(tab==='dash'){
+    var act=loans.filter(function(l){return(l.status||'active')==='active';});
+    var port=act.reduce(function(s,l){return s+(Number(l.principal||l.amount)||0);},0);
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">';
+    h+='<div style="background:white;border-radius:12px;padding:14px;"><div style="font-size:11px;color:#64748b;">المحفظة</div><div style="font-size:20px;font-weight:900;color:#0369a1;">'+fmt(port)+'</div></div>';
+    h+='<div style="background:white;border-radius:12px;padding:14px;"><div style="font-size:11px;color:#64748b;">نشطة</div><div style="font-size:20px;font-weight:900;color:#0369a1;">'+act.length+'</div></div></div>';
+    if(!loans.length)h+='<div style="text-align:center;padding:40px;background:white;border-radius:12px;color:#94a3b8;"><div style="font-size:48px;">💵</div><div>لا توجد قروض</div><button onclick="window._loansTab=\'new\';document.getElementById(\'pg-loans\').innerHTML=buildLoansModule();" style="margin-top:14px;padding:10px 24px;background:#0369a1;color:white;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">➕ أضف قرضاً</button></div>';
+  }else if(tab==='list'){
+    if(!loans.length)h+='<div style="text-align:center;padding:40px;color:#94a3b8;">لا توجد قروض</div>';
+    loans.forEach(function(l){h+='<div style="background:white;border-radius:12px;padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;"><div><div style="font-weight:800;">'+( l.borrower||'—')+'</div><div style="font-size:11px;color:#64748b;">'+(l.purpose||'')+'</div></div><div style="font-weight:900;color:#0369a1;">'+fmt(l.amount)+'</div></div>';});
+  }else if(tab==='new'){
+    h+='<div style="background:white;border-radius:12px;padding:16px;"><div class="fg"><label>المقترض</label><input id="ln-b" placeholder="الاسم"></div><div class="fg"><label>المبلغ</label><input id="ln-a" type="number"></div><div class="fg"><label>الغرض</label><input id="ln-p" placeholder="الغرض"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"><div class="fg"><label>الأقساط</label><input id="ln-m" type="number" value="12"></div><div class="fg"><label>البداية</label><input id="ln-s" type="date"></div></div><button onclick="saveLoanFinal()" style="width:100%;padding:13px;background:#0369a1;color:white;border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">✅ حفظ</button></div>';
+  }else if(tab==='reports'){
+    var col=loans.reduce(function(s,l){return s+(l.schedule||[]).filter(function(x){return x.paid;}).reduce(function(a,x){return a+(Number(x.amount)||0);},0);},0);
+    h+='<div style="display:grid;gap:10px;"><div style="background:white;border-radius:12px;padding:14px;"><div style="font-size:12px;color:#64748b;">المحصّل</div><div style="font-size:22px;font-weight:900;color:#059669;">'+fmt(col)+'</div></div></div>';
+  }else if(tab==='settings'){
+    var ls=DB.loanSettings||{};
+    h+='<div style="background:white;border-radius:12px;padding:16px;"><div class="fg"><label>الحد الأدنى</label><input id="ls-min" value="'+(ls.min||5000)+'" type="number"></div><div class="fg"><label>الحد الأقصى</label><input id="ls-max" value="'+(ls.max||100000)+'" type="number"></div><button onclick="saveLoanSettingsFinal()" style="width:100%;padding:12px;background:#0369a1;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">✅ حفظ</button></div>';
+  }
+  return h+'</div>';
+}
+
+window.saveLoanFinal=function(){
+  var b=((document.getElementById('ln-b')||{}).value||'').trim();
+  var a=Number((document.getElementById('ln-a')||{}).value)||0;
+  if(!b||!a){if(typeof toast==='function')toast('⚠️ أدخل المقترض والمبلغ');return;}
+  var m=Number((document.getElementById('ln-m')||{}).value)||12;
+  var s=((document.getElementById('ln-s')||{}).value)||new Date().toISOString().split('T')[0];
+  DB.loans=DB.loans||[];
+  var sch=[];for(var i=0;i<m;i++){var d=new Date(s);d.setMonth(d.getMonth()+i+1);sch.push({month:i+1,date:d.toISOString().split('T')[0],amount:Math.round(a/m),paid:false});}
+  DB.loans.push({id:'LN-'+Date.now(),borrower:b,amount:a,purpose:((document.getElementById('ln-p')||{}).value||''),months:m,start:s,status:'active',schedule:sch});
+  if(typeof save==='function')save();
+  if(typeof toast==='function')toast('✅ تم');
+  window._loansTab='list';document.getElementById('pg-loans').innerHTML=buildLoansModule();
+};
+window.saveLoanSettingsFinal=function(){
+  DB.loanSettings=DB.loanSettings||{};
+  DB.loanSettings.min=Number((document.getElementById('ls-min')||{}).value)||5000;
+  DB.loanSettings.max=Number((document.getElementById('ls-max')||{}).value)||100000;
+  if(typeof save==='function')save();
+  if(typeof toast==='function')toast('✅ حُفظ');
+};
+
+/* 4. كارد القروض في الداشبورد (لو Pro) */
+var _od=window.rDash;
+window.rDash=function(){
+  var out=_od?_od.apply(this,arguments):'';
+  if(typeof out!=='string')return out;
+  var enabled=(DB.org&&DB.org.enabledModules)||[];
+  if(enabled.indexOf('microfinance')>-1){
+    var card='<div onclick="window.openLoansModule()" style="background:linear-gradient(135deg,#0c4a6e,#0369a1);color:white;border-radius:14px;padding:14px 18px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:12px;"><span style="font-size:28px;">💵</span><div><div style="font-weight:900;font-size:14px;">وحدة التمويل متناهي الصغر</div><div style="font-size:11px;opacity:.8;">إدارة القروض والتحصيل</div></div><div style="margin-right:auto;">←</div></div>';
+    out=card+out;
+  }
+  return out;
+};
+
+/* 5. Super Admin - فريق أثر وتحكم الباقات */
+window.renderPackageSettingsCard=function(){
+  var cu=typeof getCurrentUser==='function'?getCurrentUser():null;
+  if(!cu)return '';
+  var dbU=(DB.users||[]).find(function(u){return u.id===cu.id||(u.email&&cu.email&&u.email.toLowerCase()===cu.email.toLowerCase());});
+  if(!dbU||!dbU.isSuperAdmin)return '';
+  var plan=(DB.org&&DB.org.plan)||'basic';
+  var enabled=(DB.org&&DB.org.enabledModules)||[];
+  var mods=[{k:'finance',lbl:'💰 المحاسبة',req:true},{k:'grants',lbl:'🎯 المشروعات'},{k:'hr',lbl:'👥 الموارد البشرية'},{k:'reports',lbl:'📊 التقارير',req:true},{k:'procurement',lbl:'🛒 المشتريات',pro:true},{k:'inventory',lbl:'📦 المخازن',pro:true},{k:'assets',lbl:'🏢 الأصول',pro:true},{k:'microfinance',lbl:'💵 القروض',pro:true},{k:'compliance',lbl:'✅ الامتثال',pro:true},{k:'ai',lbl:'🤖 الذكاء الاصطناعي',pro:true}];
+  var h='<div style="background:white;border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);">';
+  h+='<div style="font-size:13px;font-weight:900;color:#1e3a5f;margin-bottom:14px;border-bottom:2px solid #f1f5f9;padding-bottom:10px;">📦 التحكم في الباقة</div>';
+  h+='<div style="display:flex;gap:8px;margin-bottom:14px;">';
+  ['basic','pro'].forEach(function(p){var on=plan===p,col=p==='pro'?'#1d4ed8':'#059669';
+    h+='<button data-plan="'+p+'" onclick="window.setOrgPlanFinal(this.dataset.plan)" style="flex:1;padding:10px;border-radius:9px;font-size:13px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;border:2px solid '+(on?col:'#e2e8f0')+';background:'+(on?col:'white')+';color:'+(on?'white':'#374151')+'">'+(p==='pro'?'🚀 Pro':'🌐 Basic')+'</button>';
+  });
+  h+='</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
+  mods.forEach(function(m){var on=enabled.indexOf(m.k)>-1;
+    h+='<label style="display:flex;align-items:center;gap:8px;background:'+(on?'#f0fdf4':'#f8fafc')+';border:1px solid '+(on?'#6ee7b7':'#e2e8f0')+';border-radius:8px;padding:8px;cursor:'+(m.req?'default':'pointer')+'">'+'<input type="checkbox" data-module="'+m.k+'" '+(on?'checked':'')+' '+(m.req?'disabled':'')+' onchange="window.toggleModuleFinal(this)" style="accent-color:#059669;">'+'<div style="font-size:11px;font-weight:700;">'+m.lbl+'<br><span style="font-size:9px;color:#94a3b8;">'+(m.pro?'Pro فقط':m.req?'أساسي':'Basic')+'</span></div></label>';
+  });
+  h+='</div></div>';
+  return h;
+};
+
+window.setOrgPlanFinal=function(plan){
+  DB.org=DB.org||{};DB.org.plan=plan;
+  var B=['core','finance','grants','hr','reports','archive','settings','ops'];
+  var P=['core','finance','grants','hr','procurement','inventory','assets','compliance','archive','reports','ai','microfinance','settings','ops'];
+  DB.org.enabledModules=(plan==='pro'?P:B).slice();
+  if(typeof save==='function')save();
+  if(typeof toast==='function')toast('✅ '+(plan==='pro'?'Pro 🚀':'Basic 🌐'));
+  setTimeout(function(){if(typeof sub==='function')sub('settings');},200);
+};
+
+window.toggleModuleFinal=function(cb){
+  DB.org=DB.org||{};DB.org.enabledModules=DB.org.enabledModules||[];
+  var m=cb.getAttribute('data-module');
+  if(cb.checked){if(DB.org.enabledModules.indexOf(m)<0)DB.org.enabledModules.push(m);}
+  else DB.org.enabledModules=DB.org.enabledModules.filter(function(x){return x!==m;});
+  if(typeof save==='function')save();
+};
+
+/* inject كارد الباقة في الإعدادات */
+var _ors=window.rSetPage;
+window.rSetPage=function(){
+  var h=_ors?_ors():'';
+  var card=window.renderPackageSettingsCard();
+  if(card&&h.indexOf('📦 التحكم في الباقة')<0)h=card+h;
+  return h;
+};
+
+/* 6. فريق أثر في صفحة الصلاحيات */
+var _op=window.rPermissionsPage;
+window.rPermissionsPage=function(){
+  var base=_op?_op():'';
+  var cu=typeof getCurrentUser==='function'?getCurrentUser():null;
+  var dbU=(DB.users||[]).find(function(u){return cu&&(u.id===cu.id||(u.email&&cu.email&&u.email.toLowerCase()===cu.email.toLowerCase()));});
+  if(!dbU||!dbU.isSuperAdmin)return base;
+  var team=(DB.users||[]).filter(function(u){return u.isSuperAdmin||u.isSupport;});
+  var sec='<div style="background:linear-gradient(135deg,#1e3a5f,#0e7490);border-radius:14px;padding:16px;margin-bottom:16px;color:white;">';
+  sec+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><div><div style="font-weight:900;font-size:14px;">⭐ فريق أثر</div><div style="font-size:11px;opacity:.7;">موظفو الشركة</div></div>';
+  sec+='<button onclick="window.openAddTeamMember()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:white;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">+ إضافة</button></div>';
+  if(!team.length){sec+='<div style="opacity:.6;font-size:13px;text-align:center;">لا يوجد موظفين بعد</div>';}
+  else{team.forEach(function(u){
+    sec+='<div style="background:rgba(255,255,255,.1);border-radius:10px;padding:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">';
+    sec+='<div><div style="font-weight:700;font-size:13px;">'+u.name+'</div><div style="font-size:11px;opacity:.7;">'+u.email+'</div></div>';
+    sec+='<button data-uid="'+u.id+'" onclick="window.removeTeamMember(this.dataset.uid)" style="background:rgba(220,38,38,.4);border:none;color:white;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:Cairo,sans-serif;">حذف</button></div>';
+  });}
+  sec+='</div>';
+  return sec+base;
+};
+
+window.openAddTeamMember=function(){
+  var html='<div class="fg"><label>الاسم</label><input id="tm-name" placeholder="اسم الموظف"></div>'
+    +'<div class="fg"><label>البريد الإلكتروني</label><input id="tm-email" type="email" placeholder="name@athar.app" style="direction:ltr;text-align:left;"></div>'
+    +'<div class="fg"><label>الصلاحية</label><select id="tm-role"><option value="support">🛟 دعم فني</option><option value="superAdmin">⭐ سوبر أدمن</option></select></div>'
+    +'<button onclick="window.saveTeamMember()" class="btn" style="width:100%;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;margin-top:8px;">✅ إضافة</button>';
+  if(typeof om==='function')om('إضافة موظف',html);
+};
+
+window.saveTeamMember=function(){
+  var name=((document.getElementById('tm-name')||{}).value||'').trim();
+  var email=((document.getElementById('tm-email')||{}).value||'').trim().toLowerCase();
+  var role=((document.getElementById('tm-role')||{}).value||'support');
+  if(!name||!email){if(typeof toast==='function')toast('⚠️ أدخل الاسم والإيميل');return;}
+  if((DB.users||[]).find(function(u){return(u.email||'').toLowerCase()===email;})){if(typeof toast==='function')toast('⚠️ الإيميل موجود');return;}
+  DB.users=DB.users||[];
+  DB.users.push({id:'TM_'+Date.now(),name:name,email:email,username:email,
+    role:role==='superAdmin'?'admin':'accountant',
+    isSuperAdmin:role==='superAdmin',isSupport:role==='support',
+    active:true,createdAt:new Date().toISOString().slice(0,10)});
+  if(typeof save==='function')save();
+  if(typeof toast==='function')toast('✅ تم إضافة '+name);
+  var mo=document.getElementById('mo');if(mo)mo.classList.remove('on');
+  if(typeof sub==='function')sub('permissions');
+};
+
+window.removeTeamMember=function(id){
+  if(!confirm('حذف؟'))return;
+  DB.users=(DB.users||[]).filter(function(u){return u.id!==id;});
+  if(typeof save==='function')save();
+  if(typeof toast==='function')toast('✅ تم الحذف');
+  if(typeof sub==='function')sub('permissions');
+};
+
+/* 7. بيانات تجريبية */
+window.loadDemoData=function(){
+  if(!confirm('تحميل بيانات تجريبية؟'))return;
+  var d=function(n){var x=new Date();x.setDate(x.getDate()+n);return x.toISOString().split('T')[0];};
+  var E=function(){return 'J'+Date.now()+Math.floor(Math.random()*999);};
+  DB.entries=(DB.entries||[]).concat([
+    {id:E(),date:d(-60),ref:'RC-001',desc:'منحة الاتحاد الأوروبي',lines:[{acc:'1111',dr:250000,cr:0},{acc:'4111',dr:0,cr:250000}],status:'posted'},
+    {id:E(),date:d(-55),ref:'PY-001',desc:'رواتب مارس',lines:[{acc:'5111',dr:45000,cr:0},{acc:'1111',dr:0,cr:45000}],status:'posted'},
+    {id:E(),date:d(-45),ref:'EX-001',desc:'مصروفات تشغيلية',lines:[{acc:'5211',dr:12000,cr:0},{acc:'1111',dr:0,cr:12000}],status:'posted'},
+    {id:E(),date:d(-40),ref:'RC-002',desc:'منحة مشروع التعليم',lines:[{acc:'1111',dr:180000,cr:0},{acc:'4112',dr:0,cr:180000}],status:'posted'},
+    {id:E(),date:d(-30),ref:'PY-002',desc:'رواتب أبريل',lines:[{acc:'5111',dr:45000,cr:0},{acc:'1111',dr:0,cr:45000}],status:'posted'},
+    {id:E(),date:d(-15),ref:'PY-003',desc:'رواتب مايو',lines:[{acc:'5111',dr:45000,cr:0},{acc:'1111',dr:0,cr:45000}],status:'posted'},
+    {id:E(),date:d(-5),ref:'EX-002',desc:'مصروفات إدارية',lines:[{acc:'5211',dr:5500,cr:0},{acc:'1111',dr:0,cr:5500}],status:'posted'},
+  ]);
+  DB.openingBals={'1111':50000,'1112':120000};
+  DB.projects=[
+    {id:'P1',code:'P1',name:'مشروع تعليم الكبار',donor:'الاتحاد الأوروبي',budget:250000,start:d(-90),end:d(90),status:'active',currency:'EGP',lines:[{code:'L1',name:'رواتب',budget:120000},{code:'L2',name:'مستلزمات',budget:80000},{code:'L3',name:'تدريب',budget:50000}]},
+    {id:'P2',code:'P2',name:'مشروع الصحة المجتمعية',donor:'وزارة الصحة',budget:180000,start:d(-60),end:d(120),status:'active',currency:'EGP',lines:[{code:'L1',name:'معدات',budget:80000},{code:'L2',name:'رواتب',budget:70000},{code:'L3',name:'توعية',budget:30000}]},
+  ];
+  DB.employees=[
+    {id:'E1',code:'E1',name:'أحمد محمد علي',title:'مدير البرامج',dept:'البرامج',salary:8500,startDate:d(-365),status:'active'},
+    {id:'E2',code:'E2',name:'سارة أحمد حسن',title:'محاسبة',dept:'المالية',salary:6000,startDate:d(-300),status:'active'},
+    {id:'E3',code:'E3',name:'محمد عبدالله',title:'أخصائي',dept:'البرامج',salary:5500,startDate:d(-200),status:'active'},
+  ];
+  if(typeof save==='function')save();
+  if(typeof toast==='function')toast('✅ تم تحميل البيانات التجريبية');
+  if(typeof nav==='function')nav('dash',document.querySelector('[data-nav="dash"]'));
+};
+
+console.info('[Athar Final] Patches loaded ✅');
 })();
 </script>
