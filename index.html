@@ -25322,31 +25322,34 @@ if(typeof _oldSub==='function'){
   };
 }
 
-/* Override نهائي لـ sub('reports') */
+/* Override نهائي لـ sub('reports') - صفحة مستقلة */
 (function(){
-  var _lastSub=window.sub;
-  window.sub=function(n){
-    if(n==='reports'&&typeof rReportsPage==='function'){
-      if(typeof nav==='function')nav('more',null);
-      /* نضيف flag لمنع override من setInterval */
-      window._reportsMode=true;
-      setTimeout(function(){
-        var pg=document.getElementById('pg-more');
-        if(!pg)return;
-        var fullHtml='<div style="padding:14px 14px 80px;">'+rReportsPage()+'</div>';
-        pg.innerHTML=fullHtml;
-        /* نعيد كتابة لو اتمسح */
-        var check=setInterval(function(){
-          if(!window._reportsMode){clearInterval(check);return;}
-          var pg2=document.getElementById('pg-more');
-          if(pg2&&pg2.innerHTML.length<3000){pg2.innerHTML=fullHtml;}
-        },300);
-        setTimeout(function(){window._reportsMode=false;clearInterval(check);},5000);
-        if(typeof showTbBack==='function')showTbBack({type:'nav',pg:'more'});
-      },100);
+  /* إنشاء pg-reports مستقل */
+  var _rpg = document.createElement('div');
+  _rpg.id = 'pg-reports-full';
+  _rpg.className = 'pg';
+  _rpg.style.cssText = 'overflow-y:auto;';
+  document.querySelector('.content') && document.querySelector('.content').appendChild(_rpg);
+
+  var _lastSub = window.sub;
+  window.sub = function(n){
+    if(n==='reports' && typeof rReportsPage==='function'){
+      /* إخفاء كل الصفحات وإظهار صفحة التقارير المستقلة */
+      document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+      document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+      var rpg = document.getElementById('pg-reports-full');
+      if(!rpg){
+        rpg = document.createElement('div');
+        rpg.id = 'pg-reports-full';
+        rpg.className = 'pg';
+        document.querySelector('.content') && document.querySelector('.content').appendChild(rpg);
+      }
+      rpg.innerHTML = '<div style="padding:14px 14px 80px;">'+rReportsPage()+'</div>';
+      rpg.classList.add('on');
+      document.querySelector('.bn[data-nav="more"]') && document.querySelector('.bn[data-nav="more"]').classList.add('on');
+      if(typeof showTbBack==='function') showTbBack({type:'nav',pg:'more'});
       return;
     }
-    window._reportsMode=false;
     return _lastSub.apply(this,arguments);
   };
 })();
