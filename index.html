@@ -22094,7 +22094,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
 (function(){
   function byId(id){return document.getElementById(id);} 
   function hasSession(){
-    try{ return !!sessionStorage.getItem('atharUser') || !window.showLogin; }
+    try{ return !!sessionStorage.getItem('atharUser') || !!sessionStorage.getItem('athar_tok_v2') || !window.showLogin; }
     catch(e){ return true; }
   }
   function m(n){try{return (Math.round(Number(n)||0)).toLocaleString('ar-EG');}catch(e){return String(n||0);}}
@@ -22116,7 +22116,7 @@ window.rMore=function(){ensureV33();if(oldRMore)oldRMore();var el=document.getEl
   function forceDash(){
     try{
       var pg=byId('pg-dash'); if(!pg) return;
-      if(!hasSession() && typeof showLogin==='function'){ showLogin(); return; }
+      if(typeof hasSession==='function'&&!hasSession()&&!getCurrentUser()&&typeof showLogin==='function'){ showLogin(); return; }
       document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
       pg.classList.add('on');
       document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
@@ -25580,5 +25580,290 @@ tbody td {
   };
 
   console.info('[Athar v35.31] Super Admin user management ✅');
+})();
+</script>
+
+<script>
+/* ══ v35.32 — Loans as Standalone Module + Dash Fix ══ */
+(function(){
+  if(window.__v3532)return; window.__v3532=true;
+
+  /* ══ 1. Fix bnav — القروض مخفية دايماً من الـ bnav الرئيسي ══ */
+  function hideLoansBnav(){
+    var loansBtn = document.querySelector('.bn[data-nav="loans"]');
+    if(loansBtn) loansBtn.style.display = 'none';
+  }
+
+  /* ══ 2. applyModuleCSS override — القروض مخفية دايماً ══ */
+  var _origApplyCSS = window.applyModuleCSS;
+  window.applyModuleCSS = function(){
+    if(_origApplyCSS) _origApplyCSS();
+    hideLoansBnav();
+    /* إخفاء القروض من المزيد */
+    document.querySelectorAll('[data-sub="loans"],[data-sub="loan_settings"],[data-sub="loan_reports"],[data-pg="loans"]').forEach(function(el){
+      el.style.display='none';
+    });
+  };
+
+  /* ══ 3. كارد القروض في الداشبورد بس لو مفعّلة ══ */
+  var _origRDash32 = window.rDash;
+  window.rDash = function(){
+    var out = _origRDash32 ? _origRDash32.apply(this,arguments) : '';
+    var enabled = (DB.org&&DB.org.enabledModules)||[];
+    var hasMicro = enabled.indexOf('microfinance') > -1;
+
+    /* لو القروض مفعّلة — أضف كارد دخول سريع للداشبورد */
+    if(hasMicro && typeof out === 'string'){
+      var loanCard = '<div onclick="window.openLoansModule()" style="background:linear-gradient(135deg,#0c4a6e,#0369a1);color:white;border-radius:14px;padding:16px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:14px;">'
+        +'<div style="font-size:32px;">💵</div>'
+        +'<div><div style="font-weight:900;font-size:15px;font-family:Tajawal,sans-serif;">وحدة التمويل متناهي الصغر</div>'
+        +'<div style="font-size:12px;opacity:.8;margin-top:3px;">إدارة القروض والتحصيل والتقارير</div></div>'
+        +'<div style="margin-right:auto;font-size:22px;">←</div>'
+        +'</div>';
+      /* أضف الكارد قبل أول v8-card */
+      var insertPoint = out.indexOf('<div class="v8-card">');
+      if(insertPoint > -1){
+        out = out.substring(0,insertPoint) + loanCard + out.substring(insertPoint);
+      }
+    }
+
+    /* إزالة ملخص القروض القديم من الداشبورد */
+    if(!hasMicro && typeof window.filterDashContent==='function'){
+      setTimeout(window.filterDashContent, 100);
+    }
+    return out;
+  };
+
+  /* ══ 4. فتح وحدة القروض — صفحة مستقلة ══ */
+  window.openLoansModule = function(){
+    var pg = document.getElementById('pg-loans');
+    if(!pg){
+      /* إنشاء صفحة القروض لو مش موجودة */
+      pg = document.createElement('div');
+      pg.id = 'pg-loans';
+      pg.className = 'pg';
+      document.querySelector('.content').appendChild(pg);
+    }
+
+    /* إخفاء كل الصفحات */
+    document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+    document.querySelectorAll('.bn').forEach(function(b){b.classList.remove('on');});
+
+    pg.classList.add('on');
+
+    /* رسم محتوى وحدة القروض */
+    if(typeof window.rLoansModule === 'function'){
+      pg.innerHTML = window.rLoansModule();
+    } else if(typeof rقروضPage === 'function'){
+      rقروضPage();
+    }
+
+    /* زرار الرجوع */
+    if(typeof showTbBack === 'function') showTbBack({type:'nav', pg:'dash'});
+  };
+
+  /* ══ 5. وحدة القروض الكاملة ══ */
+  window.rLoansModule = function(){
+    var h = '<div style="padding:14px 14px 80px;">';
+    /* Header */
+    h += '<div style="background:linear-gradient(135deg,#0c4a6e,#0369a1);color:white;border-radius:16px;padding:20px;margin-bottom:16px;">'
+      +'<div style="font-size:22px;font-weight:900;font-family:Tajawal,sans-serif;">💵 وحدة التمويل متناهي الصغر</div>'
+      +'<div style="font-size:12px;opacity:.8;margin-top:4px;">إدارة القروض والتحصيل والتقارير</div>'
+      +'</div>';
+
+    /* تبويبات */
+    h += '<div style="display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;">';
+    var tabs = [
+      {id:'loans_dash', label:'📊 لوحة التحكم'},
+      {id:'loans_list', label:'📋 القروض'},
+      {id:'loans_new',  label:'➕ قرض جديد'},
+      {id:'loans_reports', label:'📈 التقارير'},
+      {id:'loans_settings', label:'⚙️ الإعدادات'}
+    ];
+    var active = window._loansTab || 'loans_dash';
+    tabs.forEach(function(t){
+      var isActive = active === t.id;
+      h += '<button onclick="window._loansTab=\''+t.id+'\';document.getElementById(\'pg-loans\').innerHTML=window.rLoansModule();" '
+        +'style="white-space:nowrap;padding:8px 14px;border-radius:20px;border:none;font-size:12px;font-weight:700;font-family:Cairo,sans-serif;cursor:pointer;'
+        +'background:'+(isActive?'#0369a1':'#f1f5f9')+';color:'+(isActive?'white':'#374151')+';flex-shrink:0;">'+t.label+'</button>';
+    });
+    h += '</div>';
+
+    /* محتوى التبويب */
+    if(active === 'loans_dash'){
+      h += _loansTabDash();
+    } else if(active === 'loans_list'){
+      h += _loansTabList();
+    } else if(active === 'loans_new'){
+      h += _loansTabNew();
+    } else if(active === 'loans_reports'){
+      h += _loansTabReports();
+    } else if(active === 'loans_settings'){
+      h += _loansTabSettings();
+    }
+
+    h += '</div>';
+    return h;
+  };
+
+  function _loansTabDash(){
+    var loans = DB.loans || [];
+    var active = loans.filter(function(l){return (l.status||'active')==='active';});
+    var portfolio = active.reduce(function(s,l){return s+(Number(l.principal||l.amount)||0);},0);
+    var fmt = function(n){return Math.round(n||0).toLocaleString('ar-EG')+' ج';};
+
+    var h = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">';
+    h += '<div style="background:white;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+      +'<div style="font-size:11px;color:#64748b;">المحفظة النشطة</div>'
+      +'<div style="font-size:22px;font-weight:900;color:#0369a1;font-family:Tajawal,sans-serif;">'+fmt(portfolio)+'</div></div>';
+    h += '<div style="background:white;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+      +'<div style="font-size:11px;color:#64748b;">القروض النشطة</div>'
+      +'<div style="font-size:22px;font-weight:900;color:#0369a1;font-family:Tajawal,sans-serif;">'+active.length+'</div></div>';
+    h += '</div>';
+
+    if(!loans.length){
+      h += '<div style="text-align:center;padding:40px;color:#94a3b8;background:white;border-radius:12px;">'
+        +'<div style="font-size:48px;margin-bottom:12px;">💵</div>'
+        +'<div style="font-size:14px;">لا توجد قروض بعد</div>'
+        +'<button onclick="window._loansTab=\'loans_new\';document.getElementById(\'pg-loans\').innerHTML=window.rLoansModule();" '
+        +'style="margin-top:14px;padding:10px 24px;background:#0369a1;color:white;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif;">➕ إضافة أول قرض</button>'
+        +'</div>';
+    } else {
+      /* أحدث 5 قروض */
+      h += '<div style="background:white;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+        +'<div style="font-weight:700;font-size:13px;margin-bottom:10px;">🕐 أحدث القروض</div>';
+      loans.slice(-5).reverse().forEach(function(l){
+        h += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;">'
+          +'<div><div style="font-weight:700;font-size:13px;">'+( l.borrower||l.borrowerId||'—')+'</div>'
+          +'<div style="font-size:11px;color:#64748b;">'+(l.purpose||'—')+'</div></div>'
+          +'<div style="text-align:left;"><div style="font-weight:700;font-size:13px;color:#0369a1;">'+fmt(l.amount)+'</div>'
+          +'<div style="font-size:10px;color:'+(l.status==='active'?'#059669':'#94a3b8')+';">'+(l.status==='active'?'نشط':'مغلق')+'</div></div>'
+          +'</div>';
+      });
+      h += '</div>';
+    }
+    return h;
+  }
+
+  function _loansTabList(){
+    var loans = DB.loans || [];
+    if(!loans.length) return '<div style="text-align:center;padding:40px;color:#94a3b8;">لا توجد قروض</div>';
+    var fmt = function(n){return Math.round(n||0).toLocaleString('ar-EG')+' ج';};
+    var h = '';
+    loans.forEach(function(l){
+      h += '<div style="background:white;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;">'
+        +'<div><div style="font-weight:800;font-size:14px;">'+(l.borrower||l.borrowerId||'—')+'</div>'
+        +'<div style="font-size:11px;color:#64748b;">'+(l.purpose||'قرض')+'</div></div>'
+        +'<div style="text-align:left;">'
+        +'<div style="font-weight:900;font-size:16px;color:#0369a1;">'+fmt(l.amount)+'</div>'
+        +'<div style="font-size:10px;padding:2px 8px;border-radius:10px;background:'+(l.status==='active'?'#d1fae5':'#f1f5f9')+';color:'+(l.status==='active'?'#065f46':'#64748b')+';">'+(l.status==='active'?'نشط':'مغلق')+'</div>'
+        +'</div></div>';
+      if(l.schedule && l.schedule.length){
+        var paid = l.schedule.filter(function(s){return s.paid;}).length;
+        var pct = Math.round(paid/l.schedule.length*100);
+        h += '<div style="margin-top:8px;background:#f1f5f9;border-radius:6px;height:6px;">'
+          +'<div style="background:#0369a1;border-radius:6px;height:6px;width:'+pct+'%;"></div></div>'
+          +'<div style="font-size:10px;color:#64748b;margin-top:3px;">'+paid+'/'+l.schedule.length+' قسط مدفوع</div>';
+      }
+      h += '</div>';
+    });
+    return h;
+  }
+
+  function _loansTabNew(){
+    return '<div style="background:white;border-radius:12px;padding:16px;">'
+      +'<div style="font-weight:800;font-size:14px;margin-bottom:14px;">➕ قرض جديد</div>'
+      +'<div class="fg"><label>المقترض</label><input id="ln-borrow" placeholder="اسم المقترض"></div>'
+      +'<div class="fg"><label>المبلغ (جنيه)</label><input id="ln-amount" type="number" placeholder="0"></div>'
+      +'<div class="fg"><label>الغرض</label><input id="ln-purpose" placeholder="غرض القرض"></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      +'<div class="fg"><label>عدد الأقساط</label><input id="ln-months" type="number" placeholder="12"></div>'
+      +'<div class="fg"><label>تاريخ البداية</label><input id="ln-start" type="date"></div>'
+      +'</div>'
+      +'<button onclick="window.saveNewLoanFromModule()" style="width:100%;padding:13px;background:#0369a1;color:white;border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">✅ حفظ القرض</button>'
+      +'</div>';
+  }
+
+  window.saveNewLoanFromModule = function(){
+    var borrower = (document.getElementById('ln-borrow')||{}).value||'';
+    var amount   = Number((document.getElementById('ln-amount')||{}).value)||0;
+    var purpose  = (document.getElementById('ln-purpose')||{}).value||'';
+    var months   = Number((document.getElementById('ln-months')||{}).value)||12;
+    var start    = (document.getElementById('ln-start')||{}).value||new Date().toISOString().split('T')[0];
+    if(!borrower||!amount){ if(typeof toast==='function')toast('⚠️ أدخل المقترض والمبلغ'); return; }
+    DB.loans = DB.loans||[];
+    var id = 'LN-'+Date.now();
+    var schedule = [];
+    for(var i=0;i<months;i++){
+      var d = new Date(start); d.setMonth(d.getMonth()+i+1);
+      schedule.push({month:i+1,date:d.toISOString().split('T')[0],principal:Math.round(amount/months),amount:Math.round(amount/months),paid:false});
+    }
+    DB.loans.push({id:id,borrower:borrower,amount:amount,purpose:purpose,months:months,start:start,status:'active',schedule:schedule});
+    if(typeof save==='function') save();
+    if(typeof toast==='function') toast('✅ تم إضافة القرض');
+    window._loansTab='loans_list';
+    document.getElementById('pg-loans').innerHTML=window.rLoansModule();
+  };
+
+  function _loansTabReports(){
+    var loans = DB.loans||[];
+    var fmt = function(n){return Math.round(n||0).toLocaleString('ar-EG')+' ج';};
+    var active = loans.filter(function(l){return (l.status||'active')==='active';});
+    var portfolio = active.reduce(function(s,l){return s+(Number(l.amount)||0);},0);
+    var collected = loans.reduce(function(s,l){
+      return s+(l.schedule||[]).filter(function(x){return x.paid;}).reduce(function(a,x){return a+(Number(x.amount)||0);},0);
+    },0);
+    var due = loans.reduce(function(s,l){
+      return s+(l.schedule||[]).filter(function(x){return !x.paid&&x.date<new Date().toISOString().split('T')[0];}).reduce(function(a,x){return a+(Number(x.amount)||0);},0);
+    },0);
+    return '<div style="display:grid;gap:10px;">'
+      +'<div style="background:white;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+      +'<div style="font-size:12px;color:#64748b;">إجمالي المحفظة</div><div style="font-size:24px;font-weight:900;color:#0369a1;">'+fmt(portfolio)+'</div></div>'
+      +'<div style="background:white;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+      +'<div style="font-size:12px;color:#64748b;">إجمالي المحصّل</div><div style="font-size:24px;font-weight:900;color:#059669;">'+fmt(collected)+'</div></div>'
+      +'<div style="background:white;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+      +'<div style="font-size:12px;color:#64748b;">متأخرات</div><div style="font-size:24px;font-weight:900;color:#dc2626;">'+fmt(due)+'</div></div>'
+      +'</div>';
+  }
+
+  function _loansTabSettings(){
+    var s = DB.loanSettings||{};
+    return '<div style="background:white;border-radius:12px;padding:16px;">'
+      +'<div style="font-weight:800;font-size:14px;margin-bottom:14px;">⚙️ إعدادات القروض</div>'
+      +'<div class="fg"><label>الحد الأدنى للقرض (ج)</label><input id="ls-min" value="'+(s.min||5000)+'" type="number"></div>'
+      +'<div class="fg"><label>الحد الأقصى للقرض (ج)</label><input id="ls-max" value="'+(s.max||100000)+'" type="number"></div>'
+      +'<div class="fg"><label>نسبة الإدارة %</label><input id="ls-fee" value="'+(s.adminFee||2)+'" type="number" step="0.1"></div>'
+      +'<button onclick="window.saveLoanSettings()" style="width:100%;padding:12px;background:#0369a1;color:white;border:none;border-radius:9px;font-size:13px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">✅ حفظ الإعدادات</button>'
+      +'</div>';
+  }
+
+  window.saveLoanSettings = function(){
+    DB.loanSettings = DB.loanSettings||{};
+    DB.loanSettings.min    = Number((document.getElementById('ls-min')||{}).value)||5000;
+    DB.loanSettings.max    = Number((document.getElementById('ls-max')||{}).value)||100000;
+    DB.loanSettings.adminFee = Number((document.getElementById('ls-fee')||{}).value)||2;
+    if(typeof save==='function') save();
+    if(typeof toast==='function') toast('✅ تم حفظ إعدادات القروض');
+  };
+
+  /* ══ 6. تطبيق عند البداية ══ */
+  setTimeout(function(){
+    hideLoansBnav();
+    if(typeof applyModuleCSS==='function') applyModuleCSS();
+  }, 500);
+
+  /* تطبيق بعد كل nav */
+  var _origNav32 = window.nav;
+  if(typeof _origNav32==='function' && !window._nav32Patched){
+    window._nav32Patched = true;
+    window.nav = function(){
+      var r = _origNav32.apply(this,arguments);
+      setTimeout(hideLoansBnav, 50);
+      return r;
+    };
+  }
+
+  console.info('[Athar v35.32] Loans standalone module + dash fix ✅');
 })();
 </script>
