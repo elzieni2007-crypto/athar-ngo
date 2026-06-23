@@ -13540,27 +13540,91 @@ function verifyOTP(code){
 
 function showRegister(){
   initAuth();
-  var overlay = document.getElementById('login-overlay');
-  if(!overlay){ showLogin(); overlay = document.getElementById('login-overlay'); }
-  if(!overlay) return;
-  overlay.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a5f,#0e7490);padding:20px;">'
-    + '<div style="background:white;border-radius:18px;padding:28px 22px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
-    + '<div style="text-align:center;margin-bottom:22px;">'
-    + '<div style="font-size:44px;">📊</div>'
-    + '<div style="font-weight:900;font-size:22px;color:#1e3a5f;">أثر</div>'
-    + '<div style="font-size:12px;color:#6b7280;">إنشاء حساب جديد</div>'
-    + '</div>'
-    + '<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">اسم المؤسسة</label>'
-    + '<input id="reg-org" placeholder="اسم الجمعية أو المؤسسة" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>'
-    + '<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">البريد الإلكتروني</label>'
-    + '<input id="reg-email" type="email" placeholder="info@ngo.org" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>'
-    + '<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">كلمة المرور</label>'
-    + '<input id="reg-pass" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;" onkeydown="if(event.key===\'Enter\')doRegisterStep1()"></div>'
-    + '<div id="reg-err" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px;"></div>'
-    + '<button onclick="doRegisterStep1()" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e3a5f,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">إرسال كود التحقق ←</button>'
-    + '<div style="text-align:center;margin-top:14px;font-size:12px;color:#6b7280;">لديك حساب؟ <a href="#" onclick="showLogin();return false;" style="color:#0e7490;font-weight:700;">تسجيل الدخول</a></div>'
-    + '</div></div>';
+  var overlay=document.getElementById('login-overlay');
+  if(!overlay){showLogin();overlay=document.getElementById('login-overlay');}
+  if(!overlay)return;
+  overlay.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f1c2e,#0e7490);padding:20px;">'
+    +'<div style="background:white;border-radius:20px;padding:32px 26px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,.35);">'
+    /* Header */
+    +'<div style="text-align:center;margin-bottom:28px;">'
+    +'<div style="width:64px;height:64px;background:linear-gradient(135deg,#0f1c2e,#0e7490);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:28px;">📊</div>'
+    +'<div style="font-weight:900;font-size:24px;color:#0f1c2e;font-family:Tajawal,sans-serif;">أثر</div>'
+    +'<div style="font-size:12px;color:#6b7280;margin-top:4px;">ابدأ تجربتك المجانية 30 يوم</div>'
+    +'</div>'
+    /* Progress bar */
+    +'<div style="display:flex;gap:4px;margin-bottom:24px;">'
+    +'<div id="reg-step-1" style="flex:1;height:3px;border-radius:2px;background:#0e7490;"></div>'
+    +'<div id="reg-step-2" style="flex:1;height:3px;border-radius:2px;background:#e5e7eb;"></div>'
+    +'</div>'
+    /* Step 1 */
+    +'<div id="reg-s1">'
+    +'<div style="font-size:13px;font-weight:800;color:#0f1c2e;margin-bottom:16px;">1/2 — بيانات الجمعية</div>'
+    +'<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">🏢 اسم الجمعية أو المؤسسة *</label>'
+    +'<input id="reg-org" placeholder="جمعية النور للتنمية" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>'
+    +'<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">🏛️ رقم الترخيص</label>'
+    +'<input id="reg-licno" placeholder="رقم قيد الجمعية" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">'
+    +'<div><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">👤 اسم المسؤول *</label>'
+    +'<input id="reg-contact" placeholder="الاسم الكامل" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>'
+    +'<div><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">📍 المحافظة *</label>'
+    +'<select id="reg-city" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:Cairo,sans-serif;box-sizing:border-box;">'
+    +'<option value="">اختر...</option>'
+    +'<option>القاهرة</option><option>الجيزة</option><option>الإسكندرية</option><option>الشرقية</option><option>الدقهلية</option><option>البحيرة</option><option>المنوفية</option><option>الغربية</option><option>القليوبية</option><option>كفر الشيخ</option><option>دمياط</option><option>بورسعيد</option><option>الإسماعيلية</option><option>السويس</option><option>الفيوم</option><option>بني سويف</option><option>المنيا</option><option>أسيوط</option><option>سوهاج</option><option>قنا</option><option>الأقصر</option><option>أسوان</option><option>الوادي الجديد</option><option>مطروح</option><option>شمال سيناء</option><option>جنوب سيناء</option><option>البحر الأحمر</option>'
+    +'</select></div></div>'
+    +'<div id="reg-err1" style="color:#dc2626;font-size:12px;text-align:center;min-height:16px;margin-bottom:8px;"></div>'
+    +'<button onclick="regStep2()" style="width:100%;padding:13px;background:linear-gradient(135deg,#0f1c2e,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">التالي ←</button>'
+    +'</div>'
+    /* Step 2 */
+    +'<div id="reg-s2" style="display:none;">'
+    +'<div style="font-size:13px;font-weight:800;color:#0f1c2e;margin-bottom:16px;">2/2 — بيانات الدخول</div>'
+    +'<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">📱 رقم الموبايل *</label>'
+    +'<input id="reg-phone" type="tel" placeholder="01xxxxxxxxx" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;direction:ltr;text-align:left;"></div>'
+    +'<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">✉️ البريد الإلكتروني *</label>'
+    +'<input id="reg-email" type="email" placeholder="info@ngo.org" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;direction:ltr;text-align:left;"></div>'
+    +'<div style="margin-bottom:16px;"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">🔑 كلمة المرور *</label>'
+    +'<input id="reg-pass" type="password" placeholder="8 أحرف على الأقل" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif;box-sizing:border-box;"></div>'
+    +'<div id="reg-err2" style="color:#dc2626;font-size:12px;text-align:center;min-height:16px;margin-bottom:8px;"></div>'
+    +'<div style="display:flex;gap:8px;">'
+    +'<button onclick="regBack()" style="flex:0 0 44px;padding:13px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-size:16px;cursor:pointer;">←</button>'
+    +'<button onclick="doRegisterStep1()" style="flex:1;padding:13px;background:linear-gradient(135deg,#059669,#10b981);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">🚀 إنشاء الحساب</button>'
+    +'</div>'
+    +'</div>'
+    /* Footer */
+    +'<div style="text-align:center;margin-top:16px;font-size:12px;color:#9ca3af;">'
+    +'لديك حساب؟ <a href="#" onclick="showLogin();return false;" style="color:#0e7490;font-weight:700;">تسجيل الدخول</a>'
+    +'</div>'
+    +'</div></div>';
+
+  window._regData=window._regData||{};
+
+  setTimeout(function(){
+    var e=document.getElementById('reg-org');if(e)e.focus();
+  },100);
 }
+
+function regStep2(){
+  var org=((document.getElementById('reg-org')||{}).value||'').trim();
+  var contact=((document.getElementById('reg-contact')||{}).value||'').trim();
+  var city=((document.getElementById('reg-city')||{}).value||'').trim();
+  var err=document.getElementById('reg-err1');
+  if(!org||!contact||!city){if(err)err.textContent='⚠️ يرجى تعبئة الحقول المطلوبة';return;}
+  /* حفظ بيانات الخطوة الأولى */
+  window._regData={org:org,contact:contact,city:city,
+    licNo:((document.getElementById('reg-licno')||{}).value||'').trim()};
+  /* الانتقال للخطوة التانية */
+  document.getElementById('reg-s1').style.display='none';
+  document.getElementById('reg-s2').style.display='';
+  document.getElementById('reg-step-2').style.background='#0e7490';
+  setTimeout(function(){var e=document.getElementById('reg-phone');if(e)e.focus();},50);
+}
+
+function regBack(){
+  document.getElementById('reg-s2').style.display='none';
+  document.getElementById('reg-s1').style.display='';
+  document.getElementById('reg-step-2').style.background='#e5e7eb';
+}
+
+
 
 function doRegisterStep1(){
   initAuth();
@@ -25352,6 +25416,36 @@ if(typeof _oldSub==='function'){
     }
     return _lastSub.apply(this,arguments);
   };
+})();
+
+/* ══ Desktop/Laptop Layout ══ */
+(function(){
+  var s=document.createElement('style');
+  s.id='athar-desktop-css';
+  var css='';
+  css+='@media(min-width:768px){';
+  css+='.content{max-width:900px;margin-left:auto!important;margin-right:auto!important;margin-bottom:0!important;padding-bottom:20px!important;}';
+  css+='.bnav{max-width:900px;left:50%!important;transform:translateX(-50%);border-radius:16px 16px 0 0;}';
+  css+='.v8-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}';
+  css+='.v8-kpis{grid-template-columns:repeat(3,1fr)!important;}';
+  css+='.v8-bars{height:160px!important;}';
+  css+='.v8-bl{font-size:11px!important;}';
+  css+='.v8-rs{font-size:26px!important;}';
+  css+='.mg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}';
+  css+='.athar-qa-grid{grid-template-columns:repeat(4,1fr)!important;}';
+  css+='.pg{padding:16px 24px 80px!important;}';
+  css+='.v8-modules{grid-template-columns:repeat(3,1fr)!important;}';
+  css+='}';
+  css+='@media(min-width:1024px){';
+  css+='.content{max-width:1100px;}';
+  css+='.bnav{max-width:1100px;}';
+  css+='.v8-kpis{grid-template-columns:repeat(4,1fr)!important;}';
+  css+='.mg{grid-template-columns:repeat(4,1fr);}';
+  css+='.v8-grid{grid-template-columns:1fr 1fr;gap:20px;}';
+  css+='.athar-qa-grid{grid-template-columns:repeat(6,1fr)!important;}';
+  css+='}';
+  s.textContent=css;
+  document.head.appendChild(s);
 })();
 
 console.info('[Athar v35.26] Patches loaded ✅');
