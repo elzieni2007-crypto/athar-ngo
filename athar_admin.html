@@ -3,845 +3,354 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>أثر — لوحة تحكم المدير</title>
-
-<!-- Firebase SDK -->
-<script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy }
-    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
-    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-
-  const firebaseConfig = {
-    apiKey:            "AIzaSyAsCP8zqAsw4I4t64Y06n3OWqhXJGtK5CA",
-    authDomain:        "athar-ngo.firebaseapp.com",
-    projectId:         "athar-ngo",
-    storageBucket:     "athar-ngo.firebasestorage.app",
-    messagingSenderId: "730791380944",
-    appId:             "1:730791380944:web:2e893b0c5fd268289f5bd5"
-  };
-
-  const app  = initializeApp(firebaseConfig);
-  const db   = getFirestore(app);
-  const auth = getAuth(app);
-
-  window._adm = { app, db, auth,
-    collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
-    serverTimestamp, query, orderBy, signInWithEmailAndPassword, signOut, onAuthStateChanged };
-
-  onAuthStateChanged(auth, function(user){
-    window._admUser = user;
-    if(user){
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('main-app').style.display    = 'block';
-      document.getElementById('admin-email').textContent   = user.email;
-      loadDashboard();
-    } else {
-      document.getElementById('login-screen').style.display = 'flex';
-      document.getElementById('main-app').style.display    = 'none';
-    }
-  });
-</script>
-
+<title>أثر — لوحة الإدارة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@700;900&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--ink:#0f1c2e;--teal:#0e7490;--gold:#c8a84b;--bg:#f7f4ef;--white:#fff;--muted:#6b7f95}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
 
-*{ box-sizing:border-box; margin:0; padding:0; }
-:root{
-  --nd: #1e3a5f; --sk: #0e7490; --g1:#f8fafc; --g2:#e2e8f0;
-  --g4:#94a3b8; --grn:#059669; --red:#dc2626; --am:#f59e0b;
-  --shadow: 0 2px 12px rgba(0,0,0,.08);
-}
-body{ font-family:'Cairo',sans-serif; background:#f1f5f9; color:#1e293b; min-height:100vh; }
+/* LOGIN */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f1c2e,#0e7490);padding:20px}
+.login-box{background:white;border-radius:20px;padding:36px 30px;width:100%;max-width:380px;box-shadow:0 24px 80px rgba(0,0,0,.3)}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo-icon{width:64px;height:64px;background:linear-gradient(135deg,#0f1c2e,#0e7490);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 12px}
+.login-logo h1{font-family:'Tajawal',sans-serif;font-size:26px;font-weight:900;color:var(--ink)}
+.login-logo p{font-size:12px;color:var(--muted);margin-top:4px}
+.fg{margin-bottom:14px}
+.fg label{font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px}
+.fg input{width:100%;padding:12px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:14px;font-family:'Cairo',sans-serif}
+.btn-login{width:100%;padding:13px;background:linear-gradient(135deg,#0f1c2e,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:'Cairo',sans-serif;cursor:pointer;margin-top:4px}
+#login-err{color:#dc2626;font-size:12px;text-align:center;min-height:16px;margin-bottom:8px}
 
-/* ── Login ── */
-#login-screen{
-  position:fixed; inset:0; background:linear-gradient(135deg,#0f2748,#1a4480,#0e7490);
-  display:flex; align-items:center; justify-content:center; z-index:9999;
-}
-.login-card{
-  background:white; border-radius:20px; padding:40px 32px; width:100%; max-width:380px;
-  box-shadow:0 20px 60px rgba(0,0,0,.3);
-}
-.login-logo{ text-align:center; margin-bottom:28px; }
-.login-logo .icon{ font-size:56px; }
-.login-logo h1{ font-size:28px; font-weight:900; color:var(--nd); font-family:Tajawal; }
-.login-logo p{ font-size:13px; color:var(--g4); margin-top:4px; }
-.login-card input{
-  width:100%; padding:13px 16px; border:1.5px solid var(--g2);
-  border-radius:10px; font-size:14px; font-family:Cairo;
-  margin-bottom:12px; outline:none; transition:border .2s;
-}
-.login-card input:focus{ border-color:var(--sk); }
-.login-btn{
-  width:100%; padding:14px; background:linear-gradient(135deg,var(--nd),var(--sk));
-  color:white; border:none; border-radius:10px; font-size:15px; font-weight:700;
-  font-family:Cairo; cursor:pointer; transition:opacity .2s;
-}
-.login-btn:hover{ opacity:.9; }
-#login-err{ color:var(--red); font-size:12px; text-align:center; margin-top:8px; min-height:16px; }
+/* DASHBOARD */
+#dashboard{display:none}
+.topbar{background:var(--ink);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.tb-logo{font-family:'Tajawal',sans-serif;font-size:20px;font-weight:900;color:white}
+.tb-logo span{color:var(--gold)}
+.tb-user{font-size:12px;color:rgba(255,255,255,.6);display:flex;align-items:center;gap:10px}
+.btn-logout{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:white;border-radius:7px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:'Cairo',sans-serif}
 
-/* ── Layout ── */
-#main-app{ display:none; }
-.topbar{
-  position:sticky; top:0; z-index:100;
-  background:linear-gradient(135deg,var(--nd),var(--sk));
-  color:white; padding:0 24px; height:60px;
-  display:flex; align-items:center; justify-content:space-between;
-  box-shadow:0 2px 12px rgba(0,0,0,.2);
-}
-.topbar-logo{ font-size:20px; font-weight:900; font-family:Tajawal; display:flex; align-items:center; gap:10px; }
-.topbar-logo span{ font-size:24px; }
-.topbar-right{ display:flex; align-items:center; gap:16px; font-size:13px; }
-.topbar-user{ background:rgba(255,255,255,.15); padding:6px 14px; border-radius:20px; }
-.btn-logout{
-  background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.4);
-  color:white; padding:6px 14px; border-radius:8px; font-size:12px;
-  font-family:Cairo; cursor:pointer;
-}
+.main{max-width:1100px;margin:0 auto;padding:24px}
 
-.container{ max-width:1200px; margin:0 auto; padding:24px 20px; }
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:28px}
+.stat-card{background:white;border-radius:14px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);border-right:4px solid var(--teal)}
+.stat-card.gold{border-color:var(--gold)}
+.stat-card.green{border-color:#059669}
+.stat-card.red{border-color:#dc2626}
+.stat-num{font-family:'Tajawal',sans-serif;font-size:32px;font-weight:900;color:var(--ink)}
+.stat-lbl{font-size:12px;color:var(--muted);margin-top:4px}
 
-/* ── Stats ── */
-.stats-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }
-.stat-card{
-  background:white; border-radius:16px; padding:20px;
-  box-shadow:var(--shadow); display:flex; align-items:center; gap:16px;
-}
-.stat-icon{
-  width:52px; height:52px; border-radius:13px;
-  display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0;
-}
-.stat-val{ font-size:28px; font-weight:900; font-family:Tajawal; }
-.stat-lbl{ font-size:12px; color:var(--g4); margin-top:2px; }
+/* TABLE */
+.table-card{background:white;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);overflow:hidden;margin-bottom:24px}
+.table-header{padding:18px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f1f5f9}
+.table-title{font-weight:900;font-size:15px;color:var(--ink)}
+.search-box{padding:8px 14px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:13px;font-family:'Cairo',sans-serif;width:220px}
+table{width:100%;border-collapse:collapse}
+th{background:#f8fafc;padding:12px 16px;text-align:right;font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+td{padding:12px 16px;border-top:1px solid #f1f5f9;font-size:13px;vertical-align:middle}
+tr:hover td{background:#fafafa}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.badge.trial{background:#fef3c7;color:#92400e}
+.badge.active{background:#d1fae5;color:#065f46}
+.badge.expired{background:#fee2e2;color:#991b1b}
+.city-badge{background:#e0f2fe;color:#0369a1;border-radius:6px;padding:2px 8px;font-size:11px}
+.action-btn{background:var(--ink);color:white;border:none;border-radius:7px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:'Cairo',sans-serif;white-space:nowrap}
+.action-btn.danger{background:#dc2626}
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-state div:first-child{font-size:48px;margin-bottom:12px}
 
-/* ── Cards Grid ── */
-.section-title{
-  font-size:16px; font-weight:800; color:var(--nd);
-  margin-bottom:14px; display:flex; align-items:center; gap:8px; justify-content:space-between;
-}
-.tenants-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; margin-bottom:24px; }
-.tenant-card{
-  background:white; border-radius:16px; padding:18px;
-  box-shadow:var(--shadow); border:1.5px solid transparent;
-  transition:all .2s; cursor:pointer;
-}
-.tenant-card:hover{ border-color:var(--sk); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.12); }
-.tenant-header{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }
-.tenant-logo{
-  width:44px; height:44px; border-radius:10px;
-  background:linear-gradient(135deg,var(--nd),var(--sk));
-  display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;
-}
-.tenant-logo img{ width:44px; height:44px; border-radius:10px; object-fit:cover; }
-.tenant-name{ font-size:14px; font-weight:800; color:var(--nd); }
-.tenant-id{ font-size:10px; color:var(--g4); font-family:monospace; margin-top:2px; }
-.tenant-meta{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
-.tenant-meta-item{ background:var(--g1); border-radius:8px; padding:8px 10px; }
-.tenant-meta-item .lbl{ font-size:10px; color:var(--g4); }
-.tenant-meta-item .val{ font-size:13px; font-weight:700; margin-top:2px; }
-.tenant-actions{ display:flex; gap:8px; }
-.btn{ padding:8px 14px; border-radius:8px; font-size:12px; font-weight:700; font-family:Cairo; cursor:pointer; border:none; transition:all .2s; }
-.btn-primary{ background:var(--nd); color:white; }
-.btn-primary:hover{ background:var(--sk); }
-.btn-success{ background:#ecfdf5; color:var(--grn); }
-.btn-danger{ background:#fff1f2; color:var(--red); }
-.btn-warning{ background:#fffbeb; color:var(--am); }
-.btn-sm{ padding:6px 10px; font-size:11px; }
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:white;border-radius:18px;padding:28px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:16px;font-weight:900;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #f1f5f9}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+.btn-cancel{background:#f3f4f6;color:#374151;border:none;border-radius:9px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Cairo',sans-serif}
+.btn-save{background:linear-gradient(135deg,#0f1c2e,#0e7490);color:white;border:none;border-radius:9px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Cairo',sans-serif}
 
-/* Plan Badge */
-.plan-badge{
-  display:inline-block; padding:3px 10px; border-radius:20px;
-  font-size:10px; font-weight:700;
-}
-.plan-pro{ background:#dbeafe; color:#1d4ed8; }
-.plan-basic{ background:#d1fae5; color:#065f46; }
-.plan-trial{ background:#fef3c7; color:#92400e; }
-.plan-expired{ background:#fee2e2; color:var(--red); }
-
-/* Status dot */
-.status-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-left:6px; }
-.status-active{ background:var(--grn); }
-.status-trial{ background:var(--am); }
-.status-expired{ background:var(--red); }
-
-/* ── Modals ── */
-.modal-overlay{
-  position:fixed; inset:0; background:rgba(0,0,0,.5);
-  display:none; align-items:center; justify-content:center;
-  z-index:1000; padding:20px;
-}
-.modal-overlay.on{ display:flex; }
-.modal{
-  background:white; border-radius:20px; width:100%; max-width:500px;
-  max-height:90vh; overflow-y:auto;
-}
-.modal-header{
-  background:linear-gradient(135deg,var(--nd),var(--sk));
-  color:white; padding:18px 20px; border-radius:20px 20px 0 0;
-  display:flex; justify-content:space-between; align-items:center;
-}
-.modal-header h3{ font-size:16px; font-weight:800; }
-.modal-close{ background:none; border:none; color:white; font-size:22px; cursor:pointer; }
-.modal-body{ padding:20px; }
-.fg{ margin-bottom:14px; }
-.fg label{ display:block; font-size:12px; font-weight:700; color:#374151; margin-bottom:6px; }
-.fg input, .fg select, .fg textarea{
-  width:100%; padding:11px 14px; border:1.5px solid var(--g2);
-  border-radius:9px; font-size:13px; font-family:Cairo; outline:none; transition:border .2s;
-}
-.fg input:focus, .fg select:focus{ border-color:var(--sk); }
-.modal-footer{ padding:16px 20px; border-top:1px solid var(--g2); display:flex; gap:10px; justify-content:flex-end; }
-
-/* Key display */
-.key-display{
-  background:var(--g1); border:1.5px dashed var(--g2);
-  border-radius:10px; padding:16px; text-align:center;
-  font-family:monospace; font-size:15px; font-weight:700;
-  letter-spacing:2px; color:var(--nd); word-break:break-all;
-  cursor:pointer; user-select:all;
-}
-.key-display:hover{ border-color:var(--sk); background:#f0f9ff; }
-
-/* Loading */
-.loading{ text-align:center; padding:40px; color:var(--g4); font-size:14px; }
-.spinner{ display:inline-block; width:32px; height:32px; border:3px solid var(--g2); border-top-color:var(--sk); border-radius:50%; animation:spin .8s linear infinite; }
-@keyframes spin{ to{ transform:rotate(360deg); } }
-
-/* Toast */
-#toast{
-  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
-  background:#1e293b; color:white; padding:12px 24px; border-radius:12px;
-  font-size:13px; font-weight:600; z-index:9999;
-  opacity:0; transition:opacity .3s; pointer-events:none;
-}
-#toast.show{ opacity:1; }
-
-/* Tabs */
-.tabs{ display:flex; gap:4px; background:var(--g1); padding:4px; border-radius:12px; margin-bottom:20px; }
-.tab{ flex:1; padding:9px; text-align:center; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; color:var(--g4); transition:all .2s; border:none; background:none; font-family:Cairo; }
-.tab.active{ background:white; color:var(--nd); box-shadow:0 2px 8px rgba(0,0,0,.1); }
-
-/* Table */
-.table-wrap{ overflow-x:auto; }
-table{ width:100%; border-collapse:collapse; }
-th{ background:var(--nd); color:white; padding:10px 14px; font-size:12px; font-weight:700; text-align:right; }
-td{ padding:10px 14px; font-size:13px; border-bottom:1px solid var(--g1); }
-tr:hover td{ background:var(--g1); }
-
-/* Empty state */
-.empty{ text-align:center; padding:60px 20px; color:var(--g4); }
-.empty .empty-icon{ font-size:48px; margin-bottom:12px; }
-.empty p{ font-size:14px; }
-
-@media(max-width:600px){
-  .stats-grid{ grid-template-columns:1fr 1fr; }
-  .tenants-grid{ grid-template-columns:1fr; }
-  .container{ padding:16px 14px; }
-}
+/* LOADING */
+.spinner{display:inline-block;width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading{text-align:center;padding:60px}
 </style>
 </head>
 <body>
 
-<!-- Login Screen -->
+<!-- LOGIN -->
 <div id="login-screen">
-  <div class="login-card">
+  <div class="login-box">
     <div class="login-logo">
-      <div class="icon">📊</div>
-      <h1>أثر — Admin</h1>
-      <p>لوحة تحكم المدير</p>
+      <div class="login-logo-icon">📊</div>
+      <h1>أ<span style="color:var(--teal)">ثر</span></h1>
+      <p>لوحة إدارة الجمعيات</p>
     </div>
-    <input type="email" id="adm-email" placeholder="البريد الإلكتروني" style="direction:ltr;text-align:left;">
-    <input type="password" id="adm-pass" placeholder="كلمة المرور" onkeydown="if(event.key==='Enter')adminLogin()">
-    <button class="login-btn" onclick="adminLogin()">🔐 تسجيل الدخول</button>
+    <div class="fg">
+      <label>البريد الإلكتروني</label>
+      <input id="adm-email" type="email" placeholder="elzieni2007@gmail.com" style="direction:ltr;text-align:left">
+    </div>
+    <div class="fg">
+      <label>كلمة المرور</label>
+      <input id="adm-pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')adminLogin()">
+    </div>
     <div id="login-err"></div>
+    <button class="btn-login" onclick="adminLogin()">دخول ←</button>
   </div>
 </div>
 
-<!-- Main App -->
-<div id="main-app">
-
-  <!-- Topbar -->
+<!-- DASHBOARD -->
+<div id="dashboard">
   <div class="topbar">
-    <div class="topbar-logo"><span>📊</span> أثر Admin</div>
-    <div class="topbar-right">
-      <div class="topbar-user">👤 <span id="admin-email"></span></div>
+    <div class="tb-logo">أ<span>ثر</span> <span style="font-size:12px;opacity:.5;font-weight:400">— لوحة الإدارة</span></div>
+    <div class="tb-user">
+      <span id="adm-name">مصطفى الزيني</span>
       <button class="btn-logout" onclick="adminLogout()">خروج</button>
     </div>
   </div>
 
-  <div class="container">
-
-    <!-- Tabs -->
-    <div class="tabs">
-      <button class="tab active" onclick="switchTab('dashboard',this)">📊 لوحة التحكم</button>
-      <button class="tab" onclick="switchTab('tenants',this)">🏢 الجمعيات</button>
-      <button class="tab" onclick="switchTab('licenses',this)">🔑 التراخيص</button>
-    </div>
-
-    <!-- Dashboard Tab -->
-    <div id="tab-dashboard">
-      <!-- Stats -->
-      <div class="stats-grid" id="stats-grid">
-        <div class="loading"><div class="spinner"></div></div>
+  <div class="main">
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num" id="stat-total">-</div>
+        <div class="stat-lbl">إجمالي الجمعيات المسجلة</div>
       </div>
-
-      <!-- Recent Tenants -->
-      <div class="section-title">
-        <span>🏢 الجمعيات المشتركة</span>
-        <button class="btn btn-primary btn-sm" onclick="openAddTenant()">+ إضافة جمعية</button>
+      <div class="stat-card green">
+        <div class="stat-num" id="stat-trial">-</div>
+        <div class="stat-lbl">في فترة التجربة</div>
       </div>
-      <div class="tenants-grid" id="tenants-grid">
-        <div class="loading"><div class="spinner"></div></div>
+      <div class="stat-card gold">
+        <div class="stat-num" id="stat-paid">-</div>
+        <div class="stat-lbl">مشتركة (مدفوعة)</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-num" id="stat-expired">-</div>
+        <div class="stat-lbl">انتهت تجربتها</div>
       </div>
     </div>
 
-    <!-- Tenants Tab -->
-    <div id="tab-tenants" style="display:none;">
-      <div class="section-title">
-        <span>🏢 كل الجمعيات</span>
-        <button class="btn btn-primary btn-sm" onclick="openAddTenant()">+ إضافة جمعية</button>
+    <!-- Table -->
+    <div class="table-card">
+      <div class="table-header">
+        <div class="table-title">📋 الجمعيات المسجلة</div>
+        <input class="search-box" placeholder="🔍 ابحث باسم أو إيميل..." oninput="filterTable(this.value)" id="search-input">
       </div>
-      <div class="table-wrap">
-        <table id="tenants-table">
-          <thead>
-            <tr>
-              <th>الجمعية</th>
-              <th>الباقة</th>
-              <th>الحالة</th>
-              <th>انتهاء الترخيص</th>
-              <th>المستخدمون</th>
-              <th>آخر تحديث</th>
-              <th>إجراءات</th>
-            </tr>
-          </thead>
-          <tbody id="tenants-tbody">
-            <tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr>
-          </tbody>
-        </table>
+      <div id="table-container">
+        <div class="loading"><div class="spinner"></div><div style="margin-top:12px;font-size:13px;color:var(--muted)">جاري التحميل...</div></div>
       </div>
     </div>
-
-    <!-- Licenses Tab -->
-    <div id="tab-licenses" style="display:none;">
-      <div class="section-title">
-        <span>🔑 مفاتيح الترخيص</span>
-        <button class="btn btn-primary btn-sm" onclick="openGenerateKey()">+ توليد مفتاح</button>
-      </div>
-      <div class="table-wrap">
-        <table id="licenses-table">
-          <thead>
-            <tr>
-              <th>المفتاح</th>
-              <th>الجمعية</th>
-              <th>الباقة</th>
-              <th>تاريخ الانتهاء</th>
-              <th>الحالة</th>
-              <th>إجراءات</th>
-            </tr>
-          </thead>
-          <tbody id="licenses-tbody">
-            <tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
   </div>
 </div>
 
-<!-- Modal: إضافة جمعية -->
-<div class="modal-overlay" id="modal-add-tenant">
+<!-- MODAL -->
+<div class="modal-overlay" id="detail-modal">
   <div class="modal">
-    <div class="modal-header">
-      <h3>🏢 إضافة جمعية جديدة</h3>
-      <button class="modal-close" onclick="closeModal('modal-add-tenant')">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="fg"><label>اسم الجمعية *</label><input id="t-name" placeholder="جمعية الخدمات والتنمية"></div>
-      <div class="fg"><label>البريد الإلكتروني للمسؤول *</label><input id="t-email" type="email" placeholder="admin@org.org.eg" style="direction:ltr;text-align:left;"></div>
-      <div class="fg"><label>رقم الهاتف</label><input id="t-phone" placeholder="01X-XXXXXXXX"></div>
-      <div class="fg"><label>الباقة</label>
-        <select id="t-plan">
-          <option value="trial">تجريبي (30 يوم)</option>
-          <option value="basic">Basic 🌐</option>
-          <option value="pro" selected>Pro 🚀</option>
-        </select>
-      </div>
-      <div class="fg"><label>مدة الاشتراك</label>
-        <select id="t-days">
-          <option value="30">شهر (30 يوم)</option>
-          <option value="90">3 أشهر</option>
-          <option value="180">6 أشهر</option>
-          <option value="365" selected>سنة كاملة</option>
-        </select>
-      </div>
-      <div class="fg"><label>ملاحظات</label><textarea id="t-notes" rows="2" placeholder="أي ملاحظات..."></textarea></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-primary" onclick="addTenant()">✅ إضافة الجمعية</button>
-      <button class="btn" style="background:var(--g1);" onclick="closeModal('modal-add-tenant')">إلغاء</button>
+    <h2 id="modal-title">تفاصيل الجمعية</h2>
+    <div id="modal-content"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">إغلاق</button>
     </div>
   </div>
 </div>
 
-<!-- Modal: توليد مفتاح -->
-<div class="modal-overlay" id="modal-gen-key">
-  <div class="modal">
-    <div class="modal-header">
-      <h3>🔑 توليد مفتاح ترخيص</h3>
-      <button class="modal-close" onclick="closeModal('modal-gen-key')">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="fg"><label>اسم الجمعية</label><input id="k-org" placeholder="اسم الجمعية"></div>
-      <div class="fg"><label>الباقة</label>
-        <select id="k-plan">
-          <option value="trial">تجريبي</option>
-          <option value="basic">Basic 🌐</option>
-          <option value="pro" selected>Pro 🚀</option>
-        </select>
-      </div>
-      <div class="fg"><label>مدة الصلاحية</label>
-        <select id="k-days">
-          <option value="30">30 يوم</option>
-          <option value="90">3 أشهر</option>
-          <option value="180">6 أشهر</option>
-          <option value="365" selected>سنة</option>
-          <option value="730">سنتان</option>
-        </select>
-      </div>
-      <div id="key-result" style="display:none;margin-top:16px;">
-        <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">🔑 المفتاح المولّد (اضغط للنسخ):</div>
-        <div class="key-display" id="key-display" onclick="copyKey()">—</div>
-        <div style="font-size:11px;color:var(--g4);text-align:center;margin-top:8px;">اضغط على المفتاح لنسخه</div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-primary" onclick="generateKey()">⚡ توليد المفتاح</button>
-      <button class="btn btn-success" id="btn-save-key" style="display:none;" onclick="saveKeyToFirestore()">💾 حفظ في Firestore</button>
-      <button class="btn" style="background:var(--g1);" onclick="closeModal('modal-gen-key')">إغلاق</button>
-    </div>
-  </div>
-</div>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
-<!-- Modal: تفاصيل جمعية -->
-<div class="modal-overlay" id="modal-tenant-detail">
-  <div class="modal">
-    <div class="modal-header">
-      <h3 id="detail-title">تفاصيل الجمعية</h3>
-      <button class="modal-close" onclick="closeModal('modal-tenant-detail')">×</button>
-    </div>
-    <div class="modal-body" id="detail-body"></div>
-    <div class="modal-footer">
-      <button class="btn btn-danger btn-sm" id="btn-deactivate" onclick="deactivateTenant()">🚫 إيقاف</button>
-      <button class="btn btn-warning btn-sm" onclick="closeModal('modal-tenant-detail');openGenerateKey()">🔑 تجديد ترخيص</button>
-      <button class="btn" style="background:var(--g1);" onclick="closeModal('modal-tenant-detail')">إغلاق</button>
-    </div>
-  </div>
-</div>
+const cfg = {
+  apiKey:"AIzaSyAsCP8zqAsw4I4t64Y06n3OWqhXJGtK5CA",
+  authDomain:"athar-ngo.firebaseapp.com",
+  projectId:"athar-ngo"
+};
+const app = initializeApp(cfg);
+const db  = getFirestore(app);
+const auth = getAuth(app);
 
-<!-- Toast -->
-<div id="toast"></div>
+const OWNER_EMAILS = ['elzieni2007@gmail.com','safaanasr048@gmail.com'];
+let allOrgs = [];
 
-<script>
-/* ══ Globals ══ */
-var _tenants  = [];
-var _licenses = [];
-var _currentTenant = null;
-
-/* ══ Login ══ */
-function adminLogin(){
-  var fb  = window._adm;
-  var email = (document.getElementById('adm-email').value||'').trim();
-  var pass  = (document.getElementById('adm-pass').value||'').trim();
-  var errEl = document.getElementById('login-err');
-  if(!email||!pass){ errEl.textContent='⚠️ أدخل البريد وكلمة المرور'; return; }
-  errEl.textContent='⏳ جاري تسجيل الدخول...';
-  fb.signInWithEmailAndPassword(fb.auth, email, pass)
-    .then(function(){ errEl.textContent=''; })
-    .catch(function(err){
-      errEl.textContent = err.code==='auth/wrong-password'?'❌ كلمة المرور خاطئة':
-                          err.code==='auth/user-not-found'?'❌ البريد غير مسجل':
-                          '❌ '+err.message;
-    });
-}
-function adminLogout(){
-  if(confirm('تسجيل الخروج؟')) window._adm.signOut(window._adm.auth);
-}
-
-/* ══ Toast ══ */
-function toast(msg){
-  var t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
-  setTimeout(function(){t.classList.remove('show');},3000);
-}
-
-/* ══ Tabs ══ */
-function switchTab(tab, btn){
-  ['dashboard','tenants','licenses'].forEach(function(t){
-    document.getElementById('tab-'+t).style.display = t===tab?'block':'none';
-  });
-  document.querySelectorAll('.tab').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
-  if(tab==='tenants')  loadTenantsTable();
-  if(tab==='licenses') loadLicensesTable();
-}
-
-/* ══ Load Dashboard ══ */
-function loadDashboard(){
-  loadTenants().then(function(){
-    renderStats();
-    renderTenantsGrid();
-  });
-}
-
-function loadTenants(){
-  var fb = window._adm;
-  return fb.getDocs(fb.collection(fb.db, 'tenants'))
-    .then(function(snap){
-      _tenants = [];
-      snap.forEach(function(d){
-        var data = d.data();
-        _tenants.push(Object.assign({_id: d.id}, data));
-      });
-      return _tenants;
-    }).catch(function(err){
-      console.error('Load tenants error:', err);
-      /* No tenants yet - show empty state */
-      _tenants = [];
-      return [];
-    });
-}
-
-function loadLicenses(){
-  var fb = window._adm;
-  return fb.getDocs(fb.collection(fb.db, 'licenses'))
-    .then(function(snap){
-      _licenses = [];
-      snap.forEach(function(d){
-        _licenses.push(Object.assign({_id:d.id}, d.data()));
-      });
-      return _licenses;
-    }).catch(function(){ _licenses=[]; return []; });
-}
-
-/* ══ Render Stats ══ */
-function renderStats(){
-  var total    = _tenants.length;
-  var active   = _tenants.filter(function(t){ return t.active!==false && !isExpired(t); }).length;
-  var trial    = _tenants.filter(function(t){ return t.plan==='trial'; }).length;
-  var expiring = _tenants.filter(function(t){
-    if(!t.expiry) return false;
-    var days = Math.ceil((new Date(t.expiry)-new Date())/(1000*60*60*24));
-    return days>0 && days<=30;
-  }).length;
-
-  document.getElementById('stats-grid').innerHTML =
-    stat('🏢','#dbeafe','var(--nd)', total,     'إجمالي الجمعيات') +
-    stat('✅','#d1fae5','var(--grn)', active,    'نشطة') +
-    stat('⏰','#fef3c7','var(--am)', trial,     'تجريبية') +
-    stat('⚠️','#fee2e2','var(--red)', expiring,  'تنتهي خلال 30 يوم');
-}
-
-function stat(icon, bg, color, val, lbl){
-  return '<div class="stat-card">'
-    +'<div class="stat-icon" style="background:'+bg+';color:'+color+';">'+icon+'</div>'
-    +'<div><div class="stat-val" style="color:'+color+';">'+val+'</div>'
-    +'<div class="stat-lbl">'+lbl+'</div></div></div>';
-}
-
-/* ══ Render Tenants Grid ══ */
-function renderTenantsGrid(){
-  var grid = document.getElementById('tenants-grid');
-  if(!_tenants.length){
-    grid.innerHTML = '<div class="empty"><div class="empty-icon">🏢</div><p>لا توجد جمعيات بعد</p><button class="btn btn-primary" onclick="openAddTenant()" style="margin-top:12px;">+ إضافة أول جمعية</button></div>';
-    return;
+/* ── Auth ── */
+onAuthStateChanged(auth, user => {
+  if(user && OWNER_EMAILS.includes(user.email)){
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('adm-name').textContent = user.displayName || user.email;
+    loadOrgs();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('dashboard').style.display = 'none';
   }
-  grid.innerHTML = _tenants.map(tenantCard).join('');
-}
-
-function tenantCard(t){
-  var plan    = t.plan||'trial';
-  var expired = isExpired(t);
-  var daysLeft= daysRemaining(t);
-  var planBadge = '<span class="plan-badge plan-'+(expired?'expired':plan)+'">'+
-    (expired?'منتهي':plan==='pro'?'Pro 🚀':plan==='basic'?'Basic 🌐':'تجريبي')+'</span>';
-
-  var logo = t.org&&t.org.logo
-    ? '<img src="'+t.org.logo+'" />'
-    : '<span>🏢</span>';
-
-  return '<div class="tenant-card" onclick="openTenantDetail(\''+t._id+'\')">'
-    +'<div class="tenant-header">'
-    +'<div class="tenant-logo">'+logo+'</div>'
-    +'<div>'
-    +'<div class="tenant-name">'+(t.orgName||t._id)+'</div>'
-    +'<div class="tenant-id">'+t._id+'</div>'
-    +'</div></div>'
-    +'<div class="tenant-meta">'
-    +'<div class="tenant-meta-item"><div class="lbl">الباقة</div><div class="val">'+planBadge+'</div></div>'
-    +'<div class="tenant-meta-item"><div class="lbl">الأيام المتبقية</div><div class="val" style="color:'+(daysLeft<30?'var(--red)':daysLeft<90?'var(--am)':'var(--grn)')+';">'+
-    (daysLeft===999?'غير محدود':daysLeft+' يوم')+'</div></div>'
-    +'<div class="tenant-meta-item"><div class="lbl">الإيميل</div><div class="val" style="font-size:11px;">'+(t.email||'—')+'</div></div>'
-    +'<div class="tenant-meta-item"><div class="lbl">الحالة</div><div class="val">'
-    +(expired?'<span class="status-dot status-expired"></span>منتهي':
-              t.plan==='trial'?'<span class="status-dot status-trial"></span>تجريبي':
-              '<span class="status-dot status-active"></span>نشط')+'</div></div>'
-    +'</div>'
-    +'<div class="tenant-actions" onclick="event.stopPropagation()">'
-    +'<button class="btn btn-primary btn-sm" onclick="openTenantDetail(\''+t._id+'\')">📋 تفاصيل</button>'
-    +'<button class="btn btn-warning btn-sm" onclick="renewTenant(\''+t._id+'\')">🔑 تجديد</button>'
-    +(t.active!==false?'<button class="btn btn-danger btn-sm" onclick="toggleTenant(\''+t._id+'\',false)">🚫</button>'
-                      :'<button class="btn btn-success btn-sm" onclick="toggleTenant(\''+t._id+'\',true)">✅</button>')
-    +'</div></div>';
-}
-
-/* ══ Tenants Table ══ */
-function loadTenantsTable(){
-  loadTenants().then(function(){
-    var tbody = document.getElementById('tenants-tbody');
-    if(!_tenants.length){
-      tbody.innerHTML='<tr><td colspan="7"><div class="empty"><div class="empty-icon">🏢</div><p>لا توجد جمعيات</p></div></td></tr>';
-      return;
-    }
-    tbody.innerHTML = _tenants.map(function(t){
-      var plan = t.plan||'trial';
-      var expired = isExpired(t);
-      return '<tr>'
-        +'<td><b>'+(t.orgName||t._id)+'</b><br><small style="color:var(--g4);">'+(t.email||'')+'</small></td>'
-        +'<td><span class="plan-badge plan-'+plan+'">'+(plan==='pro'?'Pro 🚀':plan==='basic'?'Basic 🌐':'تجريبي')+'</span></td>'
-        +'<td>'+(expired?'<span style="color:var(--red);">منتهي</span>':'<span style="color:var(--grn);">نشط</span>')+'</td>'
-        +'<td>'+(t.expiry||'—')+'</td>'
-        +'<td>—</td>'
-        +'<td style="font-size:11px;color:var(--g4);">'+(t.createdAt?new Date(t.createdAt.seconds*1000).toLocaleDateString('ar-EG'):'—')+'</td>'
-        +'<td><button class="btn btn-primary btn-sm" onclick="openTenantDetail(\''+t._id+'\')">تفاصيل</button></td>'
-        +'</tr>';
-    }).join('');
-  });
-}
-
-/* ══ Licenses Table ══ */
-function loadLicensesTable(){
-  loadLicenses().then(function(){
-    var tbody = document.getElementById('licenses-tbody');
-    if(!_licenses.length){
-      tbody.innerHTML='<tr><td colspan="6"><div class="empty"><div class="empty-icon">🔑</div><p>لا توجد مفاتيح بعد</p></div></td></tr>';
-      return;
-    }
-    tbody.innerHTML = _licenses.map(function(l){
-      var expired = l.expiry && new Date(l.expiry)<new Date();
-      return '<tr>'
-        +'<td style="font-family:monospace;font-size:11px;">'+l._id+'</td>'
-        +'<td>'+(l.orgName||'—')+'</td>'
-        +'<td><span class="plan-badge plan-'+(l.plan||'trial')+'">'+(l.plan||'trial')+'</span></td>'
-        +'<td>'+(l.expiry||'—')+'</td>'
-        +'<td>'+(l.used?'<span style="color:var(--grn);">✅ مستخدم</span>':'<span style="color:var(--g4);">لم يُستخدم</span>')+'</td>'
-        +'<td><button class="btn btn-danger btn-sm" onclick="deleteKey(\''+l._id+'\')">حذف</button></td>'
-        +'</tr>';
-    }).join('');
-  });
-}
-
-/* ══ Add Tenant ══ */
-function openAddTenant(){
-  document.getElementById('t-name').value='';
-  document.getElementById('t-email').value='';
-  document.getElementById('t-phone').value='';
-  document.getElementById('modal-add-tenant').classList.add('on');
-}
-
-function addTenant(){
-  var fb       = window._adm;
-  var orgName  = document.getElementById('t-name').value.trim();
-  var email    = document.getElementById('t-email').value.trim().toLowerCase();
-  var phone    = document.getElementById('t-phone').value.trim();
-  var plan     = document.getElementById('t-plan').value;
-  var days     = parseInt(document.getElementById('t-days').value);
-  var notes    = document.getElementById('t-notes').value.trim();
-
-  if(!orgName||!email){ toast('⚠️ اسم الجمعية والإيميل مطلوبان'); return; }
-
-  var tenantId = 'T_' + orgName.replace(/\s+/g,'_').replace(/[^\w\u0600-\u06FF]/g,'').substring(0,20) + '_' + Date.now().toString().slice(-4);
-  var expiry   = new Date(); expiry.setDate(expiry.getDate()+days);
-  var expiryStr= expiry.toISOString().split('T')[0];
-
-  var tenantData = {
-    orgName:   orgName,
-    email:     email,
-    phone:     phone||'',
-    plan:      plan,
-    expiry:    expiryStr,
-    active:    true,
-    notes:     notes,
-    createdAt: fb.serverTimestamp(),
-    createdBy: window._admUser ? window._admUser.email : 'admin'
-  };
-
-  var btn = document.querySelector('#modal-add-tenant .btn-primary');
-  btn.disabled=true; btn.textContent='⏳ جاري الإضافة...';
-
-  fb.setDoc(fb.doc(fb.db,'tenants',tenantId), tenantData)
-    .then(function(){
-      closeModal('modal-add-tenant');
-      toast('✅ تمت إضافة '+orgName);
-      loadDashboard();
-      btn.disabled=false; btn.textContent='✅ إضافة الجمعية';
-    })
-    .catch(function(err){
-      toast('❌ خطأ: '+err.message);
-      btn.disabled=false; btn.textContent='✅ إضافة الجمعية';
-    });
-}
-
-/* ══ Tenant Detail ══ */
-function openTenantDetail(id){
-  var t = _tenants.find(function(x){ return x._id===id; });
-  if(!t) return;
-  _currentTenant = t;
-  document.getElementById('detail-title').textContent = t.orgName||id;
-  var daysLeft = daysRemaining(t);
-  var expired  = isExpired(t);
-
-  document.getElementById('detail-body').innerHTML =
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">'
-    +'<div class="tenant-meta-item"><div class="lbl">Tenant ID</div><div class="val" style="font-size:11px;font-family:monospace;">'+id+'</div></div>'
-    +'<div class="tenant-meta-item"><div class="lbl">الباقة</div><div class="val"><span class="plan-badge plan-'+(t.plan||'trial')+'">'+(t.plan||'trial')+'</span></div></div>'
-    +'<div class="tenant-meta-item"><div class="lbl">البريد الإلكتروني</div><div class="val" style="font-size:11px;">'+(t.email||'—')+'</div></div>'
-    +'<div class="tenant-meta-item"><div class="lbl">الهاتف</div><div class="val">'+(t.phone||'—')+'</div></div>'
-    +'<div class="tenant-meta-item"><div class="lbl">تاريخ الانتهاء</div><div class="val" style="color:'+(expired?'var(--red)':daysLeft<30?'var(--am)':'var(--grn)')+';">'+(t.expiry||'—')+'</div></div>'
-    +'<div class="tenant-meta-item"><div class="lbl">الأيام المتبقية</div><div class="val" style="font-size:22px;font-weight:900;color:'+(expired?'var(--red)':daysLeft<30?'var(--am)':'var(--grn)')+';">'+(expired?'منتهي':daysLeft===999?'∞':daysLeft)+'</div></div>'
-    +'</div>'
-    +(t.notes?'<div class="fg"><label>ملاحظات</label><div style="background:var(--g1);padding:10px;border-radius:8px;font-size:13px;">'+t.notes+'</div></div>':'')
-    +'<div class="fg"><label>تغيير الباقة</label>'
-    +'<select id="detail-plan"><option value="trial"'+(t.plan==='trial'?' selected':'')+'>تجريبي</option>'
-    +'<option value="basic"'+(t.plan==='basic'?' selected':'')+'>Basic 🌐</option>'
-    +'<option value="pro"'+(t.plan==='pro'?' selected':'')+'>Pro 🚀</option></select></div>'
-    +'<div class="fg"><label>تمديد الاشتراك</label>'
-    +'<select id="detail-extend"><option value="0">— بدون تمديد —</option><option value="30">+30 يوم</option><option value="90">+3 أشهر</option><option value="180">+6 أشهر</option><option value="365">+سنة</option></select></div>'
-    +'<button onclick="saveTenantChanges()" class="btn btn-primary" style="width:100%;padding:11px;">💾 حفظ التغييرات</button>';
-
-  document.getElementById('modal-tenant-detail').classList.add('on');
-}
-
-function saveTenantChanges(){
-  if(!_currentTenant) return;
-  var fb      = window._adm;
-  var plan    = document.getElementById('detail-plan').value;
-  var extend  = parseInt(document.getElementById('detail-extend').value)||0;
-  var expiry  = _currentTenant.expiry || new Date().toISOString().split('T')[0];
-  if(extend){
-    var d = new Date(expiry); d.setDate(d.getDate()+extend);
-    expiry = d.toISOString().split('T')[0];
-  }
-  fb.updateDoc(fb.doc(fb.db,'tenants',_currentTenant._id), {plan:plan, expiry:expiry})
-    .then(function(){
-      closeModal('modal-tenant-detail');
-      toast('✅ تم تحديث بيانات الجمعية');
-      loadDashboard();
-    }).catch(function(err){ toast('❌ '+err.message); });
-}
-
-function toggleTenant(id, active){
-  var fb = window._adm;
-  fb.updateDoc(fb.doc(fb.db,'tenants',id), {active:active})
-    .then(function(){
-      toast(active?'✅ تم تفعيل الجمعية':'🚫 تم إيقاف الجمعية');
-      loadDashboard();
-    });
-}
-
-function renewTenant(id){
-  _currentTenant = _tenants.find(function(t){ return t._id===id; });
-  openTenantDetail(id);
-}
-
-/* ══ Generate License Key ══ */
-function openGenerateKey(){
-  document.getElementById('key-result').style.display='none';
-  document.getElementById('btn-save-key').style.display='none';
-  document.getElementById('k-org').value='';
-  document.getElementById('modal-gen-key').classList.add('on');
-}
-
-function generateKey(){
-  var org  = document.getElementById('k-org').value.trim()||'جمعية';
-  var plan = document.getElementById('k-plan').value;
-  var days = parseInt(document.getElementById('k-days').value);
-
-  var expiry = new Date(); expiry.setDate(expiry.getDate()+days);
-  var expiryStr = expiry.toISOString().split('T')[0].replace(/-/g,'');
-  var year  = new Date().getFullYear();
-
-  /* توليد hash بسيط */
-  function hash(s){
-    var h=0x811c9dc5;
-    for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=(h*0x01000193)>>>0; }
-    return h.toString(16).padStart(8,'0').toUpperCase();
-  }
-  var payload = plan.toUpperCase().substring(0,3)+'|'+expiryStr+'|'+org.substring(0,8);
-  var h       = hash(payload+'ATHR-MSK-2025-elz');
-  var key     = 'ATHAR-'+year+'-'+btoa(payload).replace(/[^A-Z0-9]/gi,'').substring(0,6).toUpperCase()+'-'+h.substring(0,4)+'-'+h.substring(4,8);
-
-  window._generatedKey = { key, plan, org, days, expiry: expiry.toISOString().split('T')[0] };
-
-  document.getElementById('key-display').textContent = key;
-  document.getElementById('key-result').style.display='block';
-  document.getElementById('btn-save-key').style.display='inline-block';
-  toast('✅ تم توليد المفتاح');
-}
-
-function copyKey(){
-  var key = document.getElementById('key-display').textContent;
-  navigator.clipboard.writeText(key).then(function(){ toast('✅ تم نسخ المفتاح'); });
-}
-
-function saveKeyToFirestore(){
-  if(!window._generatedKey) return;
-  var fb  = window._adm;
-  var gk  = window._generatedKey;
-  fb.setDoc(fb.doc(fb.db,'licenses',gk.key), {
-    plan:    gk.plan,
-    orgName: gk.org,
-    expiry:  gk.expiry,
-    days:    gk.days,
-    used:    false,
-    createdAt: fb.serverTimestamp(),
-    createdBy: window._admUser ? window._admUser.email : 'admin'
-  }).then(function(){
-    toast('✅ تم حفظ المفتاح في Firestore');
-    document.getElementById('btn-save-key').style.display='none';
-  }).catch(function(err){ toast('❌ '+err.message); });
-}
-
-function deleteKey(id){
-  if(!confirm('حذف المفتاح؟')) return;
-  var fb = window._adm;
-  fb.deleteDoc(fb.doc(fb.db,'licenses',id))
-    .then(function(){ toast('✅ تم حذف المفتاح'); loadLicensesTable(); });
-}
-
-/* ══ Helpers ══ */
-function isExpired(t){
-  if(!t.expiry) return false;
-  return new Date(t.expiry) < new Date();
-}
-function daysRemaining(t){
-  if(!t.expiry) return 999;
-  var d = Math.ceil((new Date(t.expiry)-new Date())/(1000*60*60*24));
-  return d > 0 ? d : 0;
-}
-function closeModal(id){ document.getElementById(id).classList.remove('on'); }
-
-/* ══ Keyboard ══ */
-document.addEventListener('keydown', function(e){
-  if(e.key==='Escape') document.querySelectorAll('.modal-overlay.on').forEach(function(m){ m.classList.remove('on'); });
 });
 
-/* ══ Enter on login ══ */
-document.addEventListener('DOMContentLoaded', function(){
-  var passEl = document.getElementById('adm-pass');
-  if(passEl) passEl.addEventListener('keydown', function(e){ if(e.key==='Enter') adminLogin(); });
+window.adminLogin = async () => {
+  const email = document.getElementById('adm-email').value.trim();
+  const pass  = document.getElementById('adm-pass').value.trim();
+  const err   = document.getElementById('login-err');
+  err.textContent = '';
+  if(!OWNER_EMAILS.includes(email.toLowerCase())){
+    err.textContent = '❌ هذا الإيميل غير مصرح له';
+    return;
+  }
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch(e) {
+    err.textContent = '❌ ' + (e.code === 'auth/wrong-password' ? 'كلمة مرور خاطئة' :
+      e.code === 'auth/user-not-found' ? 'الإيميل غير مسجل' : e.message);
+  }
+};
+
+window.adminLogout = () => signOut(auth);
+
+/* ── Load Orgs ── */
+async function loadOrgs(){
+  try {
+    const q = query(collection(db,'registrations'), orderBy('registeredAt','desc'));
+    const snap = await getDocs(q);
+    allOrgs = snap.docs.map(d => ({id:d.id, ...d.data()}));
+    updateStats();
+    renderTable(allOrgs);
+  } catch(e) {
+    document.getElementById('table-container').innerHTML =
+      '<div class="empty-state"><div>⚠️</div><div>لم يتم العثور على بيانات<br><small style="color:#94a3b8">' + e.message + '</small></div></div>';
+  }
+}
+
+function updateStats(){
+  const today = new Date().toISOString().split('T')[0];
+  const trial   = allOrgs.filter(o => o.plan === 'trial' && o.trialStart && daysDiff(o.trialStart) <= (o.trialDays||30));
+  const paid    = allOrgs.filter(o => o.plan === 'paid' || o.plan === 'pro' || o.plan === 'basic');
+  const expired = allOrgs.filter(o => o.plan === 'trial' && o.trialStart && daysDiff(o.trialStart) > (o.trialDays||30));
+  document.getElementById('stat-total').textContent   = allOrgs.length;
+  document.getElementById('stat-trial').textContent   = trial.length;
+  document.getElementById('stat-paid').textContent    = paid.length;
+  document.getElementById('stat-expired').textContent = expired.length;
+}
+
+function daysDiff(dateStr){
+  return Math.floor((new Date() - new Date(dateStr)) / 86400000);
+}
+
+function trialStatus(org){
+  if(org.plan === 'paid' || org.plan === 'pro') return {label:'مشترك', cls:'active'};
+  if(!org.trialStart) return {label:'تجربة', cls:'trial'};
+  const days = daysDiff(org.trialStart);
+  const limit = org.trialDays || 30;
+  if(days > limit) return {label:'منتهية', cls:'expired'};
+  return {label:`تجربة (${limit-days} يوم)`, cls:'trial'};
+}
+
+function renderTable(orgs){
+  if(!orgs.length){
+    document.getElementById('table-container').innerHTML =
+      '<div class="empty-state"><div>🏛️</div><div>لا توجد جمعيات مسجلة بعد</div></div>';
+    return;
+  }
+  let html = '<table><thead><tr>'
+    + '<th>#</th><th>اسم الجمعية</th><th>المسؤول</th><th>الموبايل</th>'
+    + '<th>المحافظة</th><th>الإيميل</th><th>الحالة</th><th>تاريخ التسجيل</th><th>إجراء</th>'
+    + '</tr></thead><tbody>';
+  
+  orgs.forEach((org, i) => {
+    const st = trialStatus(org);
+    const date = org.trialStart || (org.registeredAt?.toDate ? org.registeredAt.toDate().toLocaleDateString('ar-EG') : '—');
+    html += `<tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td><strong>${org.orgName||'—'}</strong>${org.licNo?`<br><small style="color:var(--muted)">${org.licNo}</small>`:''}</td>
+      <td>${org.contactName||'—'}</td>
+      <td style="direction:ltr">${org.phone||'—'}</td>
+      <td><span class="city-badge">${org.city||'—'}</span></td>
+      <td style="direction:ltr;font-size:12px">${org.email||'—'}</td>
+      <td><span class="badge ${st.cls}">${st.label}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${date}</td>
+      <td><button class="action-btn" onclick="showDetail('${org.id}')">تفاصيل</button></td>
+    </tr>`;
+  });
+  
+  html += '</tbody></table>';
+  document.getElementById('table-container').innerHTML = html;
+}
+
+window.filterTable = (q) => {
+  const filtered = allOrgs.filter(o =>
+    (o.orgName||'').includes(q) ||
+    (o.email||'').includes(q) ||
+    (o.contactName||'').includes(q) ||
+    (o.phone||'').includes(q) ||
+    (o.city||'').includes(q)
+  );
+  renderTable(filtered);
+};
+
+window.showDetail = (id) => {
+  const org = allOrgs.find(o => o.id === id);
+  if(!org) return;
+  const st = trialStatus(org);
+  document.getElementById('modal-title').textContent = org.orgName || 'تفاصيل الجمعية';
+  document.getElementById('modal-content').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      ${field('🏢 اسم الجمعية', org.orgName)}
+      ${field('👤 المسؤول', org.contactName)}
+      ${field('📱 الموبايل', org.phone, true)}
+      ${field('📍 المحافظة', org.city)}
+      ${field('✉️ الإيميل', org.email, true)}
+      ${field('🏛️ رقم الترخيص', org.licNo)}
+      ${field('📦 الباقة', org.plan||'trial')}
+      ${field('📅 تاريخ التسجيل', org.trialStart||'—')}
+    </div>
+    <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--muted)">Tenant ID</div>
+      <div style="font-size:11px;font-family:monospace;word-break:break-all">${org.tenantId||org.id}</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-save" onclick="upgradePlan('${id}','pro')">🚀 ترقية Pro</button>
+      <button class="btn-save" style="background:linear-gradient(135deg,#059669,#10b981)" onclick="extendTrial('${id}')">⏳ تمديد 30 يوم</button>
+      <button class="btn-cancel btn-logout" style="background:#fee2e2;color:#dc2626" onclick="deleteOrg('${id}')">🗑️ حذف</button>
+    </div>
+  `;
+  document.getElementById('detail-modal').classList.add('open');
+};
+
+function field(label, value, ltr=false){
+  return `<div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:3px">${label}</div>
+    <div style="font-size:13px;font-weight:600;${ltr?'direction:ltr;text-align:left':''}">${value||'—'}</div>
+  </div>`;
+}
+
+window.closeModal = () => document.getElementById('detail-modal').classList.remove('open');
+
+window.upgradePlan = async (id, plan) => {
+  if(!confirm(`ترقية إلى ${plan}؟`)) return;
+  await updateDoc(doc(db,'registrations',id), {plan});
+  await loadOrgs();
+  closeModal();
+};
+
+window.extendTrial = async (id) => {
+  const org = allOrgs.find(o => o.id === id);
+  const newStart = new Date().toISOString().split('T')[0];
+  await updateDoc(doc(db,'registrations',id), {trialStart:newStart, trialDays:30});
+  await loadOrgs();
+  closeModal();
+};
+
+window.deleteOrg = async (id) => {
+  if(!confirm('حذف هذه الجمعية نهائياً؟')) return;
+  await deleteDoc(doc(db,'registrations',id));
+  allOrgs = allOrgs.filter(o => o.id !== id);
+  updateStats();
+  renderTable(allOrgs);
+  closeModal();
+};
+
+// Close modal on overlay click
+document.getElementById('detail-modal').addEventListener('click', function(e){
+  if(e.target === this) closeModal();
 });
 </script>
 </body>
