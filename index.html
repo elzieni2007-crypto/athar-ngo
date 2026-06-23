@@ -13732,17 +13732,53 @@ function verifyOTPAction(purpose){
   if(result === 'expired'){ if(err) err.textContent='⚠️ انتهت صلاحية الكود — أعد الإرسال'; return; }
   if(result === 'wrong'){ if(err) err.textContent='⚠️ الكود غير صحيح'; return; }
   if(purpose === 'register'){
-    var d = window._regData || {};
-    if(!d.org || !d.email){ if(err) err.textContent='⚠️ خطأ في البيانات'; return; }
+    var d=window._regData||{};
+    d.email=((document.getElementById('reg-email')||{}).value||'').trim().toLowerCase();
+    d.pass=((document.getElementById('reg-pass')||{}).value||'').trim();
+    d.phone=((document.getElementById('reg-phone')||{}).value||'').trim();
+    if(!d.org||!d.email||!d.pass){if(err)err.textContent='⚠️ يرجى تعبئة جميع الحقول';return;}
+
+    /* ══ 1. localStorage — التجربة المجانية (يشتغل دايماً) ══ */
     var newId='U'+Date.now();
-    var newUser={id:newId,name:'المدير',username:d.email,email:d.email,role:'admin',active:true,createdAt:new Date().toISOString().slice(0,10)};
-    DB.users=[newUser]; DB.org=DB.org||{}; DB.org.name=d.org; DB.org.email=d.email;
-    hashPassword(d.pass,newId).then(function(h){newUser.passwordHash=h;save();}); save();
-    setCurrentUser({id:newUser.id,name:newUser.name,username:newUser.username,role:newUser.role});
+    var tenantId='T_'+Date.now();
+    var newUser={id:newId,name:d.contact||'المدير',username:d.email,email:d.email,
+      role:'admin',active:true,tenantId:tenantId,
+      createdAt:new Date().toISOString().slice(0,10)};
+    DB.users=[newUser];
+    DB.org=DB.org||{};
+    Object.assign(DB.org,{name:d.org,email:d.email,phone:d.phone||'',
+      contactName:d.contact||'',city:d.city||'',licNo:d.licNo||'',
+      tenantId:tenantId,plan:'trial',
+      trialStart:new Date().toISOString().split('T')[0],trialDays:30});
+    hashPassword(d.pass,newId).then(function(h){newUser.passwordHash=h;save();});
+    save();
+
+    /* ══ 2. Firebase — تسجيل للمتابعة فقط ══ */
+    (function(){
+      var fb=window._fb;
+      if(!fb||!fb.db)return;
+      fb.setDoc(fb.doc(fb.db,'registrations',tenantId),{
+        tenantId:tenantId,orgName:d.org,contactName:d.contact||'',
+        email:d.email,phone:d.phone||'',city:d.city||'',licNo:d.licNo||'',
+        plan:'trial',trialDays:30,active:true,
+        trialStart:new Date().toISOString().split('T')[0],
+        registeredAt:fb.serverTimestamp?fb.serverTimestamp():new Date().toISOString()
+      }).then(function(){console.info('[Firebase] Registration saved ✅');})
+        .catch(function(e){console.warn('[Firebase]',e.message);});
+    })();
+
+    /* ══ 3. فتح النظام ══ */
+    setCurrentUser({id:newUser.id,name:newUser.name,username:newUser.username,
+      role:newUser.role,tenantId:tenantId});
     var ov=document.getElementById('login-overlay');if(ov)ov.remove();
     var nameEl=document.getElementById('org-name');if(nameEl)nameEl.textContent=d.org;
-    setTimeout(function(){if(typeof rDash==='function'){var dash=document.getElementById('pg-dash');if(dash){dash.innerHTML=rDash();dash.classList.add('on');}}},200);
-  } else if(purpose === 'reset'){
+    setTimeout(function(){
+      if(typeof rDash==='function'){
+        var dash=document.getElementById('pg-dash');
+        if(dash){dash.innerHTML=rDash();dash.classList.add('on');}
+      }
+    },200);
+} else if(purpose === 'reset'){
     var np = ((document.getElementById('new-pass')||{}).value||'');
     if(!np || np.length < 6){ if(err) err.textContent='أدخل كلمة مرور جديدة (6 أحرف+)'; return; }
     var user = window._resetUser;
