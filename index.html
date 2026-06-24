@@ -13777,9 +13777,7 @@ function verifyOTPAction(purpose){
   if(result === 'wrong'){ if(err) err.textContent='⚠️ الكود غير صحيح'; return; }
   if(purpose === 'register'){
     var d=window._regData||{};
-    d.email=((document.getElementById('reg-email')||{}).value||'').trim().toLowerCase();
-    d.pass=((document.getElementById('reg-pass')||{}).value||'').trim();
-    d.phone=((document.getElementById('reg-phone')||{}).value||'').trim();
+    // email/pass/phone already saved in _regData by doRegisterStep1 — don't re-read from DOM (elements gone)
     if(!d.org||!d.email||!d.pass){if(err)err.textContent='⚠️ يرجى تعبئة جميع الحقول';return;}
 
     /* ══ 1. localStorage — التجربة المجانية (يشتغل دايماً) ══ */
