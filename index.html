@@ -13797,16 +13797,24 @@ function verifyOTPAction(purpose){
 
     /* ══ 2. Firebase — تسجيل للمتابعة فقط ══ */
     (function(){
-      var fb=window._fb;
-      if(!fb||!fb.db)return;
-      fb.setDoc(fb.doc(fb.db,'registrations',tenantId),{
+      var regData = {
         tenantId:tenantId,orgName:d.org,contactName:d.contact||'',
         email:d.email,phone:d.phone||'',city:d.city||'',licNo:d.licNo||'',
         plan:'trial',trialDays:30,active:true,
         trialStart:new Date().toISOString().split('T')[0],
-        registeredAt:fb.serverTimestamp?fb.serverTimestamp():new Date().toISOString()
-      }).then(function(){console.info('[Firebase] Registration saved ✅');})
-        .catch(function(e){console.warn('[Firebase]',e.message);});
+        registeredAt:new Date().toISOString()
+      };
+      var fb=window._fb;
+      if(fb&&fb.db){
+        // Firebase already loaded — save immediately
+        fb.setDoc(fb.doc(fb.db,'registrations',tenantId),regData)
+          .then(function(){console.info('[Firebase] Registration saved ✅');})
+          .catch(function(e){console.warn('[Firebase]',e.message);});
+      } else {
+        // Firebase not loaded yet — queue it, the module script will flush it
+        window._fbPendingReg = {tenantId:tenantId, data:regData};
+        console.info('[Firebase] Registration queued — will save when Firebase loads');
+      }
     })();
 
     /* ══ 3. فتح النظام ══ */
@@ -24902,20 +24910,27 @@ tbody td {
 </style>
 
 <script type="module">
+// Firebase init — runs async but sets window._fb as early as possible
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-(function(){
-  try{
-    var app = initializeApp({
-      apiKey:"AIzaSyAsCP8zqAsw4I4t64Y06n3OWqhXJGtK5CA",
-      authDomain:"athar-ngo.firebaseapp.com",
-      projectId:"athar-ngo"
-    });
-    var db = getFirestore(app);
-    window._fb = { db:db, doc:doc, setDoc:setDoc, serverTimestamp:serverTimestamp };
-    console.info('[Firebase] Initialized ✅');
-  } catch(e){ console.warn('[Firebase] Init failed:', e.message); }
-})();
+try {
+  var _fbApp = initializeApp({
+    apiKey:"AIzaSyAsCP8zqAsw4I4t64Y06n3OWqhXJGtK5CA",
+    authDomain:"athar-ngo.firebaseapp.com",
+    projectId:"athar-ngo"
+  });
+  var _fbDb = getFirestore(_fbApp);
+  window._fb = { db:_fbDb, doc:doc, setDoc:setDoc, serverTimestamp:serverTimestamp };
+  // Also flush any pending registration queued before Firebase loaded
+  if(window._fbPendingReg) {
+    var pr = window._fbPendingReg;
+    window._fbPendingReg = null;
+    setDoc(doc(_fbDb,'registrations',pr.tenantId), pr.data)
+      .then(function(){ console.info('[Firebase] Pending registration saved ✅'); })
+      .catch(function(e){ console.warn('[Firebase] Pending reg failed:', e.message); });
+  }
+  console.info('[Firebase] Initialized ✅');
+} catch(e) { console.warn('[Firebase] Init failed:', e.message); }
 </script>
 </body>
 </html>
