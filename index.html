@@ -4043,7 +4043,8 @@ function rTrialPage(){
 
   if(mode==='totals'){
     // ── By Totals: Opening + Period Dr/Cr + Closing ───────────────
-    h+='<div style="overflow-x:auto;"><table style="width:100%;font-size:11px;border-collapse:collapse;">';
+    h+='<div style="overflow-x:auto;"><table style="width:100%;font-size:11px;border-collapse:collapse;table-layout:fixed;min-width:680px;">';
+    h+='<colgroup><col style="min-width:160px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"></colgroup>';
     h+='<thead><tr style="background:var(--nd);color:white;">'
       +'<th style="padding:7px 6px;text-align:right;">الحساب</th>'
       +'<th colspan="2" style="text-align:center;border-left:1px solid rgba(255,255,255,.2);">رصيد افتتاحي</th>'
@@ -4052,9 +4053,9 @@ function rTrialPage(){
       +'</tr>';
     h+='<tr style="background:#152a52;color:rgba(255,255,255,.8);font-size:10px;">'
       +'<th style="padding:5px 6px;"></th>'
-      +'<th style="text-align:left;padding:5px;">مدين</th><th style="text-align:left;">دائن</th>'
-      +'<th style="text-align:left;border-left:1px solid rgba(255,255,255,.1);">مدين</th><th style="text-align:left;">دائن</th>'
-      +'<th style="text-align:left;border-left:1px solid rgba(255,255,255,.1);">مدين</th><th style="text-align:left;">دائن</th>'
+      +'<th style="text-align:left;padding:5px;white-space:nowrap;">مدين</th><th style="text-align:left;white-space:nowrap;">دائن</th>'
+      +'<th style="text-align:left;border-left:1px solid rgba(255,255,255,.1);white-space:nowrap;">مدين</th><th style="text-align:left;white-space:nowrap;">دائن</th>'
+      +'<th style="text-align:left;border-left:1px solid rgba(255,255,255,.1);white-space:nowrap;">مدين</th><th style="text-align:left;white-space:nowrap;">دائن</th>'
       +'</tr></thead><tbody>';
 
     var tOBdr=0,tOBcr=0,tPdr=0,tPcr=0,tCBdr=0,tCBcr=0;
@@ -4182,47 +4183,79 @@ function rBalPage(){
   h+='<button onclick="printBalanceSheet()" class="btn btn-sm btn-gy" style="font-size:10.5px;">🖨️ طباعة</button>';
   h+='</div>';
 
-  // Two columns: Assets | Liabilities
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
+  // ── Balance Sheet: table layout, aligned numbers ─────────────────
+  // Recalc totalLiabEquity correctly (liab + equity + surplus)
+  var totalLiabEquity2 = liab + equity + surplus;
+  var diff2 = Math.abs(totalAssets - totalLiabEquity2);
 
-  // Assets
-  h+='<div style="background:white;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">';
-  h+='<div style="font-weight:900;color:#0D3B6E;font-size:13px;margin-bottom:10px;border-bottom:2px solid #0D3B6E;padding-bottom:6px;">الأصول</div>';
+  // Shared row style helper
+  function bsRow(name,val,color,click,bold){
+    var c=color||'inherit';
+    var fw=bold?'900':'600';
+    var clickAttr=click?' onclick="'+click+'" style="cursor:pointer;text-decoration:underline;color:'+c+';"':' style="color:'+c+';"';
+    return '<tr style="border-bottom:1px solid #f4f6f9;">'
+      +'<td style="padding:5px 8px;font-size:12px;font-weight:'+fw+';"'+clickAttr+'>'+name+'</td>'
+      +'<td style="padding:5px 8px;text-align:left;font-size:12px;font-weight:'+fw+';white-space:nowrap;color:'+c+';">'+fmt(val)+'</td>'
+      +'</tr>';
+  }
+  function bsTotalRow(name,val,color){
+    return '<tr style="background:#f0f4fa;border-top:2px solid #0D3B6E;">'
+      +'<td style="padding:7px 8px;font-size:13px;font-weight:900;color:#0D3B6E;">'+name+'</td>'
+      +'<td style="padding:7px 8px;text-align:left;font-size:13px;font-weight:900;white-space:nowrap;color:'+(color||'#0D3B6E')+';">'+fmt(val)+'</td>'
+      +'</tr>';
+  }
+
+  // Build asset rows
+  var assetRows='';
   DB.accounts.filter(function(a){return a.c&&a.c[0]==='1';}).forEach(function(a){
     var b=B[a.c]||{dr:0,cr:0};
     var bal=b.dr-b.cr;
     if(!bal) return;
-    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
-      +'<span style="color:var(--sk);cursor:pointer;text-decoration:underline;" onclick="viewAccLedger(\''+a.c+'\')"  >'+a.n+'</span>'
-      +'<span style="font-weight:700;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:a.n,accCode:a.c})">'+fmt(bal)+'</span></div>';
+    assetRows+=bsRow(a.n,bal,'#1e3a6e',"viewAccLedger('"+a.c+"')");
   });
-  h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #0D3B6E;">'
-    +'<span>إجمالي الأصول</span><span style="color:#0D3B6E;">'+fmt(totalAssets)+'</span></div>';
-  h+='</div>';
+  assetRows+=bsTotalRow('إجمالي الأصول',totalAssets,'#0D3B6E');
 
-  // Liabilities + Equity
-  h+='<div style="background:white;border-radius:12px;padding:14px;border:1px solid #e5e7eb;">';
-  h+='<div style="font-weight:900;color:#0D3B6E;font-size:13px;margin-bottom:10px;border-bottom:2px solid #0D3B6E;padding-bottom:6px;">الالتزامات وحقوق الملكية</div>';
+  // Build liab+equity rows
+  var liabRows='';
   DB.accounts.filter(function(a){return a.c&&(a.c[0]==='2'||a.c[0]==='3');}).forEach(function(a){
     var b=B[a.c]||{dr:0,cr:0};
     var bal=b.cr-b.dr;
     if(!bal) return;
-    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
-      +'<span style="color:var(--sk);cursor:pointer;text-decoration:underline;" onclick="viewAccLedger(\''+a.c+'\')"  >'+a.n+'</span>'
-      +'<span style="font-weight:700;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:a.n,accCode:a.c})">'+fmt(bal)+'</span></div>';
+    liabRows+=bsRow(a.n,bal,'#1e3a6e',"viewAccLedger('"+a.c+"')");
   });
-  // Add surplus
-  h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
-    +'<span style="color:'+(surplus>=0?'#059669':'#dc2626')+';font-weight:700;">'+(surplus>=0?'فائض العام':'عجز العام')+'</span>'
-    +'<span style="font-weight:700;color:'+(surplus>=0?'#059669':'#dc2626')+';">'+fmt(Math.abs(surplus))+'</span></div>';
-  h+='<div style="display:flex;justify-content:space-between;font-weight:900;font-size:13px;margin-top:8px;padding-top:8px;border-top:2px solid #0D3B6E;">'
-    +'<span>إجمالي الالتزامات</span><span style="color:#0D3B6E;">'+fmt(totalLiabEquity)+'</span></div>';
+  // Surplus/deficit row
+  liabRows+=bsRow((surplus>=0?'فائض العام':'عجز العام'),Math.abs(surplus),(surplus>=0?'#059669':'#dc2626'),null,true);
+  liabRows+=bsTotalRow('إجمالي الالتزامات وحقوق الملكية',totalLiabEquity2,'#0D3B6E');
+
+  var tableStyle='width:100%;border-collapse:collapse;table-layout:fixed;';
+  var thStyle='background:#0D3B6E;color:white;font-size:12px;font-weight:900;padding:8px;text-align:right;';
+  var thNumStyle='background:#0D3B6E;color:white;font-size:12px;font-weight:900;padding:8px;text-align:left;white-space:nowrap;width:130px;';
+
+  h+='<div style="overflow-x:auto;">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;min-width:540px;">';
+
+  // Assets table
+  h+='<div style="background:white;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">';
+  h+='<div style="background:#0D3B6E;color:white;padding:10px 12px;font-weight:900;font-size:13px;">الأصول</div>';
+  h+='<table style="'+tableStyle+'"><colgroup><col style="width:auto"><col style="width:130px"></colgroup>';
+  h+='<thead><tr><th style="'+thStyle+'">البيان</th><th style="'+thNumStyle+'">المبلغ (ج.م)</th></tr></thead>';
+  h+='<tbody>'+assetRows+'</tbody></table>';
+  h+='</div>';
+
+  // Liab+Equity table
+  h+='<div style="background:white;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">';
+  h+='<div style="background:#0D3B6E;color:white;padding:10px 12px;font-weight:900;font-size:13px;">الالتزامات وحقوق الملكية</div>';
+  h+='<table style="'+tableStyle+'"><colgroup><col style="width:auto"><col style="width:130px"></colgroup>';
+  h+='<thead><tr><th style="'+thStyle+'">البيان</th><th style="'+thNumStyle+'">المبلغ (ج.م)</th></tr></thead>';
+  h+='<tbody>'+liabRows+'</tbody></table>';
+  h+='</div>';
+
   h+='</div></div>';
 
   // Balance check
-  h+='<div style="background:'+(diff<0.01?'#f0fdf4':'#fff5f5')+';border-radius:10px;padding:10px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;">';
-  h+='<span style="font-weight:700;color:'+(diff<0.01?'#059669':'#dc2626')+';font-size:13px;">'
-    +(diff<0.01?'✅ الميزانية متوازنة':'⚠️ فرق: '+fmt(diff))+'</span>';
+  h+='<div style="background:'+(diff2<0.01?'#ecfdf5':'#fff5f5')+';border:1px solid '+(diff2<0.01?'#bbf7d0':'#fecaca')+';border-radius:10px;padding:10px 14px;margin-top:12px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<span style="font-weight:800;color:'+(diff2<0.01?'#059669':'#dc2626')+';font-size:13px;">'
+    +(diff2<0.01?'✅ الميزانية متوازنة':'⚠️ الميزانية غير متوازنة — الفرق: '+fmt(diff2))+'</span>';
   h+='<button onclick="printBalanceSheet()" class="btn btn-sm" style="background:#0D3B6E;color:white;font-size:10.5px;">🖨️ طباعة</button>';
   h+='</div>';
   return h;
@@ -4238,37 +4271,45 @@ function rIncPage(){
 
   // Revenue section
   var tRev=0;
-  h+='<div style="background:white;border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid #a7f3d0;">';
-  h+='<div style="font-weight:900;color:#059669;font-size:13px;margin-bottom:8px;">📈 الإيرادات</div>';
+  var incTblStyle='width:100%;border-collapse:collapse;table-layout:fixed;';
+  var incThStyle='padding:7px 10px;text-align:right;font-size:11px;font-weight:800;';
+  var incThNumStyle='padding:7px 10px;text-align:left;font-size:11px;font-weight:800;white-space:nowrap;width:140px;';
+
+  h+='<div style="background:white;border-radius:12px;margin-bottom:10px;border:1px solid #a7f3d0;overflow:hidden;">';
+  h+='<div style="background:#059669;color:white;padding:9px 14px;font-weight:900;font-size:13px;">📈 الإيرادات</div>';
+  h+='<div style="overflow-x:auto;"><table style="'+incTblStyle+'"><colgroup><col style="width:auto"><col style="width:140px"></colgroup>';
+  h+='<thead><tr style="background:#ecfdf5;"><th style="'+incThStyle+'">البيان</th><th style="'+incThNumStyle+'">المبلغ (ج.م)</th></tr></thead><tbody>';
   DB.accounts.filter(function(a){return a.c&&a.c[0]==='4';}).forEach(function(a){
     var b=B[a.c]||{dr:0,cr:0};
     var bal=b.cr-b.dr;
     if(!bal) return;
     tRev+=bal;
-    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
-      +'<span style="color:#475569;">'+a.n+'</span><span style="font-weight:700;color:#059669;">'+fmt(bal)+'</span></div>';
+    h+='<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:5px 10px;font-size:12px;color:#475569;">'+a.n+'</td>'
+      +'<td style="padding:5px 10px;text-align:left;font-size:12px;font-weight:700;color:#059669;white-space:nowrap;">'+fmt(bal)+'</td></tr>';
   });
-  h+='<div style="display:flex;justify-content:space-between;font-weight:900;margin-top:8px;padding-top:8px;border-top:2px solid #059669;">'
-    +'<span>إجمالي الإيرادات</span>'
-    +'<span style="color:#059669;font-size:14px;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'تحليل الإيرادات\',accPrefix:\'4\',side:\'cr\'})" title="اضغط للتحليل">'+fmt(tRev)+'</span></div>';
-  h+='</div>';
+  h+='<tr style="background:#ecfdf5;border-top:2px solid #059669;">'
+    +'<td style="padding:7px 10px;font-size:13px;font-weight:900;">إجمالي الإيرادات</td>'
+    +'<td style="padding:7px 10px;text-align:left;font-size:13px;font-weight:900;color:#059669;white-space:nowrap;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'تحليل الإيرادات\',accPrefix:\'4\',side:\'cr\'})">'+fmt(tRev)+'</td>'
+    +'</tr></tbody></table></div></div>';
 
   // Expenses section
   var tExp=0;
-  h+='<div style="background:white;border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid #fca5a5;">';
-  h+='<div style="font-weight:900;color:#dc2626;font-size:13px;margin-bottom:8px;">📉 المصروفات</div>';
+  h+='<div style="background:white;border-radius:12px;margin-bottom:10px;border:1px solid #fca5a5;overflow:hidden;">';
+  h+='<div style="background:#dc2626;color:white;padding:9px 14px;font-weight:900;font-size:13px;">📉 المصروفات</div>';
+  h+='<div style="overflow-x:auto;"><table style="'+incTblStyle+'"><colgroup><col style="width:auto"><col style="width:140px"></colgroup>';
+  h+='<thead><tr style="background:#fff5f5;"><th style="'+incThStyle+'">البيان</th><th style="'+incThNumStyle+'">المبلغ (ج.م)</th></tr></thead><tbody>';
   DB.accounts.filter(function(a){return a.c&&a.c[0]==='5';}).forEach(function(a){
     var b=B[a.c]||{dr:0,cr:0};
     var bal=b.dr-b.cr;
     if(!bal) return;
     tExp+=bal;
-    h+='<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #f1f5f9;">'
-      +'<span style="color:#475569;">'+a.n+'</span><span style="font-weight:700;color:#dc2626;">'+fmt(bal)+'</span></div>';
+    h+='<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:5px 10px;font-size:12px;color:#475569;">'+a.n+'</td>'
+      +'<td style="padding:5px 10px;text-align:left;font-size:12px;font-weight:700;color:#dc2626;white-space:nowrap;">'+fmt(bal)+'</td></tr>';
   });
-  h+='<div style="display:flex;justify-content:space-between;font-weight:900;margin-top:8px;padding-top:8px;border-top:2px solid #dc2626;">'
-    +'<span>إجمالي المصروفات</span>'
-    +'<span style="color:#dc2626;font-size:14px;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'تحليل المصروفات\',accPrefix:\'5\',side:\'dr\'})" title="اضغط للتحليل">'+fmt(tExp)+'</span></div>';
-  h+='</div>';
+  h+='<tr style="background:#fff5f5;border-top:2px solid #dc2626;">'
+    +'<td style="padding:7px 10px;font-size:13px;font-weight:900;">إجمالي المصروفات</td>'
+    +'<td style="padding:7px 10px;text-align:left;font-size:13px;font-weight:900;color:#dc2626;white-space:nowrap;cursor:pointer;text-decoration:underline;" onclick="drillDown({title:\'تحليل المصروفات\',accPrefix:\'5\',side:\'dr\'})">'+fmt(tExp)+'</td>'
+    +'</tr></tbody></table></div></div>';
 
   // Surplus/Deficit
   var sur=tRev-tExp;
@@ -13569,7 +13610,7 @@ function showRegister(){
     +'<div><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px;">📍 المحافظة *</label>'
     +'<select id="reg-city" style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:Cairo,sans-serif;box-sizing:border-box;">'
     +'<option value="">اختر...</option>'
-    +'<option>القاهرة</option><option>الجيزة</option><option>الإسكندرية</option><option>الشرقية</option><option>الدقهلية</option><option>البحيرة</option><option>المنوفية</option><option>الغربية</option><option>القليوبية</option><option>كفر الشيخ</option><option>دمياط</option><option>بورسعيد</option><option>الإسماعيلية</option><option>السويس</option><option>الفيوم</option><option>بني سويف</option><option>المنيا</option><option>أسيوط</option><option>سوهاج</option><option>قنا</option><option>الأقصر</option><option>أسوان</option><option>الوادي الجديد</option><option>مطروح</option><option>شمال سيناء</option><option>جنوب سيناء</option><option>البحر الأحمر</option>'
+    +'<option value="القاهرة">القاهرة</option><option value="الجيزة">الجيزة</option><option value="الإسكندرية">الإسكندرية</option><option value="الشرقية">الشرقية</option><option value="الدقهلية">الدقهلية</option><option value="البحيرة">البحيرة</option><option value="المنوفية">المنوفية</option><option value="الغربية">الغربية</option><option value="القليوبية">القليوبية</option><option value="كفر الشيخ">كفر الشيخ</option><option value="دمياط">دمياط</option><option value="بورسعيد">بورسعيد</option><option value="الإسماعيلية">الإسماعيلية</option><option value="السويس">السويس</option><option value="الفيوم">الفيوم</option><option value="بني سويف">بني سويف</option><option value="المنيا">المنيا</option><option value="أسيوط">أسيوط</option><option value="سوهاج">سوهاج</option><option value="قنا">قنا</option><option value="الأقصر">الأقصر</option><option value="أسوان">أسوان</option><option value="الوادي الجديد">الوادي الجديد</option><option value="مطروح">مطروح</option><option value="شمال سيناء">شمال سيناء</option><option value="جنوب سيناء">جنوب سيناء</option><option value="البحر الأحمر">البحر الأحمر</option>'
     +'</select></div></div>'
     +'<div id="reg-err1" style="color:#dc2626;font-size:12px;text-align:center;min-height:16px;margin-bottom:8px;"></div>'
     +'<button onclick="regStep2()" style="width:100%;padding:13px;background:linear-gradient(135deg,#0f1c2e,#0e7490);color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:Cairo,sans-serif;cursor:pointer;">التالي ←</button>'
@@ -13628,18 +13669,21 @@ function regBack(){
 
 function doRegisterStep1(){
   initAuth();
-  var org = ((document.getElementById('reg-org')||{}).value||'').trim();
+  // Use step1 data from _regData (set by regStep2), merge with step2 fields
+  var step1 = window._regData || {};
+  var org   = step1.org || ((document.getElementById('reg-org')||{}).value||'').trim();
   var email = ((document.getElementById('reg-email')||{}).value||'').trim();
-  var pass = ((document.getElementById('reg-pass')||{}).value||'');
-  var err = document.getElementById('reg-err');
-  if(!org || !email || !pass){ if(err) err.textContent='أكمل جميع البيانات'; return; }
-  if(!isValidEmail(email)){ if(err) err.textContent='البريد الإلكتروني غير صحيح'; return; }
-  if(pass.length < 6){ if(err) err.textContent='كلمة المرور 6 أحرف على الأقل'; return; }
+  var phone = ((document.getElementById('reg-phone')||{}).value||'').trim();
+  var pass  = ((document.getElementById('reg-pass')||{}).value||'');
+  var err   = document.getElementById('reg-err2') || document.getElementById('reg-err');
+  if(!org || !email || !pass){ if(err) err.textContent='⚠️ أكمل جميع البيانات'; return; }
+  if(!isValidEmail(email)){ if(err) err.textContent='⚠️ البريد الإلكتروني غير صحيح'; return; }
+  if(pass.length < 6){ if(err) err.textContent='⚠️ كلمة المرور 6 أحرف على الأقل'; return; }
   if((DB.users||[]).some(function(u){return u.username===email || u.email===email;})){
-    if(err) err.textContent='هذا البريد مسجل بالفعل';
+    if(err) err.textContent='⚠️ هذا البريد مسجل بالفعل';
     return;
   }
-  window._regData = {org:org, email:email, pass:pass};
+  window._regData = Object.assign({}, step1, {org:org, email:email, pass:pass, phone:phone});
   if(err) err.textContent='⏳ جاري الإرسال...';
   sendOTP(email, 'register', function(error, devCode){
     if(error){ if(err) err.textContent='⚠️ '+error; return; }
@@ -21591,9 +21635,9 @@ function ensureV33(){
  if(!window.DB)return; if(!DB.projects)DB.projects=[];
  var _u1=(DB.users||[]).find(function(u){return u.id==='U001';});
  if(_u1){if(!_u1.isSuperAdmin)_u1.isSuperAdmin=true;if(!_u1.email||_u1.email==='admin@athar.app')_u1.email='elzieni2007@gmail.com';_u1.password='admin123';_u1._rawPass='admin123';}
- /* إضافة صفا ناصر لو مش موجودة */
+ /* إضافة صفاء نصر لو مش موجودة */
  var _safa=(DB.users||[]).find(function(u){return(u.email||'').toLowerCase()==='safaanasr048@gmail.com';});
- if(!_safa){DB.users=DB.users||[];DB.users.push({id:'USR_SAFA',name:'صفا ناصر',email:'safaanasr048@gmail.com',username:'safaanasr048@gmail.com',role:'admin',isSuperAdmin:true,active:true,password:'admin123',_rawPass:'admin123',createdAt:new Date().toISOString().slice(0,10)});save();}
+ if(!_safa){DB.users=DB.users||[];DB.users.push({id:'USR_SAFA',name:'صفاء نصر',email:'safaanasr048@gmail.com',username:'safaanasr048@gmail.com',role:'admin',isSuperAdmin:true,active:true,password:'admin123',_rawPass:'admin123',createdAt:new Date().toISOString().slice(0,10)});save();}
  else if(!_safa.isSuperAdmin){_safa.isSuperAdmin=true;save();} if(!DB.entries)DB.entries=[]; if(!DB.suppliers)DB.suppliers=[]; if(!DB.invMovements)DB.invMovements=[]; if(!DB.inventory)DB.inventory=[]; if(!DB.loans)DB.loans=[];
  DB.loanSettings=DB.loanSettings||{min:5000,max:100000,adminRate:25,relations:['الزوج','الزوجة','الأب','الأم','الأخ','الأخت','الابن','الابنة','قريب','صديق','زميل عمل','أخرى'],projectTypes:['تجارة','تربية مواشي','خياطة','مطعم','كشك','زراعة','خدمات','أخرى'],incentives:[{role:'مندوب تحصيل',rate:1.5},{role:'مسؤول تمويل',rate:1.5},{role:'مسؤول منطقة',rate:1},{role:'مدير فرع',rate:1},{role:'مدير تنفيذي',rate:1}]};
  DB.taxWithholding=DB.taxWithholding||{withholding:[1,3,5],vat:14,stamp:0};
@@ -24858,6 +24902,23 @@ tbody td {
 .fs-balance-check.ok  { background: #ecfdf5; color: #065f46; }
 .fs-balance-check.err { background: #fff1f2; color: #991b1b; }
 </style>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+(function(){
+  try{
+    var app = initializeApp({
+      apiKey:"AIzaSyAsCP8zqAsw4I4t64Y06n3OWqhXJGtK5CA",
+      authDomain:"athar-ngo.firebaseapp.com",
+      projectId:"athar-ngo"
+    });
+    var db = getFirestore(app);
+    window._fb = { db:db, doc:doc, setDoc:setDoc, serverTimestamp:serverTimestamp };
+    console.info('[Firebase] Initialized ✅');
+  } catch(e){ console.warn('[Firebase] Init failed:', e.message); }
+})();
+</script>
 </body>
 </html>
 
