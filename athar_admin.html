@@ -110,6 +110,18 @@ tr:hover td{background:#fafafa}
     </div>
   </div>
 
+  <!-- Tabs -->
+  <div style="background:var(--ink);border-top:1px solid rgba(255,255,255,.1);display:flex;gap:0;padding:0 24px;">
+    <button onclick="showTab('orgs')" id="tab-orgs"
+      style="background:none;border:none;color:rgba(255,255,255,.6);padding:12px 18px;font-family:'Cairo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;">
+      🏛️ الجمعيات
+    </button>
+    <button onclick="showTab('feedback')" id="tab-feedback"
+      style="background:none;border:none;color:rgba(255,255,255,.6);padding:12px 18px;font-family:'Cairo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;">
+      ⭐ التقييمات
+    </button>
+  </div>
+
   <div class="main">
     <!-- Stats -->
     <div class="stats-grid">
@@ -141,6 +153,37 @@ tr:hover td{background:#fafafa}
         <div class="loading"><div class="spinner"></div><div style="margin-top:12px;font-size:13px;color:var(--muted)">جاري التحميل...</div></div>
       </div>
     </div>
+    <!-- Feedback Section -->
+    <div id="section-feedback" style="display:none;">
+      <div class="stats-grid" style="margin-bottom:28px;">
+        <div class="stat-card">
+          <div class="stat-num" id="fb-stat-total">-</div>
+          <div class="stat-lbl">إجمالي التقييمات</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-num" id="fb-stat-avg">-</div>
+          <div class="stat-lbl">متوسط التقييم</div>
+        </div>
+        <div class="stat-card gold">
+          <div class="stat-num" id="fb-stat-5">-</div>
+          <div class="stat-lbl">تقييم ممتاز ⭐⭐⭐⭐⭐</div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-num" id="fb-stat-low">-</div>
+          <div class="stat-lbl">تقييم ضعيف (1-2)</div>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">⭐ تقييمات الجمعيات</div>
+          <input class="search-box" placeholder="🔍 ابحث..." oninput="filterFeedback(this.value)">
+        </div>
+        <div id="feedback-container">
+          <div class="loading"><div class="spinner"></div><div style="margin-top:12px;font-size:13px;color:var(--muted)">جاري التحميل...</div></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -352,6 +395,98 @@ window.deleteOrg = async (id) => {
 document.getElementById('detail-modal').addEventListener('click', function(e){
   if(e.target === this) closeModal();
 });
+
+/* ── Tabs ── */
+let allFeedback = [];
+
+window.showTab = function(tab){
+  const isOrgs = tab === 'orgs';
+  // tab buttons
+  document.getElementById('tab-orgs').style.borderBottomColor     = isOrgs ? '#c8a84b' : 'transparent';
+  document.getElementById('tab-orgs').style.color                 = isOrgs ? 'white' : 'rgba(255,255,255,.6)';
+  document.getElementById('tab-feedback').style.borderBottomColor = !isOrgs ? '#c8a84b' : 'transparent';
+  document.getElementById('tab-feedback').style.color             = !isOrgs ? 'white' : 'rgba(255,255,255,.6)';
+  // sections
+  document.querySelector('.stats-grid').style.display             = isOrgs ? 'grid' : 'none';
+  document.querySelector('.table-card').style.display             = isOrgs ? 'block' : 'none';
+  document.getElementById('section-feedback').style.display       = isOrgs ? 'none' : 'block';
+  if(!isOrgs && !allFeedback.length) loadFeedback();
+};
+
+// Set initial active tab style
+document.getElementById('tab-orgs').style.borderBottomColor = '#c8a84b';
+document.getElementById('tab-orgs').style.color = 'white';
+
+/* ── Load Feedback ── */
+async function loadFeedback(){
+  try {
+    const { collection, getDocs, query, orderBy } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const q = query(collection(db,'feedback'), orderBy('submittedAt','desc'));
+    const snap = await getDocs(q);
+    allFeedback = snap.docs.map(d => ({id:d.id, ...d.data()}));
+    renderFeedbackStats();
+    renderFeedback(allFeedback);
+  } catch(e) {
+    document.getElementById('feedback-container').innerHTML =
+      '<div class="empty-state"><div>⚠️</div><div>' + e.message + '</div></div>';
+  }
+}
+
+function renderFeedbackStats(){
+  const total = allFeedback.length;
+  const avg   = total ? (allFeedback.reduce((s,f)=>s+(f.rating||0),0)/total).toFixed(1) : '-';
+  const five  = allFeedback.filter(f=>f.rating===5).length;
+  const low   = allFeedback.filter(f=>f.rating<=2).length;
+  document.getElementById('fb-stat-total').textContent = total;
+  document.getElementById('fb-stat-avg').textContent   = avg + (total?'★':'');
+  document.getElementById('fb-stat-5').textContent     = five;
+  document.getElementById('fb-stat-low').textContent   = low;
+}
+
+function starsHtml(r){
+  return '★'.repeat(r||0) + '☆'.repeat(5-(r||0));
+}
+
+function ratingColor(r){
+  if(r>=5) return '#059669';
+  if(r>=4) return '#0284c7';
+  if(r>=3) return '#d97706';
+  return '#dc2626';
+}
+
+function renderFeedback(list){
+  if(!list.length){
+    document.getElementById('feedback-container').innerHTML =
+      '<div class="empty-state"><div>⭐</div><div>لا توجد تقييمات بعد</div></div>';
+    return;
+  }
+  let html = '<table><thead><tr>'
+    +'<th>#</th><th>الجمعية</th><th>المحافظة</th><th>التقييم</th><th>التعليق</th><th>أيام التجربة</th><th>التاريخ</th>'
+    +'</tr></thead><tbody>';
+  list.forEach((f,i)=>{
+    const date = f.submittedAt ? new Date(f.submittedAt).toLocaleDateString('ar-EG') : '—';
+    const color = ratingColor(f.rating);
+    html += `<tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td><strong>${f.orgName||'—'}</strong><br><small style="color:var(--muted);font-size:11px">${f.email||''}</small></td>
+      <td><span class="city-badge">${f.city||'—'}</span></td>
+      <td><span style="color:${color};font-size:16px;font-weight:900;">${starsHtml(f.rating)}</span><br>
+          <small style="color:${color};font-weight:700;">${f.rating||0}/5</small></td>
+      <td style="max-width:200px;font-size:12px;color:#374151">${f.comment||'<span style="color:#94a3b8">لا يوجد</span>'}</td>
+      <td style="text-align:center;font-size:13px;font-weight:700;color:var(--teal)">${f.daysInTrial||0}</td>
+      <td style="font-size:12px;color:var(--muted)">${date}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('feedback-container').innerHTML = html;
+}
+
+window.filterFeedback = (q) => {
+  const filtered = allFeedback.filter(f=>
+    (f.orgName||'').includes(q)||(f.email||'').includes(q)||(f.comment||'').includes(q)
+  );
+  renderFeedback(filtered);
+};
 </script>
 </body>
 </html>
