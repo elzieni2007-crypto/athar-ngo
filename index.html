@@ -24932,6 +24932,168 @@ try {
   console.info('[Firebase] Initialized ✅');
 } catch(e) { console.warn('[Firebase] Init failed:', e.message); }
 </script>
+
+<!-- ════════════════════════════════════
+     WHATSAPP BUTTON + FEEDBACK POPUP
+════════════════════════════════════ -->
+
+<!-- زر واتساب ثابت -->
+<a id="wa-btn" href="https://wa.me/201061999169?text=السلام+عليكم،+أنا+مستخدم+نظام+أثر+ولدي+استفسار" 
+   target="_blank"
+   style="position:fixed;bottom:80px;left:16px;z-index:9999;
+          width:52px;height:52px;background:#25D366;border-radius:50%;
+          display:flex;align-items:center;justify-content:center;
+          box-shadow:0 4px 16px rgba(37,211,102,.5);
+          text-decoration:none;font-size:26px;transition:transform .2s;"
+   onmouseover="this.style.transform='scale(1.1)'"
+   onmouseout="this.style.transform='scale(1)'"
+   title="تواصل معنا على واتساب">💬</a>
+
+<!-- Feedback Popup -->
+<div id="feedback-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:20px;padding:28px 24px;width:100%;max-width:380px;box-shadow:0 24px 80px rgba(0,0,0,.3);position:relative;">
+    <button onclick="closeFeedback()" style="position:absolute;top:14px;left:14px;background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;">✕</button>
+    <div style="text-align:center;margin-bottom:18px;">
+      <div style="font-size:36px;margin-bottom:8px;">🌟</div>
+      <div style="font-family:'Tajawal',sans-serif;font-size:18px;font-weight:900;color:#0D3B6E;">رأيك يهمنا!</div>
+      <div style="font-size:12px;color:#64748b;margin-top:4px;">كيف تجد نظام أثر حتى الآن؟</div>
+    </div>
+
+    <!-- Star Rating -->
+    <div id="star-row" style="display:flex;justify-content:center;gap:10px;margin-bottom:18px;direction:ltr;">
+      <span class="fb-star" data-v="1" onclick="setRating(1)" style="font-size:34px;cursor:pointer;opacity:.35;transition:all .15s;">⭐</span>
+      <span class="fb-star" data-v="2" onclick="setRating(2)" style="font-size:34px;cursor:pointer;opacity:.35;transition:all .15s;">⭐</span>
+      <span class="fb-star" data-v="3" onclick="setRating(3)" style="font-size:34px;cursor:pointer;opacity:.35;transition:all .15s;">⭐</span>
+      <span class="fb-star" data-v="4" onclick="setRating(4)" style="font-size:34px;cursor:pointer;opacity:.35;transition:all .15s;">⭐</span>
+      <span class="fb-star" data-v="5" onclick="setRating(5)" style="font-size:34px;cursor:pointer;opacity:.35;transition:all .15s;">⭐</span>
+    </div>
+    <div id="fb-rating-label" style="text-align:center;font-size:13px;font-weight:700;color:#0D3B6E;min-height:20px;margin-bottom:14px;"></div>
+
+    <!-- Comment -->
+    <textarea id="fb-comment" placeholder="أي تعليق أو اقتراح؟ (اختياري)" 
+      style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:10px;
+             font-family:'Cairo',sans-serif;font-size:13px;resize:none;height:80px;
+             box-sizing:border-box;"></textarea>
+
+    <div id="fb-err" style="color:#dc2626;font-size:12px;text-align:center;min-height:16px;margin:6px 0;"></div>
+
+    <button onclick="submitFeedback()" 
+      style="width:100%;padding:13px;background:linear-gradient(135deg,#0D3B6E,#1e5fa8);
+             color:white;border:none;border-radius:10px;font-size:15px;font-weight:800;
+             font-family:'Cairo',sans-serif;cursor:pointer;margin-top:4px;">
+      إرسال التقييم ✓
+    </button>
+    <div style="text-align:center;margin-top:12px;">
+      <span onclick="closeFeedback(true)" style="font-size:12px;color:#94a3b8;cursor:pointer;text-decoration:underline;">تذكيرني لاحقاً</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  /* ── واتساب — رقم الموبايل ── */
+  var WA_NUMBER = '201061999169'; // ← غيّر الرقم ده
+
+  /* ── Feedback Logic ── */
+  var _fbRating = 0;
+  var RATINGS_LABELS = ['','ضعيف 😞','مقبول 😐','جيد 🙂','جيد جداً 😊','ممتاز 🤩'];
+
+  window.setRating = function(v){
+    _fbRating = v;
+    document.querySelectorAll('.fb-star').forEach(function(s){
+      s.style.opacity = parseInt(s.dataset.v) <= v ? '1' : '0.3';
+      s.style.transform = parseInt(s.dataset.v) <= v ? 'scale(1.15)' : 'scale(1)';
+    });
+    document.getElementById('fb-rating-label').textContent = RATINGS_LABELS[v] || '';
+  };
+
+  window.closeFeedback = function(remind){
+    document.getElementById('feedback-overlay').style.display = 'none';
+    if(remind){
+      // تذكير بعد 3 أيام
+      localStorage.setItem('_fbRemind', Date.now() + 3*24*3600*1000);
+    } else {
+      localStorage.setItem('_fbDone', '1');
+    }
+  };
+
+  window.submitFeedback = function(){
+    var err = document.getElementById('fb-err');
+    err.textContent = '';
+    if(!_fbRating){ err.textContent = '⚠️ اختر تقييماً أولاً'; return; }
+    var comment = (document.getElementById('fb-comment').value||'').trim();
+    var orgData = (function(){
+      try{ return JSON.parse(localStorage.getItem('athar_db')||'{}'); }catch(e){ return {}; }
+    })();
+    var org = orgData.org || {};
+
+    var data = {
+      rating: _fbRating,
+      comment: comment,
+      orgName: org.name || '—',
+      email: org.email || '—',
+      city: org.city || '—',
+      tenantId: org.tenantId || '—',
+      submittedAt: new Date().toISOString(),
+      daysInTrial: org.trialStart ? Math.floor((new Date()-new Date(org.trialStart))/86400000) : 0
+    };
+
+    // حفظ على Firebase
+    var fb = window._fb;
+    if(fb && fb.db){
+      fb.setDoc(fb.doc(fb.db, 'feedback', org.tenantId || ('fb_'+Date.now())), data)
+        .then(function(){ console.info('[Firebase] Feedback saved ✅'); })
+        .catch(function(e){ console.warn('[Firebase] Feedback error:', e.message); });
+    }
+
+    // إخفاء الـ popup وحفظ إنه اتعمل
+    localStorage.setItem('_fbDone', '1');
+    document.getElementById('feedback-overlay').style.display = 'none';
+
+    // شكر
+    setTimeout(function(){
+      alert('شكراً جزيلاً على تقييمك! 🙏 رأيك يساعدنا نحسّن النظام.');
+    }, 200);
+  };
+
+  /* ── تحقق هل يظهر الـ popup ── */
+  function checkFeedbackPopup(){
+    // مش هيظهر لو:
+    if(localStorage.getItem('_fbDone')) return;
+    var remind = localStorage.getItem('_fbRemind');
+    if(remind && Date.now() < parseInt(remind)) return;
+
+    // هيظهر بعد 7 أيام من التسجيل
+    try{
+      var db = JSON.parse(localStorage.getItem('athar_db')||'{}');
+      var trialStart = db.org && db.org.trialStart;
+      if(!trialStart) return;
+      var days = Math.floor((new Date() - new Date(trialStart)) / 86400000);
+      if(days >= 7){
+        setTimeout(function(){
+          document.getElementById('feedback-overlay').style.display = 'flex';
+        }, 3000); // بعد 3 ثواني من فتح النظام
+      }
+    }catch(e){}
+  }
+
+  // شيك بعد ما الصفحة تتحمل
+  window.addEventListener('load', function(){
+    setTimeout(checkFeedbackPopup, 1500);
+  });
+
+  // تحديث رقم الواتساب في الزر
+  var waBtn = document.getElementById('wa-btn');
+  if(waBtn){
+    try{
+      var dbOrg = JSON.parse(localStorage.getItem('athar_db')||'{}').org || {};
+      var msg = encodeURIComponent('السلام عليكم، أنا ' + (dbOrg.name||'مستخدم نظام أثر') + ' ولدي استفسار');
+      waBtn.href = 'https://wa.me/' + WA_NUMBER + '?text=' + msg;
+    }catch(e){}
+  }
+})();
+</script>
+
 </body>
 </html>
 
