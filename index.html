@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>أثر v3.1 | للحلول المالية</title>
+<!-- ATHAR SECURITY PHASE 1.1: live baseline + non-breaking feedback fix; auth unchanged -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&family=Tajawal:wght@700;900&display=swap" rel="stylesheet">
@@ -24998,6 +24999,14 @@ try {
   var _fbRating = 0;
   var RATINGS_LABELS = ['','ضعيف 😞','مقبول 😐','جيد 🙂','جيد جداً 😊','ممتاز 🤩'];
 
+  function getFeedbackDB(){
+    try{
+      if(window.DB && window.DB.org) return window.DB;
+      var raw = localStorage.getItem('athar') || localStorage.getItem('athar_db') || '{}';
+      return JSON.parse(raw);
+    }catch(e){ return {}; }
+  }
+
   window.setRating = function(v){
     _fbRating = v;
     document.querySelectorAll('.fb-star').forEach(function(s){
@@ -25022,9 +25031,7 @@ try {
     err.textContent = '';
     if(!_fbRating){ err.textContent = '⚠️ اختر تقييماً أولاً'; return; }
     var comment = (document.getElementById('fb-comment').value||'').trim();
-    var orgData = (function(){
-      try{ return JSON.parse(localStorage.getItem('athar_db')||'{}'); }catch(e){ return {}; }
-    })();
+    var orgData = getFeedbackDB();
     var org = orgData.org || {};
 
     var data = {
@@ -25038,22 +25045,27 @@ try {
       daysInTrial: org.trialStart ? Math.floor((new Date()-new Date(org.trialStart))/86400000) : 0
     };
 
-    // حفظ على Firebase
+    // حفظ على Firebase — لا نعتبر التقييم مُرسلاً إلا بعد نجاح الحفظ
     var fb = window._fb;
-    if(fb && fb.db){
-      fb.setDoc(fb.doc(fb.db, 'feedback', org.tenantId || ('fb_'+Date.now())), data)
-        .then(function(){ console.info('[Firebase] Feedback saved ✅'); })
-        .catch(function(e){ console.warn('[Firebase] Feedback error:', e.message); });
+    if(!(fb && fb.db)){
+      err.textContent = '⚠️ تعذر الاتصال بخدمة التقييم — حاول مرة أخرى بعد قليل';
+      return;
     }
-
-    // إخفاء الـ popup وحفظ إنه اتعمل
-    localStorage.setItem('_fbDone', '1');
-    document.getElementById('feedback-overlay').style.display = 'none';
-
-    // شكر
-    setTimeout(function(){
-      alert('شكراً جزيلاً على تقييمك! 🙏 رأيك يساعدنا نحسّن النظام.');
-    }, 200);
+    var feedbackId = (org.tenantId || 'anonymous') + '_' + Date.now();
+    data.sourceVersion = 'phase1.1-live-auth';
+    fb.setDoc(fb.doc(fb.db, 'feedback', feedbackId), data)
+      .then(function(){
+        console.info('[Firebase] Feedback saved ✅');
+        localStorage.setItem('_fbDone', '1');
+        document.getElementById('feedback-overlay').style.display = 'none';
+        setTimeout(function(){
+          alert('شكراً جزيلاً على تقييمك! 🙏 رأيك يساعدنا نحسّن النظام.');
+        }, 200);
+      })
+      .catch(function(e){
+        console.warn('[Firebase] Feedback error:', e.message);
+        err.textContent = '⚠️ لم يتم إرسال التقييم. حاول مرة أخرى.';
+      });
   };
 
   /* ── تحقق هل يظهر الـ popup ── */
@@ -25065,7 +25077,7 @@ try {
 
     // هيظهر بعد 7 أيام من التسجيل
     try{
-      var db = JSON.parse(localStorage.getItem('athar_db')||'{}');
+      var db = getFeedbackDB();
       var trialStart = db.org && db.org.trialStart;
       if(!trialStart) return;
       var days = Math.floor((new Date() - new Date(trialStart)) / 86400000);
@@ -25086,7 +25098,7 @@ try {
   var waBtn = document.getElementById('wa-btn');
   if(waBtn){
     try{
-      var dbOrg = JSON.parse(localStorage.getItem('athar_db')||'{}').org || {};
+      var dbOrg = (getFeedbackDB().org||{});
       var msg = encodeURIComponent('السلام عليكم، أنا ' + (dbOrg.name||'مستخدم نظام أثر') + ' ولدي استفسار');
       waBtn.href = 'https://wa.me/' + WA_NUMBER + '?text=' + msg;
     }catch(e){}
