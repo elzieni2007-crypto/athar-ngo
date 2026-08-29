@@ -6758,7 +6758,7 @@ function rForm41Page(){
       h+='<div style="background:white;border-radius:10px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.06);">';
       h+='<div>';
       h+='<div style="font-weight:700;font-size:12px;">الربع '+qNames[f.quarter-1]+' — '+f.year+'</div>';
-      h+='<div style="font-size:10.5px;color:var(--g4);">'+f.rows.length+' معاملة · إجمالي الخصم: '+fmt(f.totalWHT)+' ج.م</div>';
+      h+='<div style="font-size:10.5px;color:var(--g4);">'+((Array.isArray(f.rows)?f.rows:[]).length)+' معاملة · إجمالي الخصم: '+fmt(f.totalWHT||0)+' ج.م</div>';
       h+='</div>';
       h+='<div style="display:flex;gap:5px;">';
       h+='<button onclick="printForm41(\''+f.id+'\')" style="background:var(--am);border:none;color:white;border-radius:7px;padding:5px 10px;font-size:10px;cursor:pointer;">🖨️ طباعة</button>';
@@ -25106,7 +25106,69 @@ try {
 })();
 </script>
 
-</body>
+\n<script>
+/* ================================================================
+   ATHAR Form 41 compatibility hotfix — 2026-08-29
+   Keeps generated Form 41 reports in DB.form41 and moves transaction
+   withholding records created by later journal patches to DB.whtPayments.
+   This prevents legacy rForm41Page() from reading .rows.length on
+   transaction records that do not contain a rows array.
+   ================================================================ */
+(function(){
+  function repairForm41Storage(){
+    try{
+      if(!window.DB) return false;
+      DB.form41 = Array.isArray(DB.form41) ? DB.form41 : [];
+      DB.whtPayments = Array.isArray(DB.whtPayments) ? DB.whtPayments : [];
+      var keep=[], moved=0;
+      DB.form41.forEach(function(x){
+        if(!x || typeof x!=='object') return;
+        if(Array.isArray(x.rows)){
+          keep.push(x);
+          return;
+        }
+        // Later journal patches stored individual WHT transactions in form41.
+        // Preserve them in the dedicated WHT transaction register instead.
+        if(x.entryId || x.taxAmount!=null || x.supplierId || x.txType){
+          var exists=DB.whtPayments.some(function(w){
+            return (x.id && w.id===x.id) || (x.entryId && w.entryId===x.entryId && Number(w.taxAmount||0)===Number(x.taxAmount||0));
+          });
+          if(!exists) DB.whtPayments.push(x);
+          moved++;
+          return;
+        }
+        // Unknown legacy record: keep it harmlessly normalized so the page can open.
+        x.rows=[];
+        x.totalWHT=Number(x.totalWHT||0);
+        keep.push(x);
+      });
+      if(moved || keep.length!==DB.form41.length){
+        DB.form41=keep;
+        if(typeof save==='function') save();
+      }
+      return true;
+    }catch(e){
+      console.warn('Form41 storage repair skipped',e);
+      return false;
+    }
+  }
+
+  window.repairForm41Storage=repairForm41Storage;
+
+  // Run once after the app/database has had a chance to initialize.
+  setTimeout(repairForm41Storage,250);
+
+  // Always repair immediately before opening Form 41.
+  if(typeof window.rForm41Page==='function' && !window.__ATHAR_F41_COMPAT_FIX__){
+    window.__ATHAR_F41_COMPAT_FIX__=true;
+    var _f41Page=window.rForm41Page;
+    window.rForm41Page=function(){
+      repairForm41Storage();
+      return _f41Page.apply(this,arguments);
+    };
+  }
+})();
+</script>\n</body>
 </html>
 
 <script>
